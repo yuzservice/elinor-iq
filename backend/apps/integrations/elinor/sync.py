@@ -12,7 +12,7 @@ from apps.products.models import Product, Variant
 from apps.sales.models import Order, OrderItem, PosSale, PosSaleItem, STORE_SALES_LINE, Store
 
 from .client import ElinorApiError, ElinorClient
-from .gateway_payments import upsert_order_gateway_payments
+from .gateway_payments import extract_order_payment_rows, upsert_order_gateway_payments
 from .models import SyncCursor, SyncRun
 from .parsers import as_bool, as_int, extract_list, extract_object, parse_datetime
 
@@ -641,14 +641,20 @@ class SyncService:
             order.items_count = as_int(detail.get("items_count"), len(items) or order.items_count)
             if "is_shopino" in detail:
                 order.is_shopino = as_bool(detail.get("is_shopino"))
-            order.source_payload = detail
+            payment_detail = detail
+            if not extract_order_payment_rows(order.source_id, detail):
+                invoices = self.client.get_order_invoices(order.source_id)
+                if invoices:
+                    payment_detail = dict(detail)
+                    payment_detail["invoices"] = invoices
+            order.source_payload = payment_detail
             customer_source_id = as_int(detail.get("customer_id"), default=None)
             if customer_source_id and not order.customer_id:
                 customer, _ = Customer.objects.get_or_create(source_id=customer_source_id)
                 order.customer = customer
             for item in items:
                 self._upsert_item(order, item)
-            upserted = upsert_order_gateway_payments(order, detail)
+            upserted = upsert_order_gateway_payments(order, payment_detail)
             self._gateway_payments_upserted += upserted
             order.details_synced_at = timezone.now()
             order.save()

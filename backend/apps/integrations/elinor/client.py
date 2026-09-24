@@ -90,6 +90,32 @@ class ElinorClient:
         data = unwrap_data(payload)
         return extract_object(data, ("order", "orders"))
 
+    def get_order_invoices(self, order_id):
+        attempts = (
+            (f"/admin/orders/{order_id}/invoices", {}),
+            ("/admin/invoices", {"payable_id": order_id}),
+            ("/admin/invoices", {"order_id": order_id}),
+            (
+                "/admin/invoices",
+                {
+                    "payable_id": order_id,
+                    "payable_type": "Modules\\Order\\Entities\\Order",
+                },
+            ),
+        )
+        for path, params in attempts:
+            try:
+                payload = self._request("GET", path, params=params)
+            except ElinorApiError:
+                continue
+            data = unwrap_data(payload)
+            rows = extract_list(data, ("invoices", "invoice", "data"))
+            if rows:
+                return rows
+            if isinstance(data, list) and data:
+                return data
+        return []
+
     def get_customer(self, customer_id):
         payload = self._request("GET", f"/admin/customers/{customer_id}")
         data = unwrap_data(payload)

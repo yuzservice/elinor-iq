@@ -26,6 +26,30 @@ def payment_paid_at(*, success_at, invoice_updated_at, payment_created_at, invoi
     )
 
 
+def _collect_invoice_dicts(node, depth=0):
+    if depth > 5:
+        return []
+    if isinstance(node, list):
+        collected = []
+        for item in node:
+            collected.extend(_collect_invoice_dicts(item, depth + 1))
+        return collected
+    if not isinstance(node, dict):
+        return []
+
+    collected = []
+    for key in ("invoices", "invoice", "order_invoices", "orderInvoices"):
+        value = node.get(key)
+        if isinstance(value, list):
+            collected.extend(item for item in value if isinstance(item, dict))
+        elif isinstance(value, dict):
+            collected.append(value)
+    for value in node.values():
+        if isinstance(value, (dict, list)):
+            collected.extend(_collect_invoice_dicts(value, depth + 1))
+    return collected
+
+
 def extract_order_payment_rows(order_source_id, detail):
     if not isinstance(detail, dict):
         return []
@@ -71,10 +95,16 @@ def extract_order_payment_rows(order_source_id, detail):
             }
         )
 
-    invoices = extract_list(detail, ("invoices", "order_invoices", "orderInvoices"))
-    single_invoice = detail.get("invoice")
-    if isinstance(single_invoice, dict):
-        invoices = [single_invoice, *invoices]
+    invoices = _collect_invoice_dicts(detail)
+    seen_invoice_ids = set()
+    deduped = []
+    for invoice in invoices:
+        inv_id = as_int(invoice.get("id"), default=None)
+        if not inv_id or inv_id in seen_invoice_ids:
+            continue
+        seen_invoice_ids.add(inv_id)
+        deduped.append(invoice)
+    invoices = deduped
 
     for invoice in invoices:
         if not isinstance(invoice, dict):

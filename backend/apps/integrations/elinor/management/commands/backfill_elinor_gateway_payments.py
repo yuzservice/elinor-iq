@@ -9,11 +9,15 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--limit", type=int, default=5000)
-        parser.add_argument("--only-missing-details", action="store_true")
+        parser.add_argument(
+            "--include-light",
+            action="store_true",
+            help="Also scan orders_light payloads (usually no invoice data).",
+        )
 
     def handle(self, *args, **options):
         qs = Order.objects.exclude(source_payload__isnull=True).order_by("-created_at")
-        if options["only_missing_details"]:
+        if not options["include_light"]:
             qs = qs.filter(details_synced_at__isnull=False)
         limit = max(1, options["limit"])
         total_rows = 0
