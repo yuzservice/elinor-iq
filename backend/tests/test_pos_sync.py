@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -122,7 +122,10 @@ def test_pos_window_restarts_from_sql_cutoff_not_latest_sale():
     assert start == POS_SQL_CUTOFF
     assert end == timezone.localdate()
     resumed, _end = pos_window({"next_date": "2026-09-18"})
-    assert resumed.isoformat() == "2026-09-17"
+    assert resumed.isoformat() == "2026-09-18"
+    today = timezone.localdate().isoformat()
+    caught_up, _end = pos_window({"next_date": today})
+    assert caught_up == max(POS_SQL_CUTOFF, timezone.localdate() - timedelta(days=1))
 
 
 def test_explicit_pos_range_resumes_unfinished_day():

@@ -28,7 +28,7 @@ MAX_REQUESTS_PER_RUN = int(getattr(settings, "ELINOR_SYNC_MAX_REQUESTS", 900))
 HOURLY_ONLINE_DETAILS_LIMIT = int(getattr(settings, "ELINOR_SYNC_HOURLY_ONLINE_DETAILS_LIMIT", "250"))
 HOURLY_POS_LOOKBACK_DAYS = int(getattr(settings, "ELINOR_SYNC_HOURLY_POS_DAYS", "3"))
 HOURLY_POS_MAX_SALES = int(getattr(settings, "ELINOR_SYNC_HOURLY_POS_MAX_SALES", "300"))
-SYNC_STALE_MINUTES = 5
+SYNC_STALE_MINUTES = 20
 
 
 def _nullable_amount(value):
@@ -38,14 +38,21 @@ def _nullable_amount(value):
 
 
 def clear_stuck_sync_runs(*, minutes=0):
-    qs = SyncRun.objects.filter(status=SyncRun.STATUS_RUNNING)
-    if minutes:
-        qs = qs.filter(started_at__lt=timezone.now() - timedelta(minutes=minutes))
-    return qs.update(
-        status=SyncRun.STATUS_FAILED,
-        finished_at=timezone.now(),
-        error_message="Cleared stuck sync run.",
-    )
+    now = timezone.now()
+    cutoff = now - timedelta(minutes=minutes) if minutes else None
+    cleared = 0
+    for run in SyncRun.objects.filter(status=SyncRun.STATUS_RUNNING):
+        if cutoff is not None and run.started_at >= cutoff:
+            continue
+        heartbeat = parse_datetime((run.report or {}).get("heartbeat"))
+        if cutoff is not None and heartbeat and heartbeat >= cutoff:
+            continue
+        run.status = SyncRun.STATUS_FAILED
+        run.finished_at = now
+        run.error_message = "Cleared stuck sync run."
+        run.save(update_fields=["status", "finished_at", "error_message"])
+        cleared += 1
+    return cleared
 
 
 def bootstrap_window():
@@ -92,7 +99,12 @@ def pos_window(cursor_value=None):
         except ValueError:
             next_date = None
         if next_date and POS_SQL_CUTOFF <= next_date <= end:
-            start = max(POS_SQL_CUTOFF, next_date - timedelta(days=POS_OVERLAP_DAYS))
+            # Rewinding a day while a backlog remains makes every hourly run
+            # repeat the same sales and never reach the missing days.
+            if next_date < end:
+                start = next_date
+            else:
+                start = max(POS_SQL_CUTOFF, next_date - timedelta(days=POS_OVERLAP_DAYS))
     if start > end:
         start = end
     return start, end
@@ -461,6 +473,7 @@ class SyncService:
             day_count = 0
             day_complete = True
             while page <= last_page:
+                self._touch_heartbeat()
                 if self.client.requests_made >= MAX_REQUESTS_PER_RUN:
                     self._save_pos_cursor(cursor, day, start_date, end_date)
                     self._finish(
@@ -862,8 +875,17 @@ class SyncService:
             )
         logger.info("Customer order stats refreshed for %s customers.", len(combined))
 
-    def _persist_progress(self):
+    def _touch_heartbeat(self):
+        if not self.run:
+            return
+        report = dict(self.run.report or {})
+        report["heartbeat"] = timezone.now().isoformat()
+        self.run.report = report
         self.run.requests_made = self.client.requests_made
+        self.run.save(update_fields=["report", "requests_made"])
+
+    def _persist_progress(self):
+        self._touch_heartbeat()
         self.run.save(
             update_fields=[
                 "requests_made",
@@ -873,6 +895,7 @@ class SyncService:
                 "customers_upserted",
                 "products_upserted",
                 "variants_upserted",
+                "report",
             ]
         )
 
