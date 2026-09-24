@@ -206,6 +206,27 @@ def test_trend_aggregation_daily_weekly_monthly():
 
     monthly = overview_trend_points(start, end, None, "monthly")
     assert sum(point["purchase_count"] for point in monthly) == 3
+    assert all("amount" in point for point in monthly)
+
+
+@pytest.mark.django_db
+def test_monthly_trend_tolerates_orphan_pos_items():
+    customer = _customer()
+    product = Product.objects.create(source_id=999, title="کالا")
+    PosSaleItem.objects.create(
+        source_id=9003,
+        pos_sale=None,
+        product=product,
+        quantity=1,
+        amount=100_000,
+        type="sell",
+    )
+
+    start = timezone.now() - timedelta(days=60)
+    end = timezone.now() + timedelta(days=1)
+    monthly = overview_trend_points(start, end, None, "monthly")
+    assert isinstance(monthly, list)
+    assert all("amount" in point for point in monthly)
 
 
 @pytest.mark.django_db

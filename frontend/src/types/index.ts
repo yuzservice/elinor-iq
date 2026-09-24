@@ -8,6 +8,8 @@ export type User = {
 export type WindowMeta = {
   start: string;
   end: string;
+  from?: string;
+  to?: string;
   label: string;
 };
 

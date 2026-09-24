@@ -1,10 +1,13 @@
 """Sales analysis v1 — branch comparison, trends, products, returns."""
 
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from django.db.models import Count, Exists, F, Max, OuterRef, Q, Sum, Value
 from django.db.models.functions import Coalesce, ExtractHour, TruncDate
 from django.utils import timezone
+
+TEHRAN = ZoneInfo("Asia/Tehran")
 
 from apps.core.dates import format_jalali_date
 from apps.sales.models import OrderItem, PosSale, PosSaleItem, SalesLine
@@ -44,7 +47,8 @@ def _empty_trend_bucket():
 
 
 def _pos_line_total_expr():
-    return Coalesce(F("amount"), Value(0)) * Coalesce(F("quantity"), Value(0))
+    line_from_parts = Coalesce(F("amount"), Value(0)) * Coalesce(F("quantity"), Value(0))
+    return Coalesce(F("real_amount"), line_from_parts)
 
 
 def parse_trend_group(raw):
@@ -331,7 +335,7 @@ def _accumulate_daily_purchases(buckets, start, end, sales_line):
         qualifying_online_orders().filter(created_at__gte=start, created_at__lt=end),
         sales_line,
     )
-    for row in online_qs.annotate(day=TruncDate("created_at")).values("day").annotate(
+    for row in online_qs.annotate(day=TruncDate("created_at", tzinfo=TEHRAN)).values("day").annotate(
         purchase_count=Count("id")
     ):
         iso = row["day"].isoformat()
@@ -341,7 +345,7 @@ def _accumulate_daily_purchases(buckets, start, end, sales_line):
         qualifying_pos_sales().filter(created_at__gte=start, created_at__lt=end),
         sales_line,
     )
-    for row in pos_qs.annotate(day=TruncDate("created_at")).values("day").annotate(
+    for row in pos_qs.annotate(day=TruncDate("created_at", tzinfo=TEHRAN)).values("day").annotate(
         purchase_count=Count("id")
     ):
         iso = row["day"].isoformat()
@@ -353,7 +357,7 @@ def _accumulate_daily_amounts(buckets, start, end, sales_line):
         online_order_value_orders().filter(created_at__gte=start, created_at__lt=end),
         sales_line,
     )
-    for row in online_qs.annotate(day=TruncDate("created_at")).values("day").annotate(
+    for row in online_qs.annotate(day=TruncDate("created_at", tzinfo=TEHRAN)).values("day").annotate(
         amount=Sum("total_amount")
     ):
         iso = row["day"].isoformat()
@@ -363,7 +367,7 @@ def _accumulate_daily_amounts(buckets, start, end, sales_line):
         qualifying_pos_items().filter(pos_sale__created_at__gte=start, pos_sale__created_at__lt=end),
         sales_line,
     )
-    for row in pos_items.annotate(day=TruncDate("pos_sale__created_at")).values("day").annotate(
+    for row in pos_items.annotate(day=TruncDate("pos_sale__created_at", tzinfo=TEHRAN)).values("day").annotate(
         amount=Sum(_pos_line_total_expr())
     ):
         iso = row["day"].isoformat()
@@ -380,14 +384,21 @@ def _accumulate_period_amounts(buckets, start, end, sales_line, group):
         buckets.setdefault(iso, _empty_trend_bucket())["amount"] += int(row.total_amount or 0)
 
     pos_items = filter_by_sales_line_pos(
-        qualifying_pos_items().filter(pos_sale__created_at__gte=start, pos_sale__created_at__lt=end),
+        qualifying_pos_items().filter(
+            pos_sale__created_at__gte=start,
+            pos_sale__created_at__lt=end,
+            pos_sale__isnull=False,
+        ),
         sales_line,
     )
-    for row in pos_items.select_related("pos_sale").only("amount", "quantity", "pos_sale__created_at"):
-        iso = _bucket_key(timezone.localtime(row.pos_sale.created_at), group)["iso"]
-        buckets.setdefault(iso, _empty_trend_bucket())["amount"] += int(
-            (row.amount or 0) * (row.quantity or 0)
-        )
+    for row in pos_items.values("pos_sale_id", "pos_sale__created_at").annotate(
+        total=Sum(_pos_line_total_expr())
+    ):
+        created_at = row["pos_sale__created_at"]
+        if not created_at:
+            continue
+        iso = _bucket_key(timezone.localtime(created_at), group)["iso"]
+        buckets.setdefault(iso, _empty_trend_bucket())["amount"] += int(row["total"] or 0)
 
 
 def _accumulate_hourly_purchases(buckets, start, end, sales_line):

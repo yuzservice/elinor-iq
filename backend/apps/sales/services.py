@@ -75,9 +75,13 @@ def parse_group(request):
 
 
 def window_meta(start, end):
+    start_local = timezone.localtime(start)
+    end_local = timezone.localtime(end)
     return {
         "start": start,
         "end": end,
+        "from": start_local.date().isoformat(),
+        "to": end_local.date().isoformat(),
         "label": f"{format_jalali_date(start, long=True)} تا {format_jalali_date(end, long=True)}",
         "data_coverage": coverage_payload(),
     }

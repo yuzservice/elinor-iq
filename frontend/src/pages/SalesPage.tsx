@@ -117,8 +117,8 @@ export function SalesPage() {
   const defaultRange = useMemo(() => {
     if (!activeWindow) return range;
     return {
-      from: range.from || toInputDate(activeWindow.start),
-      to: range.to || toInputDate(activeWindow.end),
+      from: range.from || activeWindow.from || toInputDate(activeWindow.start),
+      to: range.to || activeWindow.to || toInputDate(activeWindow.end),
     };
   }, [activeWindow, range]);
 

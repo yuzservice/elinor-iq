@@ -36,8 +36,8 @@ export function HomePage() {
   const { data, loading, error } = useApi(() => homeService.summary(period), [period]);
   const range = useMemo(
     () => ({
-      from: data ? toInputDate(data.window.start) : "",
-      to: data ? toInputDate(data.window.end) : "",
+      from: data ? data.window.from || toInputDate(data.window.start) : "",
+      to: data ? data.window.to || toInputDate(data.window.end) : "",
     }),
     [data],
   );
