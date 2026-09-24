@@ -121,7 +121,7 @@ export function JalaliDateField({
         type="button"
         onClick={() => setOpen((current) => !current)}
         className={`rounded-xl border border-line bg-elevated px-3 tabular text-ink ${
-          compact ? "h-9 min-w-[7.25rem] text-xs" : "h-10 min-w-[8.5rem] text-sm"
+          compact ? "h-9 w-[7.5rem] whitespace-nowrap text-xs" : "h-10 min-w-[8.5rem] whitespace-nowrap text-sm"
         }`}
         aria-label="انتخاب تاریخ شمسی"
       >

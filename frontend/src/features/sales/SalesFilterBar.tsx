@@ -50,7 +50,7 @@ function DateRangeFields({
   allowEmpty?: boolean;
 }) {
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+    <div className="flex flex-nowrap items-center gap-1.5">
       <span className="shrink-0 text-[11px] text-muted">از</span>
       <JalaliDateField
         value={from}
@@ -80,7 +80,7 @@ function DateRangeBlock({
 }) {
   return (
     <div
-      className={`flex min-w-0 items-center rounded-full border px-2 py-1 ${
+      className={`inline-flex w-max max-w-full shrink-0 items-center rounded-full border px-2 py-1 ${
         active ? "border-accent/40 bg-accent/5" : "border-line/80 bg-elevated/70"
       }`}
     >
@@ -125,8 +125,8 @@ export function SalesFilterBar({
       className="rounded-[20px] border border-line bg-surface px-3 py-2.5 shadow-soft sm:px-4 sm:py-3"
       aria-label="فیلترهای نمای کلی فروش"
     >
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-12 xl:items-center xl:gap-2">
-        <div className="min-w-0 sm:col-span-2 xl:col-span-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="w-full sm:w-auto">
           <DateRangeBlock active={Boolean(values.from || values.to)}>
             <DateRangeFields
               from={values.from}
@@ -143,7 +143,7 @@ export function SalesFilterBar({
           options={resolvedOptions.branches}
           value={values.branches}
           disabled={branchDisabled || loading}
-          className="sm:col-span-1 xl:col-span-2"
+          className="w-full sm:w-auto sm:min-w-[9.5rem]"
           onChange={(branches) => onChange({ branches })}
         />
 
@@ -153,7 +153,7 @@ export function SalesFilterBar({
           options={resolvedOptions.channels}
           value={values.channels}
           disabled={loading}
-          className="sm:col-span-1 xl:col-span-2"
+          className="w-full sm:w-auto sm:min-w-[9.5rem]"
           onChange={(channels) => {
             const onlineOnly =
               channels.length > 0 &&
@@ -172,11 +172,11 @@ export function SalesFilterBar({
           options={resolvedOptions.payment_methods}
           value={values.payments}
           disabled={loading}
-          className="sm:col-span-2 xl:col-span-2"
+          className="w-full sm:w-auto sm:min-w-[11rem]"
           onChange={(payments) => onChange({ payments })}
         />
 
-        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:col-span-2 xl:col-span-3 xl:justify-end">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:ms-auto sm:w-auto">
           {showTrendGroup && onTrendGroupChange ? (
             <select
               value={trendGroup}
