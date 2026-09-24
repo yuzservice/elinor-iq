@@ -25,6 +25,16 @@ if ! docker compose up -d --build --force-recreate; then
   echo "ساخت ایمیج از داکرهاب ناموفق بود. سرویس‌ها با ایمیج‌های موجود دوباره بالا می‌آیند..."
   docker compose up -d --force-recreate --no-build --pull never
 fi
-./scripts/ensure-https.sh
+
+domain=""
+if [[ -f .env ]]; then
+  domain="$(grep -E '^DOMAIN=' .env | head -1 | cut -d= -f2- || true)"
+fi
+cert="docker/certbot/conf/live/${domain}/fullchain.pem"
+if [[ -n "$domain" && -f "$cert" ]]; then
+  echo "گواهی SSL برای ${domain} موجود است و دوباره گرفته نمی‌شود."
+else
+  ./scripts/ensure-https.sh
+fi
 
 echo "آپدیت تمام شد."
