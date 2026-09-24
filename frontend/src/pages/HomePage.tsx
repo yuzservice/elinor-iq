@@ -55,12 +55,16 @@ export function HomePage() {
     });
   }, [data?.recent_orders, query, statusFilter]);
 
-  if (error && !data) return <ErrorState />;
-
-  const points = (trend.data?.trend?.points || []).slice(-12);
+  const allPoints = trend.data?.trend?.points || [];
+  const points = useMemo(() => {
+    if (group === "monthly") return allPoints;
+    return allPoints.length > 31 ? allPoints.slice(-31) : allPoints;
+  }, [allPoints, group]);
   const gauge = buildGauge(data?.metric_cards || []);
   const salesAmountCard = data?.metric_cards?.find((card) => card.key === "sales_amount");
-  const trendAmountTotal = points.reduce((sum, point) => sum + (point.amount || 0), 0);
+  const trendAmountTotal = trend.error ? null : points.reduce((sum, point) => sum + (point.amount || 0), 0);
+
+  if (error && !data) return <ErrorState />;
 
   return (
     <div className="space-y-5">
@@ -93,7 +97,7 @@ export function HomePage() {
               <h2 className="text-[15px] font-semibold text-ink">بینش فروش</h2>
               <div className="mt-3 flex flex-wrap items-center gap-3">
                 <div className="tabular text-[32px] font-semibold leading-none text-ink">
-                  {formatToman(trendAmountTotal)}
+                  {trendAmountTotal == null ? "—" : formatToman(trendAmountTotal)}
                 </div>
                 <ChangePill value={salesAmountCard?.change_pct ?? null} />
               </div>

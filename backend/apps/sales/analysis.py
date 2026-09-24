@@ -1,6 +1,6 @@
 """Sales analysis v1 — branch comparison, trends, products, returns."""
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from django.db.models import Count, Exists, F, Max, OuterRef, Q, Sum, Value
@@ -289,26 +289,15 @@ def trend_points(start, end, sales_line=None, group="daily"):
     if group == "daily":
         _accumulate_daily_purchases(buckets, start, end, sales_line)
         _accumulate_daily_amounts(buckets, start, end, sales_line)
+    elif group in {"weekly", "monthly"}:
+        daily = {}
+        _accumulate_daily_purchases(daily, start, end, sales_line)
+        _accumulate_daily_amounts(daily, start, end, sales_line)
+        _rollup_daily_buckets(buckets, daily, group)
     elif group == "hourly":
         _accumulate_hourly_purchases(buckets, start, end, sales_line)
     elif group == "weekday":
         _accumulate_weekday_purchases(buckets, start, end, sales_line)
-    else:
-        online_qs = filter_by_sales_line_online(
-            qualifying_online_orders().filter(created_at__gte=start, created_at__lt=end),
-            sales_line,
-        )
-        for row in online_qs.only("created_at"):
-            iso = _bucket_key(timezone.localtime(row.created_at), group)["iso"]
-            buckets.setdefault(iso, _empty_trend_bucket())["purchase_count"] += 1
-        pos_qs = filter_by_sales_line_pos(
-            qualifying_pos_sales().filter(created_at__gte=start, created_at__lt=end),
-            sales_line,
-        )
-        for row in pos_qs.only("created_at"):
-            iso = _bucket_key(timezone.localtime(row.created_at), group)["iso"]
-            buckets.setdefault(iso, _empty_trend_bucket())["purchase_count"] += 1
-        _accumulate_period_amounts(buckets, start, end, sales_line, group)
 
     ordered_keys = _ordered_bucket_keys_extended(start, end, group)
     points = []
@@ -374,31 +363,16 @@ def _accumulate_daily_amounts(buckets, start, end, sales_line):
         buckets.setdefault(iso, _empty_trend_bucket())["amount"] += int(row["amount"] or 0)
 
 
-def _accumulate_period_amounts(buckets, start, end, sales_line, group):
-    online_qs = filter_by_sales_line_online(
-        online_order_value_orders().filter(created_at__gte=start, created_at__lt=end),
-        sales_line,
-    )
-    for row in online_qs.only("created_at", "total_amount"):
-        iso = _bucket_key(timezone.localtime(row.created_at), group)["iso"]
-        buckets.setdefault(iso, _empty_trend_bucket())["amount"] += int(row.total_amount or 0)
+def _rollup_daily_buckets(buckets, daily, group):
+    from apps.sales.services import _bucket_key
 
-    pos_items = filter_by_sales_line_pos(
-        qualifying_pos_items().filter(
-            pos_sale__created_at__gte=start,
-            pos_sale__created_at__lt=end,
-            pos_sale__isnull=False,
-        ),
-        sales_line,
-    )
-    for row in pos_items.values("pos_sale_id", "pos_sale__created_at").annotate(
-        total=Sum(_pos_line_total_expr())
-    ):
-        created_at = row["pos_sale__created_at"]
-        if not created_at:
-            continue
-        iso = _bucket_key(timezone.localtime(created_at), group)["iso"]
-        buckets.setdefault(iso, _empty_trend_bucket())["amount"] += int(row["total"] or 0)
+    for iso, data in daily.items():
+        day = date.fromisoformat(iso)
+        local_dt = timezone.make_aware(datetime.combine(day, time.min), TEHRAN)
+        key = _bucket_key(local_dt, group)
+        bucket = buckets.setdefault(key["iso"], _empty_trend_bucket())
+        bucket["purchase_count"] += data["purchase_count"]
+        bucket["amount"] += data.get("amount", 0)
 
 
 def _accumulate_hourly_purchases(buckets, start, end, sales_line):

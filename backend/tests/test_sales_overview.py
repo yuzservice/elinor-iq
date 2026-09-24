@@ -207,6 +207,7 @@ def test_trend_aggregation_daily_weekly_monthly():
     monthly = overview_trend_points(start, end, None, "monthly")
     assert sum(point["purchase_count"] for point in monthly) == 3
     assert all("amount" in point for point in monthly)
+    assert sum(point["amount"] for point in daily) == sum(point["amount"] for point in monthly)
 
 
 @pytest.mark.django_db
