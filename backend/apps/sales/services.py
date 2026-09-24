@@ -88,21 +88,33 @@ def revenue_orders():
     return online_order_value_orders()
 
 
-def overview_payload(start, end, sales_line=None, group="daily"):
-    lines = sales_line_comparison(start, end)
-    return {
+def overview_payload(start, end, sales_line=None, group="daily", section="all"):
+    if section not in {"overview", "trend", "details", "all"}:
+        section = "all"
+    payload = {
         "window": window_meta(start, end),
         "semantics_note": ONLINE_ORDER_VALUE_DEFINITION,
         "data_coverage": coverage_payload(),
-        "filters": {"sales_line": sales_line or "all", "group": group},
-        "metrics": core_metrics(start, end, sales_line),
-        "returns_canceled": _returns_canceled_counts(start, end, sales_line),
-        "physical_returns": physical_returns_report(start, end, sales_line),
-        "sales_lines": lines,
-        "trend": {"group": group, "points": analysis_trend_points(start, end, sales_line, group)},
-        "size_color": size_color_report(start, end, sales_line),
-        "insights": branch_insights(start, end, sales_line, lines=lines),
+        "filters": {"sales_line": sales_line or "all", "group": group, "section": section},
     }
+    if section in {"all", "overview"}:
+        lines = sales_line_comparison(start, end)
+        payload["metrics"] = core_metrics(start, end, sales_line)
+        payload["sales_lines"] = lines
+        payload["insights"] = branch_insights(
+            start,
+            end,
+            sales_line,
+            lines=lines,
+            include_top_product=section == "all",
+        )
+    if section in {"all", "trend"}:
+        payload["trend"] = {"group": group, "points": analysis_trend_points(start, end, sales_line, group)}
+    if section in {"all", "details"}:
+        payload["returns_canceled"] = _returns_canceled_counts(start, end, sales_line)
+        payload["physical_returns"] = physical_returns_report(start, end, sales_line)
+        payload["size_color"] = size_color_report(start, end, sales_line)
+    return payload
 
 
 def overview_trend_points(start, end, sales_line=None, group="daily"):

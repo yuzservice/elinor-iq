@@ -21,7 +21,8 @@ def summary(request):
     start, end = parse_range(request)
     sales_line = parse_sales_line_filter(request.query_params.get("sales_line"))
     group = parse_group(request)
-    payload = overview_payload(start, end, sales_line, group)
+    section = (request.query_params.get("section") or "all").strip().lower()
+    payload = overview_payload(start, end, sales_line, group, section)
     payload["timing_ms"] = round((time.perf_counter() - started) * 1000, 1)
     return Response(payload)
 

@@ -626,7 +626,7 @@ def physical_returns_report(start, end, sales_line=None):
     return {"branches": branches, "totals": totals}
 
 
-def branch_insights(start, end, sales_line=None, lines=None):
+def branch_insights(start, end, sales_line=None, lines=None, include_top_product=True):
     lines = lines or sales_line_comparison(start, end)
     if sales_line:
         lines = [row for row in lines if row["key"] == sales_line]
@@ -672,7 +672,7 @@ def branch_insights(start, end, sales_line=None, lines=None):
                 }
             )
 
-    product_by_branch = _top_product_by_branch(start, end, sales_line)
+    product_by_branch = _top_product_by_branch(start, end, sales_line) if include_top_product else None
     if product_by_branch:
         insights.append(
             {

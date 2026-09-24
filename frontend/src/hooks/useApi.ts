@@ -1,13 +1,17 @@
 import { useEffect, useState } from "react";
 import { ApiError } from "../services/api";
 
-export function useApi<T>(loader: () => Promise<T>, deps: unknown[] = []) {
+export function useApi<T>(loader: () => Promise<T>, deps: unknown[] = [], enabled = true) {
   const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState(false);
   const [unauthorized, setUnauthorized] = useState(false);
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     setError(false);
@@ -31,7 +35,7 @@ export function useApi<T>(loader: () => Promise<T>, deps: unknown[] = []) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
+  }, [enabled, ...deps]);
 
   return { data, loading, error, unauthorized, setData };
 }

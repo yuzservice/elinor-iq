@@ -3,11 +3,24 @@ import type { Paginated, SalesLineKey, SalesOrder, SalesProductRow, SalesSummary
 
 export type SalesLineFilter = SalesLineKey | "all";
 export type ProductSort = "units" | "purchases" | "customers" | "last_sale" | "title";
+export type SalesSection = "overview" | "trend" | "details";
 
 export const salesService = {
-  summary: (from?: string, to?: string, salesLine: SalesLineFilter = "all", group: TrendGroup = "daily") =>
+  summary: (
+    from?: string,
+    to?: string,
+    salesLine: SalesLineFilter = "all",
+    group: TrendGroup = "daily",
+    section: SalesSection = "overview",
+  ) =>
     api<SalesSummary>(
-      queryPath("/sales/summary/", { from, to, sales_line: salesLine === "all" ? undefined : salesLine, group }),
+      queryPath("/sales/summary/", {
+        from,
+        to,
+        sales_line: salesLine === "all" ? undefined : salesLine,
+        group,
+        section,
+      }),
     ),
   orders: (from?: string, to?: string, page = 1, salesLine: SalesLineFilter = "all") =>
     api<Paginated<SalesOrder>>(

@@ -97,6 +97,26 @@ def test_sales_line_comparison_with_new_repeat_and_previous(auth_api):
 
 
 @pytest.mark.django_db
+def test_sales_summary_sections_skip_unrequested_work(auth_api):
+    customer = _customer(source_id=21)
+    _online(customer, 2101, days=1)
+    start = (timezone.now() - timedelta(days=7)).date().isoformat()
+    end = (timezone.now() + timedelta(days=1)).date().isoformat()
+
+    overview = auth_api.get(f"/api/sales/summary/?from={start}&to={end}&section=overview")
+    assert overview.status_code == 200
+    assert "metrics" in overview.data
+    assert "sales_lines" in overview.data
+    assert "size_color" not in overview.data
+    assert "trend" not in overview.data
+
+    trend = auth_api.get(f"/api/sales/summary/?from={start}&to={end}&section=trend")
+    assert trend.status_code == 200
+    assert "points" in trend.data["trend"]
+    assert "metrics" not in trend.data
+
+
+@pytest.mark.django_db
 def test_weekday_and_hourly_grouping():
     customer = _customer()
     product = Product.objects.create(source_id=101, title="شال")

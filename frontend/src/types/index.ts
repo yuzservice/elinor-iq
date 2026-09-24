@@ -124,8 +124,8 @@ export type SalesSummary = {
   window: WindowMeta;
   semantics_note: string;
   data_coverage: DataCoverage;
-  filters: { sales_line: SalesLineKey | "all"; group: TrendGroup };
-  metrics: {
+  filters: { sales_line: SalesLineKey | "all"; group: TrendGroup; section?: string };
+  metrics?: {
     purchase_count: number;
     customer_count: number;
     units_sold: number;
@@ -134,14 +134,14 @@ export type SalesSummary = {
     repeat_customers: number;
     online_order_value?: number;
   };
-  returns_canceled: {
+  returns_canceled?: {
     online_canceled: number;
     online_failed: number;
     online_wait_for_payment: number;
     pos_refunds: number;
     pos_cancelled: number;
   };
-  physical_returns: {
+  physical_returns?: {
     branches: PhysicalReturnsBranch[];
     totals: {
       refund_count: number;
@@ -150,16 +150,16 @@ export type SalesSummary = {
       replacement_item_units: number;
     };
   };
-  sales_lines: SalesLineComparison[];
-  trend: {
+  sales_lines?: SalesLineComparison[];
+  trend?: {
     group: TrendGroup;
     points: SalesTrendPoint[];
   };
-  size_color: {
+  size_color?: {
     sizes: SizeColorRow[];
     colors: SizeColorRow[];
   };
-  insights: SalesInsight[];
+  insights?: SalesInsight[];
   timing_ms?: number;
 };
 
