@@ -105,7 +105,7 @@ def home_metric_cards(start, end):
     pos_amounts = _pos_item_amounts(start, end)
     snappay_pos = _pos_payment_amounts(start, end, "snappay_cashier_amount")
     digipay_pos = _pos_payment_amounts(start, end, "digipay_cashier_amount")
-    snappay_online = _online_gateway_amount(start, end, "snappay")
+    snappay_online = _online_gateway_amount(start, end, "snapppay")
     digipay_online = _online_gateway_amount(start, end, "digipay")
 
     sales_total, sales_lines = _line_values(keys, online_amount, pos_amounts)
@@ -157,6 +157,6 @@ def home_metric_cards_values(start, end):
     return {
         "sales_amount": _line_values(keys, online_amount, pos_amounts)[0],
         "units_sold": sum(line_metrics[key]["units_sold"] for key in keys),
-        "snappay": _line_values(keys, _online_gateway_amount(start, end, "snappay"), snappay_pos)[0],
+        "snappay": _line_values(keys, _online_gateway_amount(start, end, "snapppay"), snappay_pos)[0],
         "digipay": _line_values(keys, _online_gateway_amount(start, end, "digipay"), digipay_pos)[0],
     }

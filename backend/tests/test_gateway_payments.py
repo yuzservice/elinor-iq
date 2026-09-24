@@ -96,16 +96,35 @@ def test_home_metric_cards_include_online_gateway_amounts():
                             "created_at": now.isoformat(),
                         }
                     ],
-                }
+                },
+                {
+                    "id": 602,
+                    "payable_id": 9100,
+                    "payable_type": "Modules\\Order\\Entities\\Order",
+                    "amount": 200_000,
+                    "status": "success",
+                    "type": "gateway",
+                    "created_at": now.isoformat(),
+                    "updated_at": now.isoformat(),
+                    "payments": [
+                        {
+                            "id": 802,
+                            "gateway": "snapppay",
+                            "status": "success",
+                            "success_at": now.isoformat(),
+                            "created_at": now.isoformat(),
+                        }
+                    ],
+                },
             ],
         },
     )
     start = now - timedelta(days=1)
     end = now + timedelta(days=1)
     cards = {card["key"]: card for card in home_metric_cards(start, end)}
-    assert cards["snappay"]["total"] == 500_000
+    assert cards["snappay"]["total"] == 700_000
     snappay_lines = {line["key"]: line["value"] for line in cards["snappay"]["lines"]}
-    assert snappay_lines[SalesLine.ONLINE] == 0
+    assert snappay_lines[SalesLine.ONLINE] == 200_000
     assert snappay_lines[SalesLine.SARI] == 500_000
     assert cards["digipay"]["total"] == 300_000
     digipay_lines = {line["key"]: line["value"] for line in cards["digipay"]["lines"]}
