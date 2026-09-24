@@ -72,6 +72,12 @@ export function HomePage() {
         <HomePeriodToggle value={period} onChange={setPeriod} />
       </div>
 
+      {data?.data_coverage?.partial && data.data_coverage.message ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] leading-6 text-amber-950">
+          {data.data_coverage.message}
+        </div>
+      ) : null}
+
       <div className="grid gap-4 md:grid-cols-2">
         {loading && !data?.metric_cards?.length
           ? [0, 1, 2, 3].map((item) => <Skeleton key={item} className="min-h-[280px] rounded-[24px]" />)

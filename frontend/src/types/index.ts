@@ -16,6 +16,24 @@ export type WindowMeta = {
 export type DataCoverage = {
   partial: boolean;
   message: string;
+  pos_sync?: {
+    by_line: {
+      key: SalesLineKey;
+      label: string;
+      count: number;
+      max_date: string | null;
+      lag_days: number | null;
+    }[];
+    stale_lines: {
+      key: SalesLineKey;
+      label: string;
+      count: number;
+      max_date: string | null;
+      lag_days: number | null;
+    }[];
+    needs_sync: boolean;
+    historical_import_through: string;
+  };
 };
 
 export type Paginated<T> = {

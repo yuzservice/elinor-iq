@@ -76,7 +76,7 @@ def trigger_sync(request):
         )
     thread = Thread(target=_run_recent_sync, daemon=True)
     thread.start()
-    return Response({"ok": True, "message": "همگام‌سازی آغاز شد."})
+    return Response({"ok": True, "message": "همگام‌سازی آنلاین و فروشگاه آغاز شد."})
 
 
 @api_view(["PUT"])
@@ -146,6 +146,6 @@ def _run_recent_sync():
     from apps.integrations.elinor.models import SyncRun as Run
 
     try:
-        SyncService(Run.KIND_RECENT).execute()
+        SyncService(Run.KIND_HOURLY).execute_hourly()
     except Exception:
         pass
