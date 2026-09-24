@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ELINOR IQ</title>
+    <script>
+      (function () {
+        var pref = localStorage.getItem("elinor-theme") || "system";
+        var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        var theme = pref === "light" || pref === "dark" ? pref : dark ? "dark" : "light";
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
