@@ -73,7 +73,7 @@ class SyncService:
         self.failures = 0
 
     def _ensure_not_running(self):
-        stale_before = timezone.now() - timedelta(hours=2)
+        stale_before = timezone.now() - timedelta(minutes=30)
         SyncRun.objects.filter(status=SyncRun.STATUS_RUNNING, started_at__lt=stale_before).update(
             status=SyncRun.STATUS_FAILED,
             finished_at=timezone.now(),

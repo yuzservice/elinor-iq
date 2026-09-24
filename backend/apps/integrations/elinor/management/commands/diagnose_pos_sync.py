@@ -66,6 +66,21 @@ class Command(BaseCommand):
         self.stdout.write("")
         latest_pos_run = SyncRun.objects.filter(kind=SyncRun.KIND_POS).order_by("-started_at").first()
         latest_hourly = SyncRun.objects.filter(kind=SyncRun.KIND_HOURLY).order_by("-started_at").first()
+        running = list(
+            SyncRun.objects.filter(status=SyncRun.STATUS_RUNNING)
+            .order_by("-started_at")
+            .values("id", "kind", "started_at")
+        )
+        if running:
+            self.stdout.write(self.style.WARNING("Running sync jobs (block new syncs):"))
+            for row in running:
+                self.stdout.write(
+                    f"  #{row['id']} kind={row['kind']} started={row['started_at']}"
+                )
+            self.stdout.write(
+                "Clear with: docker compose exec backend python manage.py clear_stuck_sync"
+            )
+            self.stdout.write("")
         for label, run in (("POS", latest_pos_run), ("Hourly", latest_hourly)):
             if not run:
                 self.stdout.write(f"Last {label} sync: —")
