@@ -185,6 +185,28 @@ def test_date_filtering(auth_api):
 
 
 @pytest.mark.django_db
+def test_trend_amount_ignores_zero_real_amount():
+    customer = _customer()
+    sale = _pos(customer, 701, store_id=STORE_ID_SARI, days=1)
+    PosSaleItem.objects.create(
+        source_id=7011,
+        pos_sale=sale,
+        product=Product.objects.create(source_id=70111, title="POS کالا"),
+        quantity=2,
+        amount=50000,
+        real_amount=0,
+        type="sell",
+    )
+
+    start = timezone.now() - timedelta(days=3)
+    end = timezone.now() + timedelta(days=1)
+    daily = overview_trend_points(start, end, SalesLine.SARI, "daily")
+
+    assert sum(point["purchase_count"] for point in daily) == 1
+    assert sum(point["amount"] for point in daily) == 100_000
+
+
+@pytest.mark.django_db
 def test_trend_aggregation_daily_weekly_monthly():
     customer = _customer()
     _online(customer, 601, days=1)

@@ -29,6 +29,12 @@ HOURLY_POS_MAX_SALES = int(getattr(settings, "ELINOR_SYNC_HOURLY_POS_MAX_SALES",
 SYNC_STALE_MINUTES = 5
 
 
+def _nullable_amount(value):
+    if value in (None, "", 0, "0"):
+        return None
+    return as_int(value, default=None)
+
+
 def clear_stuck_sync_runs(*, minutes=0):
     qs = SyncRun.objects.filter(status=SyncRun.STATUS_RUNNING)
     if minutes:
@@ -591,7 +597,7 @@ class SyncService:
             "quantity": as_int(row.get("quantity"), 1),
             "amount": as_int(row.get("amount")),
             "discount_amount": as_int(row.get("discount_amount")),
-            "real_amount": as_int(row.get("real_amount"), default=None),
+            "real_amount": _nullable_amount(row.get("real_amount")),
             "type": str(row.get("type") or ""),
             "store_source_id": as_int(row.get("store_id"), default=None),
             "reference_item_source_id": as_int(row.get("refrence_mini_order_item_id"), default=None),

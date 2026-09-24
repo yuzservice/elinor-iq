@@ -4,7 +4,7 @@ from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from django.db.models import Count, Exists, F, Max, OuterRef, Q, Sum, Value
-from django.db.models.functions import Coalesce, ExtractHour, TruncDate
+from django.db.models.functions import Coalesce, ExtractHour, NullIf, TruncDate
 from django.utils import timezone
 
 TEHRAN = ZoneInfo("Asia/Tehran")
@@ -48,7 +48,7 @@ def _empty_trend_bucket():
 
 def _pos_line_total_expr():
     line_from_parts = Coalesce(F("amount"), Value(0)) * Coalesce(F("quantity"), Value(0))
-    return Coalesce(F("real_amount"), line_from_parts)
+    return Coalesce(NullIf(F("real_amount"), Value(0)), line_from_parts)
 
 
 def parse_trend_group(raw):
