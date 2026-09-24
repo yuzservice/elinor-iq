@@ -258,7 +258,6 @@ class SyncService:
         try:
             self.client.authenticate()
             paused = self._sync_pos_sales(start, end)
-            self._refresh_customer_stats()
             if paused:
                 return self.run
             self._finish(SyncRun.STATUS_SUCCESS)
@@ -471,6 +470,12 @@ class SyncService:
             "window_end": end_date.isoformat(),
         }
         cursor.save()
+        logger.info(
+            "POS fetch complete for %s..%s (%s sales upserted this run).",
+            start_date.isoformat(),
+            end_date.isoformat(),
+            processed,
+        )
         return False
 
     def _upsert_pos_header(self, row):
@@ -759,6 +764,7 @@ class SyncService:
         self.run.variants_upserted += 1
 
     def _refresh_customer_stats(self):
+        logger.info("Refreshing customer order stats…")
         online = (
             Order.objects.exclude(customer=None)
             .values("customer_id")
@@ -802,6 +808,7 @@ class SyncService:
                 first_order_at=row["first_order_at"],
                 last_order_at=row["last_order_at"],
             )
+        logger.info("Customer order stats refreshed for %s customers.", len(combined))
 
     def _persist_progress(self):
         self.run.requests_made = self.client.requests_made
