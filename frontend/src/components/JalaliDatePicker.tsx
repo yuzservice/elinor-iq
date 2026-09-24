@@ -37,11 +37,13 @@ export function JalaliDateField({
   onChange,
   allowEmpty = false,
   emptyLabel = "تاریخ",
+  compact = false,
 }: {
   value: string;
   onChange: (iso: string) => void;
   allowEmpty?: boolean;
   emptyLabel?: string;
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [popupStyle, setPopupStyle] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
@@ -118,7 +120,9 @@ export function JalaliDateField({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="h-10 min-w-[8.5rem] rounded-xl border border-line bg-elevated px-3 text-sm tabular text-ink"
+        className={`rounded-xl border border-line bg-elevated px-3 tabular text-ink ${
+          compact ? "h-9 min-w-[7.25rem] text-xs" : "h-10 min-w-[8.5rem] text-sm"
+        }`}
         aria-label="انتخاب تاریخ شمسی"
       >
         {value ? formatJalali(value) : allowEmpty ? emptyLabel : formatJalali(todayIso())}

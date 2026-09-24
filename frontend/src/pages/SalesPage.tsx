@@ -14,28 +14,17 @@ import {
 } from "../components/ui";
 import { EmptyState, ErrorState, Skeleton, Table, TableRow } from "../components/Table";
 import { RevenueChart } from "../components/dashboard";
-import { JalaliDateRange } from "../components/JalaliDatePicker";
+import { SalesFilterBar } from "../features/sales/SalesFilterBar";
+import {
+  deriveSalesLineFilter,
+  EMPTY_SALES_FILTERS,
+  type SalesFilterValues,
+} from "../features/sales/salesPageFilters";
 import { useApi } from "../hooks/useApi";
 import { customerDisplayName } from "../lib/customerDisplay";
 import { formatDate, formatNumber, toInputDate } from "../lib/format";
-import { salesService, type ProductSort, type SalesLineFilter, type SalesSection } from "../services/sales";
+import { salesService, type ProductSort, type SalesSection } from "../services/sales";
 import type { SalesLineKey, TrendGroup } from "../types";
-
-const SALES_LINE_OPTIONS: { value: SalesLineFilter; label: string }[] = [
-  { value: "all", label: "همه" },
-  { value: "ONLINE", label: "آنلاین" },
-  { value: "SARI", label: "ساری" },
-  { value: "GORGAN", label: "گرگان" },
-  { value: "CAPRI", label: "کاپری" },
-];
-
-const TREND_GROUPS: { value: TrendGroup; label: string }[] = [
-  { value: "daily", label: "روزانه" },
-  { value: "weekly", label: "هفتگی" },
-  { value: "monthly", label: "ماهانه" },
-  { value: "weekday", label: "روزهای هفته" },
-  { value: "hourly", label: "ساعت روز" },
-];
 
 const PRODUCT_SORTS: { value: ProductSort; label: string }[] = [
   { value: "units", label: "واحد" },
@@ -63,100 +52,77 @@ const SALES_TABS: { key: string; label: string; section?: SalesSection }[] = [
 export function SalesPage() {
   const [params, setParams] = useSearchParams();
   const tab = SALES_TABS.some((item) => item.key === params.get("tab")) ? params.get("tab")! : "overview";
-  const [range, setRange] = useState({ from: "", to: "" });
+  const [filters, setFilters] = useState<SalesFilterValues>(EMPTY_SALES_FILTERS);
   const [page, setPage] = useState(1);
   const [productPage, setProductPage] = useState(1);
-  const [salesLine, setSalesLine] = useState<SalesLineFilter>("all");
   const [trendGroup, setTrendGroup] = useState<TrendGroup>("daily");
   const [productSearch, setProductSearch] = useState("");
   const [productSort, setProductSort] = useState<ProductSort>("units");
   const [productOrder, setProductOrder] = useState<"asc" | "desc">("desc");
 
+  const salesLine = useMemo(
+    () => deriveSalesLineFilter(filters.branch, filters.channel),
+    [filters.branch, filters.channel],
+  );
+
+  function updateFilters(next: Partial<SalesFilterValues>) {
+    setFilters((current) => ({ ...current, ...next }));
+    if ("from" in next || "to" in next || "branch" in next || "channel" in next) {
+      setPage(1);
+      setProductPage(1);
+    }
+  }
+
   const trend = useApi(
-    () => salesService.summary(range.from, range.to, salesLine, trendGroup, "trend"),
-    [range.from, range.to, salesLine, trendGroup],
+    () => salesService.summary(filters.from, filters.to, salesLine, trendGroup, "trend"),
+    [filters.from, filters.to, salesLine, trendGroup],
     tab === "trend",
   );
   const details = useApi(
-    () => salesService.summary(range.from, range.to, salesLine, trendGroup, "details"),
-    [range.from, range.to, salesLine],
+    () => salesService.summary(filters.from, filters.to, salesLine, trendGroup, "details"),
+    [filters.from, filters.to, salesLine],
     tab === "details",
   );
   const orders = useApi(
-    () => salesService.orders(range.from, range.to, page, salesLine),
-    [range.from, range.to, page, salesLine],
+    () => salesService.orders(filters.from, filters.to, page, salesLine),
+    [filters.from, filters.to, page, salesLine],
     tab === "orders",
   );
   const products = useApi(
     () =>
       salesService.products(
-        range.from,
-        range.to,
+        filters.from,
+        filters.to,
         salesLine,
         productPage,
         productSearch,
         productSort,
         productOrder,
       ),
-    [range.from, range.to, salesLine, productPage, productSearch, productSort, productOrder],
+    [filters.from, filters.to, salesLine, productPage, productSearch, productSort, productOrder],
     tab === "products",
   );
 
   const activeWindow = trend.data?.window || details.data?.window || orders.data?.window;
-  const defaultRange = useMemo(() => {
-    if (!activeWindow) return range;
+  const displayFilters = useMemo(() => {
+    if (!activeWindow) return filters;
     return {
-      from: range.from || activeWindow.from || toInputDate(activeWindow.start),
-      to: range.to || activeWindow.to || toInputDate(activeWindow.end),
+      ...filters,
+      from: filters.from || activeWindow.from || toInputDate(activeWindow.start),
+      to: filters.to || activeWindow.to || toInputDate(activeWindow.end),
     };
-  }, [activeWindow, range]);
+  }, [activeWindow, filters]);
 
   return (
     <div>
-      <PageHeader
-        title="تحلیل فروش"
-        description={activeWindow?.label}
-        actions={
-          <div className="flex flex-wrap items-center gap-3">
-            <Select
-              value={salesLine}
-              onChange={(event) => {
-                setSalesLine(event.target.value as SalesLineFilter);
-                setPage(1);
-                setProductPage(1);
-              }}
-              className="min-w-[8rem]"
-            >
-              {SALES_LINE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-            {tab === "trend" ? (
-              <Select
-                value={trendGroup}
-                onChange={(event) => setTrendGroup(event.target.value as TrendGroup)}
-                className="min-w-[8rem]"
-              >
-                {TREND_GROUPS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
-            ) : null}
-            <JalaliDateRange
-              from={defaultRange.from}
-              to={defaultRange.to}
-              onChange={(next) => {
-                setRange(next);
-                setPage(1);
-                setProductPage(1);
-              }}
-            />
-          </div>
-        }
+      <PageHeader title="تحلیل فروش" description={activeWindow?.label} />
+
+      <SalesFilterBar
+        values={displayFilters}
+        onChange={updateFilters}
+        showTrendGroup={tab === "trend"}
+        trendGroup={trendGroup}
+        onTrendGroupChange={setTrendGroup}
       />
 
       <div className="mt-6">
