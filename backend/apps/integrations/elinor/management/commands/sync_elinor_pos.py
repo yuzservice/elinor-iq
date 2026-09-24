@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 
 from apps.integrations.elinor.models import SyncRun
-from apps.integrations.elinor.sync import SyncService
+from apps.integrations.elinor.sync import SyncService, clear_stuck_sync_runs
 from apps.sales.models import PosSale, PosSaleItem
 
 
@@ -9,6 +9,9 @@ class Command(BaseCommand):
     help = "Sync physical-store POS sales from the Elinor mini_orders API."
 
     def handle(self, *args, **options):
+        cleared = clear_stuck_sync_runs(minutes=0)
+        if cleared:
+            self.stdout.write(self.style.WARNING(f"Cleared {cleared} stuck running sync job(s)."))
         service = SyncService(SyncRun.KIND_POS)
         run = service.execute_pos()
         report = run.report or {}

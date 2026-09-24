@@ -26,6 +26,18 @@ MAX_REQUESTS_PER_RUN = int(getattr(settings, "ELINOR_SYNC_MAX_REQUESTS", 900))
 HOURLY_ONLINE_DETAILS_LIMIT = int(getattr(settings, "ELINOR_SYNC_HOURLY_ONLINE_DETAILS_LIMIT", "250"))
 HOURLY_POS_LOOKBACK_DAYS = int(getattr(settings, "ELINOR_SYNC_HOURLY_POS_DAYS", "3"))
 HOURLY_POS_MAX_SALES = int(getattr(settings, "ELINOR_SYNC_HOURLY_POS_MAX_SALES", "300"))
+SYNC_STALE_MINUTES = 5
+
+
+def clear_stuck_sync_runs(*, minutes=0):
+    qs = SyncRun.objects.filter(status=SyncRun.STATUS_RUNNING)
+    if minutes:
+        qs = qs.filter(started_at__lt=timezone.now() - timedelta(minutes=minutes))
+    return qs.update(
+        status=SyncRun.STATUS_FAILED,
+        finished_at=timezone.now(),
+        error_message="Cleared stuck sync run.",
+    )
 
 
 def bootstrap_window():
@@ -73,12 +85,7 @@ class SyncService:
         self.failures = 0
 
     def _ensure_not_running(self):
-        stale_before = timezone.now() - timedelta(minutes=30)
-        SyncRun.objects.filter(status=SyncRun.STATUS_RUNNING, started_at__lt=stale_before).update(
-            status=SyncRun.STATUS_FAILED,
-            finished_at=timezone.now(),
-            error_message="Marked failed after exceeding the sync time limit.",
-        )
+        clear_stuck_sync_runs(minutes=SYNC_STALE_MINUTES)
         if SyncRun.objects.filter(status=SyncRun.STATUS_RUNNING).exists():
             raise RuntimeError("A sync is already running.")
 
