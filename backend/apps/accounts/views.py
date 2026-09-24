@@ -48,8 +48,11 @@ def me(request):
 
 
 def _user_payload(user):
+    from .permissions import is_super_admin
+
     return {
         "id": user.id,
         "username": user.username,
         "role": user.role,
+        "can_manage_platform": is_super_admin(user),
     }

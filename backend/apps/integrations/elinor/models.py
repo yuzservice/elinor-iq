@@ -43,6 +43,18 @@ class SyncCursor(models.Model):
         db_table = "sync_cursors"
 
 
+class ElinorApiConfig(models.Model):
+    """Panel-managed Elinor API credentials. Environment values are only a fallback."""
+
+    base_url = models.CharField(max_length=255, blank=True)
+    username = models.CharField(max_length=255, blank=True)
+    password = models.CharField(max_length=255, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "elinor_api_config"
+
+
 class ImportRun(models.Model):
     KIND_CORE = "core_historical"
     STATUS_RUNNING = "running"

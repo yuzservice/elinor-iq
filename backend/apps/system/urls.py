@@ -5,4 +5,6 @@ from . import views
 urlpatterns = [
     path("status/", views.status_view),
     path("sync/", views.trigger_sync),
+    path("api-config/", views.api_config),
+    path("admins/", views.admins),
 ]

@@ -19,11 +19,25 @@ class ElinorApiError(Exception):
         self.retryable = retryable
 
 
+def current_elinor_credentials():
+    """Prefer credentials saved in the panel. Fall back to environment variables."""
+    base_url = settings.ELINOR_API_BASE_URL.rstrip("/")
+    username = settings.ELINOR_API_USERNAME
+    password = settings.ELINOR_API_PASSWORD
+    try:
+        from .models import ElinorApiConfig
+
+        config = ElinorApiConfig.objects.filter(pk=1).first()
+    except Exception:
+        config = None
+    if config and config.username and config.password:
+        return (config.base_url or base_url).rstrip("/"), config.username, config.password
+    return base_url, username, password
+
+
 class ElinorClient:
     def __init__(self):
-        self.base_url = settings.ELINOR_API_BASE_URL.rstrip("/")
-        self.username = settings.ELINOR_API_USERNAME
-        self.password = settings.ELINOR_API_PASSWORD
+        self.base_url, self.username, self.password = current_elinor_credentials()
         per_minute = max(1, int(settings.ELINOR_RATE_LIMIT_PER_MINUTE))
         self.min_interval = 60.0 / per_minute
         self.token = None

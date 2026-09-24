@@ -1,16 +1,44 @@
-import { useState } from "react";
-import { Button, PageHeader, Panel, SectionHeader, ThemeSwitch } from "../components/ui";
+import { useEffect, useState } from "react";
+import { Button, Input, PageHeader, Panel, SectionHeader, ThemeSwitch } from "../components/ui";
 import { ErrorState, Skeleton } from "../components/Table";
 import { useApi } from "../hooks/useApi";
 import { useAuth } from "../hooks/useAuth";
 import { formatDate, formatDateTime, formatNumber } from "../lib/format";
-import { systemService } from "../services/system";
+import { systemService, type PanelAdmin } from "../services/system";
+
+function accountRoleLabel(role?: string) {
+  if (role === "super_admin") return "سوپر ادمین";
+  if (role === "admin") return "ادمین";
+  return role || "—";
+}
 
 export function SettingsPage() {
   const { user } = useAuth();
+  const canManage = Boolean(user?.can_manage_platform);
   const { data, loading, error, setData } = useApi(() => systemService.status(), []);
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState("");
+  const [apiBase, setApiBase] = useState("https://api.elinorboutique.com/v1");
+  const [apiUsername, setApiUsername] = useState("");
+  const [apiPassword, setApiPassword] = useState("");
+  const [apiMessage, setApiMessage] = useState("");
+  const [savingApi, setSavingApi] = useState(false);
+  const [admins, setAdmins] = useState<PanelAdmin[]>([]);
+  const [newUsername, setNewUsername] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [adminMessage, setAdminMessage] = useState("");
+  const [savingAdmin, setSavingAdmin] = useState(false);
+
+  useEffect(() => {
+    if (!data || !canManage) return;
+    if (data.api.base_url) setApiBase(data.api.base_url);
+    if (data.api.username) setApiUsername(data.api.username);
+  }, [canManage, data]);
+
+  useEffect(() => {
+    if (!canManage) return;
+    systemService.admins().then((payload) => setAdmins(payload.results)).catch(() => setAdmins([]));
+  }, [canManage]);
 
   async function syncNow() {
     setSyncing(true);
@@ -48,16 +76,106 @@ export function SettingsPage() {
       <Panel>
         <SectionHeader title="حساب کاربری" />
         <Field label="نام کاربری" value={user?.username || "—"} />
-        <Field label="نقش" value="مدیر" />
+        <Field label="نقش" value={accountRoleLabel(user?.role)} />
       </Panel>
 
       <Panel>
         <SectionHeader title="اتصال API الینور" />
         <Field label="وضعیت" value={data.api.configured ? "پیکربندی شده" : "تنظیم نشده"} />
-        <Field label="آدرس پایه" value={data.api.base_url || "—"} ltr />
-        <Field label="نام کاربری API" value={data.api.username || "—"} ltr />
-        <p className="mt-3 text-xs text-faint">رمز عبور و توکن API هرگز در این صفحه نمایش داده نمی‌شود.</p>
+        {canManage ? (
+          <form
+            className="mt-4 space-y-3"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              setSavingApi(true);
+              setApiMessage("");
+              try {
+                await systemService.saveApi({
+                  base_url: apiBase.trim(),
+                  username: apiUsername.trim(),
+                  password: apiPassword,
+                });
+                setApiPassword("");
+                setApiMessage("اتصال API ذخیره شد.");
+                setData(await systemService.status());
+              } catch {
+                setApiMessage("ذخیره اتصال API انجام نشد.");
+              } finally {
+                setSavingApi(false);
+              }
+            }}
+          >
+            <Input className="ltr-iso" value={apiBase} onChange={(event) => setApiBase(event.target.value)} placeholder="آدرس API" />
+            <Input className="ltr-iso" value={apiUsername} onChange={(event) => setApiUsername(event.target.value)} placeholder="نام کاربری API" />
+            <Input
+              type="password"
+              value={apiPassword}
+              onChange={(event) => setApiPassword(event.target.value)}
+              placeholder={data.api.password_set ? "رمز جدید؛ خالی یعنی رمز فعلی بماند" : "رمز API"}
+            />
+            <div className="flex items-center gap-4">
+              <Button type="submit" disabled={savingApi}>
+                {savingApi ? "در حال ذخیره..." : "ذخیره اتصال"}
+              </Button>
+              {apiMessage ? <span className="text-sm text-muted">{apiMessage}</span> : null}
+            </div>
+            <p className="text-xs text-faint">رمز API بعد از ذخیره نمایش داده نمی‌شود.</p>
+          </form>
+        ) : (
+          <p className="mt-3 text-xs text-faint">تنظیم اتصال API فقط برای سوپر ادمین است.</p>
+        )}
       </Panel>
+
+      {canManage ? (
+        <Panel>
+          <SectionHeader title="ادمین‌ها" />
+          <p className="text-sm leading-7 text-muted">
+            ادمین لایه ۲ به فروش، مشتریان، محصولات و همگام‌سازی دسترسی دارد. ساخت ادمین و تنظیم API فقط برای سوپر ادمین است.
+          </p>
+          <div className="mt-3 divide-y divide-line">
+            {admins.map((admin) => (
+              <div key={admin.id} className="flex items-center justify-between py-2 text-sm">
+                <span className="ltr-iso">{admin.username}</span>
+                <span className="text-muted">{accountRoleLabel(admin.role)}</span>
+              </div>
+            ))}
+          </div>
+          <form
+            className="mt-4 space-y-3"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              setSavingAdmin(true);
+              setAdminMessage("");
+              try {
+                await systemService.createAdmin({ username: newUsername.trim(), password: newPassword });
+                setNewUsername("");
+                setNewPassword("");
+                setAdminMessage("ادمین لایه ۲ ساخته شد.");
+                const payload = await systemService.admins();
+                setAdmins(payload.results);
+              } catch {
+                setAdminMessage("ساخت ادمین انجام نشد. نام کاربری تکراری یا رمز کوتاه است.");
+              } finally {
+                setSavingAdmin(false);
+              }
+            }}
+          >
+            <Input value={newUsername} onChange={(event) => setNewUsername(event.target.value)} placeholder="نام کاربری ادمین لایه ۲" />
+            <Input
+              type="password"
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              placeholder="رمز عبور، حداقل ۸ حرف"
+            />
+            <div className="flex items-center gap-4">
+              <Button type="submit" disabled={savingAdmin}>
+                {savingAdmin ? "در حال ساخت..." : "ساخت ادمین لایه ۲"}
+              </Button>
+              {adminMessage ? <span className="text-sm text-muted">{adminMessage}</span> : null}
+            </div>
+          </form>
+        </Panel>
+      ) : null}
 
       <Panel>
         <SectionHeader title="همگام‌سازی" />

@@ -2,6 +2,7 @@ export type User = {
   id: number;
   username: string;
   role: string;
+  can_manage_platform?: boolean;
 };
 
 export type WindowMeta = {
@@ -328,7 +329,7 @@ export type ProductRow = {
 };
 
 export type SystemStatus = {
-  api: { configured: boolean; base_url: string; username: string };
+  api: { configured: boolean; base_url?: string; username?: string; password_set?: boolean };
   sync: {
     running: boolean;
     last_status: string | null;
