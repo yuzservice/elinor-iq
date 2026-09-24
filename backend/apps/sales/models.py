@@ -162,6 +162,54 @@ class PosSale(models.Model):
         ]
 
 
+class OnlineInvoice(models.Model):
+    """Successful/failed online payment attempts for orders (from Elinor invoices)."""
+
+    source_id = models.BigIntegerField(unique=True)
+    order_source_id = models.BigIntegerField(db_index=True)
+    order = models.ForeignKey(
+        Order,
+        null=True,
+        blank=True,
+        related_name="online_invoices",
+        on_delete=models.SET_NULL,
+    )
+    amount = models.BigIntegerField(default=0)
+    status = models.CharField(max_length=16, db_index=True)
+    inv_type = models.CharField(max_length=16, blank=True)
+    created_at = models.DateTimeField(db_index=True)
+    updated_at_source = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "online_invoices"
+        ordering = ["-created_at"]
+
+
+class OnlinePayment(models.Model):
+    """Gateway attempt linked to an online invoice (amount denormalized for reporting)."""
+
+    source_id = models.BigIntegerField(unique=True)
+    invoice = models.ForeignKey(
+        OnlineInvoice,
+        related_name="payments",
+        on_delete=models.CASCADE,
+    )
+    gateway = models.CharField(max_length=32, db_index=True)
+    status = models.CharField(max_length=16, db_index=True)
+    amount = models.BigIntegerField(default=0)
+    success_at = models.DateTimeField(null=True, blank=True)
+    paid_at = models.DateTimeField(db_index=True)
+    created_at = models.DateTimeField()
+    updated_at_source = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "online_payments"
+        ordering = ["-paid_at"]
+        indexes = [
+            models.Index(fields=["gateway", "status", "paid_at"], name="online_pay_gw_st_paid_idx"),
+        ]
+
+
 class PosSaleItem(models.Model):
     source_id = models.BigIntegerField(unique=True)
     pos_sale = models.ForeignKey(

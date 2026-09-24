@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .mapping import as_bool_int, as_date, as_int, as_text, csv_cell, iso_dt, sales_line_for_store, tables_for_domains
 from .parser import iter_insert_tuples
+from apps.integrations.elinor.gateway_payments import GATEWAY_METRICS, is_order_payable_type
 
 CSV_COLUMNS = {
     "provinces": ["source_id", "name", "status"],
@@ -132,6 +133,25 @@ CSV_COLUMNS = {
         "reference_item_source_id",
         "deleted_at",
         "created_at_source",
+    ],
+    "invoices": [
+        "source_id",
+        "amount",
+        "wallet_amount",
+        "inv_type",
+        "order_source_id",
+        "status",
+        "created_at",
+        "updated_at_source",
+    ],
+    "payments": [
+        "source_id",
+        "invoice_source_id",
+        "gateway",
+        "status",
+        "success_at",
+        "created_at",
+        "updated_at_source",
     ],
 }
 
@@ -291,6 +311,39 @@ def _row(table, fields):
             n(fields[18]) if len(fields) > 18 else None,
             iso_dt(fields[16]) if len(fields) > 16 else None,
             iso_dt(fields[11]) if len(fields) > 11 else None,
+        ]
+    if table == "invoices":
+        payable_type = g(fields[5]) if len(fields) > 5 else ""
+        if not is_order_payable_type(payable_type):
+            return None
+        created = iso_dt(fields[10]) if len(fields) > 10 else None
+        if not created:
+            return None
+        return [
+            n(fields[0]),
+            n(fields[1]) or 0,
+            n(fields[2]) or 0,
+            g(fields[3]),
+            n(fields[4]),
+            g(fields[7]) if len(fields) > 7 else "",
+            created,
+            iso_dt(fields[11]) if len(fields) > 11 else None,
+        ]
+    if table == "payments":
+        gateway = g(fields[4]).lower() if len(fields) > 4 else ""
+        if gateway not in GATEWAY_METRICS:
+            return None
+        created = iso_dt(fields[8]) if len(fields) > 8 else None
+        if not created:
+            return None
+        return [
+            n(fields[0]),
+            n(fields[1]),
+            gateway,
+            g(fields[6]) if len(fields) > 6 else "",
+            iso_dt(fields[7]) if len(fields) > 7 else None,
+            created,
+            iso_dt(fields[9]) if len(fields) > 9 else None,
         ]
     raise KeyError(table)
 

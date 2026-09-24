@@ -29,6 +29,8 @@ STAGING = {
     "order_items": "stg_order_items",
     "mini_orders": "stg_mini_orders",
     "mini_order_items": "stg_mini_order_items",
+    "invoices": "stg_invoices",
+    "payments": "stg_payments",
 }
 
 CREATE_STAGING = {
@@ -86,6 +88,14 @@ CREATE_STAGING = {
         quantity int, amount bigint, discount_amount bigint, real_amount bigint, type text,
         store_source_id int, reference_item_source_id bigint, deleted_at timestamptz, created_at_source timestamptz
     """,
+    "invoices": """
+        source_id bigint, amount bigint, wallet_amount bigint, inv_type text, order_source_id bigint,
+        status text, created_at timestamptz, updated_at_source timestamptz
+    """,
+    "payments": """
+        source_id bigint, invoice_source_id bigint, gateway text, status text,
+        success_at timestamptz, created_at timestamptz, updated_at_source timestamptz
+    """,
 }
 
 DOMAIN_TABLES = {
@@ -102,6 +112,7 @@ DOMAIN_TABLES = {
     "stores": ["stores"],
     "online": ["orders", "order_items"],
     "pos": ["mini_orders", "mini_order_items"],
+    "gateway_payments": ["invoices", "payments"],
 }
 
 
@@ -541,6 +552,60 @@ def _upsert_domain(cursor, domain):
                 reference_item_source_id = EXCLUDED.reference_item_source_id,
                 deleted_at = EXCLUDED.deleted_at,
                 created_at_source = EXCLUDED.created_at_source
+            """
+        )
+    elif domain == "gateway_payments":
+        cursor.execute(
+            """
+            INSERT INTO online_invoices (
+                source_id, order_source_id, order_id, amount, status, inv_type,
+                created_at, updated_at_source
+            )
+            SELECT
+                s.source_id, s.order_source_id, o.id, COALESCE(s.amount, 0),
+                COALESCE(s.status, ''), COALESCE(s.inv_type, ''), s.created_at, s.updated_at_source
+            FROM stg_invoices s
+            LEFT JOIN orders o ON o.source_id = s.order_source_id
+            WHERE s.source_id IS NOT NULL
+            ON CONFLICT (source_id) DO UPDATE SET
+                order_source_id = EXCLUDED.order_source_id,
+                order_id = EXCLUDED.order_id,
+                amount = EXCLUDED.amount,
+                status = EXCLUDED.status,
+                inv_type = EXCLUDED.inv_type,
+                created_at = EXCLUDED.created_at,
+                updated_at_source = EXCLUDED.updated_at_source
+            """
+        )
+        cursor.execute(
+            """
+            INSERT INTO online_payments (
+                source_id, invoice_id, gateway, status, amount, success_at, paid_at,
+                created_at, updated_at_source
+            )
+            SELECT
+                p.source_id,
+                i.id,
+                COALESCE(p.gateway, ''),
+                COALESCE(p.status, ''),
+                COALESCE(inv.amount, 0),
+                p.success_at,
+                COALESCE(p.success_at, inv.updated_at_source, p.created_at, inv.created_at),
+                p.created_at,
+                p.updated_at_source
+            FROM stg_payments p
+            JOIN stg_invoices inv ON inv.source_id = p.invoice_source_id
+            JOIN online_invoices i ON i.source_id = p.invoice_source_id
+            WHERE p.source_id IS NOT NULL
+            ON CONFLICT (source_id) DO UPDATE SET
+                invoice_id = EXCLUDED.invoice_id,
+                gateway = EXCLUDED.gateway,
+                status = EXCLUDED.status,
+                amount = EXCLUDED.amount,
+                success_at = EXCLUDED.success_at,
+                paid_at = EXCLUDED.paid_at,
+                created_at = EXCLUDED.created_at,
+                updated_at_source = EXCLUDED.updated_at_source
             """
         )
 

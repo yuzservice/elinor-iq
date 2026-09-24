@@ -33,7 +33,7 @@ Sales lines
   store_id 1 (central warehouse) is NOT a sales line.
 """
 
-from apps.sales.models import Order, PosSale, PosSaleItem, SalesLine, STORE_SALES_LINE
+from apps.sales.models import Order, OnlinePayment, PosSale, PosSaleItem, SalesLine, STORE_SALES_LINE
 
 # --- Online status groups ---------------------------------------------------
 
@@ -266,3 +266,17 @@ def pos_status_label(sale):
 def pos_recent_status_label(sale):
     """Label for recent-sales table; refunds stay explicit."""
     return pos_status_label(sale)
+
+
+# --- Online gateway payments (DigiPay / SnappPay KPI) -----------------------
+
+ONLINE_GATEWAY_SUCCESS = "success"
+
+
+def qualifying_online_gateway_payments(gateway, qs=None):
+    qs = OnlinePayment.objects.all() if qs is None else qs
+    return qs.filter(
+        gateway=gateway,
+        status=ONLINE_GATEWAY_SUCCESS,
+        invoice__status=ONLINE_GATEWAY_SUCCESS,
+    )

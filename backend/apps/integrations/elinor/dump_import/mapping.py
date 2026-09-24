@@ -25,6 +25,8 @@ DUMP_TABLES = [
     "order_items",
     "mini_orders",
     "mini_order_items",
+    "invoices",
+    "payments",
 ]
 
 DOMAINS = {
@@ -41,6 +43,7 @@ DOMAINS = {
     "stores": ["stores"],
     "online": ["orders", "order_items"],
     "pos": ["mini_orders", "mini_order_items"],
+    "gateway_payments": ["invoices", "payments"],
 }
 
 LOAD_ORDER = [
@@ -57,6 +60,7 @@ LOAD_ORDER = [
     "stores",
     "online",
     "pos",
+    "gateway_payments",
 ]
 
 INVENTORY_TABLES = {

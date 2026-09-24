@@ -12,6 +12,7 @@ from apps.products.models import Product, Variant
 from apps.sales.models import Order, OrderItem, PosSale, PosSaleItem, STORE_SALES_LINE, Store
 
 from .client import ElinorApiError, ElinorClient
+from .gateway_payments import upsert_order_gateway_payments
 from .models import SyncCursor, SyncRun
 from .parsers import as_bool, as_int, extract_list, extract_object, parse_datetime
 
@@ -68,6 +69,7 @@ class SyncService:
         self._fetched_products = set()
         self._pos_sales_upserted = 0
         self._pos_items_upserted = 0
+        self._gateway_payments_upserted = 0
         self.failures = 0
 
     def _ensure_not_running(self):
@@ -646,6 +648,8 @@ class SyncService:
                 order.customer = customer
             for item in items:
                 self._upsert_item(order, item)
+            upserted = upsert_order_gateway_payments(order, detail)
+            self._gateway_payments_upserted += upserted
             order.details_synced_at = timezone.now()
             order.save()
         self._persist_progress()
@@ -824,6 +828,7 @@ class SyncService:
             "pos_items": PosSaleItem.objects.count(),
             "pos_sales_upserted": self._pos_sales_upserted,
             "pos_items_upserted": self._pos_items_upserted,
+            "gateway_payments_upserted": self._gateway_payments_upserted,
             "requests_made": self.client.requests_made,
             "retries": getattr(self.client, "retries_made", 0),
             "failures": getattr(self, "failures", 0),

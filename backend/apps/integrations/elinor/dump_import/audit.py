@@ -3,7 +3,7 @@ from django.db.models import Count, Max, Min, Q
 
 from apps.customers.models import Customer, CustomerAddress
 from apps.products.models import Product, Variant
-from apps.sales.models import Order, OrderItem, PosSale, PosSaleItem, SalesLine
+from apps.sales.models import OnlineInvoice, OnlinePayment, Order, OrderItem, PosSale, PosSaleItem, SalesLine
 
 from .mapping import INVENTORY_TABLES
 
@@ -44,6 +44,8 @@ def audit_imported(extract_counts=None):
             "online_order_items": rec("order_items", OrderItem.objects.count(), "order_items"),
             "pos_sales": rec("mini_orders", PosSale.objects.count(), "mini_orders"),
             "pos_sale_items": rec("mini_order_items", PosSaleItem.objects.count(), "mini_order_items"),
+            "online_invoices": rec("invoices", OnlineInvoice.objects.count(), "invoices"),
+            "online_payments": rec("payments", OnlinePayment.objects.count(), "payments"),
             "products": rec("products", Product.objects.count()),
             "variants": rec("varieties", Variant.objects.count(), "varieties"),
         },
