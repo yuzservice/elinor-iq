@@ -21,7 +21,10 @@ git fetch origin main
 git reset --hard origin/main
 
 echo "در حال به‌روزرسانی سرویس‌ها..."
-docker compose up -d --build --force-recreate
+if ! docker compose up -d --build --force-recreate; then
+  echo "ساخت ایمیج از داکرهاب ناموفق بود. سرویس‌ها با ایمیج‌های موجود دوباره بالا می‌آیند..."
+  docker compose up -d --force-recreate --no-build --pull never
+fi
 ./scripts/ensure-https.sh
 
 echo "آپدیت تمام شد."
