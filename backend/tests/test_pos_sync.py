@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from apps.customers.models import Customer
 from apps.integrations.elinor.models import SyncRun
-from apps.integrations.elinor.sync import SyncService, pos_window
+from apps.integrations.elinor.sync import POS_SQL_CUTOFF, SyncService, pos_window
 from apps.sales.models import PosSale, PosSaleItem, SalesLine, Store
 
 TEHRAN = ZoneInfo("Asia/Tehran")
@@ -74,11 +74,10 @@ def test_pos_sync_fetches_date_range_not_single_day():
     service.client.get_mini_order = lambda source_id: {"mini_order": _mini_order(source_id=source_id)}
     service.client.get_product = lambda source_id: {"id": source_id, "title": "شال", "status": "1", "varieties": []}
 
-    run = service.execute_pos(start_date=datetime(2026, 9, 14).date(), end_date=datetime(2026, 9, 22).date())
+    run = service.execute_pos(start_date=datetime(2026, 9, 14).date(), end_date=datetime(2026, 9, 16).date())
     assert run.status == SyncRun.STATUS_SUCCESS
-    assert calls
-    assert calls[0]["start_date"].isoformat() == "2026-09-14"
-    assert calls[0]["end_date"].isoformat() == "2026-09-22"
+    assert [call["start_date"].isoformat() for call in calls] == ["2026-09-14", "2026-09-15", "2026-09-16"]
+    assert [call["end_date"].isoformat() for call in calls] == ["2026-09-15", "2026-09-16", "2026-09-17"]
 
 
 @pytest.mark.django_db
@@ -107,7 +106,7 @@ def test_pos_sync_upserts_sale_and_items():
 
 
 @pytest.mark.django_db
-def test_pos_window_starts_from_last_local_pos_sale():
+def test_pos_window_restarts_from_sql_cutoff_not_latest_sale():
     customer = Customer.objects.create(source_id=1, first_name="آوا", last_name="رضایی", mobile="09120000001")
     Store.objects.create(source_id=3, label="ساری")
     created_at = timezone.make_aware(datetime(2026, 9, 20, 10, 0), TEHRAN)
@@ -120,5 +119,7 @@ def test_pos_window_starts_from_last_local_pos_sale():
         created_at=created_at,
     )
     start, end = pos_window(None)
-    assert start.isoformat() == "2026-09-19"
+    assert start == POS_SQL_CUTOFF
     assert end == timezone.localdate()
+    resumed, _end = pos_window({"next_date": "2026-09-18"})
+    assert resumed.isoformat() == "2026-09-17"

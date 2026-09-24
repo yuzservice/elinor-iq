@@ -21,6 +21,8 @@ logger = logging.getLogger(__name__)
 BOOTSTRAP_DAYS = 92
 OVERLAP_DAYS = 1
 POS_OVERLAP_DAYS = 1
+# SQL dump of physical sales is complete through 20 Shahrivar 1405.
+POS_SQL_CUTOFF = date(2026, 9, 11)
 ORDERS_PER_PAGE = 50
 MAX_REQUESTS_PER_RUN = int(getattr(settings, "ELINOR_SYNC_MAX_REQUESTS", 900))
 HOURLY_ONLINE_DETAILS_LIMIT = int(getattr(settings, "ELINOR_SYNC_HOURLY_ONLINE_DETAILS_LIMIT", "250"))
@@ -63,18 +65,22 @@ def recent_window(cursor_value=None):
 
 
 def pos_window(cursor_value=None):
+    """Physical stores resume from the SQL cutoff, not from the newest saved sale.
+
+    A later synced day must not skip the gap after 20 Shahrivar.
+    """
     end = timezone.localdate()
-    if cursor_value and cursor_value.get("last_synced_date"):
-        parsed = parse_datetime(cursor_value["last_synced_date"])
-        start = (parsed.date() if parsed else end) - timedelta(days=POS_OVERLAP_DAYS)
-    else:
-        last_pos = PosSale.objects.aggregate(last_at=Max("created_at"))["last_at"]
-        if last_pos:
-            start = timezone.localtime(last_pos).date() - timedelta(days=POS_OVERLAP_DAYS)
-        else:
-            start = end - timedelta(days=BOOTSTRAP_DAYS)
+    start = POS_SQL_CUTOFF
+    raw_next = (cursor_value or {}).get("next_date")
+    if raw_next:
+        try:
+            next_date = date.fromisoformat(str(raw_next)[:10])
+        except ValueError:
+            next_date = None
+        if next_date and POS_SQL_CUTOFF <= next_date <= end:
+            start = max(POS_SQL_CUTOFF, next_date - timedelta(days=POS_OVERLAP_DAYS))
     if start > end:
-        start = end - timedelta(days=POS_OVERLAP_DAYS)
+        start = end
     return start, end
 
 
@@ -412,91 +418,97 @@ class SyncService:
                 logger.warning("Order %s details failed: %s", source_id, exc)
 
     def _sync_pos_sales(self, start_date, end_date, *, max_sales=None):
-        last_created = None
+        """Fetch each physical-store day separately.
+
+        The mini_orders API returns no rows when start_date equals end_date, and a
+        cursor based on the newest saved sale skips the gap after the SQL dump.
+        """
         cursor = _cursor("pos_orders")
         processed = 0
-        page = 1
-        last_page = 1
-        previous_ids = set()
-        while page <= last_page:
-            if self.client.requests_made >= MAX_REQUESTS_PER_RUN:
-                self._finish(
-                    SyncRun.STATUS_PAUSED,
-                    error="Paused while fetching POS sales to respect Elinor API rate limits.",
-                )
-                return True
-            if max_sales is not None and processed >= max_sales:
-                cursor.value = {
-                    "last_synced_date": end_date.isoformat(),
-                    "last_created_at": last_created.isoformat() if last_created else cursor.value.get("last_created_at"),
-                    "window_start": start_date.isoformat(),
-                    "window_end": end_date.isoformat(),
-                }
-                cursor.save()
-                return False
-            payload = self.client.get_mini_orders(
-                page=page,
-                per_page=ORDERS_PER_PAGE,
-                start_date=start_date,
-                end_date=end_date,
-            )
-            rows = payload["results"]
-            last_page = max(1, payload["last_page"])
-            row_ids = {as_int(row.get("id"), default=None) for row in rows}
-            row_ids.discard(None)
-            if page > 1 and row_ids and row_ids == previous_ids:
-                logger.warning(
-                    "POS pagination repeated page %s for %s..%s; stopping.",
-                    page,
-                    start_date.isoformat(),
-                    end_date.isoformat(),
-                )
-                break
-            previous_ids = row_ids
-            logger.info(
-                "mini_orders %s..%s page %s/%s (%s rows, total=%s)",
-                start_date.isoformat(),
-                end_date.isoformat(),
-                page,
-                last_page,
-                len(rows),
-                payload.get("total"),
-            )
-            for row in rows:
-                if max_sales is not None and processed >= max_sales:
-                    break
+        day = start_date
+        while day <= end_date:
+            if self.client.requests_made >= MAX_REQUESTS_PER_RUN or (
+                max_sales is not None and processed >= max_sales
+            ):
+                self._save_pos_cursor(cursor, day, start_date, end_date)
                 if self.client.requests_made >= MAX_REQUESTS_PER_RUN:
                     self._finish(
                         SyncRun.STATUS_PAUSED,
-                        error="Paused while fetching POS details to respect Elinor API rate limits.",
+                        error="Paused while fetching POS sales to respect Elinor API rate limits.",
                     )
                     return True
-                sale = self._upsert_pos_header(row)
-                if sale:
+                return False
+
+            day_end = day + timedelta(days=1)
+            page = 1
+            last_page = 1
+            previous_ids = set()
+            day_count = 0
+            while page <= last_page:
+                if self.client.requests_made >= MAX_REQUESTS_PER_RUN:
+                    self._save_pos_cursor(cursor, day, start_date, end_date)
+                    self._finish(
+                        SyncRun.STATUS_PAUSED,
+                        error="Paused while fetching POS sales to respect Elinor API rate limits.",
+                    )
+                    return True
+                payload = self.client.get_mini_orders(
+                    page=page,
+                    per_page=ORDERS_PER_PAGE,
+                    start_date=day,
+                    end_date=day_end,
+                )
+                rows = payload["results"]
+                last_page = max(1, payload["last_page"])
+                row_ids = {as_int(row.get("id"), default=None) for row in rows}
+                row_ids.discard(None)
+                if page > 1 and row_ids and row_ids == previous_ids:
+                    logger.warning("POS pagination repeated page %s for %s; stopping that day.", page, day.isoformat())
+                    break
+                previous_ids = row_ids
+                logger.info(
+                    "mini_orders %s..%s page %s/%s (%s rows, total=%s)",
+                    day.isoformat(),
+                    day_end.isoformat(),
+                    page,
+                    last_page,
+                    len(rows),
+                    payload.get("total"),
+                )
+                for row in rows:
+                    if max_sales is not None and processed >= max_sales:
+                        break
+                    sale = self._upsert_pos_header(row)
+                    if not sale:
+                        continue
                     processed += 1
-                    last_created = sale.created_at or last_created
+                    day_count += 1
                     try:
                         self._sync_pos_details(sale)
                     except Exception as exc:
                         self.failures += 1
                         logger.warning("POS %s details failed: %s", sale.source_id, exc)
-            page += 1
-            self._persist_progress()
+                if max_sales is not None and processed >= max_sales:
+                    break
+                page += 1
+                self._persist_progress()
 
+            logger.info("POS day %s upserted %s sales", day.isoformat(), day_count)
+            day += timedelta(days=1)
+            self._save_pos_cursor(cursor, day, start_date, end_date)
+            if max_sales is not None and processed >= max_sales:
+                return False
+
+        logger.info("POS fetch complete for %s..%s (%s sales).", start_date.isoformat(), end_date.isoformat(), processed)
+        return False
+
+    def _save_pos_cursor(self, cursor, next_date, start_date, end_date):
         cursor.value = {
-            "last_synced_date": end_date.isoformat(),
-            "last_created_at": last_created.isoformat() if last_created else cursor.value.get("last_created_at"),
+            "next_date": next_date.isoformat(),
             "window_start": start_date.isoformat(),
             "window_end": end_date.isoformat(),
         }
         cursor.save()
-        logger.info(
-            "POS fetch complete for %s..%s (%s sales upserted this run).",
-            start_date.isoformat(),
-            end_date.isoformat(),
-            processed,
-        )
-        return False
 
     def _upsert_pos_header(self, row):
         source_id = as_int(row.get("id"), default=None)
