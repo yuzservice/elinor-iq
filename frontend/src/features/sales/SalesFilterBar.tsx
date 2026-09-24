@@ -91,7 +91,7 @@ function DateRangeBlock({
 
 export function SalesFilterBar({
   values,
-  options = EMPTY_OPTIONS,
+  options,
   loading = false,
   onChange,
   onReset,
@@ -99,9 +99,10 @@ export function SalesFilterBar({
   trendGroup = "daily",
   onTrendGroupChange,
 }: SalesFilterBarProps) {
+  const resolvedOptions = options ?? EMPTY_OPTIONS;
   const branchDisabled = isBranchFilterDisabled(values.channels);
   const hasActive = hasActiveSalesFilters(values);
-  const activeChips = describeSalesFilterSelections(values, options);
+  const activeChips = describeSalesFilterSelections(values, resolvedOptions);
 
   function enableCompare() {
     onChange({
@@ -139,7 +140,7 @@ export function SalesFilterBar({
         <FilterMultiSelect
           label="فیلتر شعبه"
           allLabel="همه شعبه‌ها"
-          options={options.branches}
+          options={resolvedOptions.branches}
           value={values.branches}
           disabled={branchDisabled || loading}
           className="sm:col-span-1 xl:col-span-2"
@@ -149,7 +150,7 @@ export function SalesFilterBar({
         <FilterMultiSelect
           label="فیلتر کانال فروش"
           allLabel="همه کانال‌ها"
-          options={options.channels}
+          options={resolvedOptions.channels}
           value={values.channels}
           disabled={loading}
           className="sm:col-span-1 xl:col-span-2"
@@ -168,7 +169,7 @@ export function SalesFilterBar({
         <FilterMultiSelect
           label="فیلتر روش پرداخت"
           allLabel="همه روش‌های پرداخت"
-          options={options.payment_methods}
+          options={resolvedOptions.payment_methods}
           value={values.payments}
           disabled={loading}
           className="sm:col-span-2 xl:col-span-2"

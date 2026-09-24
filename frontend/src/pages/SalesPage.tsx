@@ -117,7 +117,7 @@ export function SalesPage() {
     tab === "products",
   );
 
-  const activeWindow = trend.data?.window || details.data?.window || orders.data?.window;
+  const activeWindow = trend.data?.window || details.data?.window;
   const displayFilters = useMemo(() => {
     if (!activeWindow) return filters;
     return {
@@ -133,7 +133,7 @@ export function SalesPage() {
 
       <SalesFilterBar
         values={displayFilters}
-        options={filterOptions.data}
+        options={filterOptions.data ?? undefined}
         loading={filterOptions.loading && !filterOptions.data}
         onChange={updateFilters}
         onReset={resetFilters}

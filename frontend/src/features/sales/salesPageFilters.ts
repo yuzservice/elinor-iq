@@ -68,7 +68,7 @@ export function hasActiveSalesFilters(values: SalesFilterValues): boolean {
 
 export function describeSalesFilterSelections(
   values: SalesFilterValues,
-  options: SalesFilterOptions,
+  options: SalesFilterOptions = { branches: [], channels: [], payment_methods: [] },
 ): string[] {
   const chips: string[] = [];
   const findLabel = (list: SalesFilterOption[], key: string) =>
