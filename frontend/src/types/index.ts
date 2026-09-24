@@ -46,6 +46,15 @@ export type HomeSummary = {
     status_label: string;
     total_amount: number;
   }[];
+  line_board?: {
+    key: SalesLineKey;
+    label: string;
+    purchase_count: number;
+    customer_count: number;
+    units_sold: number;
+    avg_units_per_purchase: number;
+    order_value?: number | null;
+  }[];
   sales_lines: {
     key: string;
     label: string;

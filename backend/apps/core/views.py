@@ -7,7 +7,9 @@ from apps.core.coverage import coverage_payload
 from apps.core.metrics import REVENUE_DEFINITION, STATUS_LABELS
 from apps.customers.models import Customer
 from apps.customers.presentation import order_customer_name
-from apps.sales.models import Order, OrderItem, PosSale
+from apps.sales.analysis import _all_line_metrics
+from apps.sales.models import Order, OrderItem, PosSale, SalesLine
+from apps.sales.semantics import SALES_LINE_OVERVIEW_LABELS
 from apps.sales.services import parse_range, revenue_orders, trend_points, window_meta
 
 
@@ -34,6 +36,21 @@ def home_summary(request):
     missing_mobile = Customer.objects.filter(mobile="").count()
     pending_details = Order.objects.filter(details_synced_at__isnull=True).count()
     pos_connected = PosSale.objects.exists()
+    line_metrics = _all_line_metrics(start, end)
+    line_board = []
+    for key in (SalesLine.ONLINE, SalesLine.SARI, SalesLine.GORGAN, SalesLine.CAPRI):
+        row = line_metrics[key]
+        line_board.append(
+            {
+                "key": key,
+                "label": SALES_LINE_OVERVIEW_LABELS[key],
+                "purchase_count": row["purchase_count"],
+                "customer_count": row["customer_count"],
+                "units_sold": row["units_sold"],
+                "avg_units_per_purchase": row["avg_units_per_purchase"],
+                "order_value": row.get("online_order_value"),
+            }
+        )
     attention = []
     if unnamed:
         attention.append(f"{unnamed} مشتری بدون نام در داده فعلی.")
@@ -71,6 +88,7 @@ def home_summary(request):
                 }
                 for order in recent_orders
             ],
+            "line_board": line_board,
             "sales_lines": [
                 {
                     "key": "online",
