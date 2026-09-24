@@ -60,7 +60,7 @@ def test_sales_filter_options_from_live_data():
         SalesLine.CAPRI,
     ]
     assert [item["label"] for item in payload["branches"]] == ["آنلاین", "ساری", "گرگان", "کاپری"]
-    payment_keys = {item["key"] for item in payload["payment_methods"]}
-    assert "online:digipay" in payment_keys
-    assert "pos:cash" in payment_keys
-    assert "pos:snappay" in payment_keys
+    assert payload["payment_methods"] == [
+        {"key": "snappay", "label": "اسنپ‌پی"},
+        {"key": "digipay", "label": "دیجی‌پی"},
+    ]

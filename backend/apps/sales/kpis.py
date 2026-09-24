@@ -21,12 +21,9 @@ ONLINE_CHANNEL_FILTERS = {
     "digify": Q(is_digify=True),
 }
 
-POS_PAYMENT_FIELDS = {
-    "cash": "cash_amount",
-    "card": "card_by_card_amount",
-    "wallet": "from_wallet_amount",
-    "snappay": "snappay_cashier_amount",
-    "digipay": "digipay_cashier_amount",
+GATEWAY_PAYMENTS = {
+    "snappay": {"gateway": "snapppay", "pos_field": "snappay_cashier_amount"},
+    "digipay": {"gateway": "digipay", "pos_field": "digipay_cashier_amount"},
 }
 
 VALID_BRANCHES = frozenset({SalesLine.ONLINE, SalesLine.SARI, SalesLine.GORGAN, SalesLine.CAPRI})
@@ -58,14 +55,20 @@ def parse_channel_filter(raw):
 
 
 def parse_payment_filter(raw):
+    aliases = {
+        "snappay": "snappay",
+        "snapppay": "snappay",
+        "online:snapppay": "snappay",
+        "pos:snappay": "snappay",
+        "digipay": "digipay",
+        "online:digipay": "digipay",
+        "pos:digipay": "digipay",
+    }
     values = []
     for item in parse_csv_param(raw):
-        text = item.strip().lower()
-        if not text:
-            continue
-        if text.startswith("online:") or text.startswith("pos:"):
-            if text not in values:
-                values.append(text)
+        key = aliases.get(item.strip().lower())
+        if key and key not in values:
+            values.append(key)
     return values
 
 
@@ -96,11 +99,9 @@ def _apply_online_channel_filter(qs, channels):
 def _apply_online_payment_filter(qs, payments):
     if not payments:
         return qs
-    gateways = [payment.split(":", 1)[1] for payment in payments if payment.startswith("online:")]
-    if not gateways:
-        return qs.none()
     condition = Q()
-    for gateway in gateways:
+    for payment in payments:
+        gateway = GATEWAY_PAYMENTS[payment]["gateway"]
         condition |= Q(
             online_invoices__payments__gateway=gateway,
             online_invoices__payments__status=ONLINE_GATEWAY_SUCCESS,
@@ -111,15 +112,11 @@ def _apply_online_payment_filter(qs, payments):
 def _apply_pos_payment_filter(qs, payments):
     if not payments:
         return qs
-    methods = [payment.split(":", 1)[1] for payment in payments if payment.startswith("pos:")]
-    if not methods:
-        return qs.none()
     condition = Q()
-    for method in methods:
-        field_name = POS_PAYMENT_FIELDS.get(method)
-        if field_name:
-            condition |= Q(**{f"{field_name}__gt": 0})
-    return qs.filter(condition) if condition else qs.none()
+    for payment in payments:
+        field_name = GATEWAY_PAYMENTS[payment]["pos_field"]
+        condition |= Q(**{f"{field_name}__gt": 0})
+    return qs.filter(condition)
 
 
 def filtered_online_orders(start, end, branches, channels, payments):

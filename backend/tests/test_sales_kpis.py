@@ -77,7 +77,7 @@ def test_overview_kpis_respects_channel_and_payment_filters():
     assert online_only["order_count"] == 2
     assert online_only["net_sales"] == 500000
 
-    pos_only = compute_overview_kpis(start, end, branches=["SARI"], payments=["pos:snappay"])
+    pos_only = compute_overview_kpis(start, end, branches=["SARI"], payments=["snappay"])
     assert pos_only["order_count"] == 1
     assert pos_only["net_sales"] == 70000
 
@@ -117,6 +117,6 @@ def test_overview_kpis_compare_payload():
         created_at=timezone.now(),
     )
 
-    snappay = compute_overview_kpis(start, end, payments=["online:snapppay"])
+    snappay = compute_overview_kpis(start, end, payments=["snappay"])
     assert snappay["order_count"] == 1
     assert snappay["net_sales"] == 100000

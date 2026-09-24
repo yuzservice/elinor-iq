@@ -146,7 +146,7 @@ export function SalesFilterBar({
 
         <FilterMultiSelect
           label="فیلتر روش پرداخت"
-          allLabel="همه روش‌های پرداخت"
+          allLabel="همه"
           options={resolvedOptions.payment_methods}
           value={values.payments}
           disabled={loading}
