@@ -53,7 +53,20 @@ export type HomeSummary = {
     customer_count: number;
     units_sold: number;
     avg_units_per_purchase: number;
+    repeat_customers?: number;
     order_value?: number | null;
+    previous?: {
+      purchase_count: number;
+      customer_count: number;
+      repeat_customers: number;
+      order_value: number;
+    };
+    change_pct?: {
+      purchase_count: number | null;
+      customer_count: number | null;
+      repeat_customers: number | null;
+      order_value: number | null;
+    };
   }[];
   sales_lines: {
     key: string;

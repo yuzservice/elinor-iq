@@ -7,7 +7,7 @@ from apps.core.coverage import coverage_payload
 from apps.core.metrics import REVENUE_DEFINITION, STATUS_LABELS
 from apps.customers.models import Customer
 from apps.customers.presentation import order_customer_name
-from apps.sales.analysis import _all_line_metrics
+from apps.sales.analysis import _all_line_metrics, _pct_change, previous_window
 from apps.sales.models import Order, OrderItem, PosSale, SalesLine
 from apps.sales.semantics import SALES_LINE_OVERVIEW_LABELS
 from apps.sales.services import parse_range, revenue_orders, trend_points, window_meta
@@ -37,9 +37,12 @@ def home_summary(request):
     pending_details = Order.objects.filter(details_synced_at__isnull=True).count()
     pos_connected = PosSale.objects.exists()
     line_metrics = _all_line_metrics(start, end)
+    prev_start, prev_end = previous_window(start, end)
+    previous_metrics = _all_line_metrics(prev_start, prev_end)
     line_board = []
     for key in (SalesLine.ONLINE, SalesLine.SARI, SalesLine.GORGAN, SalesLine.CAPRI):
         row = line_metrics[key]
+        prev = previous_metrics[key]
         line_board.append(
             {
                 "key": key,
@@ -48,7 +51,20 @@ def home_summary(request):
                 "customer_count": row["customer_count"],
                 "units_sold": row["units_sold"],
                 "avg_units_per_purchase": row["avg_units_per_purchase"],
+                "repeat_customers": row["repeat_customers"],
                 "order_value": row.get("online_order_value"),
+                "previous": {
+                    "purchase_count": prev["purchase_count"],
+                    "customer_count": prev["customer_count"],
+                    "repeat_customers": prev["repeat_customers"],
+                    "order_value": prev.get("online_order_value") or 0,
+                },
+                "change_pct": {
+                    "purchase_count": _pct_change(row["purchase_count"], prev["purchase_count"]),
+                    "customer_count": _pct_change(row["customer_count"], prev["customer_count"]),
+                    "repeat_customers": _pct_change(row["repeat_customers"], prev["repeat_customers"]),
+                    "order_value": _pct_change(row.get("online_order_value") or 0, prev.get("online_order_value") or 0),
+                },
             }
         )
     attention = []
