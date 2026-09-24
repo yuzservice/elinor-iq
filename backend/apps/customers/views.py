@@ -9,7 +9,6 @@ from apps.core.coverage import coverage_payload
 from apps.sales.services import parse_range, window_meta
 
 from .detail import HISTORY_PER_PAGE, customer_360_payload, product_history, purchase_history
-from .export import EXPORT_LIMIT, build_customer_export_xlsx
 from .list_query import customer_list_queryset, hydrate_customer_rows, paginate_customers
 from .models import Customer
 
@@ -60,6 +59,8 @@ def reports(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def customer_export(request):
+    from .export import EXPORT_LIMIT, build_customer_export_xlsx
+
     qs = customer_list_queryset(request.query_params)
     total = qs.count()
     rows = hydrate_customer_rows(list(qs[:EXPORT_LIMIT]))
