@@ -19,7 +19,7 @@ import { useApi } from "../hooks/useApi";
 import { customerDisplayName } from "../lib/customerDisplay";
 import { formatDate, formatNumber, toInputDate } from "../lib/format";
 import { salesService, type ProductSort, type SalesLineFilter, type SalesSection } from "../services/sales";
-import type { SalesInsight, SalesLineComparison, SalesLineKey, SalesSummary, TrendGroup } from "../types";
+import type { SalesLineKey, TrendGroup } from "../types";
 
 const SALES_LINE_OPTIONS: { value: SalesLineFilter; label: string }[] = [
   { value: "all", label: "همه" },
@@ -60,12 +60,6 @@ const SALES_TABS: { key: string; label: string; section?: SalesSection }[] = [
   { key: "orders", label: "فروش‌های اخیر" },
 ];
 
-function changeLabel(value: number | null | undefined) {
-  if (value == null) return "—";
-  const prefix = value > 0 ? "+" : "";
-  return `${prefix}${formatNumber(value)}٪`;
-}
-
 export function SalesPage() {
   const [params, setParams] = useSearchParams();
   const tab = SALES_TABS.some((item) => item.key === params.get("tab")) ? params.get("tab")! : "overview";
@@ -78,11 +72,6 @@ export function SalesPage() {
   const [productSort, setProductSort] = useState<ProductSort>("units");
   const [productOrder, setProductOrder] = useState<"asc" | "desc">("desc");
 
-  const overview = useApi(
-    () => salesService.summary(range.from, range.to, salesLine, trendGroup, "overview"),
-    [range.from, range.to, salesLine],
-    tab === "overview",
-  );
   const trend = useApi(
     () => salesService.summary(range.from, range.to, salesLine, trendGroup, "trend"),
     [range.from, range.to, salesLine, trendGroup],
@@ -113,7 +102,7 @@ export function SalesPage() {
     tab === "products",
   );
 
-  const activeWindow = overview.data?.window || trend.data?.window || details.data?.window;
+  const activeWindow = trend.data?.window || details.data?.window || orders.data?.window;
   const defaultRange = useMemo(() => {
     if (!activeWindow) return range;
     return {
@@ -181,18 +170,6 @@ export function SalesPage() {
           }}
         />
       </div>
-
-      {tab === "overview" ? (
-        overview.loading && !overview.data ? (
-          <Skeleton className="mt-6 h-80" />
-        ) : overview.error || !overview.data?.metrics || !overview.data.sales_lines ? (
-          <div className="mt-6">
-            <ErrorState />
-          </div>
-        ) : (
-          <OverviewTab metrics={overview.data.metrics} insights={overview.data.insights || []} salesLines={overview.data.sales_lines} />
-        )
-      ) : null}
 
       {tab === "trend" ? (
         trend.loading && !trend.data ? (
@@ -427,72 +404,5 @@ export function SalesPage() {
       </Panel>
       ) : null}
     </div>
-  );
-}
-
-function OverviewTab({
-  metrics,
-  insights,
-  salesLines,
-}: {
-  metrics: NonNullable<SalesSummary["metrics"]>;
-  insights: SalesInsight[];
-  salesLines: SalesLineComparison[];
-}) {
-  return (
-    <>
-      <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {[
-          ["فاکتور / خرید معتبر", metrics.purchase_count],
-          ["مشتری خریدار", metrics.customer_count],
-          ["واحد فروخته‌شده", metrics.units_sold],
-          ["میانگین کالا در خرید", metrics.avg_units_per_purchase],
-          ["مشتری جدید", metrics.new_customers],
-          ["مشتری تکراری", metrics.repeat_customers],
-        ].map(([label, value]) => (
-          <div key={label} className="rounded-[24px] bg-surface px-5 py-5 shadow-soft">
-            <div className="text-[13px] font-medium text-muted">{label}</div>
-            <div className="mt-2 tabular text-[28px] font-semibold text-ink">{formatNumber(Number(value))}</div>
-          </div>
-        ))}
-      </div>
-
-      {insights.length ? (
-        <Panel className="mt-6">
-          <SectionHeader title="نکات شاخه‌ای" hint="مبتنی بر قواعد — بدون AI" />
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {insights.map((item) => (
-              <div key={item.key} className="rounded-xl border border-line bg-elevated/40 px-4 py-3">
-                <div className="text-xs text-muted">{item.label}</div>
-                <div className="mt-1 text-sm font-medium text-ink">{item.value}</div>
-                <div className="mt-1 text-xs text-faint">{item.detail}</div>
-              </div>
-            ))}
-          </div>
-        </Panel>
-      ) : null}
-
-      <Panel className="mt-6">
-        <SectionHeader title="مقایسه خطوط فروش" hint="بازه قبلی هم‌اندازه برای مقایسه امن" />
-        <Table
-          columns={["خط فروش", "خرید", "تغییر", "مشتری", "واحد", "میانگین کالا", "جدید", "تکراری"]}
-        >
-          {salesLines.map((line) => (
-            <TableRow key={line.key}>
-              <td className="px-3 py-3.5">
-                <Badge tone={salesLineTone(line.key)}>{line.label}</Badge>
-              </td>
-              <td className="px-3 py-3.5 tabular">{formatNumber(line.purchase_count)}</td>
-              <td className="px-3 py-3.5 tabular text-muted">{changeLabel(line.change_pct.purchase_count)}</td>
-              <td className="px-3 py-3.5 tabular">{formatNumber(line.customer_count)}</td>
-              <td className="px-3 py-3.5 tabular">{formatNumber(line.units_sold)}</td>
-              <td className="px-3 py-3.5 tabular">{formatNumber(line.avg_units_per_purchase)}</td>
-              <td className="px-3 py-3.5 tabular">{formatNumber(line.new_customers)}</td>
-              <td className="px-3 py-3.5 tabular">{formatNumber(line.repeat_customers)}</td>
-            </TableRow>
-          ))}
-        </Table>
-      </Panel>
-    </>
   );
 }

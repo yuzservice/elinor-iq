@@ -44,6 +44,7 @@ export function JalaliDateField({
   emptyLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [popupStyle, setPopupStyle] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const root = useRef<HTMLDivElement>(null);
   const selected = isoToJalali(value) || toJalaliParts(todayIso());
   const [cursor, setCursor] = useState(selected || { jy: 1405, jm: 1, jd: 1 });
@@ -59,6 +60,38 @@ export function JalaliDateField({
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
+
+  useEffect(() => {
+    if (!open || !root.current) return;
+
+    function updatePosition() {
+      if (!root.current) return;
+      const rect = root.current.getBoundingClientRect();
+      const width = 288;
+      const height = 320;
+      const margin = 12;
+      let left = rect.left;
+      if (left + width > window.innerWidth - margin) {
+        left = window.innerWidth - margin - width;
+      }
+      if (left < margin) {
+        left = margin;
+      }
+      let top = rect.bottom + 8;
+      if (top + height > window.innerHeight - margin) {
+        top = Math.max(margin, rect.top - height - 8);
+      }
+      setPopupStyle({ top, left });
+    }
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open]);
 
   const length = jalaliMonthLength(cursor.jy, cursor.jm);
   const firstIso = jalaliToIso(cursor.jy, cursor.jm, 1);
@@ -91,7 +124,10 @@ export function JalaliDateField({
         {value ? formatJalali(value) : allowEmpty ? emptyLabel : formatJalali(todayIso())}
       </button>
       {open ? (
-        <div className="absolute top-12 z-30 w-72 rounded-2xl border border-line bg-elevated p-3 shadow-soft">
+        <div
+          className="fixed z-50 w-72 rounded-2xl border border-line bg-elevated p-3 shadow-soft"
+          style={{ top: popupStyle.top, left: popupStyle.left }}
+        >
           <div className="mb-3 flex items-center justify-between">
             <IconButton type="button" onClick={() => shiftMonth(1)} aria-label="ماه بعد">
               ‹
