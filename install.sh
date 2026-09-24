@@ -91,7 +91,9 @@ ELINOR_SYNC_HOURLY_ONLINE_DETAILS_LIMIT=250
 ELINOR_SYNC_HOURLY_POS_DAYS=3
 ELINOR_SYNC_INTERVAL_SECONDS=3600
 
+DOMAIN=${DOMAIN}
 HTTP_PORT=80
+HTTPS_PORT=443
 VITE_API_BASE_URL=/api
 EOF
 if [[ -n "$instagram_lines" ]]; then
@@ -127,9 +129,17 @@ unset ELINOR_BOOTSTRAP_ADMIN_PASSWORD ADMIN_PASSWORD ADMIN_PASSWORD_REPEAT
 
 if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
   ufw allow 80/tcp
+  ufw allow 443/tcp
+fi
+
+if ./scripts/ensure-https.sh; then
+  site_url="https://${DOMAIN}"
+else
+  site_url="http://${DOMAIN}"
+  echo "گواهی SSL گرفته نشد. سایت فعلاً روی HTTP در دسترس است."
 fi
 
 echo
 echo "نصب تمام شد."
-echo "ورود: http://${DOMAIN}"
+echo "ورود: ${site_url}"
 echo "بعد از ورود، در تنظیمات اتصال API الینور و ادمین‌های لایه ۲ را بسازید."

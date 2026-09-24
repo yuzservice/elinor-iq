@@ -58,10 +58,16 @@ services:
 
   nginx:
     image: nginx:1.27-alpine
+    environment:
+      DOMAIN: ${DOMAIN:-}
     ports:
       - "${HTTP_PORT:-8080}:80"
+      - "${HTTPS_PORT:-8443}:443"
     volumes:
-      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./docker/nginx-entrypoint.sh:/nginx-entrypoint.sh:ro
+      - certbot_www:/var/www/certbot
+      - certbot_certs:/etc/letsencrypt
+    entrypoint: ["/bin/sh", "/nginx-entrypoint.sh"]
     depends_on:
       backend:
         condition: service_healthy
@@ -85,6 +91,15 @@ services:
     entrypoint: ["/scheduler-entrypoint.sh"]
     restart: unless-stopped
 
+  certbot:
+    image: certbot/certbot:v3.1.0
+    profiles: ["ssl"]
+    volumes:
+      - certbot_www:/var/www/certbot
+      - certbot_certs:/etc/letsencrypt
+
 volumes:
   postgres_data:
   frontend_node_modules:
+  certbot_www:
+  certbot_certs:

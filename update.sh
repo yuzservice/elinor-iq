@@ -21,6 +21,7 @@ git fetch origin main
 git reset --hard origin/main
 
 echo "در حال به‌روزرسانی سرویس‌ها..."
-docker compose up -d --build
+docker compose up -d --build --force-recreate
+./scripts/ensure-https.sh
 
 echo "آپدیت تمام شد."
