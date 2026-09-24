@@ -39,3 +39,11 @@ export function toInputDate(value?: string | null): string {
   if (Number.isNaN(date.getTime())) return text.slice(0, 10);
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tehran" }).format(date);
 }
+
+/** Shift a YYYY-MM-DD calendar date in Asia/Tehran. */
+export function shiftTehranIsoDate(iso: string, days: number): string {
+  const date = new Date(`${iso}T12:00:00+03:30`);
+  if (Number.isNaN(date.getTime())) return iso;
+  date.setDate(date.getDate() + days);
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tehran" }).format(date);
+}
