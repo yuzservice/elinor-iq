@@ -258,9 +258,12 @@ class SyncService:
             self._finish(SyncRun.STATUS_FAILED, error=str(exc))
             raise
 
-    def execute_pos(self):
+    def execute_pos(self, start_date=None, end_date=None):
         self._ensure_not_running()
-        start, end = pos_window(_cursor("pos_orders").value)
+        if start_date is not None and end_date is not None:
+            start, end = start_date, end_date
+        else:
+            start, end = pos_window(_cursor("pos_orders").value)
         self.run = SyncRun.objects.create(
             kind=SyncRun.KIND_POS,
             status=SyncRun.STATUS_RUNNING,

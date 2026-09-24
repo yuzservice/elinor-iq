@@ -1,7 +1,9 @@
-from datetime import datetime, time
+from datetime import time, timedelta
+from zoneinfo import ZoneInfo
 
 from django.core.management.base import BaseCommand
 from django.db.models import Count, Max
+from django.db.models.functions import TruncDate
 from django.utils import timezone
 
 from apps.core.coverage import HISTORICAL_IMPORT_MAX_DATE, pos_sync_status
@@ -9,6 +11,8 @@ from apps.integrations.elinor.models import SyncCursor, SyncRun
 from apps.integrations.elinor.sync import pos_window
 from apps.sales.models import PosSale, PosSaleItem, SalesLine
 from apps.sales.semantics import SALES_LINE_OVERVIEW_LABELS, qualifying_pos_items
+
+TEHRAN = ZoneInfo("Asia/Tehran")
 
 
 class Command(BaseCommand):
@@ -48,6 +52,40 @@ class Command(BaseCommand):
             max_at = qs.aggregate(v=Max("created_at"))["v"]
             max_label = timezone.localtime(max_at).date().isoformat() if max_at else "—"
             self.stdout.write(f"  {SALES_LINE_OVERVIEW_LABELS[line]}: {count} sales, latest={max_label}")
+
+        self.stdout.write("")
+        gap_start = HISTORICAL_IMPORT_MAX_DATE + timedelta(days=1)
+        gap_end = today - timedelta(days=1)
+        if gap_start <= gap_end:
+            self.stdout.write(f"Sari daily counts in API gap ({gap_start.isoformat()} → {gap_end.isoformat()}):")
+            daily = {
+                (row["day"].date() if hasattr(row["day"], "date") else row["day"]): row["count"]
+                for row in PosSale.objects.filter(
+                    sales_line=SalesLine.SARI,
+                    created_at__date__gte=gap_start,
+                    created_at__date__lte=gap_end,
+                )
+                .annotate(day=TruncDate("created_at", tzinfo=TEHRAN))
+                .values("day")
+                .annotate(count=Count("id"))
+            }
+            missing = []
+            day = gap_start
+            while day <= gap_end:
+                count = daily.get(day, 0)
+                marker = "" if count else "  ← missing"
+                if not count:
+                    missing.append(day.isoformat())
+                self.stdout.write(f"  {day.isoformat()}: {count}{marker}")
+                day += timedelta(days=1)
+            if missing:
+                self.stdout.write("")
+                self.stdout.write(self.style.WARNING("Missing Sari days detected in the post-import gap."))
+                self.stdout.write("Backfill with:")
+                self.stdout.write(
+                    f"  docker compose exec backend python manage.py sync_elinor_pos "
+                    f"--from {gap_start.isoformat()} --to {gap_end.isoformat()}"
+                )
 
         self.stdout.write("")
         headers_without_items = (
