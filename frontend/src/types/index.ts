@@ -397,6 +397,7 @@ export type SystemStatus = {
     error: string;
     job: {
       kind: string;
+      kind_label: string;
       status: string;
       status_label: string;
       stalled: boolean;

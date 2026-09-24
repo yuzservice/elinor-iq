@@ -170,6 +170,23 @@ def admins(request):
     )
 
 
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def stop_sync(request):
+    now = timezone.now()
+    stopped = 0
+    for run in SyncRun.objects.filter(status=SyncRun.STATUS_RUNNING):
+        report = dict(run.report or {})
+        report["cancel"] = True
+        run.report = report
+        run.status = SyncRun.STATUS_FAILED
+        run.finished_at = now
+        run.error_message = "Stopped by user."
+        run.save(update_fields=["report", "status", "finished_at", "error_message"])
+        stopped += 1
+    return Response({"ok": True, "stopped": stopped, "message": "همگام‌سازی متوقف شد."})
+
+
 def _run_recent_sync():
     from apps.integrations.elinor.sync import SyncService
     from apps.integrations.elinor.models import SyncRun as Run
@@ -203,6 +220,8 @@ def _public_sync_error(error):
         return "محدودیت درخواست API پر شد. همان بازه را دوباره بزنید تا از همان روز ادامه دهد."
     if error == "Cleared stuck sync run.":
         return "اجرای قبلی بدون پیشرفت مانده بود و بسته شد."
+    if error == "Stopped by user.":
+        return "همگام‌سازی را متوقف کردید. می‌توانید بازه را دوباره شروع کنید."
     return error
 
 
@@ -221,6 +240,7 @@ def _sync_job(run):
     }
     return {
         "kind": run.kind,
+        "kind_label": "فروشگاه" if run.kind == SyncRun.KIND_POS else "همگام‌سازی جاری",
         "status": run.status,
         "status_label": "بدون پیشرفت" if stalled else labels.get(run.status, run.status),
         "stalled": stalled,

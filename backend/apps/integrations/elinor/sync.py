@@ -483,6 +483,9 @@ class SyncService:
             day_count = 0
             day_complete = True
             while page <= last_page:
+                if self._stop_requested():
+                    self._finish(SyncRun.STATUS_FAILED, error="Stopped by user.")
+                    return True
                 self._touch_heartbeat(day)
                 if self.client.requests_made >= MAX_REQUESTS_PER_RUN:
                     self._save_pos_cursor(cursor, day, start_date, end_date)
@@ -888,8 +891,22 @@ class SyncService:
             )
         logger.info("Customer order stats refreshed for %s customers.", len(combined))
 
-    def _touch_heartbeat(self, day=None):
+    def _stop_requested(self):
         if not self.run:
+            return False
+        fresh = SyncRun.objects.filter(pk=self.run.pk).values_list("report", "status").first()
+        if not fresh:
+            return False
+        report, status = fresh
+        report = report or {}
+        if report.get("cancel") or status != SyncRun.STATUS_RUNNING:
+            self.run.report = report
+            self.run.status = status
+            return True
+        return False
+
+    def _touch_heartbeat(self, day=None):
+        if not self.run or self._stop_requested():
             return
         report = dict(self.run.report or {})
         report["heartbeat"] = timezone.now().isoformat()
@@ -903,6 +920,8 @@ class SyncService:
         self.run.save(update_fields=["report", "requests_made"])
 
     def _persist_progress(self):
+        if self._stop_requested():
+            return
         self._touch_heartbeat()
         self.run.save(
             update_fields=[
@@ -919,6 +938,12 @@ class SyncService:
 
     def _finish(self, status, error=""):
         if not self.run:
+            return
+        self.run.refresh_from_db()
+        if (self.run.report or {}).get("cancel"):
+            status = SyncRun.STATUS_FAILED
+            error = "Stopped by user."
+        elif self.run.status != SyncRun.STATUS_RUNNING and status == SyncRun.STATUS_SUCCESS:
             return
         self.run.status = status
         self.run.finished_at = timezone.now()

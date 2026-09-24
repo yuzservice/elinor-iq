@@ -66,6 +66,20 @@ export function SettingsPage() {
     return () => window.clearInterval(timer);
   }, [setData]);
 
+  async function stopSync() {
+    setSyncing(true);
+    setMessage("");
+    try {
+      const result = await systemService.stopSync();
+      setMessage(result.message || "همگام‌سازی متوقف شد.");
+      setData(await systemService.status());
+    } catch (error) {
+      setMessage(error instanceof ApiError ? error.message : "توقف همگام‌سازی انجام نشد.");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   async function syncNow() {
     setSyncing(true);
     setMessage("");
@@ -245,7 +259,7 @@ export function SettingsPage() {
           <Count label="کالا" value={data.counts.products} />
           <Count label="تنوع" value={data.counts.variants} />
         </div>
-        <SyncJob job={data.sync.job} />
+        <SyncJob job={data.sync.job} running={data.sync.running} stopping={syncing} onStop={stopSync} />
         <div className="mt-6 space-y-3">
           <div className="text-sm text-muted">بازه و شعبه فروشگاه</div>
           <div className="flex flex-wrap items-center gap-3">
@@ -301,7 +315,17 @@ export function SettingsPage() {
   );
 }
 
-function SyncJob({ job }: { job: SystemStatus["sync"]["job"] }) {
+function SyncJob({
+  job,
+  running,
+  stopping,
+  onStop,
+}: {
+  job: SystemStatus["sync"]["job"];
+  running: boolean;
+  stopping: boolean;
+  onStop: () => void;
+}) {
   if (!job) return null;
   const branchLabel = job.branches.length
     ? job.branches
@@ -313,7 +337,15 @@ function SyncJob({ job }: { job: SystemStatus["sync"]["job"] }) {
     <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${problem ? "border-rose/40" : "border-line"}`}>
       <div className="flex items-center justify-between gap-3">
         <span className="text-muted">وضعیت</span>
-        <span className={problem ? "text-rose" : ""}>{job.status_label}</span>
+        <span className={`flex items-center gap-3 ${problem ? "text-rose" : ""}`}>
+          {job.kind_label ? <span className="text-faint">{job.kind_label}</span> : null}
+          {job.status_label}
+          {running ? (
+            <Button onClick={onStop} disabled={stopping}>
+              {stopping ? "در حال توقف..." : "توقف"}
+            </Button>
+          ) : null}
+        </span>
       </div>
       <Field label="شعبه" value={branchLabel} />
       <Field
