@@ -63,8 +63,8 @@ export function SalesPage() {
   const [productOrder, setProductOrder] = useState<"asc" | "desc">("desc");
 
   const salesLine = useMemo(
-    () => deriveSalesLineFilter(filters.branches, filters.channels),
-    [filters.branches, filters.channels],
+    () => deriveSalesLineFilter(filters.branches),
+    [filters.branches],
   );
 
   const filterOptions = useApi(() => salesService.filterOptions(), []);
@@ -80,7 +80,6 @@ export function SalesPage() {
       "from" in next ||
       "to" in next ||
       "branches" in next ||
-      "channels" in next ||
       "payments" in next
     ) {
       setPage(1);
@@ -130,7 +129,6 @@ export function SalesPage() {
       kpiQuery.from,
       kpiQuery.to,
       kpiQuery.branches,
-      kpiQuery.channels,
       kpiQuery.payments,
       kpiQuery.compare_from,
       kpiQuery.compare_to,

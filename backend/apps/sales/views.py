@@ -9,7 +9,6 @@ from apps.sales.filter_options import sales_filter_options_payload
 from apps.sales.kpis import (
     overview_kpis_payload,
     parse_branch_filter,
-    parse_channel_filter,
     parse_payment_filter,
 )
 from apps.sales.semantics import parse_sales_line_filter
@@ -39,21 +38,19 @@ def overview_kpis(request):
     start, end = parse_range(request)
     compare_start, compare_end = parse_compare_range(request)
     branches = parse_branch_filter(request.query_params.get("branches"))
-    channels = parse_channel_filter(request.query_params.get("channels"))
     payments = parse_payment_filter(request.query_params.get("payments"))
     payload = {
         "window": window_meta(start, end),
         "compare_window": window_meta(compare_start, compare_end) if compare_start and compare_end else None,
         "filters": {
             "branches": branches,
-            "channels": channels,
             "payments": payments,
         },
         "kpis": overview_kpis_payload(
             start,
             end,
             branches,
-            channels,
+            None,
             payments,
             compare_start,
             compare_end,

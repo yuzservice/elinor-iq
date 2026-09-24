@@ -29,7 +29,7 @@ POS_PAYMENT_FIELDS = {
     "digipay": "digipay_cashier_amount",
 }
 
-VALID_BRANCHES = frozenset({SalesLine.SARI, SalesLine.GORGAN, SalesLine.CAPRI})
+VALID_BRANCHES = frozenset({SalesLine.ONLINE, SalesLine.SARI, SalesLine.GORGAN, SalesLine.CAPRI})
 
 
 def parse_csv_param(raw):
@@ -123,11 +123,10 @@ def _apply_pos_payment_filter(qs, payments):
 
 
 def filtered_online_orders(start, end, branches, channels, payments):
-    del branches  # Online orders are not tied to POS branches.
-    if not _includes_online(channels):
+    del channels
+    if branches and SalesLine.ONLINE not in branches:
         return Order.objects.none()
     qs = qualifying_online_orders().filter(created_at__gte=start, created_at__lt=end)
-    qs = _apply_online_channel_filter(qs, channels)
     if payments:
         qs = _apply_online_payment_filter(qs, payments)
     return qs
@@ -139,25 +138,29 @@ def filtered_online_value_orders(start, end, branches, channels, payments):
 
 
 def filtered_pos_sales(start, end, branches, channels, payments):
-    if not _includes_pos(channels):
+    del channels
+    pos_branches = [branch for branch in branches if branch != SalesLine.ONLINE]
+    if branches and not pos_branches:
         return PosSale.objects.none()
     qs = qualifying_pos_sales().filter(created_at__gte=start, created_at__lt=end)
-    if branches:
-        qs = qs.filter(sales_line__in=branches)
+    if pos_branches:
+        qs = qs.filter(sales_line__in=pos_branches)
     if payments:
         qs = _apply_pos_payment_filter(qs, payments)
     return qs
 
 
 def _refund_amount(start, end, branches, channels):
-    if not _includes_pos(channels):
+    del channels
+    pos_branches = [branch for branch in branches if branch != SalesLine.ONLINE]
+    if branches and not pos_branches:
         return 0
     items = pos_refund_items().filter(
         pos_sale__created_at__gte=start,
         pos_sale__created_at__lt=end,
     )
-    if branches:
-        items = items.filter(pos_sale__sales_line__in=branches)
+    if pos_branches:
+        items = items.filter(pos_sale__sales_line__in=pos_branches)
     total = items.aggregate(total=Sum(_pos_line_total_expr()))["total"]
     return int(abs(total or 0))
 

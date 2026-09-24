@@ -53,8 +53,13 @@ def test_sales_filter_options_from_live_data():
 
     payload = sales_filter_options_payload()
 
-    assert {item["key"] for item in payload["branches"]} == {SalesLine.SARI}
-    assert {item["key"] for item in payload["channels"]} >= {"shopino", "website", "pos"}
+    assert [item["key"] for item in payload["branches"]] == [
+        SalesLine.ONLINE,
+        SalesLine.SARI,
+        SalesLine.GORGAN,
+        SalesLine.CAPRI,
+    ]
+    assert [item["label"] for item in payload["branches"]] == ["آنلاین", "ساری", "گرگان", "کاپری"]
     payment_keys = {item["key"] for item in payload["payment_methods"]}
     assert "online:digipay" in payment_keys
     assert "pos:cash" in payment_keys

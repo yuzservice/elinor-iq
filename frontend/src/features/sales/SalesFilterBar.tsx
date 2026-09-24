@@ -6,7 +6,6 @@ import { FilterMultiSelect } from "./FilterMultiSelect";
 import {
   describeSalesFilterSelections,
   hasActiveSalesFilters,
-  isBranchFilterDisabled,
   type SalesFilterOptions,
   type SalesFilterValues,
 } from "./salesPageFilters";
@@ -21,7 +20,6 @@ const TREND_GROUPS: { value: TrendGroup; label: string }[] = [
 
 const EMPTY_OPTIONS: SalesFilterOptions = {
   branches: [],
-  channels: [],
   payment_methods: [],
 };
 
@@ -100,7 +98,6 @@ export function SalesFilterBar({
   onTrendGroupChange,
 }: SalesFilterBarProps) {
   const resolvedOptions = options ?? EMPTY_OPTIONS;
-  const branchDisabled = isBranchFilterDisabled(values.channels);
   const hasActive = hasActiveSalesFilters(values);
   const activeChips = describeSalesFilterSelections(values, resolvedOptions);
 
@@ -142,28 +139,9 @@ export function SalesFilterBar({
           allLabel="همه شعبه‌ها"
           options={resolvedOptions.branches}
           value={values.branches}
-          disabled={branchDisabled || loading}
-          className="w-full sm:w-auto sm:min-w-[9.5rem]"
-          onChange={(branches) => onChange({ branches })}
-        />
-
-        <FilterMultiSelect
-          label="فیلتر کانال فروش"
-          allLabel="همه کانال‌ها"
-          options={resolvedOptions.channels}
-          value={values.channels}
           disabled={loading}
           className="w-full sm:w-auto sm:min-w-[9.5rem]"
-          onChange={(channels) => {
-            const onlineOnly =
-              channels.length > 0 &&
-              channels.every((key) => key !== "pos") &&
-              channels.every((key) => ["website", "shopino", "digify"].includes(key));
-            onChange({
-              channels,
-              branches: onlineOnly ? [] : values.branches,
-            });
-          }}
+          onChange={(branches) => onChange({ branches })}
         />
 
         <FilterMultiSelect

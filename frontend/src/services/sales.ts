@@ -3,7 +3,6 @@ import type { Paginated, SalesLineKey, SalesOrder, SalesProductRow, SalesSummary
 
 export type SalesFilterOptionsResponse = {
   branches: { key: string; label: string }[];
-  channels: { key: string; label: string }[];
   payment_methods: { key: string; label: string; scope?: "online" | "pos" }[];
   timing_ms?: number;
 };
@@ -29,7 +28,6 @@ export type SalesOverviewKpisResponse = {
   compare_window: SalesOverviewKpisResponse["window"] | null;
   filters: {
     branches: string[];
-    channels: string[];
     payments: string[];
   };
   kpis: {
@@ -48,7 +46,6 @@ export type SalesKpiParams = {
   from?: string;
   to?: string;
   branches?: string;
-  channels?: string;
   payments?: string;
   compare_from?: string;
   compare_to?: string;
@@ -62,7 +59,6 @@ export const salesService = {
         from: params.from,
         to: params.to,
         branches: params.branches || undefined,
-        channels: params.channels || undefined,
         payments: params.payments || undefined,
         compare_from: params.compare_from,
         compare_to: params.compare_to,

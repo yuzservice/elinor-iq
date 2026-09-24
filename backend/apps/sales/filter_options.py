@@ -1,16 +1,8 @@
 """Discover sales filter options from live database facts."""
 
-from django.db.models import Q
-
 from apps.integrations.elinor.gateway_payments import GATEWAY_METRICS
-from apps.sales.models import OnlinePayment, Order, PosSale, STORE_SALES_LINE, Store
-from apps.sales.semantics import SALES_LINE_OVERVIEW_LABELS
-
-ONLINE_CHANNEL_DEFINITIONS = (
-    ("website", Q(is_shopino=False, is_digify=False), "وب‌سایت"),
-    ("shopino", Q(is_shopino=True), "شاپینو"),
-    ("digify", Q(is_digify=True), "دیجی‌فای"),
-)
+from apps.sales.models import OnlinePayment, PosSale, SalesLine
+from apps.sales.semantics import SALES_LINE_LABELS
 
 POS_PAYMENT_METHODS = (
     ("cash", "cash_amount", "نقد"),
@@ -25,6 +17,13 @@ ONLINE_GATEWAY_LABELS = {
     "snapppay": "اسنپ‌پی",
 }
 
+BRANCH_OPTIONS = (
+    (SalesLine.ONLINE, SALES_LINE_LABELS[SalesLine.ONLINE]),
+    (SalesLine.SARI, SALES_LINE_LABELS[SalesLine.SARI]),
+    (SalesLine.GORGAN, SALES_LINE_LABELS[SalesLine.GORGAN]),
+    (SalesLine.CAPRI, SALES_LINE_LABELS[SalesLine.CAPRI]),
+)
+
 
 def _gateway_label(gateway):
     key = str(gateway or "").strip().lower()
@@ -34,40 +33,7 @@ def _gateway_label(gateway):
 
 
 def sales_filter_options_payload():
-    branches = []
-    seen_lines = set()
-    stores = Store.objects.filter(source_id__in=STORE_SALES_LINE.keys()).order_by("source_id")
-    for store in stores:
-        line = store.sales_line
-        if not line or line in seen_lines:
-            continue
-        seen_lines.add(line)
-        branches.append(
-            {
-                "key": line,
-                "label": (store.label or "").strip() or SALES_LINE_OVERVIEW_LABELS.get(line, line),
-            }
-        )
-
-    if not branches:
-        for store_id, line in sorted(STORE_SALES_LINE.items()):
-            if line in seen_lines:
-                continue
-            seen_lines.add(line)
-            branches.append(
-                {
-                    "key": line,
-                    "label": SALES_LINE_OVERVIEW_LABELS.get(line, line),
-                }
-            )
-
-    channels = []
-    for key, condition, label in ONLINE_CHANNEL_DEFINITIONS:
-        if Order.objects.filter(condition).exists():
-            channels.append({"key": key, "label": label})
-    if PosSale.objects.filter(deleted_at__isnull=True).exists():
-        channels.append({"key": "pos", "label": "حضوری"})
-
+    branches = [{"key": key, "label": label} for key, label in BRANCH_OPTIONS]
     payment_methods = []
     seen_payments = set()
     for gateway in (
@@ -104,7 +70,6 @@ def sales_filter_options_payload():
 
     return {
         "branches": branches,
-        "channels": channels,
         "payment_methods": payment_methods,
         "gateway_metrics": sorted(GATEWAY_METRICS),
     }

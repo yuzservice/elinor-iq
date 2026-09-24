@@ -73,11 +73,11 @@ def test_overview_kpis_respects_channel_and_payment_filters():
     start = timezone.now() - timezone.timedelta(days=30)
     end = timezone.now() + timezone.timedelta(days=1)
 
-    shopino_only = compute_overview_kpis(start, end, channels=["shopino"])
-    assert shopino_only["order_count"] == 1
-    assert shopino_only["net_sales"] == 300000
+    online_only = compute_overview_kpis(start, end, branches=["ONLINE"])
+    assert online_only["order_count"] == 2
+    assert online_only["net_sales"] == 500000
 
-    pos_only = compute_overview_kpis(start, end, channels=["pos"], payments=["pos:snappay"])
+    pos_only = compute_overview_kpis(start, end, branches=["SARI"], payments=["pos:snappay"])
     assert pos_only["order_count"] == 1
     assert pos_only["net_sales"] == 70000
 

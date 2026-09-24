@@ -1,45 +1,22 @@
 import { describe, expect, it } from "vitest";
-import {
-  deriveSalesLineFilter,
-  hasActiveSalesFilters,
-  isBranchFilterDisabled,
-  EMPTY_SALES_FILTERS,
-  selectionLabel,
-} from "./salesPageFilters";
+import { deriveSalesLineFilter, hasActiveSalesFilters, EMPTY_SALES_FILTERS, selectionLabel } from "./salesPageFilters";
 
 describe("deriveSalesLineFilter", () => {
-  it("returns all when nothing is selected", () => {
-    expect(deriveSalesLineFilter([], [])).toBe("all");
+  it("returns all when nothing or multiple branches are selected", () => {
+    expect(deriveSalesLineFilter([])).toBe("all");
+    expect(deriveSalesLineFilter(["SARI", "GORGAN"])).toBe("all");
   });
 
-  it("returns ONLINE for online-only channels", () => {
-    expect(deriveSalesLineFilter([], ["shopino"])).toBe("ONLINE");
-    expect(deriveSalesLineFilter(["SARI"], ["website"])).toBe("ONLINE");
-  });
-
-  it("returns branch when one branch is selected for physical view", () => {
-    expect(deriveSalesLineFilter(["GORGAN"], [])).toBe("GORGAN");
-    expect(deriveSalesLineFilter(["CAPRI"], ["pos"])).toBe("CAPRI");
-  });
-});
-
-describe("isBranchFilterDisabled", () => {
-  it("disables branch filter for online-only channels", () => {
-    expect(isBranchFilterDisabled(["website"])).toBe(true);
-    expect(isBranchFilterDisabled(["pos"])).toBe(false);
-    expect(isBranchFilterDisabled([])).toBe(false);
+  it("returns the selected sales line", () => {
+    expect(deriveSalesLineFilter(["ONLINE"])).toBe("ONLINE");
+    expect(deriveSalesLineFilter(["GORGAN"])).toBe("GORGAN");
   });
 });
 
 describe("hasActiveSalesFilters", () => {
   it("detects active filters", () => {
     expect(hasActiveSalesFilters(EMPTY_SALES_FILTERS)).toBe(false);
-    expect(
-      hasActiveSalesFilters({
-        ...EMPTY_SALES_FILTERS,
-        payments: ["online:digipay"],
-      }),
-    ).toBe(true);
+    expect(hasActiveSalesFilters({ ...EMPTY_SALES_FILTERS, payments: ["online:digipay"] })).toBe(true);
   });
 });
 
