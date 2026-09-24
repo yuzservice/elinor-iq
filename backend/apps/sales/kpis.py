@@ -1,7 +1,7 @@
 """Filtered overview KPI calculations for the sales summary tab."""
 
-from django.db.models import Q, Sum, Value
-from django.db.models.functions import Coalesce
+from django.db.models import Count, Q, Sum
+from django.utils import timezone
 
 from apps.sales.analysis import _pct_change, _pos_line_total_expr
 from apps.sales.models import Order, PosSale, SalesLine
@@ -121,6 +121,7 @@ def _apply_pos_payment_filter(qs, payments):
 
 def filtered_online_orders(start, end, branches, channels, payments):
     del channels
+    branches = branches or []
     if branches and SalesLine.ONLINE not in branches:
         return Order.objects.none()
     qs = qualifying_online_orders().filter(created_at__gte=start, created_at__lt=end)
@@ -136,6 +137,7 @@ def filtered_online_value_orders(start, end, branches, channels, payments):
 
 def filtered_pos_sales(start, end, branches, channels, payments):
     del channels
+    branches = branches or []
     pos_branches = [branch for branch in branches if branch != SalesLine.ONLINE]
     if branches and not pos_branches:
         return PosSale.objects.none()
@@ -247,3 +249,89 @@ def overview_kpis_payload(
         "refund_amount": _metric_payload(current["refund_amount"], compare_value("refund_amount")),
         "refund_rate_pct": _metric_payload(current["refund_rate_pct"], compare_value("refund_rate_pct")),
     }
+
+
+TREND_GROUPS = frozenset({"daily", "weekly", "monthly"})
+
+
+def parse_overview_trend_group(raw):
+    group = (raw or "daily").strip().lower()
+    return group if group in TREND_GROUPS else "daily"
+
+
+def _empty_point():
+    return {"net_sales": 0, "order_count": 0, "items_sold": 0, "refund_amount": 0}
+
+
+def _bucket_points(start, end, branches, channels, payments, group):
+    from apps.sales.services import _bucket_key, _ordered_bucket_keys
+
+    buckets = {key["iso"]: {**key, **_empty_point()} for key in _ordered_bucket_keys(start, end, group)}
+
+    def add(created_at, **deltas):
+        if not created_at:
+            return
+        key = _bucket_key(timezone.localtime(created_at), group)
+        bucket = buckets.get(key["iso"])
+        if not bucket:
+            return
+        for field, value in deltas.items():
+            bucket[field] += int(value or 0)
+
+    online_orders = filtered_online_orders(start, end, branches, channels, payments)
+    for row in online_orders.order_by().values("created_at").annotate(orders=Count("id")):
+        add(row["created_at"], order_count=row["orders"])
+    for row in filtered_online_value_orders(start, end, branches, channels, payments).order_by().values("created_at").annotate(
+        amount=Sum("total_amount")
+    ):
+        add(row["created_at"], net_sales=row["amount"])
+    for row in qualifying_online_items().filter(order__in=online_orders).order_by().values("order__created_at").annotate(
+        units=Sum("quantity")
+    ):
+        add(row["order__created_at"], items_sold=row["units"])
+
+    pos_sales = filtered_pos_sales(start, end, branches, channels, payments)
+    for row in pos_sales.order_by().values("created_at").annotate(orders=Count("id")):
+        add(row["created_at"], order_count=row["orders"])
+    for row in qualifying_pos_items().filter(pos_sale__in=pos_sales).order_by().values("pos_sale__created_at").annotate(
+        amount=Sum(_pos_line_total_expr()),
+        units=Sum("quantity"),
+    ):
+        add(row["pos_sale__created_at"], net_sales=row["amount"], items_sold=row["units"])
+
+    branches = branches or []
+    pos_branches = [branch for branch in branches if branch != SalesLine.ONLINE]
+    refunds = pos_refund_items().filter(pos_sale__created_at__gte=start, pos_sale__created_at__lt=end)
+    if branches and not pos_branches:
+        refunds = refunds.none()
+    elif pos_branches:
+        refunds = refunds.filter(pos_sale__sales_line__in=pos_branches)
+    for row in refunds.order_by().values("pos_sale__created_at").annotate(amount=Sum(_pos_line_total_expr())):
+        add(row["pos_sale__created_at"], refund_amount=abs(int(row["amount"] or 0)))
+
+    points = []
+    for bucket in buckets.values():
+        net_sales = max(int(bucket["net_sales"]) - int(bucket["refund_amount"]), 0)
+        points.append(
+            {
+                "date": bucket["iso"],
+                "label": bucket["label"],
+                "net_sales": net_sales,
+                "order_count": int(bucket["order_count"]),
+                "items_sold": int(bucket["items_sold"]),
+            }
+        )
+    points.sort(key=lambda row: row["date"])
+    return points
+
+
+def overview_trend_payload(start, end, branches=None, channels=None, payments=None, group="daily", compare_start=None, compare_end=None):
+    points = _bucket_points(start, end, branches, channels, payments, group)
+    compare_points = []
+    if compare_start and compare_end and compare_start < compare_end:
+        compare_points = _bucket_points(compare_start, compare_end, branches, channels, payments, group)
+    merged = []
+    for index, point in enumerate(points):
+        compare = compare_points[index] if index < len(compare_points) else None
+        merged.append({**point, "compare": compare})
+    return {"group": group, "points": merged}

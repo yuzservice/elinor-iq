@@ -3,7 +3,7 @@ from django.utils import timezone
 
 from apps.customers.models import Customer
 from apps.products.models import Product
-from apps.sales.kpis import compute_overview_kpis, overview_kpis_payload
+from apps.sales.kpis import compute_overview_kpis, overview_kpis_payload, overview_trend_payload
 from apps.sales.models import OnlineInvoice, OnlinePayment, Order, OrderItem, PosSale, PosSaleItem, SalesLine
 from apps.sales.semantics import STORE_ID_SARI, sales_line_for_store
 
@@ -120,3 +120,7 @@ def test_overview_kpis_compare_payload():
     snappay = compute_overview_kpis(start, end, payments=["snappay"])
     assert snappay["order_count"] == 1
     assert snappay["net_sales"] == 100000
+
+    trend = overview_trend_payload(start, end, group="daily")
+    assert trend["points"]
+    assert sum(point["order_count"] for point in trend["points"]) >= 1

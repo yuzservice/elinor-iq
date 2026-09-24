@@ -8,7 +8,9 @@ from apps.sales.analysis import product_sales_report
 from apps.sales.filter_options import sales_filter_options_payload
 from apps.sales.kpis import (
     overview_kpis_payload,
+    overview_trend_payload,
     parse_branch_filter,
+    parse_overview_trend_group,
     parse_payment_filter,
 )
 from apps.sales.semantics import parse_sales_line_filter
@@ -55,6 +57,24 @@ def overview_kpis(request):
             compare_start,
             compare_end,
         ),
+    }
+    payload["timing_ms"] = round((time.perf_counter() - started) * 1000, 1)
+    return Response(payload)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def overview_trend(request):
+    started = time.perf_counter()
+    start, end = parse_range(request)
+    compare_start, compare_end = parse_compare_range(request)
+    branches = parse_branch_filter(request.query_params.get("branches"))
+    payments = parse_payment_filter(request.query_params.get("payments"))
+    group = parse_overview_trend_group(request.query_params.get("group"))
+    payload = {
+        "window": window_meta(start, end),
+        "compare_window": window_meta(compare_start, compare_end) if compare_start and compare_end else None,
+        "trend": overview_trend_payload(start, end, branches, None, payments, group, compare_start, compare_end),
     }
     payload["timing_ms"] = round((time.perf_counter() - started) * 1000, 1)
     return Response(payload)

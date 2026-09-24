@@ -42,6 +42,31 @@ export type SalesOverviewKpisResponse = {
   timing_ms?: number;
 };
 
+export type SalesOverviewTrendPoint = {
+  date: string;
+  label: string;
+  net_sales: number;
+  order_count: number;
+  items_sold: number;
+  compare: {
+    date: string;
+    label: string;
+    net_sales: number;
+    order_count: number;
+    items_sold: number;
+  } | null;
+};
+
+export type SalesOverviewTrendResponse = {
+  window: SalesOverviewKpisResponse["window"];
+  compare_window: SalesOverviewKpisResponse["window"] | null;
+  trend: {
+    group: "daily" | "weekly" | "monthly";
+    points: SalesOverviewTrendPoint[];
+  };
+  timing_ms?: number;
+};
+
 export type SalesKpiParams = {
   from?: string;
   to?: string;
@@ -49,6 +74,7 @@ export type SalesKpiParams = {
   payments?: string;
   compare_from?: string;
   compare_to?: string;
+  group?: "daily" | "weekly" | "monthly";
 };
 
 export const salesService = {
@@ -62,6 +88,18 @@ export const salesService = {
         payments: params.payments || undefined,
         compare_from: params.compare_from,
         compare_to: params.compare_to,
+      }),
+    ),
+  overviewTrend: (params: SalesKpiParams) =>
+    api<SalesOverviewTrendResponse>(
+      queryPath("/sales/trend/", {
+        from: params.from,
+        to: params.to,
+        branches: params.branches || undefined,
+        payments: params.payments || undefined,
+        compare_from: params.compare_from,
+        compare_to: params.compare_to,
+        group: params.group,
       }),
     ),
   summary: (

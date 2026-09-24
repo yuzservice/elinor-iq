@@ -16,6 +16,7 @@ import { EmptyState, ErrorState, Skeleton, Table, TableRow } from "../components
 import { RevenueChart } from "../components/dashboard";
 import { SalesFilterBar } from "../features/sales/SalesFilterBar";
 import { SalesKpiSection } from "../features/sales/SalesKpiSection";
+import { SalesTrendSection } from "../features/sales/SalesTrendSection";
 import {
   buildSalesKpiParams,
   deriveSalesLineFilter,
@@ -58,6 +59,7 @@ export function SalesPage() {
   const [page, setPage] = useState(1);
   const [productPage, setProductPage] = useState(1);
   const [trendGroup, setTrendGroup] = useState<TrendGroup>("daily");
+  const [overviewGroup, setOverviewGroup] = useState<"daily" | "weekly" | "monthly">("daily");
   const [productSearch, setProductSearch] = useState("");
   const [productSort, setProductSort] = useState<ProductSort>("units");
   const [productOrder, setProductOrder] = useState<"asc" | "desc">("desc");
@@ -135,6 +137,19 @@ export function SalesPage() {
     ],
     tab === "overview",
   );
+  const overviewTrend = useApi(
+    () => salesService.overviewTrend({ ...kpiQuery, group: overviewGroup }),
+    [
+      kpiQuery.from,
+      kpiQuery.to,
+      kpiQuery.branches,
+      kpiQuery.payments,
+      kpiQuery.compare_from,
+      kpiQuery.compare_to,
+      overviewGroup,
+    ],
+    tab === "overview",
+  );
 
   const activeWindow =
     overviewKpis.data?.window || trend.data?.window || details.data?.window;
@@ -168,6 +183,19 @@ export function SalesPage() {
           showCompare={showKpiCompare}
           loading={overviewKpis.loading}
           error={overviewKpis.error}
+        />
+      ) : null}
+
+      {tab === "overview" ? (
+        <SalesTrendSection
+          points={overviewTrend.data?.trend.points}
+          from={displayFilters.from}
+          to={displayFilters.to}
+          showCompare={showKpiCompare}
+          loading={overviewTrend.loading}
+          error={overviewTrend.error}
+          group={overviewGroup}
+          onGroupChange={setOverviewGroup}
         />
       ) : null}
 
