@@ -37,6 +37,19 @@ export const EMPTY_SALES_FILTERS: SalesFilterValues = {
 
 const ONLINE_CHANNEL_KEYS = new Set(["website", "shopino", "digify"]);
 
+export function buildSalesKpiParams(filters: SalesFilterValues) {
+  return {
+    from: filters.from,
+    to: filters.to,
+    branches: filters.branches.join(","),
+    channels: filters.channels.join(","),
+    payments: filters.payments.join(","),
+    compare_from:
+      filters.compareEnabled && filters.compareFrom ? filters.compareFrom : undefined,
+    compare_to: filters.compareEnabled && filters.compareTo ? filters.compareTo : undefined,
+  };
+}
+
 export function deriveSalesLineFilter(branches: string[], channels: string[]): SalesLineFilter {
   const onlineOnly =
     channels.length > 0 && channels.every((key) => ONLINE_CHANNEL_KEYS.has(key)) && !channels.includes("pos");

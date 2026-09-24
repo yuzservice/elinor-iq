@@ -6,12 +6,20 @@ from rest_framework.response import Response
 
 from apps.sales.analysis import product_sales_report
 from apps.sales.filter_options import sales_filter_options_payload
+from apps.sales.kpis import (
+    overview_kpis_payload,
+    parse_branch_filter,
+    parse_channel_filter,
+    parse_payment_filter,
+)
 from apps.sales.semantics import parse_sales_line_filter
 from apps.sales.services import (
     overview_payload,
+    parse_compare_range,
     parse_group,
     parse_range,
     recent_sales_payload,
+    window_meta,
 )
 
 
@@ -20,6 +28,37 @@ from apps.sales.services import (
 def filter_options(request):
     started = time.perf_counter()
     payload = sales_filter_options_payload()
+    payload["timing_ms"] = round((time.perf_counter() - started) * 1000, 1)
+    return Response(payload)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def overview_kpis(request):
+    started = time.perf_counter()
+    start, end = parse_range(request)
+    compare_start, compare_end = parse_compare_range(request)
+    branches = parse_branch_filter(request.query_params.get("branches"))
+    channels = parse_channel_filter(request.query_params.get("channels"))
+    payments = parse_payment_filter(request.query_params.get("payments"))
+    payload = {
+        "window": window_meta(start, end),
+        "compare_window": window_meta(compare_start, compare_end) if compare_start and compare_end else None,
+        "filters": {
+            "branches": branches,
+            "channels": channels,
+            "payments": payments,
+        },
+        "kpis": overview_kpis_payload(
+            start,
+            end,
+            branches,
+            channels,
+            payments,
+            compare_start,
+            compare_end,
+        ),
+    }
     payload["timing_ms"] = round((time.perf_counter() - started) * 1000, 1)
     return Response(payload)
 

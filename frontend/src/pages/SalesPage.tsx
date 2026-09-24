@@ -15,7 +15,9 @@ import {
 import { EmptyState, ErrorState, Skeleton, Table, TableRow } from "../components/Table";
 import { RevenueChart } from "../components/dashboard";
 import { SalesFilterBar } from "../features/sales/SalesFilterBar";
+import { SalesKpiSection } from "../features/sales/SalesKpiSection";
 import {
+  buildSalesKpiParams,
   deriveSalesLineFilter,
   EMPTY_SALES_FILTERS,
   type SalesFilterValues,
@@ -67,6 +69,11 @@ export function SalesPage() {
 
   const filterOptions = useApi(() => salesService.filterOptions(), []);
 
+  const kpiQuery = useMemo(() => buildSalesKpiParams(filters), [filters]);
+  const showKpiCompare = Boolean(
+    filters.compareEnabled && filters.compareFrom && filters.compareTo,
+  );
+
   function updateFilters(next: Partial<SalesFilterValues>) {
     setFilters((current) => ({ ...current, ...next }));
     if (
@@ -117,7 +124,22 @@ export function SalesPage() {
     tab === "products",
   );
 
-  const activeWindow = trend.data?.window || details.data?.window;
+  const overviewKpis = useApi(
+    () => salesService.overviewKpis(kpiQuery),
+    [
+      kpiQuery.from,
+      kpiQuery.to,
+      kpiQuery.branches,
+      kpiQuery.channels,
+      kpiQuery.payments,
+      kpiQuery.compare_from,
+      kpiQuery.compare_to,
+    ],
+    tab === "overview",
+  );
+
+  const activeWindow =
+    overviewKpis.data?.window || trend.data?.window || details.data?.window;
   const displayFilters = useMemo(() => {
     if (!activeWindow) return filters;
     return {
@@ -141,6 +163,15 @@ export function SalesPage() {
         trendGroup={trendGroup}
         onTrendGroupChange={setTrendGroup}
       />
+
+      {tab === "overview" ? (
+        <SalesKpiSection
+          kpis={overviewKpis.data?.kpis}
+          showCompare={showKpiCompare}
+          loading={overviewKpis.loading}
+          error={overviewKpis.error}
+        />
+      ) : null}
 
       <div className="mt-6">
         <Tabs

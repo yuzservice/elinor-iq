@@ -10,6 +10,22 @@ export function formatToman(value: number | null | undefined): string {
   return `${formatNumber(value)} تومان`;
 }
 
+function formatScaledNumber(value: number): string {
+  return new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 2 }).format(value);
+}
+
+export function formatCompactToman(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) return "—";
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000_000) {
+    return `${formatScaledNumber(value / 1_000_000_000)} میلیارد تومان`;
+  }
+  if (abs >= 1_000_000) {
+    return `${formatScaledNumber(value / 1_000_000)} میلیون تومان`;
+  }
+  return formatToman(value);
+}
+
 export function formatDate(value?: string | null): string {
   return formatJalali(value, "numeric");
 }
@@ -27,7 +43,7 @@ export function formatMobile(value?: string | null): string {
   return value;
 }
 
-export function formatPercent(value: number): string {
+export function formatPercent(value: number | null | undefined): string {
   return `${formatNumber(value)}٪`;
 }
 

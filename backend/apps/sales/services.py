@@ -70,6 +70,18 @@ def parse_range(request):
     return start, end
 
 
+def parse_compare_range(request):
+    raw_from = request.query_params.get("compare_from")
+    raw_to = request.query_params.get("compare_to")
+    if not raw_from or not raw_to:
+        return None, None
+    start = _parse_bound(raw_from, end_of_day=False)
+    end = _parse_bound(raw_to, end_of_day=True)
+    if not start or not end or start >= end:
+        return None, None
+    return start, end
+
+
 def parse_group(request):
     return parse_trend_group(request.query_params.get("group"))
 
