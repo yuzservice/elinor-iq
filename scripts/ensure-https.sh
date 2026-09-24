@@ -36,9 +36,18 @@ set_env HTTP_PORT 80
 set_env HTTPS_PORT 443
 
 echo "در حال گرفتن گواهی SSL برای ${domain}..."
+if ! command -v certbot >/dev/null 2>&1; then
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update
+  apt-get install -y certbot
+fi
+mkdir -p docker/certbot/www docker/certbot/conf docker/certbot/work docker/certbot/logs
 docker compose up -d nginx
-docker compose --profile ssl run --rm certbot certonly \
-  --webroot -w /var/www/certbot \
+certbot certonly \
+  --webroot -w "$(pwd)/docker/certbot/www" \
+  --config-dir "$(pwd)/docker/certbot/conf" \
+  --work-dir "$(pwd)/docker/certbot/work" \
+  --logs-dir "$(pwd)/docker/certbot/logs" \
   --cert-name "$domain" \
   -d "$domain" \
   --agree-tos \

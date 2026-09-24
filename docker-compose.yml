@@ -65,8 +65,8 @@ services:
       - "${HTTPS_PORT:-8443}:443"
     volumes:
       - ./docker/nginx-entrypoint.sh:/nginx-entrypoint.sh:ro
-      - certbot_www:/var/www/certbot
-      - certbot_certs:/etc/letsencrypt
+      - ./docker/certbot/www:/var/www/certbot
+      - ./docker/certbot/conf:/etc/letsencrypt
     entrypoint: ["/bin/sh", "/nginx-entrypoint.sh"]
     depends_on:
       backend:
@@ -91,15 +91,6 @@ services:
     entrypoint: ["/scheduler-entrypoint.sh"]
     restart: unless-stopped
 
-  certbot:
-    image: certbot/certbot:v3.1.0
-    profiles: ["ssl"]
-    volumes:
-      - certbot_www:/var/www/certbot
-      - certbot_certs:/etc/letsencrypt
-
 volumes:
   postgres_data:
   frontend_node_modules:
-  certbot_www:
-  certbot_certs:

@@ -24,6 +24,10 @@ source/
 *.sql
 
 docker/postgres-data/
+docker/certbot/www/
+docker/certbot/conf/
+docker/certbot/work/
+docker/certbot/logs/
 
 .idea/
 .vscode/
