@@ -25,6 +25,13 @@ CSRF_TRUSTED_ORIGINS = [
     ).split(",")
     if origin.strip()
 ]
+for _host in ALLOWED_HOSTS:
+    if _host in {"localhost", "127.0.0.1", "backend", "*"}:
+        continue
+    for _scheme in ("https", "http"):
+        _origin = f"{_scheme}://{_host}"
+        if _origin not in CSRF_TRUSTED_ORIGINS:
+            CSRF_TRUSTED_ORIGINS.append(_origin)
 
 INSTALLED_APPS = [
     "django.contrib.admin",

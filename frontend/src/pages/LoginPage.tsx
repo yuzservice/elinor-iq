@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Button, Input } from "../components/ui";
 import { useAuth } from "../hooks/useAuth";
+import { ApiError } from "../services/api";
 
 export function LoginPage() {
   const { user, ready, login } = useAuth();
@@ -13,15 +14,20 @@ export function LoginPage() {
 
   if (ready && user) return <Navigate to="/" replace />;
 
-  async function onSubmit(event: FormEvent) {
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const nextUsername = String(form.get("username") || username).trim();
+    const nextPassword = String(form.get("password") || password);
+    setUsername(nextUsername);
+    setPassword(nextPassword);
     setPending(true);
     setError("");
     try {
-      await login(username, password);
+      await login(nextUsername, nextPassword);
       navigate("/");
-    } catch {
-      setError("نام کاربری یا رمز عبور نادرست است.");
+    } catch (caught) {
+      setError(caught instanceof ApiError && caught.message ? caught.message : "نام کاربری یا رمز عبور نادرست است.");
       setPending(false);
     }
   }
@@ -37,12 +43,16 @@ export function LoginPage() {
         <form onSubmit={onSubmit} className="mt-10 space-y-4">
           <Input
             autoFocus
+            name="username"
+            autoComplete="username"
             placeholder="نام کاربری"
             value={username}
             onChange={(event) => setUsername(event.target.value)}
           />
           <Input
             type="password"
+            name="password"
+            autoComplete="current-password"
             placeholder="رمز عبور"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
