@@ -56,9 +56,6 @@ export function customerExportQuery(params: CustomerListParams): string {
 async function downloadExport(path: string, fallbackFilename: string): Promise<void> {
   const response = await fetch(`${API_BASE}${path}`, {
     credentials: "include",
-    headers: {
-      Accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    },
   });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
