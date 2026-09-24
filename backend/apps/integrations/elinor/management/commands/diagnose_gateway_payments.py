@@ -12,13 +12,20 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         sql_path = Path("/source/elinor_new13-septamber-2026.sql")
-        csv_dir = Path("/tmp/elinor_gateway_import")
+        csv_dir = Path("/backups/elinor_gateway_import")
+        legacy_csv_dir = Path("/tmp/elinor_gateway_import")
         self.stdout.write(f"SQL dump present: {sql_path.exists()} ({sql_path})")
         self.stdout.write(
             f"Gateway CSV dir: {csv_dir.exists()} "
             f"invoices={ (csv_dir / 'invoices.csv').exists() } "
             f"payments={ (csv_dir / 'payments.csv').exists() }"
         )
+        if legacy_csv_dir != csv_dir:
+            self.stdout.write(
+                f"Legacy /tmp CSV dir (not mounted in container): "
+                f"invoices={ (legacy_csv_dir / 'invoices.csv').exists() } "
+                f"payments={ (legacy_csv_dir / 'payments.csv').exists() }"
+            )
         self.stdout.write(f"OnlineInvoice rows: {OnlineInvoice.objects.count()}")
         self.stdout.write(f"OnlinePayment rows: {OnlinePayment.objects.count()}")
         success = OnlinePayment.objects.filter(status="success", invoice__status="success")
