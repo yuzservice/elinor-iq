@@ -5,9 +5,15 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from apps.sales.analysis import _all_line_metrics, _pct_change, previous_window
-from apps.sales.models import Order, PosSale, SalesLine
 from apps.integrations.elinor.gateway_payments import GATEWAY_METRICS
-from apps.sales.semantics import qualifying_online_gateway_payments
+from apps.sales.models import SalesLine
+from apps.sales.semantics import (
+    SALES_LINE_OVERVIEW_LABELS,
+    online_order_value_orders,
+    qualifying_online_gateway_payments,
+    qualifying_pos_items,
+    qualifying_pos_sales,
+)
 
 HOME_PERIODS = {
     "day": timedelta(days=1),
