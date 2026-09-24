@@ -1,10 +1,9 @@
-from io import BytesIO
-
+import csv
 from datetime import timedelta
+from io import StringIO
 
 import pytest
 from django.utils import timezone
-from openpyxl import load_workbook
 
 from apps.customers.export import EXPORT_HEADERS
 from apps.customers.models import Customer
@@ -40,8 +39,13 @@ def _pos(customer, source_id, sales_line=SalesLine.SARI, days=1):
     )
 
 
+def _read_csv(content):
+    text = content.decode("utf-8-sig")
+    return list(csv.reader(StringIO(text)))
+
+
 @pytest.mark.django_db
-def test_customer_export_returns_xlsx_with_all_columns(auth_api):
+def test_customer_export_returns_csv_with_all_columns(auth_api):
     buyer = _customer(source_id=1, first_name="سارا", last_name="محمدی", mobile="09121111111")
     registered = _customer(source_id=2, first_name="ثبت", last_name="شده", mobile="09122222222", order_count=0)
     _online(buyer, 21, days=3)
@@ -49,14 +53,11 @@ def test_customer_export_returns_xlsx_with_all_columns(auth_api):
 
     response = auth_api.get("/api/customers/export/")
     assert response.status_code == 200
-    assert response["Content-Type"] == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    assert response["Content-Type"] == "text/csv; charset=utf-8"
     assert "attachment" in response["Content-Disposition"]
 
-    workbook = load_workbook(BytesIO(response.content))
-    sheet = workbook.active
-    rows = list(sheet.iter_rows(values_only=True))
-
-    assert rows[0] == tuple(EXPORT_HEADERS)
+    rows = _read_csv(response.content)
+    assert rows[0] == EXPORT_HEADERS
     assert len(rows) == 3
     exported_names = {row[0] for row in rows[1:]}
     assert exported_names == {"سارا محمدی", "ثبت شده"}
@@ -71,10 +72,7 @@ def test_customer_export_respects_filters(auth_api):
     response = auth_api.get("/api/customers/export/?population=purchasing")
     assert response.status_code == 200
 
-    workbook = load_workbook(BytesIO(response.content))
-    sheet = workbook.active
-    rows = list(sheet.iter_rows(values_only=True))
-
+    rows = _read_csv(response.content)
     assert len(rows) == 2
     assert rows[1][0] == "خریدار فعال"
     assert registered.full_name not in {row[0] for row in rows[1:]}

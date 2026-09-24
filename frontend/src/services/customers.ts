@@ -58,8 +58,16 @@ async function downloadExport(path: string, fallbackFilename: string): Promise<v
     credentials: "include",
   });
   if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    const detail = data && typeof data === "object" && "detail" in data ? String(data.detail) : "";
+    const raw = await response.text();
+    let detail = "";
+    try {
+      const data = raw ? JSON.parse(raw) : {};
+      if (data && typeof data === "object" && "detail" in data) {
+        detail = String(data.detail);
+      }
+    } catch {
+      detail = raw.trim();
+    }
     throw new Error(detail || "خروجی اکسل با خطا مواجه شد.");
   }
 
@@ -81,7 +89,7 @@ export const customersService = {
   reports: () => api<CustomerReports>("/customers/reports/"),
   list: (params: CustomerListParams) => api<Paginated<CustomerRow>>(customerListQuery(params)),
   exportList: (params: CustomerListParams) =>
-    downloadExport(customerExportQuery(params), `customers-${new Date().toISOString().slice(0, 10)}.xlsx`),
+    downloadExport(customerExportQuery(params), `customers-${new Date().toISOString().slice(0, 10)}.csv`),
   detail: (id: number) => api<Customer360>(`/customers/${id}/`),
   purchases: (id: number, page = 1, perPage = 20) =>
     api<Paginated<CustomerPurchase> & { id: number }>(

@@ -1,8 +1,7 @@
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
-from rest_framework.decorators import api_view, permission_classes, renderer_classes
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.renderers import BaseRenderer, JSONRenderer
 from rest_framework.response import Response
 from rest_framework import status
 
@@ -12,16 +11,6 @@ from apps.sales.services import parse_range, window_meta
 from .detail import HISTORY_PER_PAGE, customer_360_payload, product_history, purchase_history
 from .list_query import customer_list_queryset, hydrate_customer_rows, paginate_customers
 from .models import Customer
-
-
-class CustomerExportRenderer(BaseRenderer):
-    media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    format = "xlsx"
-    charset = None
-    render_style = "binary"
-
-    def render(self, data, accepted_media_type=None, renderer_context=None):
-        return data
 
 
 @api_view(["GET"])
@@ -69,21 +58,27 @@ def reports(request):
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
-@renderer_classes([CustomerExportRenderer, JSONRenderer])
 def customer_export(request):
-    from .export import EXPORT_LIMIT, build_customer_export_xlsx
+    from .export import EXPORT_BATCH_SIZE, EXPORT_LIMIT, build_customer_export_csv
 
-    qs = customer_list_queryset(request.query_params)
-    total = qs.count()
-    rows = hydrate_customer_rows(list(qs[:EXPORT_LIMIT]))
-    content = build_customer_export_xlsx(rows, truncated=total > EXPORT_LIMIT, total=total)
-    filename = f"customers-{timezone.localdate().isoformat()}.xlsx"
-    response = HttpResponse(
-        content,
-        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    )
-    response["Content-Disposition"] = f'attachment; filename="{filename}"'
-    return response
+    try:
+        qs = customer_list_queryset(request.query_params)
+        total = qs.count()
+        limit = min(total, EXPORT_LIMIT)
+        truncated = total > EXPORT_LIMIT
+        exported_rows = []
+
+        for offset in range(0, limit, EXPORT_BATCH_SIZE):
+            batch = list(qs[offset : offset + EXPORT_BATCH_SIZE])
+            exported_rows.extend(hydrate_customer_rows(batch))
+
+        content = build_customer_export_csv(exported_rows, truncated=truncated, total=total)
+        filename = f"customers-{timezone.localdate().isoformat()}.csv"
+        response = HttpResponse(content, content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+    except Exception:
+        return JsonResponse({"detail": "تهیه خروجی اکسل با خطا مواجه شد."}, status=500)
 
 
 @api_view(["GET"])

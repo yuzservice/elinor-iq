@@ -1,12 +1,11 @@
-from io import BytesIO
-
-from openpyxl import Workbook
-from openpyxl.styles import Font
+import csv
+from io import StringIO
 
 from apps.core.dates import format_jalali_date
 from apps.customers.presentation import INCOMPLETE_LABEL, UNNAMED_CUSTOMER
 
 EXPORT_LIMIT = 50_000
+EXPORT_BATCH_SIZE = 500
 
 EXPORT_HEADERS = [
     "نام و نام خانوادگی",
@@ -60,24 +59,14 @@ def export_row_cells(row):
     ]
 
 
-def build_customer_export_xlsx(rows, *, truncated=False, total=0):
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "مشتریان"
-
-    header_row_index = 1
+def build_customer_export_csv(rows, *, truncated=False, total=0):
+    buffer = StringIO()
+    buffer.write("\ufeff")
+    writer = csv.writer(buffer)
     if truncated:
-        ws.append([f"توجه: فقط {len(rows):,} از {total:,} مشتری صادر شد (حداکثر {EXPORT_LIMIT:,} ردیف)."])
-        ws.append([])
-        header_row_index = 3
-
-    ws.append(EXPORT_HEADERS)
+        writer.writerow([f"توجه: فقط {len(rows):,} از {total:,} مشتری صادر شد (حداکثر {EXPORT_LIMIT:,} ردیف)."])
+        writer.writerow([])
+    writer.writerow(EXPORT_HEADERS)
     for row in rows:
-        ws.append(export_row_cells(row))
-
-    for cell in ws[header_row_index]:
-        cell.font = Font(bold=True)
-
-    bio = BytesIO()
-    wb.save(bio)
-    return bio.getvalue()
+        writer.writerow(export_row_cells(row))
+    return buffer.getvalue().encode("utf-8")
