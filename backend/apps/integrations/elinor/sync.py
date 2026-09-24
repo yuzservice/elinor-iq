@@ -444,6 +444,7 @@ class SyncService:
             last_page = 1
             previous_ids = set()
             day_count = 0
+            day_complete = True
             while page <= last_page:
                 if self.client.requests_made >= MAX_REQUESTS_PER_RUN:
                     self._save_pos_cursor(cursor, day, start_date, end_date)
@@ -477,6 +478,7 @@ class SyncService:
                 )
                 for row in rows:
                     if max_sales is not None and processed >= max_sales:
+                        day_complete = False
                         break
                     sale = self._upsert_pos_header(row)
                     if not sale:
@@ -488,16 +490,19 @@ class SyncService:
                     except Exception as exc:
                         self.failures += 1
                         logger.warning("POS %s details failed: %s", sale.source_id, exc)
-                if max_sales is not None and processed >= max_sales:
+                if not day_complete:
                     break
                 page += 1
                 self._persist_progress()
 
+            if not day_complete:
+                self._save_pos_cursor(cursor, day, start_date, end_date)
+                logger.info("POS day %s paused after %s sales; will resume.", day.isoformat(), day_count)
+                return False
+
             logger.info("POS day %s upserted %s sales", day.isoformat(), day_count)
             day += timedelta(days=1)
             self._save_pos_cursor(cursor, day, start_date, end_date)
-            if max_sales is not None and processed >= max_sales:
-                return False
 
         logger.info("POS fetch complete for %s..%s (%s sales).", start_date.isoformat(), end_date.isoformat(), processed)
         return False
