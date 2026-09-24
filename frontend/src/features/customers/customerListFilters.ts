@@ -1,3 +1,5 @@
+import type { CustomerListParams } from "../../services/customers";
+
 export const TIER_OPTIONS = [
   { value: "VIP", label: "VIP" },
   { value: "DIAMOND", label: "الماس" },
@@ -40,6 +42,25 @@ export const EMPTY_CUSTOMER_FILTERS: CustomerListFilters = {
 
 export function salesLinesToParam(salesLines: SalesLineValue[]): string {
   return salesLines.join(",");
+}
+
+export function buildCustomerListParams(
+  filters: CustomerListFilters,
+  search: string,
+  options: { page?: number; perPage?: number } = {},
+): CustomerListParams {
+  return {
+    search,
+    population: filters.population,
+    tier: filters.tier,
+    sales_lines: salesLinesToParam(filters.salesLines),
+    min_purchases: filters.minPurchases,
+    max_purchases: filters.maxPurchases,
+    last_from: filters.lastFrom,
+    last_to: filters.lastTo,
+    page: options.page,
+    per_page: options.perPage,
+  };
 }
 
 export function describeCustomerFilters(filters: CustomerListFilters, search = ""): string[] {

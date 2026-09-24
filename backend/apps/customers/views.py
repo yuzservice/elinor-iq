@@ -1,3 +1,5 @@
+from django.http import HttpResponse
+from django.utils import timezone
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -7,7 +9,8 @@ from apps.core.coverage import coverage_payload
 from apps.sales.services import parse_range, window_meta
 
 from .detail import HISTORY_PER_PAGE, customer_360_payload, product_history, purchase_history
-from .list_query import customer_list_queryset, paginate_customers
+from .export import EXPORT_LIMIT, build_customer_export_xlsx
+from .list_query import customer_list_queryset, hydrate_customer_rows, paginate_customers
 from .models import Customer
 
 
@@ -52,6 +55,22 @@ def reports(request):
             ],
         }
     )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def customer_export(request):
+    qs = customer_list_queryset(request.query_params)
+    total = qs.count()
+    rows = hydrate_customer_rows(list(qs[:EXPORT_LIMIT]))
+    content = build_customer_export_xlsx(rows, truncated=total > EXPORT_LIMIT, total=total)
+    filename = f"customers-{timezone.localdate().isoformat()}.xlsx"
+    response = HttpResponse(
+        content,
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 @api_view(["GET"])

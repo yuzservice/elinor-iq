@@ -8,10 +8,10 @@ import { INCOMPLETE_LABEL, customerDisplayName } from "../../lib/customerDisplay
 import { formatDate, formatMobile, formatNumber, formatToman } from "../../lib/format";
 import { customersService } from "../../services/customers";
 import {
+  buildCustomerListParams,
   describeCustomerFilters,
   EMPTY_CUSTOMER_FILTERS,
   hasActiveCustomerFilters,
-  salesLinesToParam,
   TIER_OPTIONS,
   type CustomerListFilters,
 } from "./customerListFilters";
@@ -37,26 +37,17 @@ export function CustomerListPanel({ population = "all" }: { population?: string 
   const [applied, setApplied] = useState("");
   const [page, setPage] = useState(1);
   const [retry, setRetry] = useState(0);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [filters, setFilters] = useState<CustomerListFilters>({
     ...EMPTY_CUSTOMER_FILTERS,
     population: population || "all",
   });
-  const salesLinesParam = useMemo(() => salesLinesToParam(filters.salesLines), [filters.salesLines]);
+  const listParams = useMemo(() => buildCustomerListParams(filters, applied, { page }), [applied, filters, page]);
   const { data, loading, error } = useApi(
-    () =>
-      customersService.list({
-        search: applied,
-        population: filters.population,
-        tier: filters.tier,
-        sales_lines: salesLinesParam,
-        min_purchases: filters.minPurchases,
-        max_purchases: filters.maxPurchases,
-        last_from: filters.lastFrom,
-        last_to: filters.lastTo,
-        page,
-      }),
-    [applied, filters, page, salesLinesParam, retry],
+    () => customersService.list(listParams),
+    [listParams, retry],
   );
 
   const activeFilterChips = useMemo(() => describeCustomerFilters(filters, applied), [applied, filters]);
@@ -74,6 +65,19 @@ export function CustomerListPanel({ population = "all" }: { population?: string 
     setFilters({ ...EMPTY_CUSTOMER_FILTERS });
     setAdvancedOpen(false);
     setPage(1);
+    setExportError(null);
+  }
+
+  async function handleExport() {
+    setExporting(true);
+    setExportError(null);
+    try {
+      await customersService.exportList(buildCustomerListParams(filters, applied));
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "خروجی اکسل با خطا مواجه شد.");
+    } finally {
+      setExporting(false);
+    }
   }
 
   return (
@@ -187,10 +191,16 @@ export function CustomerListPanel({ population = "all" }: { population?: string 
         />
       ) : (
         <>
-          <div className="mb-3 flex items-center justify-between gap-3 text-sm text-muted">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-sm text-muted">
             <span className="tabular">{formatNumber(data.total)} مشتری</span>
-            {loading ? <span className="text-xs text-faint">در حال به‌روزرسانی...</span> : null}
+            <div className="flex flex-wrap items-center gap-2">
+              {loading ? <span className="text-xs text-faint">در حال به‌روزرسانی...</span> : null}
+              <Button type="button" variant="quiet" onClick={handleExport} disabled={exporting || data.total === 0}>
+                {exporting ? "در حال خروجی..." : "خروجی اکسل"}
+              </Button>
+            </div>
           </div>
+          {exportError ? <p className="mb-3 text-sm text-warning">{exportError}</p> : null}
           <Table columns={COLUMNS} compact>
             {data.results.map((customer) => {
               const display = customerDisplayName(customer);
