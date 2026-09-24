@@ -61,16 +61,30 @@ export function SalesPage() {
   const [productOrder, setProductOrder] = useState<"asc" | "desc">("desc");
 
   const salesLine = useMemo(
-    () => deriveSalesLineFilter(filters.branch, filters.channel),
-    [filters.branch, filters.channel],
+    () => deriveSalesLineFilter(filters.branches, filters.channels),
+    [filters.branches, filters.channels],
   );
+
+  const filterOptions = useApi(() => salesService.filterOptions(), []);
 
   function updateFilters(next: Partial<SalesFilterValues>) {
     setFilters((current) => ({ ...current, ...next }));
-    if ("from" in next || "to" in next || "branch" in next || "channel" in next) {
+    if (
+      "from" in next ||
+      "to" in next ||
+      "branches" in next ||
+      "channels" in next ||
+      "payments" in next
+    ) {
       setPage(1);
       setProductPage(1);
     }
+  }
+
+  function resetFilters() {
+    setFilters(EMPTY_SALES_FILTERS);
+    setPage(1);
+    setProductPage(1);
   }
 
   const trend = useApi(
@@ -119,7 +133,10 @@ export function SalesPage() {
 
       <SalesFilterBar
         values={displayFilters}
+        options={filterOptions.data}
+        loading={filterOptions.loading && !filterOptions.data}
         onChange={updateFilters}
+        onReset={resetFilters}
         showTrendGroup={tab === "trend"}
         trendGroup={trendGroup}
         onTrendGroupChange={setTrendGroup}

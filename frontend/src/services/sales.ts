@@ -1,11 +1,19 @@
 import { api, queryPath } from "./api";
 import type { Paginated, SalesLineKey, SalesOrder, SalesProductRow, SalesSummary, TrendGroup } from "../types";
 
+export type SalesFilterOptionsResponse = {
+  branches: { key: string; label: string }[];
+  channels: { key: string; label: string }[];
+  payment_methods: { key: string; label: string; scope?: "online" | "pos" }[];
+  timing_ms?: number;
+};
+
 export type SalesLineFilter = SalesLineKey | "all";
 export type ProductSort = "units" | "purchases" | "customers" | "last_sale" | "title";
 export type SalesSection = "overview" | "trend" | "details";
 
 export const salesService = {
+  filterOptions: () => api<SalesFilterOptionsResponse>("/sales/filters/"),
   summary: (
     from?: string,
     to?: string,

@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.sales.analysis import product_sales_report
+from apps.sales.filter_options import sales_filter_options_payload
 from apps.sales.semantics import parse_sales_line_filter
 from apps.sales.services import (
     overview_payload,
@@ -12,6 +13,15 @@ from apps.sales.services import (
     parse_range,
     recent_sales_payload,
 )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def filter_options(request):
+    started = time.perf_counter()
+    payload = sales_filter_options_payload()
+    payload["timing_ms"] = round((time.perf_counter() - started) * 1000, 1)
+    return Response(payload)
 
 
 @api_view(["GET"])
