@@ -88,9 +88,6 @@ export function HomePage() {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h2 className="text-[15px] font-semibold text-ink">بینش فروش</h2>
-              <p className="mt-1 text-[12px] text-muted">
-                {group === "monthly" ? "۱۲ ماه اخیر" : "۷ روز اخیر"}
-              </p>
               <div className="mt-3 flex flex-wrap items-center gap-3">
                 <div className="tabular text-[32px] font-semibold leading-none text-ink">
                   {trendAmountTotal == null ? "—" : formatToman(trendAmountTotal)}
