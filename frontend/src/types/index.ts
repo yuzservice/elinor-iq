@@ -123,6 +123,7 @@ export type SalesTrendPoint = {
   date_label: string;
   purchase_count: number;
   units_sold: number;
+  amount: number;
 };
 
 export type SalesInsight = {

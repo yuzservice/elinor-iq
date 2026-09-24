@@ -1,8 +1,39 @@
-import { formatNumber } from "../../lib/format";
+import { useState } from "react";
+import { formatNumber, formatToman } from "../../lib/format";
 import type { SalesTrendPoint } from "../../types";
 import { DASH } from "./tokens";
 
-export function RevenueChart({ points }: { points: SalesTrendPoint[] }) {
+type RevenueChartMetric = "amount" | "purchase_count";
+
+function chartValue(point: SalesTrendPoint, metric: RevenueChartMetric): number {
+  return metric === "amount" ? point.amount || 0 : point.purchase_count;
+}
+
+function formatAxisValue(value: number, metric: RevenueChartMetric): string {
+  if (metric === "amount") {
+    if (value >= 1_000_000_000) return `${formatNumber(Math.round(value / 1_000_000_000))}B`;
+    if (value >= 1_000_000) return `${formatNumber(Math.round(value / 1_000_000))}M`;
+    if (value >= 1_000) return `${formatNumber(Math.round(value / 1_000))}k`;
+  } else if (value >= 1000) {
+    return `${formatNumber(Math.round(value / 1000))}k`;
+  }
+  return formatNumber(value);
+}
+
+function formatBarLabel(point: SalesTrendPoint, metric: RevenueChartMetric): string {
+  const value = chartValue(point, metric);
+  return metric === "amount" ? formatToman(value) : formatNumber(value);
+}
+
+export function RevenueChart({
+  points,
+  metric = "purchase_count",
+}: {
+  points: SalesTrendPoint[];
+  metric?: RevenueChartMetric;
+}) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
   if (!points.length) {
     return (
       <div className="flex h-[300px] items-center justify-center text-sm text-muted">
@@ -18,9 +49,9 @@ export function RevenueChart({ points }: { points: SalesTrendPoint[] }) {
   const padB = 34;
   const chartW = width - padL - padR;
   const chartH = height - padT - padB;
-  const max = Math.max(...points.map((point) => point.purchase_count), 1);
+  const max = Math.max(...points.map((point) => chartValue(point, metric)), 1);
   const peakIndex = points.reduce(
-    (best, point, index) => (point.purchase_count > points[best].purchase_count ? index : best),
+    (best, point, index) => (chartValue(point, metric) > chartValue(points[best], metric) ? index : best),
     0,
   );
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((ratio) => Math.round(max * ratio));
@@ -43,7 +74,7 @@ export function RevenueChart({ points }: { points: SalesTrendPoint[] }) {
           <g key={tick}>
             <line x1={padL} x2={width - padR} y1={y} y2={y} stroke="#E5E7EB" strokeDasharray="4 6" />
             <text x={padL - 8} y={y + 4} textAnchor="end" fontSize="10" fill={DASH.faint}>
-              {tick >= 1000 ? `${Math.round(tick / 1000)}k` : tick}
+              {formatAxisValue(tick, metric)}
             </text>
           </g>
         );
@@ -52,16 +83,31 @@ export function RevenueChart({ points }: { points: SalesTrendPoint[] }) {
         const slot = chartW / points.length;
         const barW = Math.min(28, slot * 0.52);
         const x = padL + index * slot + (slot - barW) / 2;
-        const barH = Math.max(10, (point.purchase_count / max) * chartH);
+        const value = chartValue(point, metric);
+        const barH = Math.max(10, (value / max) * chartH);
         const y = padT + chartH - barH;
         const active = index === peakIndex;
+        const hovered = hoveredIndex === index;
+        const label = formatBarLabel(point, metric);
+        const labelWidth = Math.max(88, label.length * 6.5);
         return (
-          <g key={`${point.date}-${index}`}>
-            {active ? (
+          <g
+            key={`${point.date}-${index}`}
+            onMouseEnter={() => setHoveredIndex(index)}
+            onMouseLeave={() => setHoveredIndex(null)}
+          >
+            {hovered ? (
               <>
-                <rect x={x + barW / 2 - 34} y={y - 28} width="68" height="22" rx="8" fill={DASH.blue} />
+                <rect
+                  x={x + barW / 2 - labelWidth / 2}
+                  y={y - 28}
+                  width={labelWidth}
+                  height="22"
+                  rx="8"
+                  fill={DASH.blue}
+                />
                 <text x={x + barW / 2} y={y - 13} textAnchor="middle" fontSize="10" fill="#FFFFFF">
-                  {formatNumber(point.purchase_count)}
+                  {label}
                 </text>
                 <circle cx={x + barW / 2} cy={y - 4} r="3" fill="#FFFFFF" />
               </>
@@ -72,10 +118,10 @@ export function RevenueChart({ points }: { points: SalesTrendPoint[] }) {
               width={barW}
               height={barH}
               rx={barW / 2}
-              fill={active ? "url(#dash-bar)" : "url(#dash-stripes)"}
+              fill={active || hovered ? "url(#dash-bar)" : "url(#dash-stripes)"}
             />
             <text x={x + barW / 2} y={height - 10} textAnchor="middle" fontSize="10" fill={DASH.faint}>
-              {(point.date_label || point.date).slice(0, 6)}
+              {point.date_label || point.date}
             </text>
           </g>
         );

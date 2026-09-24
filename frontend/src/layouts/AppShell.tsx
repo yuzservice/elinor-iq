@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { IconCollapse, IconCustomers, IconHome, IconLogout, IconProducts, IconSales, IconSettings, IconSmartDirect } from "../components/Icons";
@@ -17,6 +17,8 @@ export function AppShell() {
   const { user, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const showCoverageNotice = location.pathname !== "/";
 
   return (
     <div className="flex min-h-screen bg-canvas">
@@ -96,7 +98,7 @@ export function AppShell() {
       </aside>
       <div className="min-w-0 flex-1">
         <main className="mx-auto w-full max-w-[1400px] px-8 py-8 lg:px-10">
-          <CoverageNotice />
+          {showCoverageNotice ? <CoverageNotice /> : null}
           <Outlet />
         </main>
       </div>

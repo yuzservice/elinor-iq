@@ -198,6 +198,8 @@ def test_trend_aggregation_daily_weekly_monthly():
     assert len(daily) >= 2
     assert sum(point["purchase_count"] for point in daily) == 3
     assert all("date_label" in point for point in daily)
+    assert all("amount" in point for point in daily)
+    assert sum(point["amount"] for point in daily) > 0
 
     weekly = overview_trend_points(start, end, None, "weekly")
     assert sum(point["purchase_count"] for point in weekly) == 3

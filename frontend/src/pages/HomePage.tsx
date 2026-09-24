@@ -4,7 +4,6 @@ import { CustomerNameCell, Panel } from "../components/ui";
 import {
   ChangePill,
   HomePeriodToggle,
-  LegendDot,
   MetricCardIcons,
   MetricSquareCard,
   PeriodToggle,
@@ -15,7 +14,7 @@ import {
 import { EmptyState, ErrorState, Skeleton } from "../components/Table";
 import { useApi } from "../hooks/useApi";
 import { customerDisplayName } from "../lib/customerDisplay";
-import { formatDate, formatNumber, formatToman, toInputDate } from "../lib/format";
+import { formatDate, formatToman, toInputDate } from "../lib/format";
 import { homeService } from "../services/home";
 import { salesService, type SalesLineFilter } from "../services/sales";
 import type { HomePeriod, HomeSummary } from "../types";
@@ -60,6 +59,8 @@ export function HomePage() {
 
   const points = (trend.data?.trend?.points || []).slice(-12);
   const gauge = buildGauge(data?.metric_cards || []);
+  const salesAmountCard = data?.metric_cards?.find((card) => card.key === "sales_amount");
+  const trendAmountTotal = points.reduce((sum, point) => sum + (point.amount || 0), 0);
 
   return (
     <div className="space-y-5">
@@ -86,9 +87,9 @@ export function HomePage() {
               <h2 className="text-[15px] font-semibold text-ink">بینش فروش</h2>
               <div className="mt-3 flex flex-wrap items-center gap-3">
                 <div className="tabular text-[32px] font-semibold leading-none text-ink">
-                  {formatNumber(points.reduce((sum, point) => sum + point.purchase_count, 0))}
+                  {formatToman(trendAmountTotal)}
                 </div>
-                <ChangePill value={data?.metric_cards?.[0]?.change_pct ?? null} />
+                <ChangePill value={salesAmountCard?.change_pct ?? null} />
               </div>
             </div>
             <div className="flex flex-col items-end gap-3">
@@ -100,18 +101,19 @@ export function HomePage() {
                   { value: "monthly", label: "ماهانه" },
                 ]}
               />
-              <div className="flex flex-wrap justify-end gap-4">
-                <LegendDot color="#2D7FF9" label="خرید" />
-                <LegendDot color="#7DD3A8" label="واحد" />
-                <LegendDot color="#CBD5E1" label="مرجوعی" />
-              </div>
             </div>
           </div>
           <div className="mt-4">
             <PillGroup value={salesLine} onChange={setSalesLine} options={SALES_LINES} />
           </div>
           <div className="mt-5">
-            {trend.loading && !points.length ? <Skeleton className="h-[300px]" /> : trend.error ? <ErrorState /> : <RevenueChart points={points} />}
+            {trend.loading && !points.length ? (
+              <Skeleton className="h-[300px]" />
+            ) : trend.error ? (
+              <ErrorState />
+            ) : (
+              <RevenueChart points={points} metric="amount" />
+            )}
           </div>
         </Panel>
 
