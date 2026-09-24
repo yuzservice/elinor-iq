@@ -395,6 +395,22 @@ export type SystemStatus = {
     window_start: string | null;
     window_end: string | null;
     error: string;
+    job: {
+      kind: string;
+      status: string;
+      status_label: string;
+      stalled: boolean;
+      error: string;
+      started_at: string | null;
+      finished_at: string | null;
+      window_start: string | null;
+      window_end: string | null;
+      requests_made: number;
+      current_day: string | null;
+      pos_sales_upserted: number;
+      failures: number;
+      branches: string[];
+    } | null;
   };
   counts: {
     orders: number;

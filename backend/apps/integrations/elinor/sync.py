@@ -23,6 +23,7 @@ OVERLAP_DAYS = 1
 POS_OVERLAP_DAYS = 1
 # SQL dump of physical sales is complete through 20 Shahrivar 1405.
 POS_SQL_CUTOFF = date(2026, 9, 11)
+POS_BRANCH_STORE_IDS = {"sari": 3, "gorgan": 2, "capri": 4}
 ORDERS_PER_PAGE = 50
 MAX_REQUESTS_PER_RUN = int(getattr(settings, "ELINOR_SYNC_MAX_REQUESTS", 900))
 HOURLY_ONLINE_DETAILS_LIMIT = int(getattr(settings, "ELINOR_SYNC_HOURLY_ONLINE_DETAILS_LIMIT", "250"))
@@ -121,6 +122,7 @@ class SyncService:
         self._pos_items_upserted = 0
         self._gateway_payments_upserted = 0
         self.failures = 0
+        self.pos_store_ids = None
 
     def _ensure_not_running(self):
         clear_stuck_sync_runs(minutes=SYNC_STALE_MINUTES)
@@ -290,8 +292,10 @@ class SyncService:
             self._finish(SyncRun.STATUS_FAILED, error=str(exc))
             raise
 
-    def execute_pos(self, start_date=None, end_date=None):
+    def execute_pos(self, start_date=None, end_date=None, branches=None):
         self._ensure_not_running()
+        branches = [branch for branch in (branches or []) if branch in POS_BRANCH_STORE_IDS]
+        self.pos_store_ids = {POS_BRANCH_STORE_IDS[branch] for branch in branches} or None
         if start_date is not None and end_date is not None:
             end = end_date
             start = resume_explicit_pos_start(start_date, end_date, _cursor("pos_orders").value)
@@ -302,8 +306,14 @@ class SyncService:
             status=SyncRun.STATUS_RUNNING,
             window_start=timezone.make_aware(datetime.combine(start, time.min), timezone.get_current_timezone()),
             window_end=timezone.make_aware(datetime.combine(end, time.max), timezone.get_current_timezone()),
+            report={
+                "branches": branches,
+                "current_day": start.isoformat(),
+                "pos_sales_upserted": 0,
+                "heartbeat": timezone.now().isoformat(),
+            },
         )
-        logger.info("Starting POS sync from %s to %s", start, end)
+        logger.info("Starting POS sync from %s to %s branches=%s", start, end, branches or "all")
         try:
             self.client.authenticate()
             paused = self._sync_pos_sales(start, end)
@@ -473,7 +483,7 @@ class SyncService:
             day_count = 0
             day_complete = True
             while page <= last_page:
-                self._touch_heartbeat()
+                self._touch_heartbeat(day)
                 if self.client.requests_made >= MAX_REQUESTS_PER_RUN:
                     self._save_pos_cursor(cursor, day, start_date, end_date)
                     self._finish(
@@ -508,6 +518,9 @@ class SyncService:
                     if max_sales is not None and processed >= max_sales:
                         day_complete = False
                         break
+                    store_source_id = as_int(row.get("store_id"), default=0)
+                    if self.pos_store_ids is not None and store_source_id not in self.pos_store_ids:
+                        continue
                     sale = self._upsert_pos_header(row)
                     if not sale:
                         continue
@@ -875,11 +888,16 @@ class SyncService:
             )
         logger.info("Customer order stats refreshed for %s customers.", len(combined))
 
-    def _touch_heartbeat(self):
+    def _touch_heartbeat(self, day=None):
         if not self.run:
             return
         report = dict(self.run.report or {})
         report["heartbeat"] = timezone.now().isoformat()
+        report["pos_sales_upserted"] = self._pos_sales_upserted
+        report["pos_items_upserted"] = self._pos_items_upserted
+        report["failures"] = self.failures
+        if day is not None:
+            report["current_day"] = day.isoformat()
         self.run.report = report
         self.run.requests_made = self.client.requests_made
         self.run.save(update_fields=["report", "requests_made"])

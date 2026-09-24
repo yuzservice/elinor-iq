@@ -7,6 +7,13 @@ import { useAuth } from "../hooks/useAuth";
 import { formatDate, formatDateTime, formatNumber } from "../lib/format";
 import { ApiError } from "../services/api";
 import { systemService, type PanelAdmin } from "../services/system";
+import type { SystemStatus } from "../types";
+
+const STORE_BRANCHES = [
+  { id: "sari", label: "ساری" },
+  { id: "gorgan", label: "گرگان" },
+  { id: "capri", label: "کاپری" },
+];
 
 function todayIso() {
   const now = new Date();
@@ -29,6 +36,7 @@ export function SettingsPage() {
   const [message, setMessage] = useState("");
   const [posFrom, setPosFrom] = useState("2026-09-12");
   const [posTo, setPosTo] = useState(todayIso);
+  const [branches, setBranches] = useState<string[]>(STORE_BRANCHES.map((branch) => branch.id));
   const [apiBase, setApiBase] = useState("https://api.elinorboutique.com/v1");
   const [apiUsername, setApiUsername] = useState("");
   const [apiPassword, setApiPassword] = useState("");
@@ -51,6 +59,13 @@ export function SettingsPage() {
     systemService.admins().then((payload) => setAdmins(payload.results)).catch(() => setAdmins([]));
   }, [canManage]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      systemService.status().then(setData).catch(() => undefined);
+    }, 4000);
+    return () => window.clearInterval(timer);
+  }, [setData]);
+
   async function syncNow() {
     setSyncing(true);
     setMessage("");
@@ -71,10 +86,14 @@ export function SettingsPage() {
       setMessage("تاریخ شروع و پایان را انتخاب کنید.");
       return;
     }
+    if (!branches.length) {
+      setMessage("حداقل یک شعبه را انتخاب کنید.");
+      return;
+    }
     setSyncing(true);
     setMessage("");
     try {
-      const result = await systemService.syncPosRange({ from: posFrom, to: posTo });
+      const result = await systemService.syncPosRange({ from: posFrom, to: posTo, branches });
       setMessage(result.message || "همگام‌سازی فروشگاه‌ها برای این بازه آغاز شد. اگر متوقف شد، همین بازه را دوباره بزنید.");
       const next = await systemService.status();
       setData(next);
@@ -226,26 +245,45 @@ export function SettingsPage() {
           <Count label="کالا" value={data.counts.products} />
           <Count label="تنوع" value={data.counts.variants} />
         </div>
-        {data.sync.error ? <p className="mt-4 text-sm text-rose">آخرین خطا در لاگ سرور ثبت شده است.</p> : null}
+        <SyncJob job={data.sync.job} />
         <div className="mt-6 space-y-3">
-          <div className="text-sm text-muted">بازه فروشگاه‌های حضوری</div>
+          <div className="text-sm text-muted">بازه و شعبه فروشگاه</div>
           <div className="flex flex-wrap items-center gap-3">
             <JalaliDateField value={posFrom} onChange={setPosFrom} compact />
             <span className="text-xs text-faint">تا</span>
             <JalaliDateField value={posTo} onChange={setPosTo} compact />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {STORE_BRANCHES.map((branch) => {
+              const active = branches.includes(branch.id);
+              return (
+                <button
+                  key={branch.id}
+                  type="button"
+                  className={`rounded-full border px-3 py-1 text-sm ${active ? "border-ink bg-ink text-canvas" : "border-line text-muted"}`}
+                  onClick={() =>
+                    setBranches((current) =>
+                      current.includes(branch.id) ? current.filter((id) => id !== branch.id) : [...current, branch.id],
+                    )
+                  }
+                >
+                  {branch.label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap items-center gap-4">
             <Button onClick={syncPosRange} disabled={syncing || data.sync.running || !posFrom || !posTo}>
               {data.sync.running || syncing ? "در حال همگام‌سازی..." : "همگام‌سازی این بازه"}
             </Button>
-          </div>
-          <p className="text-xs leading-6 text-faint">
-            برای پر کردن فاصله فروشگاه‌ها از ۲۱ شهریور تا امروز را بگذارید. اگر کار وسط بازه متوقف شد، همان تاریخ‌ها را دوباره بزنید.
-          </p>
-          <div className="flex items-center gap-4">
             <Button onClick={syncNow} disabled={syncing || data.sync.running}>
-              {data.sync.running || syncing ? "در حال همگام‌سازی..." : "همگام‌سازی اکنون"}
+              همگام‌سازی اکنون
             </Button>
             {message ? <span className="text-sm text-muted">{message}</span> : null}
           </div>
+          <p className="text-xs leading-6 text-faint">
+            وضعیت هر چند ثانیه تازه می‌شود. اگر «متوقف شد» یا «ناموفق» دیدید، متن زیر وضعیت دلیلش است. برای ادامه، همان بازه را دوباره بزنید.
+          </p>
         </div>
       </Panel>
 
@@ -259,6 +297,36 @@ export function SettingsPage() {
         <Field label="محصول" value="ELINOR IQ v2" />
         <Field label="پایگاه داده" value="PostgreSQL 16" />
       </Panel>
+    </div>
+  );
+}
+
+function SyncJob({ job }: { job: SystemStatus["sync"]["job"] }) {
+  if (!job) return null;
+  const branchLabel = job.branches.length
+    ? job.branches
+        .map((id) => STORE_BRANCHES.find((branch) => branch.id === id)?.label || id)
+        .join("، ")
+    : "همه شعبه‌ها";
+  const problem = job.stalled || job.status === "failed" || job.status === "paused";
+  return (
+    <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${problem ? "border-rose/40" : "border-line"}`}>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-muted">وضعیت</span>
+        <span className={problem ? "text-rose" : ""}>{job.status_label}</span>
+      </div>
+      <Field label="شعبه" value={branchLabel} />
+      <Field
+        label="روز جاری"
+        value={job.current_day ? formatDate(job.current_day) : "—"}
+      />
+      <Field label="فروش ذخیره‌شده" value={formatNumber(job.pos_sales_upserted)} />
+      <Field label="درخواست API" value={formatNumber(job.requests_made)} />
+      {job.failures ? <Field label="خطای جزئیات" value={formatNumber(job.failures)} /> : null}
+      {job.error ? <p className="pt-3 text-sm leading-6 text-rose">{job.error}</p> : null}
+      {job.stalled ? (
+        <p className="pt-3 text-sm leading-6 text-rose">چند دقیقه پیشرفتی ثبت نشده. اگر این حالت ماند، همان بازه را دوباره بزنید.</p>
+      ) : null}
     </div>
   );
 }

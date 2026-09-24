@@ -1,9 +1,11 @@
 import logging
+from datetime import timedelta
 from threading import Thread
 
 from django.conf import settings
 from django.db import close_old_connections
-from django.utils.dateparse import parse_date
+from django.utils import timezone
+from django.utils.dateparse import parse_date, parse_datetime
 from django.contrib.auth import get_user_model
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -16,6 +18,7 @@ from apps.core.coverage import coverage_payload
 from apps.customers.models import Customer
 from apps.integrations.elinor.client import current_elinor_credentials
 from apps.integrations.elinor.models import ElinorApiConfig, SyncRun
+from apps.integrations.elinor.sync import POS_BRANCH_STORE_IDS, clear_stuck_sync_runs
 from apps.products.models import Product, Variant
 from apps.sales.models import Order, OrderItem, PosSale
 
@@ -60,7 +63,8 @@ def status_view(request):
                 "last_success_at": success.finished_at if success else None,
                 "window_start": (success or latest).window_start if (success or latest) else None,
                 "window_end": (success or latest).window_end if (success or latest) else None,
-                "error": latest.error_message if latest else "",
+                "error": _public_sync_error(latest.error_message if latest else ""),
+                "job": _sync_job(latest),
             },
             "counts": counts,
             "data_coverage": coverage_payload(),
@@ -75,13 +79,18 @@ def status_view(request):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def trigger_sync(request):
+    clear_stuck_sync_runs(minutes=3)
     if SyncRun.objects.filter(status=SyncRun.STATUS_RUNNING).exists():
         return Response(
-            {"detail": "همگام‌سازی در حال اجرا است."},
+            {"detail": "یک همگام‌سازی هنوز در حال اجرا است. وضعیت همان کارت را ببینید."},
             status=status.HTTP_409_CONFLICT,
         )
     from_raw = str(request.data.get("from") or "").strip()
     to_raw = str(request.data.get("to") or "").strip()
+    branches = request.data.get("branches") or []
+    if not isinstance(branches, list):
+        return Response({"detail": "شعبه نامعتبر است."}, status=status.HTTP_400_BAD_REQUEST)
+    branches = [str(branch) for branch in branches if str(branch) in POS_BRANCH_STORE_IDS]
     if bool(from_raw) ^ bool(to_raw):
         return Response({"detail": "هر دو تاریخ شروع و پایان لازم است."}, status=status.HTTP_400_BAD_REQUEST)
     if from_raw and to_raw:
@@ -91,7 +100,7 @@ def trigger_sync(request):
             return Response({"detail": "بازه تاریخ نامعتبر است."}, status=status.HTTP_400_BAD_REQUEST)
         if (end - start).days > POS_RANGE_MAX_DAYS:
             return Response({"detail": "بازه حداکثر ۶۰ روز است."}, status=status.HTTP_400_BAD_REQUEST)
-        thread = Thread(target=_run_pos_range, args=(start, end), daemon=True)
+        thread = Thread(target=_run_pos_range, args=(start, end, branches), daemon=True)
         thread.start()
         return Response({"ok": True, "message": "همگام‌سازی فروشگاه‌ها برای این بازه آغاز شد."})
     thread = Thread(target=_run_recent_sync, daemon=True)
@@ -174,14 +183,55 @@ def _run_recent_sync():
         close_old_connections()
 
 
-def _run_pos_range(start, end):
+def _run_pos_range(start, end, branches):
     from apps.integrations.elinor.sync import SyncService
     from apps.integrations.elinor.models import SyncRun as Run
 
     close_old_connections()
     try:
-        SyncService(Run.KIND_POS).execute_pos(start_date=start, end_date=end)
+        SyncService(Run.KIND_POS).execute_pos(start_date=start, end_date=end, branches=branches)
     except Exception:
         logger.exception("Panel POS range sync failed")
     finally:
         close_old_connections()
+
+
+def _public_sync_error(error):
+    if not error:
+        return ""
+    if "rate limits" in error:
+        return "محدودیت درخواست API پر شد. همان بازه را دوباره بزنید تا از همان روز ادامه دهد."
+    if error == "Cleared stuck sync run.":
+        return "اجرای قبلی بدون پیشرفت مانده بود و بسته شد."
+    return error
+
+
+def _sync_job(run):
+    if not run:
+        return None
+    report = run.report or {}
+    heartbeat = parse_datetime(report.get("heartbeat") or "")
+    beat = heartbeat or run.started_at
+    stalled = run.status == SyncRun.STATUS_RUNNING and beat < timezone.now() - timedelta(minutes=3)
+    labels = {
+        SyncRun.STATUS_RUNNING: "در حال اجرا",
+        SyncRun.STATUS_PAUSED: "متوقف شد",
+        SyncRun.STATUS_FAILED: "ناموفق",
+        SyncRun.STATUS_SUCCESS: "انجام شد",
+    }
+    return {
+        "kind": run.kind,
+        "status": run.status,
+        "status_label": "بدون پیشرفت" if stalled else labels.get(run.status, run.status),
+        "stalled": stalled,
+        "error": _public_sync_error(run.error_message),
+        "started_at": run.started_at,
+        "finished_at": run.finished_at,
+        "window_start": run.window_start,
+        "window_end": run.window_end,
+        "requests_made": run.requests_made,
+        "current_day": report.get("current_day"),
+        "pos_sales_upserted": report.get("pos_sales_upserted", 0),
+        "failures": report.get("failures", 0),
+        "branches": report.get("branches") or [],
+    }
