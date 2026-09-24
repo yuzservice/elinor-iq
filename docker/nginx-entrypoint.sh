@@ -15,13 +15,15 @@ EOF
 proxy_locations() {
     cat <<'EOF'
     client_max_body_size 32m;
+    resolver 127.0.0.11 valid=10s ipv6=off;
 
     location ^~ /.well-known/acme-challenge/ {
         root /var/www/certbot;
     }
 
     location /api/ {
-        proxy_pass http://backend:8000/api/;
+        set $api_upstream backend:8000;
+        proxy_pass http://$api_upstream;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -30,7 +32,8 @@ proxy_locations() {
     }
 
     location /admin/ {
-        proxy_pass http://backend:8000/admin/;
+        set $admin_upstream backend:8000;
+        proxy_pass http://$admin_upstream;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -38,7 +41,8 @@ proxy_locations() {
     }
 
     location / {
-        proxy_pass http://frontend:5173;
+        set $frontend_upstream frontend:5173;
+        proxy_pass http://$frontend_upstream;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $connection_upgrade;
