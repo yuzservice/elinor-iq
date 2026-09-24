@@ -53,6 +53,35 @@ def _mini_order(source_id=100, *, store_id=3, customer_id=42, created_at="2026-0
 
 
 @pytest.mark.django_db
+def test_pos_sync_fetches_date_range_not_single_day():
+    Store.objects.create(source_id=3, label="ساری")
+    calls = []
+
+    def fake_get_mini_orders(**kwargs):
+        calls.append(kwargs)
+        return {
+            "results": [_mini_order()] if kwargs.get("page") == 1 else [],
+            "current_page": kwargs.get("page", 1),
+            "last_page": 1,
+            "total": 1,
+            "raw": {},
+        }
+
+    service = SyncService(SyncRun.KIND_POS)
+    service.client.authenticate = lambda: "token"
+    service.client.requests_made = 0
+    service.client.get_mini_orders = fake_get_mini_orders
+    service.client.get_mini_order = lambda source_id: {"mini_order": _mini_order(source_id=source_id)}
+    service.client.get_product = lambda source_id: {"id": source_id, "title": "شال", "status": "1", "varieties": []}
+
+    run = service.execute_pos(start_date=datetime(2026, 9, 14).date(), end_date=datetime(2026, 9, 22).date())
+    assert run.status == SyncRun.STATUS_SUCCESS
+    assert calls
+    assert calls[0]["start_date"].isoformat() == "2026-09-14"
+    assert calls[0]["end_date"].isoformat() == "2026-09-22"
+
+
+@pytest.mark.django_db
 def test_pos_sync_upserts_sale_and_items():
     Store.objects.create(source_id=3, label="ساری")
     service = SyncService(SyncRun.KIND_POS)

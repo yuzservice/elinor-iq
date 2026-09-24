@@ -415,69 +415,73 @@ class SyncService:
         last_created = None
         cursor = _cursor("pos_orders")
         processed = 0
-        day = start_date
-        while day <= end_date:
-            page = 1
-            last_page = 1
-            previous_ids = set()
-            while page <= last_page:
+        page = 1
+        last_page = 1
+        previous_ids = set()
+        while page <= last_page:
+            if self.client.requests_made >= MAX_REQUESTS_PER_RUN:
+                self._finish(
+                    SyncRun.STATUS_PAUSED,
+                    error="Paused while fetching POS sales to respect Elinor API rate limits.",
+                )
+                return True
+            if max_sales is not None and processed >= max_sales:
+                cursor.value = {
+                    "last_synced_date": end_date.isoformat(),
+                    "last_created_at": last_created.isoformat() if last_created else cursor.value.get("last_created_at"),
+                    "window_start": start_date.isoformat(),
+                    "window_end": end_date.isoformat(),
+                }
+                cursor.save()
+                return False
+            payload = self.client.get_mini_orders(
+                page=page,
+                per_page=ORDERS_PER_PAGE,
+                start_date=start_date,
+                end_date=end_date,
+            )
+            rows = payload["results"]
+            last_page = max(1, payload["last_page"])
+            row_ids = {as_int(row.get("id"), default=None) for row in rows}
+            row_ids.discard(None)
+            if page > 1 and row_ids and row_ids == previous_ids:
+                logger.warning(
+                    "POS pagination repeated page %s for %s..%s; stopping.",
+                    page,
+                    start_date.isoformat(),
+                    end_date.isoformat(),
+                )
+                break
+            previous_ids = row_ids
+            logger.info(
+                "mini_orders %s..%s page %s/%s (%s rows, total=%s)",
+                start_date.isoformat(),
+                end_date.isoformat(),
+                page,
+                last_page,
+                len(rows),
+                payload.get("total"),
+            )
+            for row in rows:
+                if max_sales is not None and processed >= max_sales:
+                    break
                 if self.client.requests_made >= MAX_REQUESTS_PER_RUN:
                     self._finish(
                         SyncRun.STATUS_PAUSED,
-                        error="Paused while fetching POS sales to respect Elinor API rate limits.",
+                        error="Paused while fetching POS details to respect Elinor API rate limits.",
                     )
                     return True
-                if max_sales is not None and processed >= max_sales:
-                    cursor.value = {
-                        "last_synced_date": day.isoformat(),
-                        "last_created_at": last_created.isoformat() if last_created else cursor.value.get("last_created_at"),
-                        "window_start": start_date.isoformat(),
-                        "window_end": end_date.isoformat(),
-                    }
-                    cursor.save()
-                    return False
-                payload = self.client.get_mini_orders(
-                    page=page,
-                    per_page=ORDERS_PER_PAGE,
-                    start_date=day,
-                    end_date=day,
-                )
-                rows = payload["results"]
-                last_page = max(1, payload["last_page"])
-                row_ids = {as_int(row.get("id"), default=None) for row in rows}
-                row_ids.discard(None)
-                if page > 1 and row_ids and row_ids == previous_ids:
-                    logger.warning("POS pagination repeated page %s on %s; stopping day.", page, day)
-                    break
-                previous_ids = row_ids
-                logger.info(
-                    "mini_orders %s page %s/%s (%s rows)",
-                    day.isoformat(),
-                    page,
-                    last_page,
-                    len(rows),
-                )
-                for row in rows:
-                    if max_sales is not None and processed >= max_sales:
-                        break
-                    if self.client.requests_made >= MAX_REQUESTS_PER_RUN:
-                        self._finish(
-                            SyncRun.STATUS_PAUSED,
-                            error="Paused while fetching POS details to respect Elinor API rate limits.",
-                        )
-                        return True
-                    sale = self._upsert_pos_header(row)
-                    if sale:
-                        processed += 1
-                        last_created = sale.created_at or last_created
-                        try:
-                            self._sync_pos_details(sale)
-                        except Exception as exc:
-                            self.failures += 1
-                            logger.warning("POS %s details failed: %s", sale.source_id, exc)
-                page += 1
-                self._persist_progress()
-            day += timedelta(days=1)
+                sale = self._upsert_pos_header(row)
+                if sale:
+                    processed += 1
+                    last_created = sale.created_at or last_created
+                    try:
+                        self._sync_pos_details(sale)
+                    except Exception as exc:
+                        self.failures += 1
+                        logger.warning("POS %s details failed: %s", sale.source_id, exc)
+            page += 1
+            self._persist_progress()
 
         cursor.value = {
             "last_synced_date": end_date.isoformat(),

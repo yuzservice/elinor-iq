@@ -1,4 +1,4 @@
-from datetime import time, timedelta
+from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from django.core.management.base import BaseCommand
@@ -81,6 +81,23 @@ class Command(BaseCommand):
             if missing:
                 self.stdout.write("")
                 self.stdout.write(self.style.WARNING("Missing Sari days detected in the post-import gap."))
+                try:
+                    from apps.integrations.elinor.client import ElinorClient
+
+                    client = ElinorClient()
+                    client.authenticate()
+                    payload = client.get_mini_orders(
+                        page=1,
+                        per_page=1,
+                        start_date=gap_start,
+                        end_date=gap_end,
+                    )
+                    self.stdout.write(
+                        f"API mini_orders total for {gap_start.isoformat()}..{gap_end.isoformat()}: "
+                        f"{payload.get('total', 0)}"
+                    )
+                except Exception as exc:
+                    self.stdout.write(f"API probe failed: {exc}")
                 self.stdout.write("Backfill with:")
                 self.stdout.write(
                     f"  docker compose exec backend python manage.py sync_elinor_pos "
