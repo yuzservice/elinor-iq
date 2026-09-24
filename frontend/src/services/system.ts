@@ -10,7 +10,9 @@ export type PanelAdmin = {
 
 export const systemService = {
   status: () => api<SystemStatus>("/system/status/"),
-  syncNow: () => api<{ ok: boolean }>("/system/sync/", { method: "POST" }),
+  syncNow: () => api<{ ok: boolean; message?: string }>("/system/sync/", { method: "POST" }),
+  syncPosRange: (body: { from: string; to: string }) =>
+    api<{ ok: boolean; message?: string }>("/system/sync/", { method: "POST", body: JSON.stringify(body) }),
   saveApi: (body: { base_url: string; username: string; password: string }) =>
     api<{ ok: boolean }>("/system/api-config/", { method: "PUT", body: JSON.stringify(body) }),
   admins: () => api<{ results: PanelAdmin[] }>("/system/admins/"),

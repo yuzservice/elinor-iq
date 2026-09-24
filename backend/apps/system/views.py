@@ -1,6 +1,9 @@
+import logging
 from threading import Thread
 
 from django.conf import settings
+from django.db import close_old_connections
+from django.utils.dateparse import parse_date
 from django.contrib.auth import get_user_model
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -15,6 +18,9 @@ from apps.integrations.elinor.client import current_elinor_credentials
 from apps.integrations.elinor.models import ElinorApiConfig, SyncRun
 from apps.products.models import Product, Variant
 from apps.sales.models import Order, OrderItem, PosSale
+
+logger = logging.getLogger(__name__)
+POS_RANGE_MAX_DAYS = 60
 
 
 @api_view(["GET"])
@@ -74,6 +80,20 @@ def trigger_sync(request):
             {"detail": "همگام‌سازی در حال اجرا است."},
             status=status.HTTP_409_CONFLICT,
         )
+    from_raw = str(request.data.get("from") or "").strip()
+    to_raw = str(request.data.get("to") or "").strip()
+    if bool(from_raw) ^ bool(to_raw):
+        return Response({"detail": "هر دو تاریخ شروع و پایان لازم است."}, status=status.HTTP_400_BAD_REQUEST)
+    if from_raw and to_raw:
+        start = parse_date(from_raw)
+        end = parse_date(to_raw)
+        if not start or not end or start > end:
+            return Response({"detail": "بازه تاریخ نامعتبر است."}, status=status.HTTP_400_BAD_REQUEST)
+        if (end - start).days > POS_RANGE_MAX_DAYS:
+            return Response({"detail": "بازه حداکثر ۶۰ روز است."}, status=status.HTTP_400_BAD_REQUEST)
+        thread = Thread(target=_run_pos_range, args=(start, end), daemon=True)
+        thread.start()
+        return Response({"ok": True, "message": "همگام‌سازی فروشگاه‌ها برای این بازه آغاز شد."})
     thread = Thread(target=_run_recent_sync, daemon=True)
     thread.start()
     return Response({"ok": True, "message": "همگام‌سازی آنلاین و فروشگاه آغاز شد."})
@@ -145,7 +165,23 @@ def _run_recent_sync():
     from apps.integrations.elinor.sync import SyncService
     from apps.integrations.elinor.models import SyncRun as Run
 
+    close_old_connections()
     try:
         SyncService(Run.KIND_HOURLY).execute_hourly()
     except Exception:
-        pass
+        logger.exception("Panel hourly sync failed")
+    finally:
+        close_old_connections()
+
+
+def _run_pos_range(start, end):
+    from apps.integrations.elinor.sync import SyncService
+    from apps.integrations.elinor.models import SyncRun as Run
+
+    close_old_connections()
+    try:
+        SyncService(Run.KIND_POS).execute_pos(start_date=start, end_date=end)
+    except Exception:
+        logger.exception("Panel POS range sync failed")
+    finally:
+        close_old_connections()

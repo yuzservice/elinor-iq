@@ -64,6 +64,20 @@ def recent_window(cursor_value=None):
     return start, end
 
 
+def resume_explicit_pos_start(start_date, end_date, cursor_value=None):
+    """Continue the same requested window from the unfinished day."""
+    raw = cursor_value or {}
+    try:
+        next_date = date.fromisoformat(str(raw.get("next_date") or "")[:10])
+        window_start = date.fromisoformat(str(raw.get("window_start") or "")[:10])
+        window_end = date.fromisoformat(str(raw.get("window_end") or "")[:10])
+    except ValueError:
+        return start_date
+    if window_start == start_date and window_end == end_date and start_date <= next_date <= end_date:
+        return next_date
+    return start_date
+
+
 def pos_window(cursor_value=None):
     """Physical stores resume from the SQL cutoff, not from the newest saved sale.
 
@@ -267,7 +281,8 @@ class SyncService:
     def execute_pos(self, start_date=None, end_date=None):
         self._ensure_not_running()
         if start_date is not None and end_date is not None:
-            start, end = start_date, end_date
+            end = end_date
+            start = resume_explicit_pos_start(start_date, end_date, _cursor("pos_orders").value)
         else:
             start, end = pos_window(_cursor("pos_orders").value)
         self.run = SyncRun.objects.create(

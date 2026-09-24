@@ -1,10 +1,19 @@
 import { useEffect, useState } from "react";
+import { JalaliDateField } from "../components/JalaliDatePicker";
 import { Button, Input, PageHeader, Panel, SectionHeader, ThemeSwitch } from "../components/ui";
 import { ErrorState, Skeleton } from "../components/Table";
 import { useApi } from "../hooks/useApi";
 import { useAuth } from "../hooks/useAuth";
 import { formatDate, formatDateTime, formatNumber } from "../lib/format";
+import { ApiError } from "../services/api";
 import { systemService, type PanelAdmin } from "../services/system";
+
+function todayIso() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
+}
 
 function accountRoleLabel(role?: string) {
   if (role === "super_admin") return "سوپر ادمین";
@@ -18,6 +27,8 @@ export function SettingsPage() {
   const { data, loading, error, setData } = useApi(() => systemService.status(), []);
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState("");
+  const [posFrom, setPosFrom] = useState("2026-09-12");
+  const [posTo, setPosTo] = useState(todayIso);
   const [apiBase, setApiBase] = useState("https://api.elinorboutique.com/v1");
   const [apiUsername, setApiUsername] = useState("");
   const [apiPassword, setApiPassword] = useState("");
@@ -44,12 +55,31 @@ export function SettingsPage() {
     setSyncing(true);
     setMessage("");
     try {
-      await systemService.syncNow();
-      setMessage("همگام‌سازی آغاز شد. این کار ممکن است چند دقیقه طول بکشد.");
+      const result = await systemService.syncNow();
+      setMessage(result.message || "همگام‌سازی آغاز شد. این کار ممکن است چند دقیقه طول بکشد.");
       const next = await systemService.status();
       setData(next);
-    } catch {
-      setMessage("دریافت اطلاعات با خطا مواجه شد.");
+    } catch (error) {
+      setMessage(error instanceof ApiError ? error.message : "دریافت اطلاعات با خطا مواجه شد.");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function syncPosRange() {
+    if (!posFrom || !posTo) {
+      setMessage("تاریخ شروع و پایان را انتخاب کنید.");
+      return;
+    }
+    setSyncing(true);
+    setMessage("");
+    try {
+      const result = await systemService.syncPosRange({ from: posFrom, to: posTo });
+      setMessage(result.message || "همگام‌سازی فروشگاه‌ها برای این بازه آغاز شد. اگر متوقف شد، همین بازه را دوباره بزنید.");
+      const next = await systemService.status();
+      setData(next);
+    } catch (error) {
+      setMessage(error instanceof ApiError ? error.message : "همگام‌سازی این بازه انجام نشد.");
     } finally {
       setSyncing(false);
     }
@@ -197,11 +227,25 @@ export function SettingsPage() {
           <Count label="تنوع" value={data.counts.variants} />
         </div>
         {data.sync.error ? <p className="mt-4 text-sm text-rose">آخرین خطا در لاگ سرور ثبت شده است.</p> : null}
-        <div className="mt-6 flex items-center gap-4">
-          <Button onClick={syncNow} disabled={syncing || data.sync.running}>
-            {data.sync.running || syncing ? "در حال همگام‌سازی..." : "همگام‌سازی اکنون"}
-          </Button>
-          {message ? <span className="text-sm text-muted">{message}</span> : null}
+        <div className="mt-6 space-y-3">
+          <div className="text-sm text-muted">بازه فروشگاه‌های حضوری</div>
+          <div className="flex flex-wrap items-center gap-3">
+            <JalaliDateField value={posFrom} onChange={setPosFrom} compact />
+            <span className="text-xs text-faint">تا</span>
+            <JalaliDateField value={posTo} onChange={setPosTo} compact />
+            <Button onClick={syncPosRange} disabled={syncing || data.sync.running || !posFrom || !posTo}>
+              {data.sync.running || syncing ? "در حال همگام‌سازی..." : "همگام‌سازی این بازه"}
+            </Button>
+          </div>
+          <p className="text-xs leading-6 text-faint">
+            برای پر کردن فاصله فروشگاه‌ها از ۲۱ شهریور تا امروز را بگذارید. اگر کار وسط بازه متوقف شد، همان تاریخ‌ها را دوباره بزنید.
+          </p>
+          <div className="flex items-center gap-4">
+            <Button onClick={syncNow} disabled={syncing || data.sync.running}>
+              {data.sync.running || syncing ? "در حال همگام‌سازی..." : "همگام‌سازی اکنون"}
+            </Button>
+            {message ? <span className="text-sm text-muted">{message}</span> : null}
+          </div>
         </div>
       </Panel>
 

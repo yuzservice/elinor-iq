@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from apps.customers.models import Customer
 from apps.integrations.elinor.models import SyncRun
-from apps.integrations.elinor.sync import POS_SQL_CUTOFF, SyncService, pos_window
+from apps.integrations.elinor.sync import POS_SQL_CUTOFF, SyncService, pos_window, resume_explicit_pos_start
 from apps.sales.models import PosSale, PosSaleItem, SalesLine, Store
 
 TEHRAN = ZoneInfo("Asia/Tehran")
@@ -123,3 +123,20 @@ def test_pos_window_restarts_from_sql_cutoff_not_latest_sale():
     assert end == timezone.localdate()
     resumed, _end = pos_window({"next_date": "2026-09-18"})
     assert resumed.isoformat() == "2026-09-17"
+
+
+def test_explicit_pos_range_resumes_unfinished_day():
+    start = datetime(2026, 9, 12).date()
+    end = datetime(2026, 9, 25).date()
+    resumed = resume_explicit_pos_start(
+        start,
+        end,
+        {"next_date": "2026-09-17", "window_start": "2026-09-12", "window_end": "2026-09-25"},
+    )
+    assert resumed.isoformat() == "2026-09-17"
+    fresh = resume_explicit_pos_start(
+        start,
+        end,
+        {"next_date": "2026-09-17", "window_start": "2026-09-14", "window_end": "2026-09-25"},
+    )
+    assert fresh == start
