@@ -25,8 +25,21 @@ export type Paginated<T> = {
   timing_ms?: number;
 };
 
+export type HomePeriod = "day" | "week" | "month" | "quarter";
+
+export type HomeMetricCard = {
+  key: string;
+  label: string;
+  kind: "money" | "units" | "snappay" | "digipay";
+  total: number;
+  change_pct: number | null;
+  lines: { key: SalesLineKey; label: string; value: number }[];
+};
+
 export type HomeSummary = {
   window: WindowMeta;
+  period: HomePeriod;
+  metric_cards: HomeMetricCard[];
   revenue_definition: string;
   data_coverage: DataCoverage;
   metrics: {

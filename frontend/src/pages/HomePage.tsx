@@ -3,21 +3,22 @@ import { Link } from "react-router-dom";
 import { CustomerNameCell, Panel } from "../components/ui";
 import {
   ChangePill,
+  HomePeriodToggle,
   LegendDot,
+  MetricCardIcons,
+  MetricSquareCard,
   PeriodToggle,
   PillGroup,
   RevenueChart,
   SalesGauge,
-  StatCard,
-  StatIcons,
 } from "../components/dashboard";
 import { EmptyState, ErrorState, Skeleton } from "../components/Table";
 import { useApi } from "../hooks/useApi";
 import { customerDisplayName } from "../lib/customerDisplay";
-import { formatDate, formatNumber, formatToman } from "../lib/format";
+import { formatDate, formatNumber, formatToman, toInputDate } from "../lib/format";
 import { homeService } from "../services/home";
 import { salesService, type SalesLineFilter } from "../services/sales";
-import type { HomeSummary } from "../types";
+import type { HomePeriod, HomeSummary } from "../types";
 
 const SALES_LINES: { value: SalesLineFilter; label: string }[] = [
   { value: "all", label: "همه" },
@@ -28,19 +29,25 @@ const SALES_LINES: { value: SalesLineFilter; label: string }[] = [
 ];
 
 export function HomePage() {
+  const [period, setPeriod] = useState<HomePeriod>("month");
   const [salesLine, setSalesLine] = useState<SalesLineFilter>("all");
   const [group, setGroup] = useState<"daily" | "monthly">("monthly");
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const { data, loading, error } = useApi(() => homeService.summary(), []);
+  const { data, loading, error } = useApi(() => homeService.summary(period), [period]);
+  const range = useMemo(
+    () => ({
+      from: data ? toInputDate(data.window.start) : "",
+      to: data ? toInputDate(data.window.end) : "",
+    }),
+    [data],
+  );
   const trend = useApi(
-    () => salesService.summary(undefined, undefined, salesLine, group, "trend"),
-    [salesLine, group],
+    () => salesService.summary(range.from, range.to, salesLine, group, "trend"),
+    [range.from, range.to, salesLine, group],
+    Boolean(range.from && range.to),
   );
 
-  const board = data?.line_board || [];
-  const kpis = useMemo(() => buildKpis(board), [board]);
-  const points = useMemo(() => (trend.data?.trend?.points || []).slice(-12), [trend.data]);
   const orders = useMemo(() => {
     return (data?.recent_orders || []).filter((order) => {
       const display = customerDisplayName(order);
@@ -51,22 +58,24 @@ export function HomePage() {
 
   if (error && !data) return <ErrorState />;
 
-  const gauge = buildGauge(board);
+  const points = (trend.data?.trend?.points || []).slice(-12);
+  const gauge = buildGauge(data?.metric_cards || []);
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {loading && !board.length
-          ? [0, 1, 2, 3].map((item) => <Skeleton key={item} className="h-[148px] rounded-[24px]" />)
-          : kpis.map((card) => (
-              <StatCard
-                key={card.label}
-                label={card.label}
-                value={card.value}
-                change={card.change}
-                primary={card.primary}
-                icon={<StatIcons name={card.icon} />}
-              />
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-[15px] font-semibold text-ink">خلاصه فروش</h1>
+          {data?.window.label ? <p className="mt-1 text-[13px] text-muted">{data.window.label}</p> : null}
+        </div>
+        <HomePeriodToggle value={period} onChange={setPeriod} />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {loading && !data?.metric_cards?.length
+          ? [0, 1, 2, 3].map((item) => <Skeleton key={item} className="min-h-[280px] rounded-[24px]" />)
+          : (data?.metric_cards || []).map((card) => (
+              <MetricSquareCard key={card.key} card={card} icon={<MetricCardIcons name={card.kind} />} />
             ))}
       </div>
 
@@ -79,7 +88,7 @@ export function HomePage() {
                 <div className="tabular text-[32px] font-semibold leading-none text-ink">
                   {formatNumber(points.reduce((sum, point) => sum + point.purchase_count, 0))}
                 </div>
-                <ChangePill value={kpis[0]?.change ?? null} />
+                <ChangePill value={data?.metric_cards?.[0]?.change_pct ?? null} />
               </div>
             </div>
             <div className="flex flex-col items-end gap-3">
@@ -186,43 +195,15 @@ export function HomePage() {
   );
 }
 
-function buildKpis(board: NonNullable<HomeSummary["line_board"]>) {
-  const purchases = aggregate(board, "purchase_count");
-  const customers = aggregate(board, "customer_count");
-  const returning = aggregate(board, "repeat_customers");
-  const online = board.find((line) => line.key === "ONLINE");
-  return [
-    { label: "کل خرید", value: formatNumber(purchases.current), change: purchases.change, icon: "bag" as const, primary: true },
-    { label: "مشتریان", value: formatNumber(customers.current), change: customers.change, icon: "people" as const },
-    {
-      label: "درآمد آنلاین",
-      value: formatNumber(online?.order_value || 0),
-      change: pct(online?.order_value || 0, online?.previous?.order_value || 0),
-      icon: "money" as const,
-    },
-    { label: "مشتری تکراری", value: formatNumber(returning.current), change: returning.change, icon: "user" as const },
-  ];
-}
-
-function aggregate(board: NonNullable<HomeSummary["line_board"]>, key: "purchase_count" | "customer_count" | "repeat_customers") {
-  const current = board.reduce((sum, line) => sum + (line[key] || 0), 0);
-  const previous = board.reduce((sum, line) => sum + (line.previous?.[key] || 0), 0);
-  return { current, change: pct(current, previous) };
-}
-
-function pct(current: number, previous: number) {
-  if (previous <= 0) return null;
-  return Math.round(((current - previous) / previous) * 1000) / 10;
-}
-
-function buildGauge(board: NonNullable<HomeSummary["line_board"]>) {
-  const current = board.reduce((sum, line) => sum + line.purchase_count, 0);
-  const previous = board.reduce((sum, line) => sum + (line.previous?.purchase_count || 0), 0);
-  const online = board.find((line) => line.key === "ONLINE");
-  const salesValue = online?.order_value || 0;
-  const target = Math.max((online?.previous?.order_value || 0) * 1.4, salesValue, 1);
-  const growth = previous > 0 ? Math.min(100, Math.round((current / previous) * 1000) / 10) : 0;
+function buildGauge(cards: HomeSummary["metric_cards"]) {
+  const sales = cards.find((card) => card.key === "sales_amount");
+  const units = cards.find((card) => card.key === "units_sold");
+  const salesValue = sales?.total || 0;
+  const target = Math.max(Math.round(salesValue * 1.4), 1);
+  const growth = sales?.change_pct != null ? Math.min(100, Math.max(0, 50 + sales.change_pct)) : 0;
   const progress = Math.min(100, Math.round((salesValue / target) * 1000) / 10);
+  const unitsTotal = units?.total || 0;
+  void unitsTotal;
   return { growth, salesValue, target, progress };
 }
 

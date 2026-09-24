@@ -3,6 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from apps.core.home_metrics import home_metric_cards, home_period_window, parse_home_period
 from apps.core.coverage import coverage_payload
 from apps.core.metrics import REVENUE_DEFINITION, STATUS_LABELS
 from apps.customers.models import Customer
@@ -16,7 +17,8 @@ from apps.sales.services import parse_range, revenue_orders, trend_points, windo
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def home_summary(request):
-    start, end = parse_range(request)
+    period = parse_home_period(request.query_params.get("period"))
+    start, end = home_period_window(period)
     orders = revenue_orders().filter(created_at__gte=start, created_at__lt=end)
     items = OrderItem.objects.filter(order__in=orders, status=1)
     sales_total = orders.aggregate(v=Sum("total_amount"))["v"] or 0
@@ -88,6 +90,8 @@ def home_summary(request):
                 "customers": customer_count,
                 "items_sold": items_sold,
             },
+            "period": period,
+            "metric_cards": home_metric_cards(start, end),
             "trend": trend_points(orders, start, end),
             "recent_orders": [
                 {

@@ -1,7 +1,7 @@
 import { api, queryPath } from "./api";
-import type { HomeSummary } from "../types";
+import type { HomePeriod, HomeSummary } from "../types";
 
 export const homeService = {
-  summary: (from?: string, to?: string) =>
-    api<HomeSummary>(queryPath("/home/summary/", { from, to })),
+  summary: (period: HomePeriod = "month") =>
+    api<HomeSummary>(queryPath("/home/summary/", { period })),
 };
