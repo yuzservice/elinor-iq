@@ -15,7 +15,7 @@ export function SalesLineMultiSelect({ value, onChange }: SalesLineMultiSelectPr
   }
 
   return (
-    <div className="flex h-11 items-center gap-1 rounded-xl border border-line bg-elevated px-1.5">
+    <div className="flex h-11 items-center gap-1 rounded-full bg-hover px-1.5">
       <span className="px-2 text-xs text-muted">خط فروش</span>
       <div className="flex items-center gap-1" role="group" aria-label="خط فروش">
         {SALES_LINE_OPTIONS.map((option) => {
@@ -26,10 +26,8 @@ export function SalesLineMultiSelect({ value, onChange }: SalesLineMultiSelectPr
               type="button"
               aria-pressed={selected}
               onClick={() => toggle(option.value)}
-              className={`h-8 rounded-lg px-3 text-xs transition-colors ${
-                selected
-                  ? "bg-accent text-on-accent"
-                  : "text-muted hover:bg-hover hover:text-ink"
+              className={`h-8 rounded-full px-3 text-xs font-medium transition-colors ${
+                selected ? "bg-accent text-on-accent" : "text-muted hover:bg-elevated hover:text-ink"
               }`}
             >
               {option.label}

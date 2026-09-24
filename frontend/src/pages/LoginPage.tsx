@@ -34,9 +34,9 @@ export function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-canvas px-6">
-      <div className="w-full max-w-[420px] rounded-3xl border border-line bg-surface p-8 shadow-soft">
-        <div className="text-[11px] tracking-brand text-accent">ELINOR</div>
-        <h1 className="mt-4 text-3xl font-medium tracking-tight">ورود به هوش خرده‌فروشی</h1>
+      <div className="w-full max-w-[420px] rounded-[24px] bg-surface p-8 shadow-soft">
+        <div className="text-[11px] font-semibold tracking-brand text-accent">ELINOR</div>
+        <h1 className="mt-4 text-2xl font-semibold tracking-tight text-ink">ورود به هوش خرده‌فروشی</h1>
         <p className="mt-3 text-sm leading-7 text-muted">
           فضای آرام مدیریت الینور. فقط برای تیم داخلی.
         </p>

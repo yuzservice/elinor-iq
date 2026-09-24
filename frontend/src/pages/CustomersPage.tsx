@@ -1,5 +1,5 @@
 import { useSearchParams } from "react-router-dom";
-import { PageHeader, Tabs } from "../components/ui";
+import { PageHeader, Panel, Tabs } from "../components/ui";
 import { CustomerReportsPanel } from "../features/customers/CustomerReportsPanel";
 import { CustomerListPanel } from "../features/customers/CustomerListPanel";
 
@@ -26,12 +26,8 @@ export function CustomersPage() {
           setParams(next);
         }}
       />
-      <div className="mt-8">
-        {tab === "reports" ? (
-          <CustomerReportsPanel />
-        ) : (
-          <CustomerListPanel population={population} />
-        )}
+      <div className="mt-6">
+        <Panel>{tab === "reports" ? <CustomerReportsPanel /> : <CustomerListPanel population={population} />}</Panel>
       </div>
     </div>
   );

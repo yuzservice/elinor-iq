@@ -21,14 +21,14 @@ export function AppShell() {
   return (
     <div className="flex min-h-screen bg-canvas">
       <aside
-        className={`sticky top-0 flex h-screen shrink-0 flex-col border-l border-line bg-surface/90 backdrop-blur-sm transition-[width] duration-200 ${
+        className={`sticky top-0 flex h-screen shrink-0 flex-col border-l border-line bg-surface shadow-soft transition-[width] duration-200 ${
           collapsed ? "w-[76px]" : "w-[228px]"
         }`}
       >
         <div className="flex items-center justify-between px-4 py-5">
           <div className={collapsed ? "hidden" : "block"}>
-            <div className="text-[11px] tracking-brand text-accent">ELINOR</div>
-            <div className="mt-1 text-sm text-ink">Intelligence</div>
+            <div className="text-[11px] font-semibold tracking-brand text-accent">ELINOR</div>
+            <div className="mt-1 text-sm font-medium text-ink">Intelligence</div>
           </div>
           <IconButton onClick={() => setCollapsed((value) => !value)} aria-label="جمع شدن منو">
             <span className={collapsed ? "inline-block rotate-180" : ""}>
@@ -46,7 +46,7 @@ export function AppShell() {
                 end={item.to === "/"}
                 className={({ isActive }) =>
                   `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${
-                    isActive ? "bg-hover text-ink" : "text-muted hover:bg-hover hover:text-ink"
+                    isActive ? "bg-accent text-on-accent" : "text-muted hover:bg-hover hover:text-ink"
                   }`
                 }
               >
@@ -60,7 +60,7 @@ export function AppShell() {
             to="/settings"
             className={({ isActive }) =>
               `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${
-                isActive ? "bg-hover text-ink" : "text-muted hover:bg-hover hover:text-ink"
+                isActive ? "bg-accent text-on-accent" : "text-muted hover:bg-hover hover:text-ink"
               }`
             }
           >

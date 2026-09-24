@@ -15,9 +15,9 @@ export function Table({
 }) {
   const cellPad = compact ? "px-3 py-2" : "px-3 py-3";
   return (
-    <div className={`overflow-auto rounded-xl border border-line ${compact ? "max-h-[min(70vh,46rem)]" : ""}`}>
+    <div className={`overflow-auto ${compact ? "max-h-[min(70vh,46rem)]" : ""}`}>
       <table className={`w-full border-collapse text-sm ${compact ? "min-w-[1080px]" : "min-w-[720px]"}`}>
-        <thead className={`${sticky ? "sticky top-0 z-10" : ""} bg-elevated`}>
+        <thead className={`${sticky ? "sticky top-0 z-10 bg-surface" : ""}`}>
           <tr className="text-right text-[12px] text-faint">
             {columns.map((column, index) => (
               <th
@@ -49,7 +49,7 @@ export function TableRow({
   return (
     <tr
       onClick={onClick}
-      className={`border-b border-line/70 odd:bg-transparent even:bg-stripe hover:bg-hover ${className}`}
+      className={`border-b border-line/80 odd:bg-transparent even:bg-stripe hover:bg-hover ${className}`}
     >
       {children}
     </tr>

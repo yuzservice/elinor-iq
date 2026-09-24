@@ -86,27 +86,29 @@ export function SmartDirectPage() {
       </MetricStrip>
 
       <div className="mt-8">
-        <SectionHeader title="نتایج اخیر" hint="فقط خلاصه نتیجه. متن مکالمه ذخیره نمی‌شود." />
-        {empty ? (
-          <EmptyState
-            title="هنوز نتیجه‌ای ثبت نشده است."
-            body="پس از اتصال اینستاگرام، نتایج مکالمات فروش در این بخش نمایش داده می‌شود."
-          />
-        ) : (
-          <Table columns={["زمان", "خلاصه درخواست", "نتیجه", "محصول انتخاب‌شده", "وضعیت"]}>
-            {data.recent_outcomes.map((row) => (
-              <TableRow key={row.id}>
-                <td className="px-3 py-3.5 text-muted">{formatDateTime(row.last_activity_at)}</td>
-                <td className="px-3 py-3.5">{row.request_summary || "—"}</td>
-                <td className="px-3 py-3.5">{row.outcome_label || "—"}</td>
-                <td className="px-3 py-3.5 text-muted">{row.selected_product_label || "—"}</td>
-                <td className="px-3 py-3.5">
-                  <Badge tone={statusTone(row.status)}>{row.status_label}</Badge>
-                </td>
-              </TableRow>
-            ))}
-          </Table>
-        )}
+        <Panel>
+          <SectionHeader title="نتایج اخیر" hint="فقط خلاصه نتیجه. متن مکالمه ذخیره نمی‌شود." />
+          {empty ? (
+            <EmptyState
+              title="هنوز نتیجه‌ای ثبت نشده است."
+              body="پس از اتصال اینستاگرام، نتایج مکالمات فروش در این بخش نمایش داده می‌شود."
+            />
+          ) : (
+            <Table columns={["زمان", "خلاصه درخواست", "نتیجه", "محصول انتخاب‌شده", "وضعیت"]}>
+              {data.recent_outcomes.map((row) => (
+                <TableRow key={row.id}>
+                  <td className="px-3 py-3.5 text-muted">{formatDateTime(row.last_activity_at)}</td>
+                  <td className="px-3 py-3.5">{row.request_summary || "—"}</td>
+                  <td className="px-3 py-3.5">{row.outcome_label || "—"}</td>
+                  <td className="px-3 py-3.5 text-muted">{row.selected_product_label || "—"}</td>
+                  <td className="px-3 py-3.5">
+                    <Badge tone={statusTone(row.status)}>{row.status_label}</Badge>
+                  </td>
+                </TableRow>
+              ))}
+            </Table>
+          )}
+        </Panel>
       </div>
     </div>
   );

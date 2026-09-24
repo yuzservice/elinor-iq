@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PageHeader, Pagination, SearchInput } from "../components/ui";
+import { PageHeader, Pagination, Panel, SearchInput } from "../components/ui";
 import { EmptyState, ErrorState, Skeleton, Table, TableRow } from "../components/Table";
 import { useApi } from "../hooks/useApi";
 import { formatDate, formatNumber } from "../lib/format";
@@ -32,7 +32,7 @@ export function ProductsPage() {
         />
       </form>
       {loading ? (
-        <Skeleton className="h-80" />
+        <Skeleton className="h-80 rounded-[24px]" />
       ) : error || !data ? (
         <ErrorState />
       ) : data.results.length === 0 ? (
@@ -41,7 +41,7 @@ export function ProductsPage() {
           body="پس از همگام‌سازی سفارش‌ها، کالاهای فروخته‌شده اینجا دیده می‌شوند."
         />
       ) : (
-        <>
+        <Panel>
           <Table columns={["محصول", "تنوع", "تعداد فروش", "تعداد سفارش", "آخرین فروش"]}>
             {data.results.map((row, index) => (
               <TableRow key={`${row.id}-${index}`}>
@@ -54,7 +54,7 @@ export function ProductsPage() {
             ))}
           </Table>
           <Pagination page={data.page} total={data.total} perPage={data.per_page} onChange={setPage} />
-        </>
+        </Panel>
       )}
     </div>
   );

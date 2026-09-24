@@ -4,7 +4,6 @@ import {
   Badge,
   CustomerNameCell,
   Input,
-  Metric,
   PageHeader,
   Pagination,
   Panel,
@@ -14,7 +13,7 @@ import {
   Tabs,
 } from "../components/ui";
 import { EmptyState, ErrorState, Skeleton, Table, TableRow } from "../components/Table";
-import { TrendChart } from "../components/TrendChart";
+import { RevenueChart } from "../components/dashboard";
 import { JalaliDateRange } from "../components/JalaliDatePicker";
 import { useApi } from "../hooks/useApi";
 import { customerDisplayName } from "../lib/customerDisplay";
@@ -205,7 +204,7 @@ export function SalesPage() {
         ) : (
           <Panel className="mt-6">
             <SectionHeader title="روند فروش" hint="تعداد خریدهای معتبر — بر اساس نمایش انتخاب‌شده" />
-            <TrendChart points={trend.data.trend.points} metric="purchase_count" />
+            <RevenueChart points={trend.data.trend.points.slice(-12)} />
           </Panel>
         )
       ) : null}
@@ -442,13 +441,20 @@ function OverviewTab({
 }) {
   return (
     <>
-      <div className="mt-6 grid grid-cols-2 overflow-hidden rounded-2xl border border-line bg-surface shadow-soft lg:grid-cols-3 xl:grid-cols-6 [&>div]:border-l [&>div]:border-line">
-        <Metric label="فاکتور / خرید معتبر" value={formatNumber(metrics.purchase_count)} size="md" />
-        <Metric label="مشتری خریدار" value={formatNumber(metrics.customer_count)} size="md" />
-        <Metric label="واحد فروخته‌شده" value={formatNumber(metrics.units_sold)} size="md" />
-        <Metric label="میانگین کالا در خرید" value={formatNumber(metrics.avg_units_per_purchase)} size="md" />
-        <Metric label="مشتری جدید" value={formatNumber(metrics.new_customers)} size="md" />
-        <Metric label="مشتری تکراری" value={formatNumber(metrics.repeat_customers)} size="md" />
+      <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {[
+          ["فاکتور / خرید معتبر", metrics.purchase_count],
+          ["مشتری خریدار", metrics.customer_count],
+          ["واحد فروخته‌شده", metrics.units_sold],
+          ["میانگین کالا در خرید", metrics.avg_units_per_purchase],
+          ["مشتری جدید", metrics.new_customers],
+          ["مشتری تکراری", metrics.repeat_customers],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-[24px] bg-surface px-5 py-5 shadow-soft">
+            <div className="text-[13px] font-medium text-muted">{label}</div>
+            <div className="mt-2 tabular text-[28px] font-semibold text-ink">{formatNumber(Number(value))}</div>
+          </div>
+        ))}
       </div>
 
       {insights.length ? (

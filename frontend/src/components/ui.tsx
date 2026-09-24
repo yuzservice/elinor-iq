@@ -42,7 +42,7 @@ export function IconButton({
 export function Input({ className = "", ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
-      className={`h-11 w-full rounded-xl border border-line bg-elevated px-4 text-sm text-ink outline-none transition-colors placeholder:text-faint focus:border-accent/40 ${className}`}
+      className={`h-10 w-full rounded-full border border-line bg-elevated px-4 text-sm text-ink outline-none transition-colors placeholder:text-faint focus:border-accent/40 ${className}`}
       {...props}
     />
   );
@@ -55,7 +55,7 @@ export function SearchInput(props: InputHTMLAttributes<HTMLInputElement>) {
 export function Select({ className = "", children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
-      className={`h-11 rounded-xl border border-line bg-elevated px-3 text-sm text-ink outline-none focus:border-accent/40 ${className}`}
+      className={`h-10 rounded-full border border-line bg-elevated px-4 text-sm text-ink outline-none focus:border-accent/40 ${className}`}
       {...props}
     >
       {children}
@@ -72,10 +72,10 @@ export function Badge({
 }) {
   const tones = {
     neutral: "text-muted bg-hover",
-    sage: "text-sage bg-sage/10",
-    rose: "text-rose bg-rose/10",
+    sage: "text-[#22A06B] bg-[#E7F7EF]",
+    rose: "text-[#DC2626] bg-[#FEE2E2]",
     accent: "text-accent bg-accent/10",
-    warning: "text-warning bg-warning/10",
+    warning: "text-[#E56910] bg-[#FFF4E5]",
   };
   return (
     <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] ${tones[tone]}`}>
@@ -110,12 +110,12 @@ export function Metric({
   size?: "lg" | "md";
 }) {
   return (
-    <div className="min-w-0 px-6 py-5">
-      <div className="text-[12px] text-muted">{label}</div>
+    <div className="rounded-[24px] bg-surface px-5 py-5 shadow-soft">
+      <div className="text-[13px] font-medium text-muted">{label}</div>
       <div className="mt-2 flex items-baseline gap-2">
         <div
-          className={`tabular font-medium tracking-tight text-ink ${
-            size === "lg" ? "text-[28px] md:text-[32px]" : "text-[18px] md:text-[20px]"
+          className={`tabular font-semibold tracking-tight text-ink ${
+            size === "lg" ? "text-[32px]" : "text-[24px]"
           }`}
         >
           {value}
@@ -128,15 +128,13 @@ export function Metric({
 
 export function MetricStrip({ children }: { children: ReactNode }) {
   return (
-    <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-line bg-surface shadow-soft lg:grid-cols-4 [&>div]:border-l [&>div]:border-line">
-      {children}
-    </div>
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">{children}</div>
   );
 }
 
 export function Panel({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <section className={`rounded-2xl border border-line bg-surface p-6 shadow-soft ${className}`}>
+    <section className={`rounded-[24px] bg-surface p-6 shadow-soft ${className}`}>
       {children}
     </section>
   );
@@ -154,8 +152,8 @@ export function PageHeader({
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 className="text-[28px] font-medium tracking-tight text-ink">{title}</h1>
-        {description ? <p className="mt-2 max-w-2xl text-sm leading-7 text-muted">{description}</p> : null}
+        <h1 className="text-[15px] font-semibold tracking-tight text-ink">{title}</h1>
+        {description ? <p className="mt-1 max-w-2xl text-[13px] leading-7 text-muted">{description}</p> : null}
       </div>
       {actions}
     </div>
@@ -165,7 +163,7 @@ export function PageHeader({
 export function SectionHeader({ title, hint }: { title: string; hint?: string }) {
   return (
     <div className="mb-5 flex items-end justify-between gap-4">
-      <h2 className="text-sm font-medium text-ink">{title}</h2>
+      <h2 className="text-[15px] font-semibold text-ink">{title}</h2>
       {hint ? <p className="text-xs text-faint">{hint}</p> : null}
     </div>
   );
@@ -181,13 +179,13 @@ export function Tabs({
   onChange: (key: string) => void;
 }) {
   return (
-    <div className="flex gap-1 border-b border-line">
+    <div className="mb-5 flex flex-wrap gap-1.5 rounded-full bg-hover p-1">
       {items.map((item) => (
         <button
           key={item.key}
           onClick={() => onChange(item.key)}
-          className={`-mb-px border-b px-4 py-3 text-sm transition-colors ${
-            value === item.key ? "border-accent text-ink" : "border-transparent text-muted hover:text-ink"
+          className={`rounded-full px-4 py-2 text-[12px] font-medium transition-colors ${
+            value === item.key ? "bg-accent text-on-accent" : "text-muted hover:text-ink"
           }`}
         >
           {item.label}
