@@ -5,7 +5,7 @@ import pytest
 from django.utils import timezone
 
 from apps.customers.models import Customer
-from apps.integrations.elinor.models import SyncRun
+from apps.integrations.elinor.models import SyncCursor, SyncRun
 from apps.integrations.elinor.sync import POS_SQL_CUTOFF, SyncService, pos_window, resume_explicit_pos_start
 from apps.sales.models import PosSale, PosSaleItem, SalesLine, Store
 
@@ -126,6 +126,81 @@ def test_pos_window_restarts_from_sql_cutoff_not_latest_sale():
     today = timezone.localdate().isoformat()
     caught_up, _end = pos_window({"next_date": today})
     assert caught_up == max(POS_SQL_CUTOFF, timezone.localdate() - timedelta(days=1))
+
+
+@pytest.mark.django_db
+def test_pos_cap_resumes_on_the_next_page_instead_of_page_one():
+    Store.objects.create(source_id=3, label="ساری")
+    pages = {
+        1: [
+            _mini_order(1, created_at="2026-09-22 10:00:00"),
+            _mini_order(2, created_at="2026-09-22 11:00:00"),
+        ],
+        2: [_mini_order(3, created_at="2026-09-22 12:00:00")],
+    }
+    calls = []
+
+    def fake_get_mini_orders(**kwargs):
+        page = kwargs["page"]
+        calls.append(page)
+        return {
+            "results": pages.get(page, []),
+            "current_page": page,
+            "last_page": 2,
+            "total": 3,
+            "raw": {},
+        }
+
+    def make_service():
+        service = SyncService(SyncRun.KIND_HOURLY)
+        service.client.authenticate = lambda: "token"
+        service.client.requests_made = 0
+        service.client.get_mini_orders = fake_get_mini_orders
+        service.client.get_mini_order = lambda source_id: {"mini_order": _mini_order(source_id=source_id)}
+        service.client.get_product = lambda source_id: {"id": source_id, "title": "شال", "status": "1", "varieties": []}
+        service.run = SyncRun.objects.create(kind=SyncRun.KIND_HOURLY, status=SyncRun.STATUS_RUNNING)
+        return service
+
+    day = datetime(2026, 9, 22).date()
+    assert make_service()._sync_pos_sales(day, day, max_sales=2) is False
+    cursor = SyncCursor.objects.get(key="pos_orders")
+    assert cursor.value["next_date"] == "2026-09-22"
+    assert cursor.value["next_page"] == 2
+
+    calls.clear()
+    make_service()._sync_pos_sales(day, day, max_sales=2)
+    assert calls[0] == 2
+
+
+@pytest.mark.django_db
+def test_hourly_sync_fetches_pos_before_online_orders():
+    today = timezone.localdate().isoformat()
+    SyncCursor.objects.create(key="pos_orders", value={"next_date": today, "next_page": 1})
+    sequence = []
+
+    service = SyncService(SyncRun.KIND_HOURLY)
+    service.client.authenticate = lambda: "token"
+    service.client.requests_made = 0
+    service.client.get_mini_orders = lambda **kwargs: sequence.append("pos") or {
+        "results": [],
+        "current_page": 1,
+        "last_page": 1,
+        "total": 0,
+        "raw": {},
+    }
+    service.client.get_orders_light = lambda **kwargs: sequence.append("online") or {
+        "results": [],
+        "current_page": 1,
+        "last_page": 1,
+        "total": 0,
+        "raw": {},
+    }
+
+    run = service.execute_hourly()
+    assert run.status == SyncRun.STATUS_SUCCESS
+    assert sequence[0] == "pos"
+    assert "online" in sequence
+    assert sequence.index("pos") < sequence.index("online")
 
 
 def test_explicit_pos_range_resumes_unfinished_day():

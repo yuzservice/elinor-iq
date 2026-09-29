@@ -65,10 +65,12 @@ def coverage_payload():
     if status["needs_sync"]:
         labels = "، ".join(line["label"] for line in status["stale_lines"])
         max_lag = max(line["lag_days"] for line in status["stale_lines"])
+        stored_dates = [line["max_date"] for line in status["stale_lines"] if line["max_date"]]
+        latest = min(stored_dates) if stored_dates else status["historical_import_through"]
         message = (
-            f"فروش حضوری ({labels}) تا {max_lag} روز از API همگام نشده است. "
-            f"دادهٔ SQL فقط تا {status['historical_import_through']} موجود است؛ "
-            "برای تکمیل، sync_elinor_pos را اجرا کنید."
+            f"فروش حضوری ({labels}) تا {max_lag} روز از API عقب است. "
+            f"جدیدترین فروش ذخیره‌شده مربوط به {latest} است. "
+            "همگام‌سازی ساعتی فروش حضوری را از همان نقطه ادامه می‌دهد."
         )
         return {"partial": True, "message": message, "pos_sync": status}
 

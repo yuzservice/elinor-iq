@@ -2,20 +2,20 @@ import { useMemo, useState } from "react";
 import { Panel } from "../components/ui";
 import {
   ChangePill,
+  ChannelMix,
   HomePeriodToggle,
   MetricCardIcons,
   MetricSquareCard,
   PeriodToggle,
   PillGroup,
   RevenueChart,
-  SalesGauge,
 } from "../components/dashboard";
 import { ErrorState, Skeleton } from "../components/Table";
 import { useApi } from "../hooks/useApi";
-import { formatToman, shiftTehranIsoDate, toInputDate } from "../lib/format";
+import { formatCompactToman, formatToman, shiftTehranIsoDate, toInputDate } from "../lib/format";
 import { homeService } from "../services/home";
 import { salesService, type SalesLineFilter } from "../services/sales";
-import type { HomePeriod, HomeSummary } from "../types";
+import type { HomePeriod } from "../types";
 
 const SALES_LINES: { value: SalesLineFilter; label: string }[] = [
   { value: "all", label: "همه" },
@@ -53,61 +53,85 @@ export function HomePage() {
     if (group === "monthly") return allPoints.slice(-TREND_MONTHLY_MONTHS);
     return allPoints.slice(-TREND_DAILY_DAYS);
   }, [allPoints, group]);
-  const gauge = buildGauge(data?.metric_cards || []);
-  const salesAmountCard = data?.metric_cards?.find((card) => card.key === "sales_amount");
+  const cards = [...(data?.metric_cards || [])].sort((a, b) => Number(b.key === "sales_amount") - Number(a.key === "sales_amount"));
+  const salesAmountCard = cards.find((card) => card.key === "sales_amount");
   const trendAmountTotal = trend.error ? null : points.reduce((sum, point) => sum + (point.amount || 0), 0);
 
   if (error && !data) return <ErrorState />;
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="dash-stage space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-[15px] font-semibold text-ink">خلاصه فروش</h1>
-          {data?.window.label ? <p className="mt-1 text-[13px] text-muted">{data.window.label}</p> : null}
+          <p className="flex items-center gap-2 text-[13px] font-semibold text-ink">
+            <span className="h-2 w-2 rounded-full bg-accent" aria-hidden="true" />
+            هوش فروش
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">خلاصه فروش</h1>
+          {data?.window.label ? <p className="mt-1 text-sm text-muted">{data.window.label}</p> : null}
         </div>
         <HomePeriodToggle value={period} onChange={setPeriod} />
       </div>
 
       {data?.data_coverage?.partial && data.data_coverage.message ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] leading-6 text-amber-950">
+        <div className="rounded-2xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm leading-6 text-ink">
           {data.data_coverage.message}
         </div>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {loading && !data?.metric_cards?.length
-          ? [0, 1, 2, 3].map((item) => <Skeleton key={item} className="min-h-[280px] rounded-[24px]" />)
-          : (data?.metric_cards || []).map((card) => (
-              <MetricSquareCard key={card.key} card={card} icon={<MetricCardIcons name={card.kind} />} />
-            ))}
+      <div className="grid gap-4 lg:grid-cols-6">
+        {loading && !cards.length ? (
+          <>
+            <Skeleton className="min-h-[240px] rounded-[24px] lg:col-span-6" />
+            <Skeleton className="min-h-[220px] rounded-[24px] lg:col-span-2" />
+            <Skeleton className="min-h-[220px] rounded-[24px] lg:col-span-2" />
+            <Skeleton className="min-h-[220px] rounded-[24px] lg:col-span-2" />
+          </>
+        ) : (
+          cards.map((card, index) => (
+            <div
+              key={card.key}
+              className={`dash-rise h-full ${card.key === "sales_amount" ? "lg:col-span-6" : "lg:col-span-2"}`}
+              style={{ animationDelay: `${index * 70}ms` }}
+            >
+              <MetricSquareCard
+                card={card}
+                featured={card.key === "sales_amount"}
+                icon={<MetricCardIcons name={card.kind} />}
+              />
+            </div>
+          ))
+        )}
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1.62fr_0.88fr]">
-        <Panel>
+      <div className="grid gap-4 xl:grid-cols-12">
+        <div className="dash-rise h-full xl:col-span-8" style={{ animationDelay: "280ms" }}>
+        <Panel className="h-full">
           <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h2 className="text-[15px] font-semibold text-ink">بینش فروش</h2>
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold text-ink">بینش فروش</h2>
               <div className="mt-3 flex flex-wrap items-center gap-3">
-                <div className="tabular text-[32px] font-semibold leading-none text-ink">
-                  {trendAmountTotal == null ? "—" : formatToman(trendAmountTotal)}
+                <div className="tabular text-[32px] font-semibold leading-none tracking-tight text-ink">
+                  {trendAmountTotal == null ? "—" : formatCompactToman(trendAmountTotal)}
                 </div>
                 <ChangePill value={salesAmountCard?.change_pct ?? null} />
               </div>
+              {trendAmountTotal != null ? (
+                <p className="mt-2 text-[13px] tabular text-muted">{formatToman(trendAmountTotal)}</p>
+              ) : null}
             </div>
-            <div className="flex flex-col items-end gap-3">
-              <PeriodToggle
-                value={group}
-                onChange={setGroup}
-                options={[
-                  { value: "daily", label: "روزانه" },
-                  { value: "monthly", label: "ماهانه" },
-                ]}
-              />
-            </div>
+            <PeriodToggle
+              label="گروه‌بندی روند"
+              value={group}
+              onChange={setGroup}
+              options={[
+                { value: "daily", label: "روزانه" },
+                { value: "monthly", label: "ماهانه" },
+              ]}
+            />
           </div>
           <div className="mt-4">
-            <PillGroup value={salesLine} onChange={setSalesLine} options={SALES_LINES} />
+            <PillGroup label="خط فروش" value={salesLine} onChange={setSalesLine} options={SALES_LINES} />
           </div>
           <div className="mt-5">
             {trend.loading && !points.length ? (
@@ -119,27 +143,18 @@ export function HomePage() {
             )}
           </div>
         </Panel>
+        </div>
 
-        <Panel>
-          <div className="flex items-center justify-between">
-            <h2 className="text-[15px] font-semibold text-ink">نمای کلی فروش</h2>
-            <span className="text-lg text-faint">⋯</span>
+        <div className="dash-rise h-full xl:col-span-4" style={{ animationDelay: "360ms" }}>
+        <Panel className="h-full">
+          <h2 className="text-base font-semibold text-ink">ترکیب کانال‌ها</h2>
+          <p className="mt-1 text-[13px] text-muted">سهم هر خط از مبلغ فروش همین بازه</p>
+          <div className="mt-4">
+            <ChannelMix lines={salesAmountCard?.lines || []} formatValue={formatToman} />
           </div>
-          <SalesGauge {...gauge} formatValue={formatToman} />
         </Panel>
+        </div>
       </div>
     </div>
   );
-}
-
-function buildGauge(cards: HomeSummary["metric_cards"]) {
-  const sales = cards.find((card) => card.key === "sales_amount");
-  const units = cards.find((card) => card.key === "units_sold");
-  const salesValue = sales?.total || 0;
-  const target = Math.max(Math.round(salesValue * 1.4), 1);
-  const growth = sales?.change_pct != null ? Math.min(100, Math.max(0, 50 + sales.change_pct)) : 0;
-  const progress = Math.min(100, Math.round((salesValue / target) * 1000) / 10);
-  const unitsTotal = units?.total || 0;
-  void unitsTotal;
-  return { growth, salesValue, target, progress };
 }

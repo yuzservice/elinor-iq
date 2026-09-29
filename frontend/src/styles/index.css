@@ -116,3 +116,53 @@ input:-webkit-autofill:focus {
   box-shadow: 0 0 0 1000px var(--elevated) inset;
   transition: background-color 9999s ease-out;
 }
+
+:root,
+html[data-theme="dark"] {
+  --ch-online: #7cb3ff;
+  --ch-sari: #6ee7b7;
+  --ch-gorgan: #fbbf24;
+  --ch-capri: #d4c4ff;
+  --delta-up: #6ee7b7;
+  --delta-down: #fca5a5;
+  --delta-up-bg: color-mix(in srgb, #34d399 20%, transparent);
+  --delta-down-bg: color-mix(in srgb, #f87171 20%, transparent);
+  --chart-grid: color-mix(in srgb, var(--text) 16%, transparent);
+  --chart-track: color-mix(in srgb, var(--text) 10%, transparent);
+  --chart-bar-soft: color-mix(in srgb, var(--accent) 34%, var(--surface));
+}
+
+html[data-theme="light"] {
+  --ch-online: #1d4ed8;
+  --ch-sari: #047857;
+  --ch-gorgan: #b45309;
+  --ch-capri: #6d28d9;
+  --delta-up: #047857;
+  --delta-down: #b42318;
+  --delta-up-bg: color-mix(in srgb, #047857 12%, var(--surface));
+  --delta-down-bg: color-mix(in srgb, #b42318 10%, var(--surface));
+  --chart-grid: color-mix(in srgb, var(--text) 14%, transparent);
+  --chart-track: color-mix(in srgb, var(--text) 8%, transparent);
+  --chart-bar-soft: color-mix(in srgb, var(--accent) 22%, var(--surface));
+}
+
+@keyframes dash-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.dash-rise {
+  animation: dash-rise 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-rise {
+    animation: none;
+  }
+}

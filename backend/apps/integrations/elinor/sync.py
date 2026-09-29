@@ -86,6 +86,20 @@ def resume_explicit_pos_start(start_date, end_date, cursor_value=None):
     return start_date
 
 
+def _pos_resume_page(cursor_value, day):
+    raw = cursor_value or {}
+    try:
+        cursor_day = date.fromisoformat(str(raw.get("next_date") or "")[:10])
+    except ValueError:
+        return 1
+    if cursor_day != day:
+        return 1
+    try:
+        return max(1, int(raw.get("next_page") or 1))
+    except (TypeError, ValueError):
+        return 1
+
+
 def pos_window(cursor_value=None):
     """Physical stores resume from the SQL cutoff, not from the newest saved sale.
 
@@ -350,14 +364,16 @@ class SyncService:
         )
         try:
             self.client.authenticate()
-            self._sync_orders(online_start, online_end, fetch_details=False)
-            if self.run.status == SyncRun.STATUS_PAUSED:
-                return self.run
-
+            # In-person sales are the part that falls behind. Do them before the
+            # online order list, which can use the whole request budget.
             if self.client.requests_made < MAX_REQUESTS_PER_RUN:
                 paused = self._sync_pos_sales(pos_start, pos_end, max_sales=HOURLY_POS_MAX_SALES)
                 if paused:
                     return self.run
+
+            self._sync_orders(online_start, online_end, fetch_details=False)
+            if self.run.status == SyncRun.STATUS_PAUSED:
+                return self.run
 
             details_limit = min(
                 HOURLY_ONLINE_DETAILS_LIMIT,
@@ -463,11 +479,14 @@ class SyncService:
         cursor = _cursor("pos_orders")
         processed = 0
         day = start_date
+        first_day = True
         while day <= end_date:
+            page = _pos_resume_page(cursor.value, day) if first_day else 1
+            first_day = False
             if self.client.requests_made >= MAX_REQUESTS_PER_RUN or (
                 max_sales is not None and processed >= max_sales
             ):
-                self._save_pos_cursor(cursor, day, start_date, end_date)
+                self._save_pos_cursor(cursor, day, start_date, end_date, next_page=page)
                 if self.client.requests_made >= MAX_REQUESTS_PER_RUN:
                     self._finish(
                         SyncRun.STATUS_PAUSED,
@@ -477,18 +496,17 @@ class SyncService:
                 return False
 
             day_end = day + timedelta(days=1)
-            page = 1
-            last_page = 1
+            last_page = page
             previous_ids = set()
             day_count = 0
-            day_complete = True
             while page <= last_page:
                 if self._stop_requested():
+                    self._save_pos_cursor(cursor, day, start_date, end_date, next_page=page)
                     self._finish(SyncRun.STATUS_FAILED, error="Stopped by user.")
                     return True
                 self._touch_heartbeat(day)
                 if self.client.requests_made >= MAX_REQUESTS_PER_RUN:
-                    self._save_pos_cursor(cursor, day, start_date, end_date)
+                    self._save_pos_cursor(cursor, day, start_date, end_date, next_page=page)
                     self._finish(
                         SyncRun.STATUS_PAUSED,
                         error="Paused while fetching POS sales to respect Elinor API rate limits.",
@@ -502,6 +520,8 @@ class SyncService:
                 )
                 rows = payload["results"]
                 last_page = max(1, payload["last_page"])
+                if page > last_page:
+                    break
                 row_ids = {as_int(row.get("id"), default=None) for row in rows}
                 row_ids.discard(None)
                 if page > 1 and row_ids and row_ids == previous_ids:
@@ -517,9 +537,10 @@ class SyncService:
                     len(rows),
                     payload.get("total"),
                 )
+                stopped_mid_page = False
                 for row in rows:
                     if max_sales is not None and processed >= max_sales:
-                        day_complete = False
+                        stopped_mid_page = True
                         break
                     store_source_id = as_int(row.get("store_id"), default=0)
                     if self.pos_store_ids is not None and store_source_id not in self.pos_store_ids:
@@ -534,26 +555,35 @@ class SyncService:
                     except Exception as exc:
                         self.failures += 1
                         logger.warning("POS %s details failed: %s", sale.source_id, exc)
-                if not day_complete:
-                    break
+                if stopped_mid_page:
+                    self._save_pos_cursor(cursor, day, start_date, end_date, next_page=page)
+                    logger.info("POS day %s paused on page %s after %s sales; will resume.", day.isoformat(), page, day_count)
+                    return False
                 page += 1
                 self._persist_progress()
-
-            if not day_complete:
-                self._save_pos_cursor(cursor, day, start_date, end_date)
-                logger.info("POS day %s paused after %s sales; will resume.", day.isoformat(), day_count)
-                return False
+                if max_sales is not None and processed >= max_sales:
+                    self._save_pos_cursor(cursor, day, start_date, end_date, next_page=page)
+                    logger.info("POS day %s page %s is next; sales cap reached.", day.isoformat(), page)
+                    return False
+                if self.client.requests_made >= MAX_REQUESTS_PER_RUN:
+                    self._save_pos_cursor(cursor, day, start_date, end_date, next_page=page)
+                    self._finish(
+                        SyncRun.STATUS_PAUSED,
+                        error="Paused while fetching POS sales to respect Elinor API rate limits.",
+                    )
+                    return True
 
             logger.info("POS day %s upserted %s sales", day.isoformat(), day_count)
             day += timedelta(days=1)
-            self._save_pos_cursor(cursor, day, start_date, end_date)
+            self._save_pos_cursor(cursor, day, start_date, end_date, next_page=1)
 
         logger.info("POS fetch complete for %s..%s (%s sales).", start_date.isoformat(), end_date.isoformat(), processed)
         return False
 
-    def _save_pos_cursor(self, cursor, next_date, start_date, end_date):
+    def _save_pos_cursor(self, cursor, next_date, start_date, end_date, next_page=1):
         cursor.value = {
             "next_date": next_date.isoformat(),
+            "next_page": max(1, int(next_page or 1)),
             "window_start": start_date.isoformat(),
             "window_end": end_date.isoformat(),
         }

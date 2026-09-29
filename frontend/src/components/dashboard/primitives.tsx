@@ -1,12 +1,29 @@
 import type { ReactNode } from "react";
 import { formatNumber } from "../../lib/format";
+import { CONTROL_FOCUS } from "./tokens";
+
+function DeltaMark({ up }: { up: boolean }) {
+  return (
+    <svg viewBox="0 0 12 12" className="h-3 w-3" aria-hidden="true">
+      <path d={up ? "M6 2.2 10 8.2H2L6 2.2Z" : "M6 9.8 2 3.8h8L6 9.8Z"} fill="currentColor" />
+    </svg>
+  );
+}
 
 export function ChangePill({ value }: { value: number | null }) {
   if (value == null) return null;
   const up = value >= 0;
   return (
-    <span className="rounded-full bg-[#E7F7EF] px-2 py-0.5 tabular text-[11px] font-medium text-[#22A06B]">
-      {up ? "↑" : "↓"} {formatNumber(Math.abs(value))}٪
+    <span
+      className="inline-flex min-h-7 items-center gap-1 rounded-full px-2.5 tabular text-[13px] font-medium"
+      style={{
+        background: up ? "var(--delta-up-bg)" : "var(--delta-down-bg)",
+        color: up ? "var(--delta-up)" : "var(--delta-down)",
+      }}
+    >
+      <DeltaMark up={up} />
+      <span className="sr-only">{up ? "افزایش" : "کاهش"}</span>
+      {formatNumber(Math.abs(value))}٪
     </span>
   );
 }
@@ -15,25 +32,31 @@ export function PeriodToggle<T extends string>({
   value,
   onChange,
   options,
+  label = "گروه‌بندی",
 }: {
   value: T;
   onChange: (value: T) => void;
   options: { value: T; label: string }[];
+  label?: string;
 }) {
   return (
-    <div className="flex rounded-full bg-hover p-1">
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          onClick={() => onChange(option.value)}
-          className={`rounded-full px-4 py-1.5 text-[12px] font-medium ${
-            value === option.value ? "bg-ink text-canvas" : "text-muted"
-          }`}
-        >
-          {option.label}
-        </button>
-      ))}
+    <div className="flex flex-wrap rounded-full bg-hover p-1" role="group" aria-label={label}>
+      {options.map((option) => {
+        const selected = value === option.value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onChange(option.value)}
+            className={`min-h-11 rounded-full px-4 text-[13px] font-medium ${CONTROL_FOCUS} ${
+              selected ? "bg-ink text-canvas" : "text-muted hover:text-ink"
+            }`}
+          >
+            {option.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -42,25 +65,31 @@ export function PillGroup<T extends string>({
   value,
   onChange,
   options,
+  label = "گزینه‌ها",
 }: {
   value: T;
   onChange: (value: T) => void;
   options: { value: T; label: string }[];
+  label?: string;
 }) {
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          onClick={() => onChange(option.value)}
-          className={`rounded-full px-3 py-1 text-[11px] font-medium transition-colors ${
-            value === option.value ? "bg-accent text-on-accent" : "bg-hover text-muted hover:text-ink"
-          }`}
-        >
-          {option.label}
-        </button>
-      ))}
+    <div className="flex flex-wrap gap-2" role="group" aria-label={label}>
+      {options.map((option) => {
+        const selected = value === option.value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onChange(option.value)}
+            className={`min-h-11 rounded-full px-4 text-[13px] font-medium ${CONTROL_FOCUS} ${
+              selected ? "bg-accent text-on-accent" : "bg-hover text-muted hover:text-ink"
+            }`}
+          >
+            {option.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

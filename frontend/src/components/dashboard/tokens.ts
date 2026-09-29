@@ -1,3 +1,21 @@
+export const CONTROL_FOCUS =
+  "cursor-pointer transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+
+export const CHANNEL_COLOR: Record<string, string> = {
+  ONLINE: "var(--ch-online)",
+  SARI: "var(--ch-sari)",
+  GORGAN: "var(--ch-gorgan)",
+  CAPRI: "var(--ch-capri)",
+};
+
+export function channelColor(key: string): string {
+  return CHANNEL_COLOR[key] || "var(--text-faint)";
+}
+
+export function shortLineLabel(label: string): string {
+  return label.replace("فروش ", "").replace("فروشگاه ", "");
+}
+
 export const DASH = {
   bg: "#E8EEF5",
   card: "#FFFFFF",
