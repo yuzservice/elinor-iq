@@ -381,6 +381,11 @@ class SyncService:
         )
         try:
             self.client.authenticate()
+            from apps.customers.ingest import repair_stored_customer_profiles
+
+            repaired = repair_stored_customer_profiles()
+            if repaired:
+                logger.info("Filled %s customer profiles from stored API payloads.", repaired)
             # In-person sales are the part that falls behind. Do them before the
             # online order list, which can use the whole request budget.
             if self.client.requests_made < MAX_REQUESTS_PER_RUN:
@@ -905,8 +910,15 @@ class SyncService:
         if not order.customer_id:
             return
         customer = order.customer
-        if customer.source_id in self._fetched_customers or customer.synced_at:
+        if customer.mobile and (customer.source_id in self._fetched_customers or customer.synced_at):
             return
+        if not customer.mobile and customer.source_payload:
+            apply_customer_payload(customer, customer.source_payload)
+            if customer.mobile:
+                customer.save()
+                self._fetched_customers.add(customer.source_id)
+                self.run.customers_upserted += 1
+                return
         try:
             payload = self.client.get_customer(customer.source_id)
         except ElinorApiError as exc:

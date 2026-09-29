@@ -95,6 +95,41 @@ def test_customer_profile_fields_and_addresses_from_payload():
 
 
 @pytest.mark.django_db
+def test_wrapped_customer_detail_keeps_mobile_name_and_address():
+    payload = {
+        "0": {
+            "id": 276036,
+            "first_name": None,
+            "last_name": None,
+            "mobile": "09120000000",
+            "status": 1,
+            "addresses": [
+                {
+                    "first_name": "نمایندگی",
+                    "last_name": "پاتریس",
+                    "mobile": "09120000000",
+                    "address": "خیابان جمهوری امامزاده یحیی پاساژ بلورچی",
+                    "postal_code": "4816674849",
+                    "city": {"name": "ساری", "province": {"name": "مازندران"}},
+                }
+            ],
+        },
+        "store_rules": {"mobile": "required"},
+        "update_rules": {"mobile": "nullable"},
+    }
+    customer, _created = upsert_customer_from_source(payload)
+    assert customer.source_id == 276036
+    assert customer.mobile == "09120000000"
+    assert customer.first_name == "نمایندگی"
+    assert customer.last_name == "پاتریس"
+    assert customer.addresses[0]["province"] == "مازندران"
+    assert customer.addresses[0]["city"] == "ساری"
+    assert customer.addresses[0]["postal_code"] == "4816674849"
+    assert "بلورچی" in customer.addresses[0]["address"]
+    assert list_payload(customer)["incomplete"] is False
+
+
+@pytest.mark.django_db
 def test_customer_api_populations_fallback_and_addresses(auth_api):
     now = timezone.now()
     named = Customer.objects.create(

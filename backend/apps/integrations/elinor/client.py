@@ -117,9 +117,11 @@ class ElinorClient:
         return []
 
     def get_customer(self, customer_id):
+        from apps.customers.ingest import customer_record
+
         payload = self._request("GET", f"/admin/customers/{customer_id}")
         data = unwrap_data(payload)
-        return extract_object(data, ("customer", "customers"))
+        return customer_record(extract_object(data, ("customer", "customers")))
 
     def get_customers(self, page=1, per_page=50, **extra):
         params = {"page": page, "per_page": per_page, **extra}

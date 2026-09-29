@@ -48,6 +48,33 @@ def _parse_date(value):
     return parsed.date() if parsed else None
 
 
+def customer_record(payload):
+    """Return the customer object from a detail response.
+
+    Elinor's customer endpoint wraps the row as {"0": {...}, "store_rules": ..., "update_rules": ...}.
+    Mobile and addresses live on that inner row. The list endpoint already returns the row itself.
+    """
+    if not isinstance(payload, dict):
+        return {}
+    if payload.get("id") and "store_rules" not in payload and "update_rules" not in payload:
+        return payload
+    for key in ("customer", "customers"):
+        value = payload.get(key)
+        if isinstance(value, dict) and value.get("id"):
+            return value
+    numbered = payload.get("0")
+    if isinstance(numbered, dict) and numbered.get("id"):
+        return numbered
+    data = payload.get("data")
+    if isinstance(data, dict) and data is not payload:
+        found = customer_record(data)
+        if found.get("id"):
+            return found
+    if payload.get("id") or payload.get("mobile"):
+        return payload
+    return {}
+
+
 def normalize_addresses(payload):
     if not isinstance(payload, dict):
         return []
@@ -66,12 +93,19 @@ def normalize_addresses(payload):
             row = {"address": row.strip()}
         if not isinstance(row, dict):
             continue
+        city_obj = row.get("city") if isinstance(row.get("city"), dict) else {}
+        province_obj = city_obj.get("province") if isinstance(city_obj.get("province"), dict) else {}
+        recipient = _first_text(row, ADDRESS_RECIPIENT)
+        if not recipient:
+            recipient = " ".join(
+                part for part in (_first_text(row, ("first_name",)), _first_text(row, ("last_name",))) if part
+            )
         item = {
-            "province": _first_text(row, ADDRESS_PROVINCE),
-            "city": _first_text(row, ADDRESS_CITY),
+            "province": _first_text(row, ADDRESS_PROVINCE) or _first_text(province_obj, ("name", "title")),
+            "city": _first_text(row, ADDRESS_CITY) or _first_text(city_obj, ("name", "title")),
             "address": _first_text(row, ADDRESS_TEXT),
             "postal_code": _first_text(row, ADDRESS_POSTAL),
-            "recipient_name": _first_text(row, ADDRESS_RECIPIENT),
+            "recipient_name": recipient,
             "recipient_mobile": _first_text(row, ADDRESS_MOBILE),
             "raw": row,
         }
@@ -81,7 +115,8 @@ def normalize_addresses(payload):
 
 
 def extract_profile_fields(payload):
-    if not isinstance(payload, dict):
+    payload = customer_record(payload)
+    if not isinstance(payload, dict) or not payload:
         return {}
     fields = {}
     for field, keys in PROFILE_KEYS.items():
@@ -103,12 +138,29 @@ def extract_profile_fields(payload):
     addresses = normalize_addresses(payload)
     if addresses:
         fields["addresses"] = addresses
+        for item in addresses:
+            raw = item.get("raw") if isinstance(item.get("raw"), dict) else {}
+            if not fields.get("first_name"):
+                first_name = _first_text(raw, ("first_name",))
+                if first_name:
+                    fields["first_name"] = first_name
+            if not fields.get("last_name"):
+                last_name = _first_text(raw, ("last_name",))
+                if last_name:
+                    fields["last_name"] = last_name
+            if not fields.get("mobile") and item.get("recipient_mobile"):
+                fields["mobile"] = item["recipient_mobile"]
+            if fields.get("first_name") and fields.get("last_name") and fields.get("mobile"):
+                break
     return fields
 
 
 def apply_customer_payload(customer, payload):
     """Fill profile fields without wiping richer values or order statistics."""
-    extracted = extract_profile_fields(payload)
+    record = customer_record(payload)
+    if not record:
+        return customer
+    extracted = extract_profile_fields(record)
     for field, value in extracted.items():
         if field in {"first_order_at", "last_order_at", "order_count"}:
             continue
@@ -122,13 +174,28 @@ def apply_customer_payload(customer, payload):
         if value in (None, ""):
             continue
         setattr(customer, field, value)
-    if isinstance(payload, dict):
-        customer.source_payload = payload
+    customer.source_payload = record
     return customer
 
 
+def repair_stored_customer_profiles():
+    """Fill mobile, name, and address from detail payloads already saved in the wrong shape."""
+    updated = 0
+    customers = Customer.objects.filter(mobile="").exclude(source_payload=None)
+    for customer in customers.iterator():
+        if not customer_record(customer.source_payload).get("id"):
+            continue
+        apply_customer_payload(customer, customer.source_payload)
+        if not customer.mobile and not customer.addresses:
+            continue
+        customer.save(update_fields=["first_name", "last_name", "mobile", "email", "status", "national_code", "gender", "birth_date", "card_number", "club_level", "summary", "addresses", "created_at_source", "updated_at_source", "source_payload"])
+        updated += 1
+    return updated
+
+
 def upsert_customer_from_source(payload):
-    source_id = as_int((payload or {}).get("id"), default=None)
+    record = customer_record(payload)
+    source_id = as_int(record.get("id"), default=None)
     if not source_id:
         return None, False
     customer, created = Customer.objects.get_or_create(source_id=source_id)
@@ -156,4 +223,4 @@ def addresses_for(customer):
     if customer.addresses:
         return customer.addresses
     payload = customer.source_payload if isinstance(customer.source_payload, dict) else {}
-    return normalize_addresses(payload)
+    return normalize_addresses(customer_record(payload))
