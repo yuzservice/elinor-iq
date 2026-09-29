@@ -411,7 +411,26 @@ export type SystemStatus = {
       pos_sales_upserted: number;
       failures: number;
       branches: string[];
+      days_skipped: number | null;
+      days_fetched: number | null;
     } | null;
+    week: {
+      from: string;
+      to: string;
+      days: {
+        date: string;
+        open: boolean;
+        branches: {
+          key: string;
+          label: string;
+          sales: number;
+          api_count: number | null;
+          state: string;
+          state_label: string;
+          synced_at: string | null;
+        }[];
+      }[];
+    };
   };
   counts: {
     orders: number;

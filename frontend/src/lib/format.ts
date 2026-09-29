@@ -56,6 +56,10 @@ export function toInputDate(value?: string | null): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tehran" }).format(date);
 }
 
+export function tehranTodayIso(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tehran" }).format(new Date());
+}
+
 /** Shift a YYYY-MM-DD calendar date in Asia/Tehran. */
 export function shiftTehranIsoDate(iso: string, days: number): string {
   const date = new Date(`${iso}T12:00:00+03:30`);

@@ -37,5 +37,5 @@ export function useApi<T>(loader: () => Promise<T>, deps: unknown[] = [], enable
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, ...deps]);
 
-  return { data, loading, error, unauthorized, setData };
+  return { data, loading, error, unauthorized, setData, setError };
 }

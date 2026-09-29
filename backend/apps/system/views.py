@@ -18,7 +18,7 @@ from apps.core.coverage import coverage_payload
 from apps.customers.models import Customer
 from apps.integrations.elinor.client import current_elinor_credentials
 from apps.integrations.elinor.models import ElinorApiConfig, SyncRun
-from apps.integrations.elinor.sync import POS_BRANCH_STORE_IDS, clear_stuck_sync_runs
+from apps.integrations.elinor.sync import POS_BRANCH_STORE_IDS, clear_stuck_sync_runs, pos_range_activity, pos_week_activity
 from apps.products.models import Product, Variant
 from apps.sales.models import Order, OrderItem, PosSale
 
@@ -65,6 +65,7 @@ def status_view(request):
                 "window_end": (success or latest).window_end if (success or latest) else None,
                 "error": _public_sync_error(latest.error_message if latest else ""),
                 "job": _sync_job(latest),
+                "week": pos_week_activity(),
             },
             "counts": counts,
             "data_coverage": coverage_payload(),
@@ -74,6 +75,18 @@ def status_view(request):
             },
         }
     )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def sync_coverage(request):
+    start = parse_date(str(request.GET.get("from") or "").strip())
+    end = parse_date(str(request.GET.get("to") or "").strip())
+    if not start or not end or start > end:
+        return Response({"detail": "بازه تاریخ نامعتبر است."}, status=status.HTTP_400_BAD_REQUEST)
+    if (end - start).days > POS_RANGE_MAX_DAYS:
+        return Response({"detail": "بازه گزارش حداکثر ۶۰ روز است."}, status=status.HTTP_400_BAD_REQUEST)
+    return Response(pos_range_activity(start, end))
 
 
 @api_view(["POST"])
@@ -90,7 +103,8 @@ def trigger_sync(request):
     branches = request.data.get("branches") or []
     if not isinstance(branches, list):
         return Response({"detail": "شعبه نامعتبر است."}, status=status.HTTP_400_BAD_REQUEST)
-    branches = [str(branch) for branch in branches if str(branch) in POS_BRANCH_STORE_IDS]
+    allowed = set(POS_BRANCH_STORE_IDS) | {"online"}
+    branches = [str(branch) for branch in branches if str(branch) in allowed]
     if bool(from_raw) ^ bool(to_raw):
         return Response({"detail": "هر دو تاریخ شروع و پایان لازم است."}, status=status.HTTP_400_BAD_REQUEST)
     if from_raw and to_raw:
@@ -100,9 +114,14 @@ def trigger_sync(request):
             return Response({"detail": "بازه تاریخ نامعتبر است."}, status=status.HTTP_400_BAD_REQUEST)
         if (end - start).days > POS_RANGE_MAX_DAYS:
             return Response({"detail": "بازه حداکثر ۶۰ روز است."}, status=status.HTTP_400_BAD_REQUEST)
-        thread = Thread(target=_run_pos_range, args=(start, end, branches), daemon=True)
+        force = bool(request.data.get("force"))
+        thread = Thread(target=_run_pos_range, args=(start, end, branches, force), daemon=True)
         thread.start()
-        return Response({"ok": True, "message": "همگام‌سازی فروشگاه‌ها برای این بازه آغاز شد."})
+        if force:
+            message = "دریافت دوباره این بازه آغاز شد."
+        else:
+            message = "همگام‌سازی این بازه آغاز شد. روزهای تأییدشدهٔ قبل از دیروز دوباره از API خوانده نمی‌شوند."
+        return Response({"ok": True, "message": message})
     thread = Thread(target=_run_recent_sync, daemon=True)
     thread.start()
     return Response({"ok": True, "message": "همگام‌سازی آنلاین و فروشگاه آغاز شد."})
@@ -200,13 +219,13 @@ def _run_recent_sync():
         close_old_connections()
 
 
-def _run_pos_range(start, end, branches):
+def _run_pos_range(start, end, branches, force=False):
     from apps.integrations.elinor.sync import SyncService
     from apps.integrations.elinor.models import SyncRun as Run
 
     close_old_connections()
     try:
-        SyncService(Run.KIND_POS).execute_pos(start_date=start, end_date=end, branches=branches)
+        SyncService(Run.KIND_POS).execute_pos(start_date=start, end_date=end, branches=branches, force=force)
     except Exception:
         logger.exception("Panel POS range sync failed")
     finally:
@@ -254,4 +273,6 @@ def _sync_job(run):
         "pos_sales_upserted": report.get("pos_sales_upserted", 0),
         "failures": report.get("failures", 0),
         "branches": report.get("branches") or [],
+        "days_skipped": report.get("days_skipped") if "days_skipped" in report else None,
+        "days_fetched": report.get("days_fetched") if "days_fetched" in report else None,
     }

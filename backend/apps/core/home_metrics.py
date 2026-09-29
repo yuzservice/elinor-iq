@@ -4,13 +4,14 @@ from django.db.models import F, Sum, Value
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
-from apps.sales.analysis import _all_line_metrics, _pct_change, previous_window
+from apps.sales.analysis import _pct_change, previous_window
 from apps.integrations.elinor.gateway_payments import GATEWAY_METRICS
 from apps.sales.models import SalesLine
 from apps.sales.semantics import (
     SALES_LINE_OVERVIEW_LABELS,
     online_order_value_orders,
     qualifying_online_gateway_payments,
+    qualifying_online_items,
     qualifying_pos_items,
     qualifying_pos_sales,
 )
@@ -98,9 +99,26 @@ def _online_gateway_amount(start, end, gateway):
     )
 
 
-def home_metric_cards(start, end):
+def _units_sold_by_line(start, end):
+    online_units = int(
+        qualifying_online_items()
+        .filter(order__created_at__gte=start, order__created_at__lt=end)
+        .aggregate(v=Sum("quantity"))["v"]
+        or 0
+    )
+    pos_units = {
+        row["pos_sale__sales_line"]: int(row["units"] or 0)
+        for row in qualifying_pos_items()
+        .filter(pos_sale__created_at__gte=start, pos_sale__created_at__lt=end)
+        .values("pos_sale__sales_line")
+        .annotate(units=Sum("quantity"))
+    }
+    return online_units, pos_units
+
+
+def _card_values(start, end):
     keys = (SalesLine.ONLINE, SalesLine.SARI, SalesLine.GORGAN, SalesLine.CAPRI)
-    line_metrics = _all_line_metrics(start, end)
+    online_units, pos_units = _units_sold_by_line(start, end)
     online_amount = _online_sales_amount(start, end)
     pos_amounts = _pos_item_amounts(start, end)
     snappay_pos = _pos_payment_amounts(start, end, "snappay_cashier_amount")
@@ -109,27 +127,32 @@ def home_metric_cards(start, end):
     digipay_online = _online_gateway_amount(start, end, "digipay")
 
     sales_total, sales_lines = _line_values(keys, online_amount, pos_amounts)
-    units_total = sum(line_metrics[key]["units_sold"] for key in keys)
-    units_lines = [
-        {
-            "key": key,
-            "label": SALES_LINE_OVERVIEW_LABELS[key],
-            "value": line_metrics[key]["units_sold"],
-        }
-        for key in keys
-    ]
+    units_lines = []
+    units_total = 0
+    for key in keys:
+        value = online_units if key == SalesLine.ONLINE else int(pos_units.get(key, 0) or 0)
+        units_total += value
+        units_lines.append(
+            {
+                "key": key,
+                "label": SALES_LINE_OVERVIEW_LABELS[key],
+                "value": value,
+            }
+        )
     snappay_total, snappay_lines = _line_values(keys, snappay_online, snappay_pos)
     digipay_total, digipay_lines = _line_values(keys, digipay_online, digipay_pos)
-
-    values = {
+    return {
         "sales_amount": (sales_total, sales_lines),
         "units_sold": (units_total, units_lines),
         "snappay": (snappay_total, snappay_lines),
         "digipay": (digipay_total, digipay_lines),
     }
 
+
+def home_metric_cards(start, end):
+    values = _card_values(start, end)
     prev_start, prev_end = previous_window(start, end)
-    prev_cards = home_metric_cards_values(prev_start, prev_end)
+    previous = home_metric_cards_values(prev_start, prev_end)
 
     cards = []
     for key, label, kind in METRIC_CARDS:
@@ -141,22 +164,12 @@ def home_metric_cards(start, end):
                 "kind": kind,
                 "total": total,
                 "lines": lines,
-                "change_pct": _pct_change(total, prev_cards[key]),
+                "change_pct": _pct_change(total, previous[key]),
             }
         )
     return cards
 
 
 def home_metric_cards_values(start, end):
-    keys = (SalesLine.ONLINE, SalesLine.SARI, SalesLine.GORGAN, SalesLine.CAPRI)
-    line_metrics = _all_line_metrics(start, end)
-    online_amount = _online_sales_amount(start, end)
-    pos_amounts = _pos_item_amounts(start, end)
-    snappay_pos = _pos_payment_amounts(start, end, "snappay_cashier_amount")
-    digipay_pos = _pos_payment_amounts(start, end, "digipay_cashier_amount")
-    return {
-        "sales_amount": _line_values(keys, online_amount, pos_amounts)[0],
-        "units_sold": sum(line_metrics[key]["units_sold"] for key in keys),
-        "snappay": _line_values(keys, _online_gateway_amount(start, end, "snapppay"), snappay_pos)[0],
-        "digipay": _line_values(keys, _online_gateway_amount(start, end, "digipay"), digipay_pos)[0],
-    }
+    values = _card_values(start, end)
+    return {key: total for key, (total, _lines) in values.items()}

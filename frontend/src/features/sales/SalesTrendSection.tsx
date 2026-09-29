@@ -26,7 +26,10 @@ function rangeDays(from?: string, to?: string) {
   return Math.max(1, Math.round((end - start) / 86400000) + 1);
 }
 
-function metricValue(point: SalesOverviewTrendPoint | null | undefined, metric: TrendMetric) {
+function metricValue(
+  point: Pick<SalesOverviewTrendPoint, TrendMetric> | null | undefined,
+  metric: TrendMetric,
+) {
   return point?.[metric] ?? 0;
 }
 

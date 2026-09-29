@@ -12,7 +12,7 @@ import {
 } from "../components/dashboard";
 import { ErrorState, Skeleton } from "../components/Table";
 import { useApi } from "../hooks/useApi";
-import { formatCompactToman, formatToman, shiftTehranIsoDate, toInputDate } from "../lib/format";
+import { formatCompactToman, formatToman, shiftTehranIsoDate, tehranTodayIso } from "../lib/format";
 import { homeService } from "../services/home";
 import { salesService, type SalesLineFilter } from "../services/sales";
 import type { HomePeriod } from "../types";
@@ -34,14 +34,12 @@ export function HomePage() {
   const [group, setGroup] = useState<"daily" | "monthly">("monthly");
   const { data, loading, error } = useApi(() => homeService.summary(period), [period]);
   const trendRange = useMemo(() => {
-    if (!data) return { from: "", to: "" };
-    const to = data.window.to || toInputDate(data.window.end);
-    if (!to) return { from: "", to: "" };
+    const to = tehranTodayIso();
     if (group === "monthly") {
       return { from: shiftTehranIsoDate(to, -(TREND_MONTHLY_MONTHS * 31)), to };
     }
     return { from: shiftTehranIsoDate(to, -(TREND_DAILY_DAYS - 1)), to };
-  }, [data, group]);
+  }, [group]);
   const trend = useApi(
     () => salesService.summary(trendRange.from, trendRange.to, salesLine, group, "trend"),
     [trendRange.from, trendRange.to, salesLine, group],

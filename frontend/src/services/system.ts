@@ -1,4 +1,4 @@
-import { api } from "./api";
+import { api, queryPath } from "./api";
 import type { SystemStatus } from "../types";
 
 export type PanelAdmin = {
@@ -12,8 +12,10 @@ export const systemService = {
   status: () => api<SystemStatus>("/system/status/"),
   syncNow: () => api<{ ok: boolean; message?: string }>("/system/sync/", { method: "POST" }),
   stopSync: () => api<{ ok: boolean; message?: string }>("/system/sync/stop/", { method: "POST" }),
-  syncPosRange: (body: { from: string; to: string; branches: string[] }) =>
+  syncPosRange: (body: { from: string; to: string; branches: string[]; force?: boolean }) =>
     api<{ ok: boolean; message?: string }>("/system/sync/", { method: "POST", body: JSON.stringify(body) }),
+  syncCoverage: (from: string, to: string) =>
+    api<SystemStatus["sync"]["week"]>(queryPath("/system/sync/coverage/", { from, to })),
   saveApi: (body: { base_url: string; username: string; password: string }) =>
     api<{ ok: boolean }>("/system/api-config/", { method: "PUT", body: JSON.stringify(body) }),
   admins: () => api<{ results: PanelAdmin[] }>("/system/admins/"),

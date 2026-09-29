@@ -2,7 +2,8 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import jdatetime
-from django.db.models import Count
+from django.db.models import Count, Sum
+from django.db.models.functions import TruncDate
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime as django_parse_datetime
 
@@ -320,9 +321,16 @@ def _downsample(points, size):
 def trend_points(orders, start, end):
     days = max(1, (end.date() - start.date()).days)
     buckets = {}
-    for order in orders.only("created_at", "total_amount"):
-        key = timezone.localtime(order.created_at).date().isoformat()
-        buckets[key] = buckets.get(key, 0) + order.total_amount
+    rows = (
+        orders.order_by()
+        .annotate(day=TruncDate("created_at", tzinfo=TEHRAN))
+        .values("day")
+        .annotate(value=Sum("total_amount"))
+    )
+    for row in rows:
+        if row["day"] is None:
+            continue
+        buckets[row["day"].isoformat()] = int(row["value"] or 0)
     points = []
     cursor = timezone.localtime(start).date()
     last = timezone.localtime(end).date()

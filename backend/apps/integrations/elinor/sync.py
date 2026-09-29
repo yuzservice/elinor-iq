@@ -9,11 +9,11 @@ from django.utils import timezone
 from apps.customers.ingest import apply_customer_payload, upsert_customer_from_source
 from apps.customers.models import Customer
 from apps.products.models import Product, Variant
-from apps.sales.models import Order, OrderItem, PosSale, PosSaleItem, STORE_SALES_LINE, Store
+from apps.sales.models import Order, OrderItem, PosSale, PosSaleItem, STORE_SALES_LINE, SalesLine, Store
 
 from .client import ElinorApiError, ElinorClient
 from .gateway_payments import extract_order_payment_rows, upsert_order_gateway_payments
-from .models import SyncCursor, SyncRun
+from .models import PosDaySync, SyncCursor, SyncRun
 from .parsers import as_bool, as_int, extract_list, extract_object, parse_datetime
 
 logger = logging.getLogger(__name__)
@@ -137,6 +137,13 @@ class SyncService:
         self._gateway_payments_upserted = 0
         self.failures = 0
         self.pos_store_ids = None
+        self.pos_branches = []
+        self.force_pos = False
+        self.include_online = False
+        self._pos_days_skipped = 0
+        self._pos_days_fetched = 0
+        self._day_branch_seen = {}
+        self._last_online_seen = 0
 
     def _ensure_not_running(self):
         clear_stuck_sync_runs(minutes=SYNC_STALE_MINUTES)
@@ -306,13 +313,19 @@ class SyncService:
             self._finish(SyncRun.STATUS_FAILED, error=str(exc))
             raise
 
-    def execute_pos(self, start_date=None, end_date=None, branches=None):
+    def execute_pos(self, start_date=None, end_date=None, branches=None, force=False):
         self._ensure_not_running()
-        branches = [branch for branch in (branches or []) if branch in POS_BRANCH_STORE_IDS]
-        self.pos_store_ids = {POS_BRANCH_STORE_IDS[branch] for branch in branches} or None
+        requested = list(branches or [])
+        self.include_online = "online" in requested
+        branches = [branch for branch in requested if branch in POS_BRANCH_STORE_IDS]
+        if not requested:
+            branches = list(POS_BRANCH_STORE_IDS)
+        self.pos_branches = branches
+        self.pos_store_ids = {POS_BRANCH_STORE_IDS[branch] for branch in branches} if branches else set()
+        self.force_pos = bool(force)
         if start_date is not None and end_date is not None:
             end = end_date
-            start = resume_explicit_pos_start(start_date, end_date, _cursor("pos_orders").value)
+            start = start_date
         else:
             start, end = pos_window(_cursor("pos_orders").value)
         self.run = SyncRun.objects.create(
@@ -321,7 +334,7 @@ class SyncService:
             window_start=timezone.make_aware(datetime.combine(start, time.min), timezone.get_current_timezone()),
             window_end=timezone.make_aware(datetime.combine(end, time.max), timezone.get_current_timezone()),
             report={
-                "branches": branches,
+                "branches": (["online"] if self.include_online else []) + branches,
                 "current_day": start.isoformat(),
                 "pos_sales_upserted": 0,
                 "heartbeat": timezone.now().isoformat(),
@@ -330,9 +343,13 @@ class SyncService:
         logger.info("Starting POS sync from %s to %s branches=%s", start, end, branches or "all")
         try:
             self.client.authenticate()
-            paused = self._sync_pos_sales(start, end)
-            if paused:
+            paused = self._sync_pos_sales(start, end) if self.pos_branches else False
+            if paused or self.run.status != SyncRun.STATUS_RUNNING:
                 return self.run
+            if self.include_online:
+                paused = self._sync_online_days(start, end)
+                if paused or self.run.status != SyncRun.STATUS_RUNNING:
+                    return self.run
             self._finish(SyncRun.STATUS_SUCCESS)
             return self.run
         except Exception as exc:
@@ -398,12 +415,14 @@ class SyncService:
         customer.save()
         self.run.customers_upserted += 1
 
-    def _sync_orders(self, start, end, *, fetch_details=True):
+    def _sync_orders(self, start, end, *, fetch_details=True, count_on=None):
         page = 1
         last_page = 1
         last_created = None
+        seen = 0
         while page <= last_page:
             if self.client.requests_made >= MAX_REQUESTS_PER_RUN:
+                self._last_online_seen = seen
                 self._finish(
                     SyncRun.STATUS_PAUSED,
                     error="Paused while fetching online orders to respect Elinor API rate limits.",
@@ -420,9 +439,13 @@ class SyncService:
             logger.info("orders_light page %s/%s (%s rows)", page, last_page, len(rows))
             for row in rows:
                 self._upsert_light_order(row)
-                last_created = parse_datetime(row.get("created_at")) or last_created
+                created = parse_datetime(row.get("created_at"))
+                if count_on is None or (created and timezone.localtime(created).date() == count_on):
+                    seen += 1
+                last_created = created or last_created
             page += 1
             self._persist_progress()
+        self._last_online_seen = seen
 
         if fetch_details:
             pending = Order.objects.filter(created_at__gte=start, created_at__lt=end).order_by("source_id")
@@ -481,7 +504,13 @@ class SyncService:
         day = start_date
         first_day = True
         while day <= end_date:
-            page = _pos_resume_page(cursor.value, day) if first_day else 1
+            if self._pos_day_is_closed(day):
+                self._pos_days_skipped += 1
+                self._touch_heartbeat(day)
+                day += timedelta(days=1)
+                self._save_pos_cursor(cursor, day, start_date, end_date, next_page=1)
+                continue
+            page = self._pos_day_start_page(day, cursor, first_day)
             first_day = False
             if self.client.requests_made >= MAX_REQUESTS_PER_RUN or (
                 max_sales is not None and processed >= max_sales
@@ -495,18 +524,20 @@ class SyncService:
                     return True
                 return False
 
+            self._pos_days_fetched += 1
+            self._day_branch_seen = {branch: 0 for branch in self._active_pos_branches()}
             day_end = day + timedelta(days=1)
             last_page = page
             previous_ids = set()
             day_count = 0
             while page <= last_page:
                 if self._stop_requested():
-                    self._save_pos_cursor(cursor, day, start_date, end_date, next_page=page)
+                    self._pause_pos_day(cursor, day, start_date, end_date, page, day_count)
                     self._finish(SyncRun.STATUS_FAILED, error="Stopped by user.")
                     return True
                 self._touch_heartbeat(day)
                 if self.client.requests_made >= MAX_REQUESTS_PER_RUN:
-                    self._save_pos_cursor(cursor, day, start_date, end_date, next_page=page)
+                    self._pause_pos_day(cursor, day, start_date, end_date, page, day_count)
                     self._finish(
                         SyncRun.STATUS_PAUSED,
                         error="Paused while fetching POS sales to respect Elinor API rate limits.",
@@ -545,6 +576,12 @@ class SyncService:
                     store_source_id = as_int(row.get("store_id"), default=0)
                     if self.pos_store_ids is not None and store_source_id not in self.pos_store_ids:
                         continue
+                    branch_key = next(
+                        (key for key, store_id in POS_BRANCH_STORE_IDS.items() if store_id == store_source_id),
+                        "",
+                    )
+                    if branch_key:
+                        self._day_branch_seen[branch_key] = self._day_branch_seen.get(branch_key, 0) + 1
                     sale = self._upsert_pos_header(row)
                     if not sale:
                         continue
@@ -556,17 +593,17 @@ class SyncService:
                         self.failures += 1
                         logger.warning("POS %s details failed: %s", sale.source_id, exc)
                 if stopped_mid_page:
-                    self._save_pos_cursor(cursor, day, start_date, end_date, next_page=page)
+                    self._pause_pos_day(cursor, day, start_date, end_date, page, day_count)
                     logger.info("POS day %s paused on page %s after %s sales; will resume.", day.isoformat(), page, day_count)
                     return False
                 page += 1
                 self._persist_progress()
                 if max_sales is not None and processed >= max_sales:
-                    self._save_pos_cursor(cursor, day, start_date, end_date, next_page=page)
+                    self._pause_pos_day(cursor, day, start_date, end_date, page, day_count)
                     logger.info("POS day %s page %s is next; sales cap reached.", day.isoformat(), page)
                     return False
                 if self.client.requests_made >= MAX_REQUESTS_PER_RUN:
-                    self._save_pos_cursor(cursor, day, start_date, end_date, next_page=page)
+                    self._pause_pos_day(cursor, day, start_date, end_date, page, day_count)
                     self._finish(
                         SyncRun.STATUS_PAUSED,
                         error="Paused while fetching POS sales to respect Elinor API rate limits.",
@@ -574,10 +611,37 @@ class SyncService:
                     return True
 
             logger.info("POS day %s upserted %s sales", day.isoformat(), day_count)
+            self._note_pos_day(day, PosDaySync.STATUS_COMPLETE, next_page=1, sales=day_count, seen=self._day_branch_seen)
             day += timedelta(days=1)
             self._save_pos_cursor(cursor, day, start_date, end_date, next_page=1)
 
         logger.info("POS fetch complete for %s..%s (%s sales).", start_date.isoformat(), end_date.isoformat(), processed)
+        return False
+
+    def _sync_online_days(self, start_date, end_date):
+        day = start_date
+        while day <= end_date:
+            if self._branch_day_is_closed(day, "online"):
+                self._pos_days_skipped += 1
+                self._touch_heartbeat(day)
+                day += timedelta(days=1)
+                continue
+            if self.client.requests_made >= MAX_REQUESTS_PER_RUN:
+                self._finish(
+                    SyncRun.STATUS_PAUSED,
+                    error="Paused while fetching online orders to respect Elinor API rate limits.",
+                )
+                return True
+            self._pos_days_fetched += 1
+            start_dt = timezone.make_aware(datetime.combine(day, time.min), timezone.get_current_timezone())
+            end_dt = start_dt + timedelta(days=1)
+            self._sync_orders(start_dt, end_dt, fetch_details=False, count_on=day)
+            seen = {"online": self._last_online_seen}
+            if self.run.status != SyncRun.STATUS_RUNNING:
+                self._note_branches(day, ["online"], PosDaySync.STATUS_PARTIAL, 1, seen)
+                return True
+            self._note_branches(day, ["online"], PosDaySync.STATUS_COMPLETE, 1, seen)
+            day += timedelta(days=1)
         return False
 
     def _save_pos_cursor(self, cursor, next_date, start_date, end_date, next_page=1):
@@ -588,6 +652,67 @@ class SyncService:
             "window_end": end_date.isoformat(),
         }
         cursor.save()
+
+    def _active_pos_branches(self):
+        if self.pos_branches:
+            return self.pos_branches
+        if self.pos_store_ids is None:
+            return list(POS_BRANCH_STORE_IDS)
+        reverse = {store_id: key for key, store_id in POS_BRANCH_STORE_IDS.items()}
+        return [reverse[store_id] for store_id in self.pos_store_ids if store_id in reverse]
+
+    def _pos_day_is_open(self, day):
+        return day >= timezone.localdate() - timedelta(days=1)
+
+    def _branch_day_is_closed(self, day, branch):
+        if self.force_pos or self._pos_day_is_open(day):
+            return False
+        return PosDaySync.objects.filter(
+            day=day,
+            branch=branch,
+            status=PosDaySync.STATUS_COMPLETE,
+        ).exists()
+
+    def _pos_day_is_closed(self, day):
+        branches = self._active_pos_branches()
+        return bool(branches) and all(self._branch_day_is_closed(day, branch) for branch in branches)
+
+    def _pos_day_start_page(self, day, cursor, first_day):
+        if self.force_pos or self._pos_day_is_open(day):
+            return 1
+        branches = self._active_pos_branches()
+        rows = list(PosDaySync.objects.filter(day=day, branch__in=branches))
+        if len(rows) == len(branches) and rows and all(row.status == PosDaySync.STATUS_PARTIAL for row in rows):
+            pages = {row.next_page for row in rows}
+            if len(pages) == 1:
+                return max(1, pages.pop())
+        if first_day:
+            return _pos_resume_page(cursor.value, day)
+        return 1
+
+    def _note_pos_day(self, day, status, next_page, sales, seen=None):
+        branches = self._active_pos_branches()
+        counts = seen if seen is not None else {branch: sales for branch in branches}
+        self._note_branches(day, branches, status, next_page, counts)
+
+    def _note_branches(self, day, branches, status, next_page, seen):
+        now = timezone.now()
+        for branch in branches:
+            PosDaySync.objects.update_or_create(
+                day=day,
+                branch=branch,
+                defaults={
+                    "status": status,
+                    "next_page": max(1, int(next_page or 1)),
+                    "sales_upserted": int(seen.get(branch, 0)),
+                    "api_count": int(seen.get(branch, 0)) if status == PosDaySync.STATUS_COMPLETE else None,
+                    "completed_at": now if status == PosDaySync.STATUS_COMPLETE else None,
+                },
+            )
+
+    def _pause_pos_day(self, cursor, day, start_date, end_date, page, sales):
+        self._save_pos_cursor(cursor, day, start_date, end_date, next_page=page)
+        self._note_pos_day(day, PosDaySync.STATUS_PARTIAL, next_page=page, sales=sales)
 
     def _upsert_pos_header(self, row):
         source_id = as_int(row.get("id"), default=None)
@@ -943,6 +1068,8 @@ class SyncService:
         report["pos_sales_upserted"] = self._pos_sales_upserted
         report["pos_items_upserted"] = self._pos_items_upserted
         report["failures"] = self.failures
+        report["days_skipped"] = self._pos_days_skipped
+        report["days_fetched"] = self._pos_days_fetched
         if day is not None:
             report["current_day"] = day.isoformat()
         self.run.report = report
@@ -970,7 +1097,8 @@ class SyncService:
         if not self.run:
             return
         self.run.refresh_from_db()
-        if (self.run.report or {}).get("cancel"):
+        previous = self.run.report or {}
+        if previous.get("cancel"):
             status = SyncRun.STATUS_FAILED
             error = "Stopped by user."
         elif self.run.status != SyncRun.STATUS_RUNNING and status == SyncRun.STATUS_SUCCESS:
@@ -993,11 +1121,107 @@ class SyncService:
             "requests_made": self.client.requests_made,
             "retries": getattr(self.client, "retries_made", 0),
             "failures": getattr(self, "failures", 0),
+            "days_skipped": self._pos_days_skipped,
+            "days_fetched": self._pos_days_fetched,
+            "branches": previous.get("branches") or (
+                (["online"] if self.include_online else []) + self._active_pos_branches()
+            ),
+            "current_day": previous.get("current_day"),
             "detailed_orders": Order.objects.exclude(details_synced_at=None).count(),
             "window_start": self.run.window_start.isoformat() if self.run.window_start else None,
             "window_end": self.run.window_end.isoformat() if self.run.window_end else None,
         }
         self.run.save()
+
+
+def pos_week_activity(today=None):
+    today = today or timezone.localdate()
+    return pos_range_activity(today - timedelta(days=6), today)
+
+
+def pos_range_activity(start, end):
+    """Per-day coverage for online and each physical store inside an inclusive range."""
+    from django.db.models import Count
+    from django.db.models.functions import TruncDate
+
+    if end < start:
+        raise ValueError("invalid range")
+    branches = (
+        ("online", "اینترنتی", None),
+        ("sari", "ساری", SalesLine.SARI),
+        ("gorgan", "گرگان", SalesLine.GORGAN),
+        ("capri", "کاپری", SalesLine.CAPRI),
+    )
+    marks = {
+        (row.day, row.branch): row
+        for row in PosDaySync.objects.filter(day__gte=start, day__lte=end)
+    }
+    counts = {}
+    sales = (
+        PosSale.objects.filter(
+            sales_line__in=[line for _key, _label, line in branches if line],
+            created_at__gte=timezone.make_aware(datetime.combine(start, time.min), timezone.get_current_timezone()),
+            created_at__lt=timezone.make_aware(datetime.combine(end + timedelta(days=1), time.min), timezone.get_current_timezone()),
+        )
+        .annotate(day=TruncDate("created_at", tzinfo=timezone.get_current_timezone()))
+        .values("day", "sales_line")
+        .annotate(count=Count("id"))
+    )
+    for row in sales:
+        day_value = row["day"].date() if hasattr(row["day"], "date") else row["day"]
+        counts[(day_value, row["sales_line"])] = int(row["count"] or 0)
+    online_counts = {}
+    online_rows = (
+        Order.objects.filter(
+            created_at__gte=timezone.make_aware(datetime.combine(start, time.min), timezone.get_current_timezone()),
+            created_at__lt=timezone.make_aware(datetime.combine(end + timedelta(days=1), time.min), timezone.get_current_timezone()),
+        )
+        .annotate(day=TruncDate("created_at", tzinfo=timezone.get_current_timezone()))
+        .values("day")
+        .annotate(count=Count("id"))
+    )
+    for row in online_rows:
+        day_value = row["day"].date() if hasattr(row["day"], "date") else row["day"]
+        online_counts[day_value] = int(row["count"] or 0)
+
+    today = timezone.localdate()
+    days = []
+    day = start
+    while day <= end:
+        open_day = day >= today - timedelta(days=1)
+        branch_rows = []
+        for key, label, line in branches:
+            mark = marks.get((day, key))
+            sales_count = online_counts.get(day, 0) if line is None else counts.get((day, line), 0)
+            api_count = mark.api_count if mark and mark.api_count is not None else None
+            if mark and mark.status == PosDaySync.STATUS_COMPLETE and api_count is not None and sales_count == api_count:
+                state, state_label = "complete", "تأیید شده"
+            elif mark and mark.status == PosDaySync.STATUS_COMPLETE and api_count is not None:
+                state, state_label = "mismatch", "اختلاف"
+            elif open_day:
+                state, state_label = "open", "باز"
+            elif mark and mark.status == PosDaySync.STATUS_COMPLETE:
+                state, state_label = "read", "خوانده‌شده"
+            elif mark and mark.status == PosDaySync.STATUS_PARTIAL:
+                state, state_label = "partial", "نیمه‌کاره"
+            elif sales_count:
+                state, state_label = "unconfirmed", "تأیید نشده"
+            else:
+                state, state_label = "unread", "خوانده نشده"
+            branch_rows.append(
+                {
+                    "key": key,
+                    "label": label,
+                    "sales": sales_count,
+                    "api_count": api_count,
+                    "state": state,
+                    "state_label": state_label,
+                    "synced_at": mark.completed_at if mark else None,
+                }
+            )
+        days.append({"date": day.isoformat(), "open": open_day, "branches": branch_rows})
+        day += timedelta(days=1)
+    return {"from": start.isoformat(), "to": end.isoformat(), "days": days}
 
 
 def _cursor(key):

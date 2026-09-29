@@ -5,8 +5,15 @@ import pytest
 from django.utils import timezone
 
 from apps.customers.models import Customer
-from apps.integrations.elinor.models import SyncCursor, SyncRun
-from apps.integrations.elinor.sync import POS_SQL_CUTOFF, SyncService, pos_window, resume_explicit_pos_start
+from apps.integrations.elinor.models import PosDaySync, SyncCursor, SyncRun
+from apps.integrations.elinor.sync import (
+    POS_SQL_CUTOFF,
+    SyncService,
+    pos_range_activity,
+    pos_week_activity,
+    pos_window,
+    resume_explicit_pos_start,
+)
 from apps.sales.models import PosSale, PosSaleItem, SalesLine, Store
 
 TEHRAN = ZoneInfo("Asia/Tehran")
@@ -201,6 +208,127 @@ def test_hourly_sync_fetches_pos_before_online_orders():
     assert sequence[0] == "pos"
     assert "online" in sequence
     assert sequence.index("pos") < sequence.index("online")
+
+
+def _sync_service(calls):
+    service = SyncService(SyncRun.KIND_POS)
+    service.client.authenticate = lambda: "token"
+    service.client.requests_made = 0
+    service.client.get_mini_orders = lambda **kwargs: calls.append(kwargs["start_date"]) or {
+        "results": [],
+        "current_page": kwargs.get("page", 1),
+        "last_page": 1,
+        "total": 0,
+        "raw": {},
+    }
+    service.pos_branches = ["sari", "gorgan", "capri"]
+    service.run = SyncRun.objects.create(kind=SyncRun.KIND_POS, status=SyncRun.STATUS_RUNNING)
+    return service
+
+
+@pytest.mark.django_db
+def test_closed_store_day_is_not_requested_again():
+    day = timezone.localdate() - timedelta(days=4)
+    for branch in ("sari", "gorgan", "capri"):
+        PosDaySync.objects.create(day=day, branch=branch, status=PosDaySync.STATUS_COMPLETE)
+    calls = []
+    service = _sync_service(calls)
+    assert service._sync_pos_sales(day, day) is False
+    assert calls == []
+    assert service._pos_days_skipped == 1
+    assert service._pos_days_fetched == 0
+
+
+@pytest.mark.django_db
+def test_today_is_fetched_even_when_marked_complete():
+    day = timezone.localdate()
+    for branch in ("sari", "gorgan", "capri"):
+        PosDaySync.objects.create(day=day, branch=branch, status=PosDaySync.STATUS_COMPLETE)
+    calls = []
+    service = _sync_service(calls)
+    service._sync_pos_sales(day, day)
+    assert calls == [day]
+    assert service._pos_days_fetched == 1
+
+
+@pytest.mark.django_db
+def test_force_refetches_a_closed_day():
+    day = timezone.localdate() - timedelta(days=4)
+    for branch in ("sari", "gorgan", "capri"):
+        PosDaySync.objects.create(day=day, branch=branch, status=PosDaySync.STATUS_COMPLETE)
+    calls = []
+    service = _sync_service(calls)
+    service.force_pos = True
+    service._sync_pos_sales(day, day)
+    assert calls == [day]
+
+
+@pytest.mark.django_db
+def test_pos_week_activity_covers_seven_days():
+    today = timezone.localdate()
+    old = today - timedelta(days=3)
+    PosDaySync.objects.create(day=old, branch="sari", status=PosDaySync.STATUS_COMPLETE)
+    payload = pos_week_activity(today)
+    assert len(payload["days"]) == 7
+    assert payload["days"][0]["date"] == (today - timedelta(days=6)).isoformat()
+    assert payload["days"][-1]["date"] == today.isoformat()
+    assert payload["days"][-1]["branches"][0]["state"] == "open"
+    row = next(item for item in payload["days"] if item["date"] == old.isoformat())
+    by_key = {branch["key"]: branch for branch in row["branches"]}
+    assert by_key["sari"]["state"] == "read"
+    assert by_key["gorgan"]["state"] == "unread"
+    assert by_key["online"]["state"] == "unread"
+    assert payload["days"][-1]["branches"][0]["key"] == "online"
+
+
+@pytest.mark.django_db
+def test_pos_range_activity_marks_a_matching_count_complete():
+    day = timezone.localdate() - timedelta(days=5)
+    PosDaySync.objects.create(day=day, branch="online", status=PosDaySync.STATUS_COMPLETE, api_count=0)
+    PosDaySync.objects.create(day=day, branch="gorgan", status=PosDaySync.STATUS_COMPLETE, api_count=4)
+    payload = pos_range_activity(day, day)
+    assert payload["from"] == day.isoformat()
+    assert len(payload["days"]) == 1
+    by_key = {branch["key"]: branch for branch in payload["days"][0]["branches"]}
+    assert by_key["online"]["state"] == "complete"
+    assert by_key["online"]["state_label"] == "تأیید شده"
+    assert by_key["gorgan"]["state"] == "mismatch"
+    assert by_key["gorgan"]["sales"] == 0
+    assert by_key["gorgan"]["api_count"] == 4
+
+
+@pytest.mark.django_db
+def test_open_day_is_confirmed_when_the_api_count_matches():
+    today = timezone.localdate()
+    PosDaySync.objects.create(day=today, branch="sari", status=PosDaySync.STATUS_COMPLETE, api_count=0)
+    payload = pos_week_activity(today)
+    row = next(item for item in payload["days"] if item["date"] == today.isoformat())
+    by_key = {branch["key"]: branch for branch in row["branches"]}
+    assert by_key["sari"]["state"] == "complete"
+    assert by_key["sari"]["state_label"] == "تأیید شده"
+    assert by_key["gorgan"]["state"] == "open"
+
+
+@pytest.mark.django_db
+def test_online_day_is_skipped_after_a_complete_count():
+    day = timezone.localdate() - timedelta(days=4)
+    calls = []
+    service = _sync_service(calls)
+    service.include_online = True
+    service.client.get_orders_light = lambda **kwargs: calls.append("online") or {
+        "results": [{"id": 9, "status": "delivered", "total_amount": 1000, "created_at": f"{day.isoformat()} 12:00:00"}],
+        "current_page": 1,
+        "last_page": 1,
+        "total": 1,
+        "raw": {},
+    }
+    assert service._sync_online_days(day, day) is False
+    mark = PosDaySync.objects.get(day=day, branch="online")
+    assert mark.status == PosDaySync.STATUS_COMPLETE
+    assert mark.api_count == 1
+    calls.clear()
+    assert service._sync_online_days(day, day) is False
+    assert calls == []
 
 
 def test_explicit_pos_range_resumes_unfinished_day():

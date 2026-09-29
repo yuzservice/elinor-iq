@@ -34,6 +34,28 @@ class SyncRun(models.Model):
         ordering = ["-started_at"]
 
 
+class PosDaySync(models.Model):
+    """A physical-store day that has been fully read from the API, or paused mid-read."""
+
+    STATUS_PARTIAL = "partial"
+    STATUS_COMPLETE = "complete"
+
+    day = models.DateField()
+    branch = models.CharField(max_length=16)
+    status = models.CharField(max_length=16, default=STATUS_PARTIAL)
+    next_page = models.PositiveIntegerField(default=1)
+    sales_upserted = models.PositiveIntegerField(default=0)
+    api_count = models.PositiveIntegerField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "pos_day_syncs"
+        constraints = [
+            models.UniqueConstraint(fields=["day", "branch"], name="pos_day_sync_day_branch"),
+        ]
+
+
 class SyncCursor(models.Model):
     key = models.CharField(max_length=64, unique=True)
     value = models.JSONField(default=dict, blank=True)
