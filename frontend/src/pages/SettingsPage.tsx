@@ -341,7 +341,7 @@ export function SettingsPage() {
           {coverageError ? <p className="text-sm leading-6 text-rose">{coverageError}</p> : null}
           <CoverageTable report={coverage ?? data.sync.week} custom={Boolean(coverage)} />
           <p className="text-[13px] leading-6 text-muted">
-            تأیید شده یعنی تعداد ذخیره‌شده با تعداد سفارش‌هایی که API برای همان روز و شعبه برگردانده برابر است. صفرِ تأیید شده یعنی API آن روز را خالی داده و دیتابیس هم خالی است. تأیید نشده یعنی فروش هست و دریافت کامل هنوز ثبت نشده. خوانده نشده یعنی آن روز هنوز از API خوانده نشده. اختلاف یعنی دو عدد با هم فرق دارند. امروز و دیروز بعد از هر دریافتِ برابر، تأیید شده می‌شوند و همچنان برای سفارش جدید دوباره خوانده می‌شوند.
+            تأیید شده یعنی تعداد ذخیره‌شده با تعداد سفارش‌هایی که API برای همان روز و شعبه برگردانده برابر است. اختلاف و تأییدنشده از ۲۰ شهریور به بعد در همگام‌سازی بعدی دوباره خوانده می‌شوند تا عددها یکی شود. امروز و دیروز بعد از هر دریافتِ برابر تأیید شده می‌شوند و برای سفارش جدید همچنان دوباره خوانده می‌شوند.
           </p>
         </div>
       </Panel>
@@ -465,7 +465,11 @@ function CoverageTable({ report, custom }: { report?: CoverageReport; custom: bo
         <h3 className="text-sm font-medium text-ink">
           {custom && report ? `وضعیت ${formatDate(report.from)} تا ${formatDate(report.to)}` : "هفت روز اخیر"}
         </h3>
-        {summary ? <p className="text-[13px] text-muted">{summary}</p> : null}
+        {summary ? (
+          <p className="text-[13px] text-muted" role="status">
+            {summary}
+          </p>
+        ) : null}
       </div>
       <div className="mt-2 overflow-x-auto">
         <table className="w-full min-w-[36rem] border-collapse text-sm">

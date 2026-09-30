@@ -100,6 +100,52 @@ def _pos_resume_page(cursor_value, day):
         return 1
 
 
+def local_row_day(row):
+    created = parse_datetime((row or {}).get("created_at"))
+    if created is None:
+        return None
+    return timezone.localtime(created).date()
+
+
+def branch_stored_count(day, branch):
+    start = timezone.make_aware(datetime.combine(day, time.min), timezone.get_current_timezone())
+    end = start + timedelta(days=1)
+    if branch == "online":
+        return Order.objects.filter(created_at__gte=start, created_at__lt=end).count()
+    line = {"sari": SalesLine.SARI, "gorgan": SalesLine.GORGAN, "capri": SalesLine.CAPRI}.get(branch)
+    if not line:
+        return 0
+    return PosSale.objects.filter(sales_line=line, created_at__gte=start, created_at__lt=end).count()
+
+
+def branch_day_confirmed(day, branch, today=None):
+    """A closed day whose stored rows equal the last full API count."""
+    today = today or timezone.localdate()
+    if day >= today - timedelta(days=1):
+        return False
+    mark = PosDaySync.objects.filter(day=day, branch=branch, status=PosDaySync.STATUS_COMPLETE).first()
+    if mark is None or mark.api_count is None:
+        return False
+    return mark.api_count == branch_stored_count(day, branch)
+
+
+def earliest_unconfirmed_day(start, end, today=None):
+    """First day from 20 Shahrivar onward that is not confirmed for every branch."""
+    today = today or timezone.localdate()
+    end = min(end, today)
+    if end < start:
+        return start
+    branches = ("online", "sari", "gorgan", "capri")
+    day = start
+    while day <= end:
+        if day >= today - timedelta(days=1) or any(
+            not branch_day_confirmed(day, branch, today) for branch in branches
+        ):
+            return day
+        day += timedelta(days=1)
+    return end
+
+
 def pos_window(cursor_value=None):
     """Physical stores resume from the SQL cutoff, not from the newest saved sale.
 
@@ -362,6 +408,7 @@ class SyncService:
         online_start, online_end = recent_window(_cursor("orders").value)
         pos_start, pos_end = pos_window(_cursor("pos_orders").value)
         pos_end = min(pos_end, timezone.localdate())
+        pos_start = earliest_unconfirmed_day(POS_SQL_CUTOFF, pos_end)
         self.run = SyncRun.objects.create(
             kind=SyncRun.KIND_HOURLY,
             status=SyncRun.STATUS_RUNNING,
@@ -386,11 +433,11 @@ class SyncService:
             repaired = repair_stored_customer_profiles()
             if repaired:
                 logger.info("Filled %s customer profiles from stored API payloads.", repaired)
-            # In-person sales are the part that falls behind. Do them before the
-            # online order list, which can use the whole request budget.
+            # Walk forward from the first unconfirmed day. A mismatch is fetched
+            # again; a day that still disagrees after a full read does not block
+            # the branches behind it.
             if self.client.requests_made < MAX_REQUESTS_PER_RUN:
-                paused = self._sync_pos_sales(pos_start, pos_end, max_sales=HOURLY_POS_MAX_SALES)
-                if paused:
+                if self._reconcile_coverage(pos_start, pos_end, max_sales=HOURLY_POS_MAX_SALES):
                     return self.run
 
             self._sync_orders(online_start, online_end, fetch_details=False)
@@ -585,7 +632,8 @@ class SyncService:
                         (key for key, store_id in POS_BRANCH_STORE_IDS.items() if store_id == store_source_id),
                         "",
                     )
-                    if branch_key:
+                    row_day = local_row_day(row)
+                    if branch_key and (row_day is None or row_day == day):
                         self._day_branch_seen[branch_key] = self._day_branch_seen.get(branch_key, 0) + 1
                     sale = self._upsert_pos_header(row)
                     if not sale:
@@ -621,6 +669,42 @@ class SyncService:
             self._save_pos_cursor(cursor, day, start_date, end_date, next_page=1)
 
         logger.info("POS fetch complete for %s..%s (%s sales).", start_date.isoformat(), end_date.isoformat(), processed)
+        return False
+
+    def _reconcile_coverage(self, start_date, end_date, *, max_sales=None):
+        """Read each physical store and the online branch until the day is confirmed."""
+        self.pos_branches = list(POS_BRANCH_STORE_IDS)
+        self.pos_store_ids = None
+        self.include_online = True
+        day = start_date
+        while day <= end_date:
+            if self.client.requests_made >= MAX_REQUESTS_PER_RUN:
+                self._finish(
+                    SyncRun.STATUS_PAUSED,
+                    error="Paused while reconciling store days to respect Elinor API rate limits.",
+                )
+                return True
+            paused = self._sync_pos_sales(day, day, max_sales=max_sales)
+            if paused or self.run.status != SyncRun.STATUS_RUNNING:
+                return True
+            if self._coverage_still_partial(day, self._active_pos_branches()):
+                return False
+            paused = self._sync_online_days(day, day)
+            if paused or self.run.status != SyncRun.STATUS_RUNNING:
+                return True
+            if self._coverage_still_partial(day, ["online"]):
+                return False
+            day += timedelta(days=1)
+        return False
+
+    def _coverage_still_partial(self, day, branches):
+        if self._pos_day_is_open(day):
+            return False
+        marks = {row.branch: row for row in PosDaySync.objects.filter(day=day, branch__in=branches)}
+        for branch in branches:
+            mark = marks.get(branch)
+            if mark is None or mark.status != PosDaySync.STATUS_COMPLETE:
+                return True
         return False
 
     def _sync_online_days(self, start_date, end_date):
@@ -672,11 +756,7 @@ class SyncService:
     def _branch_day_is_closed(self, day, branch):
         if self.force_pos or self._pos_day_is_open(day):
             return False
-        return PosDaySync.objects.filter(
-            day=day,
-            branch=branch,
-            status=PosDaySync.STATUS_COMPLETE,
-        ).exists()
+        return branch_day_confirmed(day, branch)
 
     def _pos_day_is_closed(self, day):
         branches = self._active_pos_branches()

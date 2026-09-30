@@ -9,6 +9,7 @@ from apps.integrations.elinor.models import PosDaySync, SyncCursor, SyncRun
 from apps.integrations.elinor.sync import (
     POS_SQL_CUTOFF,
     SyncService,
+    earliest_unconfirmed_day,
     pos_range_activity,
     pos_week_activity,
     pos_window,
@@ -230,7 +231,7 @@ def _sync_service(calls):
 def test_closed_store_day_is_not_requested_again():
     day = timezone.localdate() - timedelta(days=4)
     for branch in ("sari", "gorgan", "capri"):
-        PosDaySync.objects.create(day=day, branch=branch, status=PosDaySync.STATUS_COMPLETE)
+        PosDaySync.objects.create(day=day, branch=branch, status=PosDaySync.STATUS_COMPLETE, api_count=0)
     calls = []
     service = _sync_service(calls)
     assert service._sync_pos_sales(day, day) is False
@@ -249,6 +250,26 @@ def test_today_is_fetched_even_when_marked_complete():
     service._sync_pos_sales(day, day)
     assert calls == [day]
     assert service._pos_days_fetched == 1
+
+
+@pytest.mark.django_db
+def test_mismatched_store_day_is_fetched_again():
+    day = timezone.localdate() - timedelta(days=4)
+    for branch in ("sari", "gorgan", "capri"):
+        PosDaySync.objects.create(day=day, branch=branch, status=PosDaySync.STATUS_COMPLETE, api_count=3)
+    calls = []
+    service = _sync_service(calls)
+    service._sync_pos_sales(day, day)
+    assert calls == [day]
+
+
+@pytest.mark.django_db
+def test_earliest_unconfirmed_day_is_the_first_gap_after_shahrivar():
+    today = timezone.localdate()
+    confirmed = POS_SQL_CUTOFF
+    for branch in ("online", "sari", "gorgan", "capri"):
+        PosDaySync.objects.create(day=confirmed, branch=branch, status=PosDaySync.STATUS_COMPLETE, api_count=0)
+    assert earliest_unconfirmed_day(POS_SQL_CUTOFF, today) == confirmed + timedelta(days=1)
 
 
 @pytest.mark.django_db
