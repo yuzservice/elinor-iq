@@ -10,6 +10,7 @@ from apps.integrations.elinor.sync import (
     POS_SQL_CUTOFF,
     SyncService,
     earliest_unconfirmed_day,
+    hourly_sync_days,
     pos_range_activity,
     pos_week_activity,
     pos_window,
@@ -261,6 +262,89 @@ def test_mismatched_store_day_is_fetched_again():
     service = _sync_service(calls)
     service._sync_pos_sales(day, day)
     assert calls == [day]
+
+
+@pytest.mark.django_db
+def _confirm(day, api_count=0, completed_at=None):
+    for branch in ("online", "sari", "gorgan", "capri"):
+        PosDaySync.objects.create(
+            day=day,
+            branch=branch,
+            status=PosDaySync.STATUS_COMPLETE,
+            api_count=api_count,
+            completed_at=completed_at,
+        )
+
+
+@pytest.mark.django_db
+def test_hourly_sync_days_keeps_today_yesterday_and_repairs_the_past_month():
+    today = timezone.localdate()
+    yesterday = today - timedelta(days=1)
+    recent_problem = today - timedelta(days=6)
+    settled = today - timedelta(days=10)
+    old_problem = today - timedelta(days=40)
+    read_today = today - timedelta(days=4)
+    day = max(POS_SQL_CUTOFF, today - timedelta(days=31))
+    while day <= today - timedelta(days=2):
+        if day not in (recent_problem, read_today):
+            _confirm(day)
+        day += timedelta(days=1)
+    _confirm(recent_problem, api_count=3, completed_at=timezone.now() - timedelta(days=2))
+    _confirm(read_today, api_count=5, completed_at=timezone.now())
+    _confirm(old_problem, api_count=9, completed_at=timezone.now() - timedelta(days=3))
+
+    days = hourly_sync_days(today)
+
+    assert days[:2] == [today, yesterday]
+    assert recent_problem in days
+    assert read_today not in days
+    assert old_problem not in days
+    assert settled not in days
+    assert days.index(recent_problem) > 1
+
+
+@pytest.mark.django_db
+def test_hourly_sync_days_is_only_the_last_two_days_when_the_month_is_confirmed():
+    today = timezone.localdate()
+    day = max(POS_SQL_CUTOFF, today - timedelta(days=31))
+    while day <= today - timedelta(days=2):
+        _confirm(day)
+        day += timedelta(days=1)
+
+    assert hourly_sync_days(today) == [today, today - timedelta(days=1)]
+
+
+@pytest.mark.django_db
+def test_partial_day_in_the_past_month_stays_on_the_automatic_list():
+    today = timezone.localdate()
+    partial = today - timedelta(days=3)
+    day = max(POS_SQL_CUTOFF, today - timedelta(days=31))
+    while day <= today - timedelta(days=2):
+        if day != partial:
+            _confirm(day)
+        day += timedelta(days=1)
+    for branch in ("online", "sari", "gorgan", "capri"):
+        PosDaySync.objects.create(day=partial, branch=branch, status=PosDaySync.STATUS_PARTIAL, next_page=2)
+
+    assert partial in hourly_sync_days(today)
+
+
+@pytest.mark.django_db
+def test_open_day_resumes_a_partial_read():
+    today = timezone.localdate()
+    for branch in ("sari", "gorgan", "capri"):
+        PosDaySync.objects.create(day=today, branch=branch, status=PosDaySync.STATUS_PARTIAL, next_page=2)
+    pages = []
+    service = _sync_service(pages)
+    service.client.get_mini_orders = lambda **kwargs: pages.append(kwargs["page"]) or {
+        "results": [],
+        "current_page": kwargs.get("page", 1),
+        "last_page": 2,
+        "total": 0,
+        "raw": {},
+    }
+    service._sync_pos_sales(today, today)
+    assert pages[0] == 2
 
 
 @pytest.mark.django_db

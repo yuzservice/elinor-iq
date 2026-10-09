@@ -29,6 +29,9 @@ MAX_REQUESTS_PER_RUN = int(getattr(settings, "ELINOR_SYNC_MAX_REQUESTS", 900))
 HOURLY_ONLINE_DETAILS_LIMIT = int(getattr(settings, "ELINOR_SYNC_HOURLY_ONLINE_DETAILS_LIMIT", "250"))
 HOURLY_POS_LOOKBACK_DAYS = int(getattr(settings, "ELINOR_SYNC_HOURLY_POS_DAYS", "3"))
 HOURLY_POS_MAX_SALES = int(getattr(settings, "ELINOR_SYNC_HOURLY_POS_MAX_SALES", "300"))
+RECENT_SYNC_DAYS = 2
+REPAIR_LOOKBACK_DAYS = 31
+COVERAGE_BRANCHES = ("online", "sari", "gorgan", "capri")
 SYNC_STALE_MINUTES = 20
 
 
@@ -135,15 +138,54 @@ def earliest_unconfirmed_day(start, end, today=None):
     end = min(end, today)
     if end < start:
         return start
-    branches = ("online", "sari", "gorgan", "capri")
     day = start
     while day <= end:
         if day >= today - timedelta(days=1) or any(
-            not branch_day_confirmed(day, branch, today) for branch in branches
+            not branch_day_confirmed(day, branch, today) for branch in COVERAGE_BRANCHES
         ):
             return day
         day += timedelta(days=1)
     return end
+
+
+def hourly_sync_days(today=None):
+    """Days an automatic sync may read, with today and yesterday first.
+
+    Older days are left alone. A day in the past month is included only when
+    it is not confirmed: mismatch, partial, unread, or not yet counted.
+    A mismatch already fully read today waits until tomorrow so the same
+    disagreement is not downloaded again every hour.
+    """
+    today = today or timezone.localdate()
+    recent = [today - timedelta(days=offset) for offset in range(RECENT_SYNC_DAYS)]
+    repair_end = today - timedelta(days=RECENT_SYNC_DAYS)
+    repair_start = max(POS_SQL_CUTOFF, today - timedelta(days=REPAIR_LOOKBACK_DAYS))
+    repairs = []
+    day = repair_end
+    while day >= repair_start:
+        if _day_needs_repair(day, today):
+            repairs.append(day)
+        day -= timedelta(days=1)
+    return recent + repairs
+
+
+def _day_needs_repair(day, today):
+    if all(branch_day_confirmed(day, branch, today) for branch in COVERAGE_BRANCHES):
+        return False
+    marks = list(PosDaySync.objects.filter(day=day, branch__in=COVERAGE_BRANCHES))
+    fully_read = (
+        len(marks) == len(COVERAGE_BRANCHES)
+        and all(
+            mark.status == PosDaySync.STATUS_COMPLETE and mark.api_count is not None
+            for mark in marks
+        )
+    )
+    if not fully_read:
+        return True
+    return any(
+        mark.completed_at is None or timezone.localtime(mark.completed_at).date() < today
+        for mark in marks
+    )
 
 
 def pos_window(cursor_value=None):
@@ -407,9 +449,7 @@ class SyncService:
     def execute_hourly(self):
         self._ensure_not_running()
         online_start, online_end = recent_window(_cursor("orders").value)
-        pos_start, pos_end = pos_window(_cursor("pos_orders").value)
-        pos_end = min(pos_end, timezone.localdate())
-        pos_start = earliest_unconfirmed_day(POS_SQL_CUTOFF, pos_end)
+        pos_days = hourly_sync_days()
         self.run = SyncRun.objects.create(
             kind=SyncRun.KIND_HOURLY,
             status=SyncRun.STATUS_RUNNING,
@@ -417,15 +457,15 @@ class SyncService:
             window_end=online_end,
             report={
                 "online_window": [online_start.isoformat(), online_end.isoformat()],
-                "pos_window": [pos_start.isoformat(), pos_end.isoformat()],
+                "pos_window": [pos_days[0].isoformat(), pos_days[-1].isoformat()] if pos_days else [],
+                "pos_days": [day.isoformat() for day in pos_days],
             },
         )
         logger.info(
-            "Starting hourly sync online=%s..%s pos=%s..%s",
+            "Starting hourly sync online=%s..%s pos_days=%s",
             online_start,
             online_end,
-            pos_start,
-            pos_end,
+            ",".join(day.isoformat() for day in pos_days),
         )
         try:
             from apps.customers.tier_refresh import refresh_due_tiers
@@ -437,11 +477,15 @@ class SyncService:
             repaired = repair_stored_customer_profiles()
             if repaired:
                 logger.info("Filled %s customer profiles from stored API payloads.", repaired)
-            # Walk forward from the first unconfirmed day. A mismatch is fetched
-            # again; a day that still disagrees after a full read does not block
-            # the branches behind it.
-            if self.client.requests_made < MAX_REQUESTS_PER_RUN:
-                if self._reconcile_coverage(pos_start, pos_end, max_sales=HOURLY_POS_MAX_SALES):
+            # Today and yesterday first. Then unhealthy days in the past month,
+            # newest first, so an old mismatch cannot spend the run.
+            if pos_days and self.client.requests_made < MAX_REQUESTS_PER_RUN:
+                if self._reconcile_coverage(
+                    pos_days[0],
+                    pos_days[-1],
+                    max_sales=HOURLY_POS_MAX_SALES,
+                    days=pos_days,
+                ):
                     return self.run
 
             self._sync_orders(online_start, online_end, fetch_details=False)
@@ -675,20 +719,28 @@ class SyncService:
         logger.info("POS fetch complete for %s..%s (%s sales).", start_date.isoformat(), end_date.isoformat(), processed)
         return False
 
-    def _reconcile_coverage(self, start_date, end_date, *, max_sales=None):
-        """Read each physical store and the online branch until the day is confirmed."""
+    def _reconcile_coverage(self, start_date, end_date, *, max_sales=None, days=None):
+        """Read each physical store and the online branch for the selected days."""
         self.pos_branches = list(POS_BRANCH_STORE_IDS)
         self.pos_store_ids = None
         self.include_online = True
-        day = start_date
-        while day <= end_date:
+        if days is None:
+            days = []
+            day = start_date
+            while day <= end_date:
+                days.append(day)
+                day += timedelta(days=1)
+        for day in days:
             if self.client.requests_made >= MAX_REQUESTS_PER_RUN:
                 self._finish(
                     SyncRun.STATUS_PAUSED,
                     error="Paused while reconciling store days to respect Elinor API rate limits.",
                 )
                 return True
-            paused = self._sync_pos_sales(day, day, max_sales=max_sales)
+            # The last two days must be able to finish. The sales cap only
+            # limits older repairs so one disagreement cannot fill the run.
+            day_cap = None if self._pos_day_is_open(day) else max_sales
+            paused = self._sync_pos_sales(day, day, max_sales=day_cap)
             if paused or self.run.status != SyncRun.STATUS_RUNNING:
                 return True
             if self._coverage_still_partial(day, self._active_pos_branches()):
@@ -698,7 +750,6 @@ class SyncService:
                 return True
             if self._coverage_still_partial(day, ["online"]):
                 return False
-            day += timedelta(days=1)
         return False
 
     def _coverage_still_partial(self, day, branches):
@@ -767,7 +818,7 @@ class SyncService:
         return bool(branches) and all(self._branch_day_is_closed(day, branch) for branch in branches)
 
     def _pos_day_start_page(self, day, cursor, first_day):
-        if self.force_pos or self._pos_day_is_open(day):
+        if self.force_pos:
             return 1
         branches = self._active_pos_branches()
         rows = list(PosDaySync.objects.filter(day=day, branch__in=branches))
@@ -775,6 +826,8 @@ class SyncService:
             pages = {row.next_page for row in rows}
             if len(pages) == 1:
                 return max(1, pages.pop())
+        if self._pos_day_is_open(day):
+            return 1
         if first_day:
             return _pos_resume_page(cursor.value, day)
         return 1
