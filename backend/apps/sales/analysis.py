@@ -10,6 +10,7 @@ from django.utils import timezone
 TEHRAN = ZoneInfo("Asia/Tehran")
 
 from apps.core.dates import format_jalali_date
+from apps.customers.operators import exclude_operator_sales, operator_customer_ids
 from apps.sales.models import OrderItem, PosSale, PosSaleItem, SalesLine
 from apps.sales.semantics import (
     POS_TYPE_BOTH,
@@ -72,7 +73,7 @@ def _new_repeat_counts_online(online_qs, start):
         customer_id=OuterRef("customer_id"),
         created_at__lt=start,
     )
-    scoped = online_qs.exclude(customer_id=None).annotate(has_prior=Exists(prior))
+    scoped = exclude_operator_sales(online_qs.exclude(customer_id=None)).annotate(has_prior=Exists(prior))
     new_count = scoped.filter(has_prior=False).values("customer_id").distinct().count()
     repeat_count = scoped.filter(has_prior=True).values("customer_id").distinct().count()
     return new_count, repeat_count
@@ -85,7 +86,7 @@ def _new_repeat_counts_pos(pos_qs, sales_line, start):
     )
     if sales_line:
         prior = prior.filter(sales_line=sales_line)
-    scoped = pos_qs.exclude(customer_id=None).annotate(has_prior=Exists(prior))
+    scoped = exclude_operator_sales(pos_qs.exclude(customer_id=None)).annotate(has_prior=Exists(prior))
     new_count = scoped.filter(has_prior=False).values("customer_id").distinct().count()
     repeat_count = scoped.filter(has_prior=True).values("customer_id").distinct().count()
     return new_count, repeat_count
@@ -160,7 +161,7 @@ def _merge_unique_customer_counts(online_qs, pos_qs, start, kind):
     )
     online_ids = set(online_qs.exclude(customer_id=None).values_list("customer_id", flat=True))
     pos_ids = set(pos_qs.exclude(customer_id=None).values_list("customer_id", flat=True))
-    all_ids = online_ids | pos_ids
+    all_ids = (online_ids | pos_ids) - operator_customer_ids()
     if not all_ids:
         return 0
     customers = Customer.objects.filter(id__in=all_ids).annotate(
@@ -180,8 +181,8 @@ def _merge_unique_customer_counts(online_qs, pos_qs, start, kind):
 def _distinct_customer_count(online_qs, pos_qs):
     from apps.customers.models import Customer
 
-    online_ids = online_qs.exclude(customer_id=None).values("customer_id")
-    pos_ids = pos_qs.exclude(customer_id=None).values("customer_id")
+    online_ids = exclude_operator_sales(online_qs.exclude(customer_id=None)).values("customer_id")
+    pos_ids = exclude_operator_sales(pos_qs.exclude(customer_id=None)).values("customer_id")
     if not online_ids.exists():
         return pos_ids.values("customer_id").distinct().count()
     if not pos_ids.exists():
@@ -221,7 +222,9 @@ def sales_line_comparison(start, end):
 def _all_line_metrics(start, end):
     online_qs = qualifying_online_orders().filter(created_at__gte=start, created_at__lt=end)
     online_purchase_count = online_qs.count()
-    online_customer_count = online_qs.exclude(customer_id=None).values("customer_id").distinct().count()
+    online_customer_count = (
+        exclude_operator_sales(online_qs.exclude(customer_id=None)).values("customer_id").distinct().count()
+    )
     online_units = int(
         qualifying_online_items()
         .filter(order__created_at__gte=start, order__created_at__lt=end)
@@ -237,11 +240,15 @@ def _all_line_metrics(start, end):
     )
 
     pos_base = qualifying_pos_sales().filter(created_at__gte=start, created_at__lt=end)
+    operator_ids = operator_customer_ids()
+    customer_count = Count("customer_id", distinct=True)
+    if operator_ids:
+        customer_count = Count("customer_id", distinct=True, filter=~Q(customer_id__in=operator_ids))
     pos_stats = {
         row["sales_line"]: row
         for row in pos_base.values("sales_line").annotate(
             purchase_count=Count("id"),
-            customer_count=Count("customer_id", distinct=True),
+            customer_count=customer_count,
         )
     }
     pos_units = {
@@ -446,6 +453,7 @@ def _product_key(product_id, product_source_id, title):
 
 def product_sales_report(start, end, sales_line=None, search="", sort="units", order="desc", page=1, per_page=20):
     buckets = {}
+    operator_ids = operator_customer_ids()
 
     online_items = filter_by_sales_line_online(
         qualifying_online_items().filter(order__created_at__gte=start, order__created_at__lt=end),
@@ -467,7 +475,7 @@ def product_sales_report(start, end, sales_line=None, search="", sort="units", o
         bucket["units_sold"] += qty
         bucket["online_units"] += qty
         bucket["purchase_ids"].add(f"online:{row['order_id']}")
-        if row["order__customer_id"]:
+        if row["order__customer_id"] and row["order__customer_id"] not in operator_ids:
             bucket["customer_ids"].add(row["order__customer_id"])
         created = row["order__created_at"]
         if created and (bucket["last_sale_at"] is None or created > bucket["last_sale_at"]):
@@ -499,7 +507,7 @@ def product_sales_report(start, end, sales_line=None, search="", sort="units", o
         elif line == SalesLine.CAPRI:
             bucket["capri_units"] += qty
         bucket["purchase_ids"].add(f"pos:{row['pos_sale_id']}")
-        if row["pos_sale__customer_id"]:
+        if row["pos_sale__customer_id"] and row["pos_sale__customer_id"] not in operator_ids:
             bucket["customer_ids"].add(row["pos_sale__customer_id"])
         created = row["pos_sale__created_at"]
         if created and (bucket["last_sale_at"] is None or created > bucket["last_sale_at"]):

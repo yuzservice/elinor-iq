@@ -5,10 +5,12 @@ import pytest
 from django.utils import timezone
 
 from apps.customers.models import Customer
+from apps.customers.tier_refresh import refresh_due_tiers
 from apps.customers.tiers import (
     TIER_LABELS,
     filter_customers_by_tier,
     metrics_for_customers,
+    refresh_stored_tiers,
     tier_code_for,
 )
 from apps.sales.models import Order, OrderItem, PosSale, PosSaleItem, SalesLine
@@ -255,3 +257,39 @@ def test_negative_lifetime_amount_is_not_clamped():
     assert facts["lifetime_purchase_amount"] == -300_000
     assert facts["tier_code"] == "BRONZE_3"
     assert facts["days_since_last_purchase"] == 200
+
+
+@pytest.mark.django_db
+def test_stored_tier_is_written_for_touched_customers_only(auth_api):
+    buyer = _customer(20)
+    untouched = _customer(21)
+    _online(buyer, 200, days=10, amount=100_000)
+    _online(untouched, 201, days=10, amount=100_000)
+
+    before = auth_api.get("/api/customers/?tier=BRONZE_1")
+    assert before.data["total"] == 0
+
+    refresh_stored_tiers([buyer.pk], reference_date=REF)
+    buyer.refresh_from_db()
+    untouched.refresh_from_db()
+    assert buyer.tier_code == "BRONZE_1"
+    assert untouched.tier_code is None
+
+    after = auth_api.get("/api/customers/?tier=BRONZE_1")
+    assert after.data["total"] == 1
+    assert after.data["results"][0]["id"] == buyer.source_id
+    assert after.data["results"][0]["tier_label"] == "برنزی سطح ۱"
+
+    refresh_stored_tiers(reference_date=REF)
+    untouched.refresh_from_db()
+    assert untouched.tier_code == "BRONZE_1"
+
+
+@pytest.mark.django_db
+def test_daily_tier_refresh_runs_once_per_day():
+    buyer = _customer(30)
+    _online(buyer, 300, days=5, amount=100_000)
+    assert refresh_due_tiers() == "done"
+    buyer.refresh_from_db()
+    assert buyer.tier_code in TIER_LABELS
+    assert refresh_due_tiers() == "skipped"

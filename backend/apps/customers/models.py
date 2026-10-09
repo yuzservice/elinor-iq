@@ -94,6 +94,8 @@ class Customer(models.Model):
     first_order_at = models.DateTimeField(null=True, blank=True)
     last_order_at = models.DateTimeField(null=True, blank=True)
     order_count = models.PositiveIntegerField(default=0, db_index=True)
+    tier_code = models.CharField(max_length=16, blank=True, null=True, db_index=True)
+    tier_refreshed_at = models.DateTimeField(null=True, blank=True)
     created_at_source = models.DateTimeField(null=True, blank=True)
     updated_at_source = models.DateTimeField(null=True, blank=True)
     source_payload = models.JSONField(null=True, blank=True)

@@ -177,6 +177,7 @@ class SyncService:
         self.client = ElinorClient()
         self.run = None
         self._fetched_customers = set()
+        self._tier_customer_ids = set()
         self._fetched_products = set()
         self._pos_sales_upserted = 0
         self._pos_items_upserted = 0
@@ -427,6 +428,9 @@ class SyncService:
             pos_end,
         )
         try:
+            from apps.customers.tier_refresh import refresh_due_tiers
+
+            logger.info("Daily customer tier refresh: %s", refresh_due_tiers())
             self.client.authenticate()
             from apps.customers.ingest import repair_stored_customer_profiles
 
@@ -809,6 +813,7 @@ class SyncService:
             customer, created_customer = Customer.objects.get_or_create(source_id=customer_source_id)
             if created_customer:
                 self.run.customers_upserted += 1
+            self._note_tier_customer(customer)
         store_source_id = as_int(row.get("store_id"), default=0)
         store = Store.objects.filter(source_id=store_source_id).first()
         created_at = parse_datetime(row.get("created_at")) or timezone.now()
@@ -926,6 +931,7 @@ class SyncService:
             customer, created_customer = Customer.objects.get_or_create(source_id=customer_source_id)
             if created_customer:
                 self.run.customers_upserted += 1
+            self._note_tier_customer(customer)
         created_at = parse_datetime(row.get("created_at")) or timezone.now()
         defaults = {
             "customer": customer,
@@ -984,6 +990,7 @@ class SyncService:
             self._gateway_payments_upserted += upserted
             order.details_synced_at = timezone.now()
             order.save()
+        self._note_tier_customer(order.customer)
         self._persist_progress()
 
     def _hydrate_customer(self, order):
@@ -1224,6 +1231,20 @@ class SyncService:
             "window_end": self.run.window_end.isoformat() if self.run.window_end else None,
         }
         self.run.save()
+        if status == SyncRun.STATUS_SUCCESS and self._tier_customer_ids:
+            self._refresh_touched_tiers()
+
+    def _note_tier_customer(self, customer):
+        if customer is not None and customer.pk:
+            self._tier_customer_ids.add(customer.pk)
+
+    def _refresh_touched_tiers(self):
+        from apps.customers.tiers import refresh_stored_tiers
+
+        try:
+            refresh_stored_tiers(self._tier_customer_ids)
+        except Exception:
+            logger.exception("Stored tier refresh failed for customers touched by this sync")
 
 
 def pos_week_activity(today=None):

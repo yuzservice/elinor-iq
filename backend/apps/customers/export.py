@@ -47,7 +47,7 @@ def export_row_cells(row):
     return [
         name,
         mobile,
-        row.get("tier_label") or "—",
+        row.get("operator_label") or row.get("tier_label") or "—",
         int(row.get("order_count") or 0),
         int(row.get("lifetime_purchase_amount") or 0),
         format_jalali_date(row.get("first_purchase_at")) or "—",

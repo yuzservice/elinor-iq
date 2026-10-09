@@ -11,13 +11,14 @@ from apps.sales.services import parse_range, window_meta
 from .detail import HISTORY_PER_PAGE, customer_360_payload, product_history, purchase_history
 from .list_query import customer_list_queryset, hydrate_customer_rows, paginate_customers
 from .models import Customer
+from .operators import exclude_operator_accounts
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def reports(request):
     start, end = parse_range(request)
-    all_customers = Customer.objects.all()
+    all_customers = exclude_operator_accounts(Customer.objects.all())
     purchasing = all_customers.purchasing()
     new_customers = purchasing.filter(first_order_at__gte=start, first_order_at__lt=end)
     repeating = purchasing.filter(order_count__gt=1)
@@ -79,6 +80,25 @@ def customer_export(request):
         return response
     except Exception:
         return JsonResponse({"detail": "تهیه خروجی اکسل با خطا مواجه شد."}, status=500)
+
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+def refresh_tiers(request):
+    from .tier_refresh import start_full_tier_refresh, tier_refresh_status
+
+    if request.method == "GET":
+        return Response(tier_refresh_status())
+    started = start_full_tier_refresh()
+    if started:
+        return Response(
+            {"started": True, "detail": "به‌روزرسانی سطح‌ها شروع شد."},
+            status=status.HTTP_202_ACCEPTED,
+        )
+    return Response(
+        {"started": False, "detail": "به‌روزرسانی سطح‌ها در حال انجام است."},
+        status=status.HTTP_200_OK,
+    )
 
 
 @api_view(["GET"])

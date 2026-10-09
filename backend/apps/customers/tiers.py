@@ -9,6 +9,7 @@ from django.db.models.expressions import RawSQL
 from django.db.models.functions import Coalesce, Greatest
 from django.utils import timezone
 
+from apps.customers.operators import operator_customer_ids, operator_mobile_variants
 from apps.sales.models import Order, PosSale, PosSaleItem
 
 TIER_ONLINE_EXCLUDED_STATUSES = ("canceled", "failed", "wait_for_payment")
@@ -154,15 +155,100 @@ def _reference(reference_date):
     return reference_date or application_today()
 
 
+def _facts_sql():
+    mobiles = tuple(sorted(operator_mobile_variants()))
+    slots = ", ".join(["%s"] * len(mobiles))
+    where = f"\n    WHERE COALESCE(c.mobile, '') NOT IN ({slots})" if slots else ""
+    sql = _FACTS_CTE.replace(
+        "LEFT JOIN pos_amount p ON p.customer_id = c.id\n)",
+        f"LEFT JOIN pos_amount p ON p.customer_id = c.id{where}\n)",
+    )
+    return sql, mobiles
+
+
 def _fact_params(reference_date):
-    return [_reference(reference_date), timezone.get_current_timezone_name()]
+    _sql, mobiles = _facts_sql()
+    return [_reference(reference_date), timezone.get_current_timezone_name(), *mobiles]
+
+
+def refresh_stored_tiers(customer_ids=None, reference_date=None):
+    """Write tier_code onto customers.
+
+    A full pass scans every customer once. A list of ids only rewrites those
+    customers, which is what a sync uses after new sales.
+    """
+    if customer_ids is not None:
+        return _refresh_tier_ids(customer_ids, reference_date)
+    return _refresh_all_tiers(reference_date)
+
+
+def _refresh_all_tiers(reference_date):
+    from django.db import connection
+
+    facts_sql, _mobiles = _facts_sql()
+    sql = f"""
+        {facts_sql},
+        scored AS (
+            SELECT customer_id, {_TIER_CASE} AS tier_code
+            FROM facts
+        )
+        UPDATE customers AS c
+        SET tier_code = scored.tier_code,
+            tier_refreshed_at = NOW()
+        FROM scored
+        WHERE c.id = scored.customer_id
+          AND c.tier_code IS DISTINCT FROM scored.tier_code
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(sql, _fact_params(reference_date))
+        updated = cursor.rowcount
+    return updated + clear_operator_tiers()
+
+
+def _refresh_tier_ids(customer_ids, reference_date):
+    from apps.customers.models import Customer
+
+    ids = list({int(pk) for pk in customer_ids if pk})
+    if not ids:
+        return 0
+    updated = 0
+    refreshed_at = timezone.now()
+    for start in range(0, len(ids), 400):
+        chunk = ids[start : start + 400]
+        metrics = metrics_for_customers(chunk, reference_date)
+        grouped = {}
+        for customer_id in chunk:
+            code = (metrics.get(customer_id) or {}).get("tier_code")
+            grouped.setdefault(code, []).append(customer_id)
+        for code, pks in grouped.items():
+            updated += (
+                Customer.objects.filter(pk__in=pks)
+                .exclude(tier_code=code)
+                .update(tier_code=code, tier_refreshed_at=refreshed_at)
+            )
+    return updated + clear_operator_tiers()
+
+
+def clear_operator_tiers():
+    """Desk accounts stay out of every tier, including after a later sync."""
+    from apps.customers.models import Customer
+
+    variants = operator_mobile_variants()
+    if not variants:
+        return 0
+    return (
+        Customer.objects.filter(mobile__in=variants)
+        .exclude(tier_code__isnull=True)
+        .update(tier_code=None, tier_refreshed_at=timezone.now())
+    )
 
 
 def filter_customers_by_tier(qs, tier_code, reference_date=None):
     if tier_code not in TIER_LABELS:
         return qs
+    facts_sql, _mobiles = _facts_sql()
     sql = f"""
-        {_FACTS_CTE}
+        {facts_sql}
         SELECT customer_id
         FROM (
             SELECT customer_id, {_TIER_CASE} AS tier_code
@@ -178,8 +264,9 @@ def tier_population_summary(reference_date=None):
     """Server-side tier counts. One row per assigned tier, plus null."""
     from django.db import connection
 
+    facts_sql, _mobiles = _facts_sql()
     sql = f"""
-        {_FACTS_CTE}
+        {facts_sql}
         SELECT {_TIER_CASE} AS tier_code,
                COUNT(*)::int AS customers,
                COUNT(*) FILTER (WHERE purchase_count > 0)::int AS purchasing
@@ -274,6 +361,7 @@ def metrics_for_customers(customer_ids, reference_date=None):
         .annotate(purchase_count=Count("id"), first_at=Min("created_at"), last_at=Max("created_at"))
     }
     pos_amounts = _pos_amounts(ids)
+    operators = operator_customer_ids() & set(ids)
     payload = {}
     for customer_id in ids:
         online_row = online.get(customer_id) or {}
@@ -285,7 +373,7 @@ def metrics_for_customers(customer_ids, reference_date=None):
         days = None
         if last_at is not None:
             days = (reference - timezone.localtime(last_at).date()).days
-        code = tier_code_for(purchase_count, days, amount)
+        code = None if customer_id in operators else tier_code_for(purchase_count, days, amount)
         payload[customer_id] = {
             "purchase_count": purchase_count,
             "first_purchase_at": first_at,

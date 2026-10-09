@@ -1,6 +1,7 @@
-from django.db.models import Count, F, Max, Min, Q
+from django.db.models import Case, Count, F, IntegerField, Max, Min, Q, Value, When
 
 from apps.customers.models import Customer
+from apps.customers.operators import exclude_operator_accounts, is_operator_account, operator_mobile_variants
 from apps.customers.presentation import customer_status_label, list_payload
 from apps.customers.purchases import (
     SALES_LINE_LABELS,
@@ -11,8 +12,9 @@ from apps.customers.purchases import (
     qualifying_pos_exists,
 )
 from apps.customers.tiers import (
-    filter_customers_by_tier,
+    TIER_LABELS,
     metrics_for_customers,
+    tier_label,
     tier_last_purchase_expression,
     tier_purchase_count_expression,
 )
@@ -44,23 +46,22 @@ def customer_list_queryset(params):
     elif channel == "both":
         qs = qs.filter(qualifying_order_exists(), qualifying_pos_exists())
 
-    if sales_lines:
-        line_q = Q()
-        for sales_line in sales_lines:
-            if sales_line == SalesLine.ONLINE:
-                line_q |= Q(qualifying_order_exists())
-            else:
-                line_q |= Q(qualifying_pos_exists(sales_line=sales_line))
-        qs = qs.filter(line_q)
+    for sales_line in sales_lines:
+        if sales_line == SalesLine.ONLINE:
+            qs = qs.filter(qualifying_order_exists())
+        else:
+            qs = qs.filter(qualifying_pos_exists(sales_line=sales_line))
 
     if search:
         qs = _apply_search(qs, search)
 
-    if tier:
-        qs = filter_customers_by_tier(qs, tier)
+    if tier in TIER_LABELS:
+        qs = exclude_operator_accounts(qs.filter(tier_code=tier))
 
     min_count = _as_int(params.get("min_purchases"))
     max_count = _as_int(params.get("max_purchases"))
+    if not search and _buyer_analytics_filter(population, channel, sales_lines, min_count, max_count, tier):
+        qs = exclude_operator_accounts(qs)
     if min_count is not None or max_count is not None:
         qs = qs.annotate(purchase_count=tier_purchase_count_expression())
         if min_count is not None:
@@ -153,8 +154,8 @@ def hydrate_customer_rows(customers):
                 "last_purchase_at": tier.get("last_purchase_at"),
                 "lifetime_purchase_amount": int(tier.get("lifetime_purchase_amount") or 0),
                 "days_since_last_purchase": tier.get("days_since_last_purchase"),
-                "tier_code": tier.get("tier_code"),
-                "tier_label": tier.get("tier_label"),
+                "tier_code": None if is_operator_account(customer) else (customer.tier_code or None),
+                "tier_label": None if is_operator_account(customer) else tier_label(customer.tier_code),
                 "channel": channel_key,
                 "channel_label": channel_label,
                 "sales_lines": lines,
@@ -191,11 +192,39 @@ def _apply_search(qs, search):
     return qs.filter(combined)
 
 
+def _buyer_analytics_filter(population, channel, sales_lines, min_count, max_count, tier):
+    if tier in TIER_LABELS:
+        return False
+    return bool(
+        population == "purchasing"
+        or channel
+        or sales_lines
+        or min_count is not None
+        or max_count is not None
+    )
+
+
+def _operator_rank():
+    mobiles = list(operator_mobile_variants())
+    if not mobiles:
+        return Value(0, output_field=IntegerField())
+    return Case(
+        When(mobile__in=mobiles, then=Value(1)),
+        default=Value(0),
+        output_field=IntegerField(),
+    )
+
+
 def _apply_sort(qs, sort):
     if sort == "purchase_count":
         if "purchase_count" not in qs.query.annotations:
             qs = qs.annotate(purchase_count=tier_purchase_count_expression())
-        return qs.order_by(F("purchase_count").desc(), F("last_order_at").desc(nulls_last=True), "-source_id")
+        return qs.annotate(operator_rank=_operator_rank()).order_by(
+            "operator_rank",
+            F("purchase_count").desc(),
+            F("last_order_at").desc(nulls_last=True),
+            "-source_id",
+        )
     if sort == "name":
         return qs.order_by(F("last_name").asc(nulls_last=True), F("first_name").asc(nulls_last=True), "-source_id")
     return qs.order_by(F("last_order_at").desc(nulls_last=True), "-source_id")

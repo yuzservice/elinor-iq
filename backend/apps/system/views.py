@@ -16,6 +16,7 @@ from apps.accounts.models import User
 from apps.accounts.permissions import IsSuperAdmin, is_super_admin
 from apps.core.coverage import coverage_payload
 from apps.customers.models import Customer
+from apps.customers.operators import exclude_operator_accounts
 from apps.integrations.elinor.client import current_elinor_credentials
 from apps.integrations.elinor.models import ElinorApiConfig, SyncRun
 from apps.integrations.elinor.sync import POS_BRANCH_STORE_IDS, clear_stuck_sync_runs, pos_range_activity, pos_week_activity
@@ -35,7 +36,7 @@ def status_view(request):
     counts = {
         "orders": Order.objects.count(),
         "customers": Customer.objects.count(),
-        "purchasing_customers": Customer.objects.purchasing().count(),
+        "purchasing_customers": exclude_operator_accounts(Customer.objects.purchasing()).count(),
         "items": OrderItem.objects.count(),
         "pos_sales": PosSale.objects.count(),
         "products": Product.objects.count(),

@@ -258,6 +258,8 @@ export type CustomerRow = {
   days_since_last_purchase: number | null;
   tier_code: string | null;
   tier_label: string | null;
+  is_operator: boolean;
+  operator_label: string | null;
 };
 
 export type CustomerReports = {
@@ -301,6 +303,7 @@ export type CustomerPurchase = {
   sales_line_label: string;
   source_id: number;
   created_at: string;
+  receiver: string;
   type: string;
   type_label: string;
   item_count: number;
@@ -340,10 +343,12 @@ export type Customer360 = {
   items_sold: number;
   sales_line_count: number;
   is_purchasing: boolean;
-  purchase_behavior: "none" | "one_time" | "repeating";
+  purchase_behavior: "none" | "one_time" | "repeating" | "operator";
   purchase_behavior_label: string;
   tier_code: string | null;
   tier_label: string | null;
+  is_operator: boolean;
+  operator_label: string | null;
   channel: "online" | "physical" | "both" | "none";
   channel_label: string;
   profile: {

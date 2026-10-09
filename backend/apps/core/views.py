@@ -7,6 +7,7 @@ from apps.core.home_metrics import home_metric_cards, home_period_window, parse_
 from apps.core.coverage import coverage_payload
 from apps.core.metrics import REVENUE_DEFINITION, STATUS_LABELS
 from apps.customers.models import Customer
+from apps.customers.operators import operator_customer_ids
 from apps.customers.presentation import order_customer_name
 from apps.sales.models import Order, OrderItem, PosSale
 from apps.sales.services import revenue_orders, trend_points, window_meta
@@ -18,10 +19,18 @@ def home_summary(request):
     period = parse_home_period(request.query_params.get("period"))
     start, end = home_period_window(period)
     orders = revenue_orders().filter(created_at__gte=start, created_at__lt=end)
+    operator_ids = operator_customer_ids()
+    customer_count_expr = Count("customer_id", distinct=True)
+    if operator_ids:
+        customer_count_expr = Count(
+            "customer_id",
+            distinct=True,
+            filter=~Q(customer_id__in=operator_ids),
+        )
     stats = orders.aggregate(
         sales=Sum("total_amount"),
         order_count=Count("id"),
-        customer_count=Count("customer_id", distinct=True),
+        customer_count=customer_count_expr,
         shopino=Sum("total_amount", filter=Q(is_shopino=True)),
         website=Sum("total_amount", filter=Q(is_shopino=False)),
     )

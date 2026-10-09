@@ -39,6 +39,8 @@ export function CustomerListPanel({ population = "all" }: { population?: string 
   const [retry, setRetry] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [refreshingTiers, setRefreshingTiers] = useState(false);
+  const [tierMessage, setTierMessage] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [filters, setFilters] = useState<CustomerListFilters>({
     ...EMPTY_CUSTOMER_FILTERS,
@@ -66,6 +68,28 @@ export function CustomerListPanel({ population = "all" }: { population?: string 
     setAdvancedOpen(false);
     setPage(1);
     setExportError(null);
+  }
+
+  async function handleRefreshTiers() {
+    setRefreshingTiers(true);
+    setTierMessage(null);
+    try {
+      const started = await customersService.refreshTiers();
+      setTierMessage(started.detail);
+      const deadline = Date.now() + 10 * 60 * 1000;
+      let running = true;
+      while (running && Date.now() < deadline) {
+        await new Promise((resolve) => window.setTimeout(resolve, 2000));
+        const status = await customersService.tierRefreshStatus();
+        running = status.running;
+      }
+      setTierMessage(running ? "به‌روزرسانی هنوز ادامه دارد. کمی بعد لیست را دوباره باز کنید." : "سطح‌ها به‌روز شد.");
+      if (!running) setRetry((value) => value + 1);
+    } catch (err) {
+      setTierMessage(err instanceof Error ? err.message : "به‌روزرسانی سطح‌ها با خطا مواجه شد.");
+    } finally {
+      setRefreshingTiers(false);
+    }
   }
 
   async function handleExport() {
@@ -126,7 +150,22 @@ export function CustomerListPanel({ population = "all" }: { population?: string 
         <Button type="button" variant="quiet" onClick={() => setAdvancedOpen((open) => !open)}>
           {advancedOpen ? "فیلتر کمتر ▴" : "فیلتر بیشتر ▾"}
         </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          className="min-h-11"
+          onClick={handleRefreshTiers}
+          disabled={refreshingTiers}
+          aria-busy={refreshingTiers}
+        >
+          {refreshingTiers ? "در حال به‌روزرسانی سطح‌ها" : "به‌روزرسانی سطح‌ها"}
+        </Button>
       </div>
+      {tierMessage ? (
+        <p className="mb-3 text-sm text-muted" role="status" aria-live="polite">
+          {tierMessage}
+        </p>
+      ) : null}
 
       {advancedOpen ? (
         <div className="mb-4 flex flex-wrap items-end gap-3">
@@ -164,9 +203,12 @@ export function CustomerListPanel({ population = "all" }: { population?: string 
         </div>
       ) : null}
 
-      {showTierScopeHint ? (
+      {showTierScopeHint || filters.salesLines.length > 1 ? (
         <p className="mb-4 text-xs text-muted">
-          سطح مشتری بر اساس کل خریدها محاسبه می‌شود. خط فروش فقط مشتریانی را نشان می‌دهد که در آن خط خرید داشته‌اند.
+          {showTierScopeHint ? "سطح از آخرین به‌روزرسانی ذخیره‌شده خوانده می‌شود. " : null}
+          {filters.salesLines.length > 1
+            ? "با انتخاب چند خط فروش، فقط مشتریانی می‌آیند که از همهٔ همان خط‌ها خرید داشته‌اند."
+            : null}
         </p>
       ) : null}
 
@@ -213,7 +255,13 @@ export function CustomerListPanel({ population = "all" }: { population?: string 
                     {customer.mobile ? formatMobile(customer.mobile) : INCOMPLETE_LABEL}
                   </td>
                   <td className="px-3 py-2">
-                    {customer.tier_label ? <Badge tone="accent">{customer.tier_label}</Badge> : <span className="text-faint">—</span>}
+                    {customer.is_operator ? (
+                      <Badge tone="warning">{customer.operator_label}</Badge>
+                    ) : customer.tier_label ? (
+                      <Badge tone="accent">{customer.tier_label}</Badge>
+                    ) : (
+                      <span className="text-faint">—</span>
+                    )}
                   </td>
                   <td className="px-3 py-2 tabular">{formatNumber(customer.order_count)}</td>
                   <td className="px-3 py-2 tabular">{formatToman(customer.lifetime_purchase_amount)}</td>

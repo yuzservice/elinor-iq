@@ -4,6 +4,7 @@ import pytest
 from django.utils import timezone
 
 from apps.customers.models import Customer
+from apps.customers.tiers import refresh_stored_tiers
 from apps.customers.presentation import UNNAMED_CUSTOMER
 from apps.sales.models import Order, PosSale, SalesLine
 
@@ -68,6 +69,7 @@ def test_customer_list_default_is_all_customers(auth_api):
     _pos(gorgan, 33, SalesLine.GORGAN, days=5)
     _pos(gorgan, 34, SalesLine.SARI, days=2)
     _online(canceled_only, 26, status="canceled", days=1)
+    refresh_stored_tiers()
 
     listing = auth_api.get("/api/customers/?page=1&per_page=20")
     assert listing.status_code == 200
@@ -148,12 +150,16 @@ def test_customer_list_default_is_all_customers(auth_api):
     gorgan_line = auth_api.get("/api/customers/?sales_line=gorgan")
     capri = auth_api.get("/api/customers/?sales_line=capri")
     online_line = auth_api.get("/api/customers/?sales_line=online")
-    sari_or_gorgan = auth_api.get("/api/customers/?sales_lines=sari,gorgan")
+    sari_and_gorgan = auth_api.get("/api/customers/?sales_lines=sari,gorgan")
+    online_and_sari = auth_api.get("/api/customers/?sales_lines=online,sari")
+    online_and_capri = auth_api.get("/api/customers/?sales_lines=online,capri")
     assert _ids(sari) == {5, 7}
     assert _ids(gorgan_line) == {7}
     assert _ids(capri) == {6}
     assert _ids(online_line) == {2, 3, 4, 6}
-    assert _ids(sari_or_gorgan) == {5, 7}
+    assert _ids(sari_and_gorgan) == {7}
+    assert _ids(online_and_sari) == set()
+    assert _ids(online_and_capri) == {6}
 
     name_search = auth_api.get("/api/customers/?search=نیما")
     full_name_search = auth_api.get("/api/customers/?search=نیما کاظمی")

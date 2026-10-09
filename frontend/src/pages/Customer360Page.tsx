@@ -122,7 +122,11 @@ export function Customer360Page() {
               <Badge tone={data.status_label === "فعال" ? "sage" : "neutral"}>
                 {data.status_label || "وضعیت ثبت نشده"}
               </Badge>
-              <Badge tone={data.is_purchasing ? "sage" : "neutral"}>{data.purchase_behavior_label}</Badge>
+              {data.is_operator ? (
+                <Badge tone="warning">{data.operator_label}</Badge>
+              ) : (
+                <Badge tone={data.is_purchasing ? "sage" : "neutral"}>{data.purchase_behavior_label}</Badge>
+              )}
               {data.tier_label ? <Badge tone="accent">{data.tier_label}</Badge> : null}
               {data.channel !== "none" ? <Badge tone="accent">{data.channel_label}</Badge> : null}
               {data.incomplete ? <Badge tone="warning">{INCOMPLETE_LABEL}</Badge> : null}
@@ -158,8 +162,9 @@ export function Customer360Page() {
         <Summary label="آخرین خرید" value={data.last_purchase_at ? formatDate(data.last_purchase_at) : "ثبت نشده"} />
       </div>
       <p className="mt-3 text-xs leading-6 text-faint">
-        تعداد خرید با تعریف لیست مشتریان یکسان است. مبلغ یکپارچه آنلاین و حضوری ساخته نشده؛ فقط مبلغ ذخیره‌شده سفارش
-        آنلاین در سوابق آمده است.
+        {data.is_operator
+          ? "این حساب دفتر ثبت سفارش است. سفارش‌ها و مبلغ‌شان در فروش می‌مانند و در سطح‌بندی و شمارش مشتری حساب نمی‌شوند. نام گیرنده کنار هر سفارش آنلاین آمده است."
+          : "تعداد خرید با تعریف لیست مشتریان یکسان است. مبلغ یکپارچه آنلاین و حضوری ساخته نشده؛ فقط مبلغ ذخیره‌شده سفارش آنلاین در سوابق آمده است."}
       </p>
 
       <div className="mt-10">
@@ -219,7 +224,7 @@ function PurchaseHistory({
       </div>
       <Table
         compact
-        columns={["تاریخ", "خط فروش", "شناسه", "نوع", "اقلام", "وضعیت", "مبلغ", "جزئیات"]}
+        columns={["تاریخ", "خط فروش", "شناسه", "گیرنده", "نوع", "اقلام", "وضعیت", "مبلغ", "جزئیات"]}
       >
         {purchases.results.map((row) => {
           const open = openKey === row.key;
@@ -231,6 +236,7 @@ function PurchaseHistory({
                   <Badge tone={salesLineTone(row.sales_line)}>{row.sales_line_label}</Badge>
                 </td>
                 <td className="ltr-iso px-3 py-2.5 tabular text-muted">{row.source_id}</td>
+                <td className="px-3 py-2.5 text-muted">{row.receiver || "—"}</td>
                 <td className="px-3 py-2.5 text-muted">{row.type_label}</td>
                 <td className="px-3 py-2.5 tabular">{formatNumber(row.item_count)}</td>
                 <td className="px-3 py-2.5">
@@ -258,7 +264,7 @@ function PurchaseHistory({
               </TableRow>
               {open ? (
                 <tr>
-                  <td colSpan={8} className="bg-hover/60 px-5 py-4">
+                  <td colSpan={9} className="bg-hover/60 px-5 py-4">
                     <PurchaseDetail purchase={row} />
                   </td>
                 </tr>

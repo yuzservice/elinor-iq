@@ -1,4 +1,5 @@
 from apps.core.metrics import STATUS_LABELS
+from apps.customers.operators import operator_payload
 
 UNNAMED_CUSTOMER = "مشتری بدون نام"
 INCOMPLETE_LABEL = "اطلاعات ناقص"
@@ -42,6 +43,7 @@ def list_payload(customer):
         "last_purchase_at": customer.last_order_at,
         "status": customer.status or "—",
         "is_purchasing": customer.order_count > 0,
+        **operator_payload(customer),
     }
 
 

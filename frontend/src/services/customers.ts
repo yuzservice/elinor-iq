@@ -88,6 +88,10 @@ async function downloadExport(path: string, fallbackFilename: string): Promise<v
 export const customersService = {
   reports: () => api<CustomerReports>("/customers/reports/"),
   list: (params: CustomerListParams) => api<Paginated<CustomerRow>>(customerListQuery(params)),
+  refreshTiers: () =>
+    api<{ started: boolean; detail: string }>("/customers/refresh-tiers/", { method: "POST" }),
+  tierRefreshStatus: () =>
+    api<{ running: boolean; last_date: string | null; finished_at: string | null }>("/customers/refresh-tiers/"),
   exportList: (params: CustomerListParams) =>
     downloadExport(customerExportQuery(params), `customers-${new Date().toISOString().slice(0, 10)}.csv`),
   detail: (id: number) => api<Customer360>(`/customers/${id}/`),

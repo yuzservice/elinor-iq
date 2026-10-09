@@ -6,6 +6,7 @@ from django.db.models import Count, Max, Min, Sum
 
 from apps.core.metrics import STATUS_LABELS
 from apps.customers.ingest import addresses_for
+from apps.customers.operators import OPERATOR_LABEL, is_operator_account, operator_payload
 from apps.customers.presentation import (
     UNNAMED_CUSTOMER,
     customer_status_label,
@@ -19,7 +20,7 @@ from apps.customers.purchases import (
     qualifying_orders,
     qualifying_pos,
 )
-from apps.customers.tiers import metrics_for_customers
+from apps.customers.tiers import tier_label
 from apps.sales.models import OrderItem, PosSaleItem, SalesLine
 
 POS_TYPE_LABELS = {
@@ -39,9 +40,9 @@ def customer_360_payload(customer, history_page=1, history_per_page=HISTORY_PER_
     first_at, last_at = _purchase_bounds(customer)
     sales_lines = _sales_line_usage(customer, online_count)
     items_sold = _units_purchased(customer)
-    behavior_key, behavior_label = behavior_for(purchase_count)
+    desk = is_operator_account(customer)
+    behavior_key, behavior_label = ("operator", OPERATOR_LABEL) if desk else behavior_for(purchase_count)
     channel_key, channel_label = channel_for(online_count, pos_count)
-    tier = metrics_for_customers([customer.pk]).get(customer.pk) or {}
     name = (customer.full_name or "").strip()
     status_label = customer_status_label(customer.status)
     return {
@@ -63,8 +64,9 @@ def customer_360_payload(customer, history_page=1, history_per_page=HISTORY_PER_
         "is_purchasing": purchase_count > 0,
         "purchase_behavior": behavior_key,
         "purchase_behavior_label": behavior_label,
-        "tier_code": tier.get("tier_code"),
-        "tier_label": tier.get("tier_label"),
+        "tier_code": None if desk else (customer.tier_code or None),
+        "tier_label": None if desk else tier_label(customer.tier_code),
+        **operator_payload(customer),
         "channel": channel_key,
         "channel_label": channel_label,
         "profile": _profile_payload(customer, status_label),
@@ -89,6 +91,13 @@ def purchase_history(customer, page=1, per_page=HISTORY_PER_PAGE):
     }
 
 
+def _order_receiver_name(row):
+    direct = (row.get("receiver") or "").strip()
+    if direct:
+        return direct
+    return f"{row.get('receiver_first_name') or ''} {row.get('receiver_last_name') or ''}".strip()
+
+
 def _purchase_events(customer):
     events = []
     for row in customer.orders.order_by("-created_at", "-source_id").values(
@@ -96,6 +105,9 @@ def _purchase_events(customer):
         "source_id",
         "created_at",
         "status",
+        "receiver",
+        "receiver_first_name",
+        "receiver_last_name",
         "total_amount",
         "discount_amount",
         "items_count",
@@ -110,6 +122,7 @@ def _purchase_events(customer):
                 "sales_line_label": SALES_LINE_LABELS[SalesLine.ONLINE],
                 "source_id": row["source_id"],
                 "created_at": row["created_at"],
+                "receiver": _order_receiver_name(row),
                 "type": "order",
                 "type_label": "سفارش آنلاین",
                 "item_count": int(row["items_quantity"] or row["items_count"] or 0),
@@ -142,6 +155,7 @@ def _purchase_events(customer):
                 "sales_line_label": SALES_LINE_LABELS.get(row["sales_line"], row["sales_line"]),
                 "source_id": row["source_id"],
                 "created_at": row["created_at"],
+                "receiver": "",
                 "type": row["type"] or "sell",
                 "type_label": POS_TYPE_LABELS.get(row["type"], row["type"] or "فروش"),
                 "item_count": 0,
