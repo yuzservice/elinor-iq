@@ -28,6 +28,11 @@ export function applyTheme(preference: ThemePreference): ResolvedTheme {
   if (typeof document !== "undefined") {
     document.documentElement.dataset.theme = resolved;
     document.documentElement.style.colorScheme = resolved;
+    if (resolved === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
   }
   return resolved;
 }

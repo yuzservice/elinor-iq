@@ -136,7 +136,7 @@ export function JalaliDateField({
             <IconButton type="button" onClick={() => shiftMonth(1)} aria-label="ماه بعد">
               ‹
             </IconButton>
-            <div className="text-sm">
+            <div className="text-sm font-bold text-ink">
               {jalaliMonthName(cursor.jm)} {toFaDigits(cursor.jy)}
             </div>
             <IconButton type="button" onClick={() => shiftMonth(-1)} aria-label="ماه قبل">
@@ -162,7 +162,7 @@ export function JalaliDateField({
                   key={day}
                   type="button"
                   className={`mx-auto flex h-8 w-8 items-center justify-center rounded-full ${
-                    active ? "bg-accent text-on-accent" : "hover:bg-hover"
+                    active ? "bg-accent text-on-accent font-bold shadow-md" : "text-ink hover:bg-hover"
                   }`}
                   onClick={() => {
                     onChange(iso);
@@ -176,6 +176,133 @@ export function JalaliDateField({
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+// 2026 Interactive Persian Date Range Modal
+export function JalaliRangeModal({
+  isOpen,
+  onClose,
+  initialFrom,
+  initialTo,
+  onApply,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  initialFrom: string;
+  initialTo: string;
+  onApply: (from: string, to: string) => void;
+}) {
+  const [from, setFrom] = useState(initialFrom);
+  const [to, setTo] = useState(initialTo);
+
+  useEffect(() => {
+    setFrom(initialFrom);
+    setTo(initialTo);
+  }, [initialFrom, initialTo, isOpen]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+      <div
+        className="w-full max-w-md bento-card p-6 glass-rim shadow-2xl space-y-5 animate-scale-up"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between pb-3 border-b border-line">
+          <div className="flex items-center gap-2">
+            <span className="text-base">📅</span>
+            <h3 className="text-base font-extrabold text-ink">انتخاب بازه تاریخ شمسی</h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-8 w-8 rounded-full bg-elevated hover:bg-hover flex items-center justify-center text-muted hover:text-ink text-sm transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Date fields */}
+        <div className="grid grid-cols-2 gap-3 text-xs">
+          <div>
+            <label className="block text-muted font-semibold mb-1.5">از تاریخ:</label>
+            <JalaliDateField value={from} onChange={setFrom} />
+          </div>
+          <div>
+            <label className="block text-muted font-semibold mb-1.5">تا تاریخ:</label>
+            <JalaliDateField value={to} onChange={setTo} />
+          </div>
+        </div>
+
+        {/* Quick Presets */}
+        <div className="space-y-1.5">
+          <span className="text-[11px] text-faint font-semibold">بازه­‌های پیشنهادی:</span>
+          <div className="flex flex-wrap gap-1.5 text-xs">
+            <button
+              type="button"
+              onClick={() => {
+                const today = todayIso();
+                setFrom(today);
+                setTo(today);
+              }}
+              className="glass-pill px-2.5 py-1 text-muted hover:text-ink hover:border-accent"
+            >
+              امروز
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const today = todayIso();
+                const d = new Date();
+                d.setDate(d.getDate() - 7);
+                const past = d.toISOString().slice(0, 10);
+                setFrom(past);
+                setTo(today);
+              }}
+              className="glass-pill px-2.5 py-1 text-muted hover:text-ink hover:border-accent"
+            >
+              ۷ روز گذشته
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const today = todayIso();
+                const d = new Date();
+                d.setDate(d.getDate() - 30);
+                const past = d.toISOString().slice(0, 10);
+                setFrom(past);
+                setTo(today);
+              }}
+              className="glass-pill px-2.5 py-1 text-muted hover:text-ink hover:border-accent"
+            >
+              ۳۰ روز گذشته
+            </button>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center justify-end gap-2 pt-4 border-t border-line">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl text-xs font-semibold text-muted hover:text-ink hover:bg-hover transition-colors"
+          >
+            انصراف
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onApply(from, to);
+              onClose();
+            }}
+            className="px-5 py-2 rounded-xl bg-accent text-on-accent text-xs font-bold shadow-md hover:opacity-95 transition-all"
+          >
+            اعمال بازه زمانی
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -3,14 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ELINOR IQ</title>
+    <title>ELINOR IQ v2</title>
+    <!-- Vazirmatn Font CDN for immediate ultra-crisp typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <script>
       (function () {
-        var pref = localStorage.getItem("elinor-theme") || "system";
+        var pref = localStorage.getItem("elinor-theme") || "dark";
         var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
         var theme = pref === "light" || pref === "dark" ? pref : dark ? "dark" : "light";
         document.documentElement.dataset.theme = theme;
         document.documentElement.style.colorScheme = theme;
+        if (theme === "dark") {
+          document.documentElement.classList.add("dark");
+        } else {
+          document.documentElement.classList.remove("dark");
+        }
       })();
     </script>
   </head>

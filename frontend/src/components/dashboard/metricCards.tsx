@@ -2,13 +2,13 @@ import type { ReactNode } from "react";
 import { formatNumber, formatToman } from "../../lib/format";
 import type { HomeMetricCard } from "../../types";
 import { ChangePill } from "./primitives";
-import { CONTROL_FOCUS, channelColor, shortLineLabel } from "./tokens";
+import { channelColor, shortLineLabel } from "./tokens";
 
 const KIND_WELL: Record<HomeMetricCard["kind"], string> = {
-  money: "bg-accent/15 text-accent",
-  units: "bg-[color-mix(in_srgb,var(--ch-sari)_16%,transparent)] text-[var(--ch-sari)]",
-  snappay: "bg-[color-mix(in_srgb,var(--ch-gorgan)_16%,transparent)] text-[var(--ch-gorgan)]",
-  digipay: "bg-[color-mix(in_srgb,var(--ch-capri)_16%,transparent)] text-[var(--ch-capri)]",
+  money: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+  units: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+  snappay: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+  digipay: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
 };
 
 export function HomePeriodToggle({
@@ -25,7 +25,11 @@ export function HomePeriodToggle({
     { value: "quarter" as const, label: "سه‌ماهه" },
   ];
   return (
-    <div className="flex max-w-full flex-wrap rounded-full bg-hover p-1" role="group" aria-label="بازه زمانی">
+    <div
+      className="flex max-w-full flex-wrap rounded-2xl bg-elevated p-1 border border-line"
+      role="group"
+      aria-label="بازه زمانی"
+    >
       {options.map((option) => {
         const selected = value === option.value;
         return (
@@ -34,8 +38,10 @@ export function HomePeriodToggle({
             type="button"
             aria-pressed={selected}
             onClick={() => onChange(option.value)}
-            className={`min-h-11 rounded-full px-4 text-[13px] font-medium ${CONTROL_FOCUS} ${
-              selected ? "bg-ink text-canvas" : "text-muted hover:text-ink"
+            className={`min-h-9 rounded-xl px-3.5 text-xs font-semibold transition-all ${
+              selected
+                ? "bg-accent text-on-accent shadow-md"
+                : "text-muted hover:text-ink"
             }`}
           >
             {option.label}
@@ -61,37 +67,49 @@ export function MetricSquareCard({
 
   return (
     <article
-      className={`relative flex h-full flex-col overflow-hidden rounded-[24px] border border-line bg-surface p-5 shadow-soft ${
-        featured ? "min-h-[240px]" : "min-h-[220px]"
+      className={`bento-card glass-rim p-6 flex h-full flex-col justify-between ${
+        featured ? "min-h-[240px] border-t-2 border-t-accent" : "min-h-[220px]"
       }`}
+      onMouseMove={(e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        e.currentTarget.style.setProperty("--mouse-x", `${x}px`);
+        e.currentTarget.style.setProperty("--mouse-y", `${y}px`);
+      }}
     >
       {featured ? (
-        <>
-          <div aria-hidden="true" className="pointer-events-none absolute -left-16 -top-20 h-52 w-52 rounded-full bg-accent/10 blur-3xl" />
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute -bottom-16 right-0 h-40 w-40 rounded-full bg-[color-mix(in_srgb,var(--ch-capri)_22%,transparent)] blur-3xl"
-          />
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-l from-[var(--ch-online)] via-[var(--ch-sari)] to-[var(--ch-capri)]"
-          />
-        </>
-      ) : null}
-      <div className="flex items-start justify-between gap-3">
-        <span className={`flex h-11 w-11 items-center justify-center rounded-2xl ${KIND_WELL[card.kind]}`} aria-hidden="true">
-          {icon}
-        </span>
-        <ChangePill value={card.change_pct} />
-      </div>
-      <div className="mt-4 text-sm font-medium text-ink">{card.label}</div>
-      <div className="mt-2 tabular text-[32px] font-semibold leading-none tracking-tight text-ink">{formatValue(card.total)}</div>
-      {featured && card.change_pct != null ? (
-        <p className="mt-2 text-[13px] text-muted">نسبت به بازه قبل</p>
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -left-16 -top-20 h-52 w-52 rounded-full bg-accent/10 blur-3xl"
+        />
       ) : null}
 
+      <div>
+        <div className="flex items-start justify-between gap-3 relative z-10">
+          <span
+            className={`flex h-11 w-11 items-center justify-center rounded-2xl ${KIND_WELL[card.kind]}`}
+            aria-hidden="true"
+          >
+            {icon}
+          </span>
+          <ChangePill value={card.change_pct} />
+        </div>
+
+        <div className="mt-4 text-xs font-semibold text-muted">{card.label}</div>
+        
+        {/* High contrast number: Using text-ink */}
+        <div className="mt-2 tabular text-3xl lg:text-4xl font-black leading-none tracking-tight text-ink">
+          {formatValue(card.total)}
+        </div>
+
+        {featured && card.change_pct != null ? (
+          <p className="mt-2 text-xs text-muted">نسبت به بازه قبل</p>
+        ) : null}
+      </div>
+
       {featured && lineTotal > 0 ? (
-        <div className="mt-5 flex h-3 overflow-hidden rounded-full bg-[var(--chart-track)]" aria-hidden="true">
+        <div className="mt-5 flex h-2.5 overflow-hidden rounded-full bg-elevated" aria-hidden="true">
           {card.lines.map((line) => (
             <div
               key={line.key}
@@ -104,23 +122,31 @@ export function MetricSquareCard({
         </div>
       ) : null}
 
-      <ul className={`${featured ? "mt-4 grid gap-3 sm:grid-cols-2" : "mt-5 space-y-3 border-t border-line pt-4"}`}>
+      <ul className={`${featured ? "mt-5 grid gap-3 sm:grid-cols-2" : "mt-5 space-y-3 border-t border-line pt-4"}`}>
         {card.lines.map((line) => {
           const share = lineTotal > 0 ? Math.round((Math.max(0, line.value) / lineTotal) * 100) : 0;
           return (
-            <li key={line.key}>
-              <div className="mb-1.5 flex items-center justify-between gap-3 text-[13px]">
-                <span className="flex min-w-0 items-center gap-2 text-muted">
-                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: channelColor(line.key) }} aria-hidden="true" />
+            <li key={line.key} className="text-xs">
+              <div className="mb-1.5 flex items-center justify-between gap-3">
+                <span className="flex min-w-0 items-center gap-2 text-muted font-medium">
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ background: channelColor(line.key) }}
+                    aria-hidden="true"
+                  />
                   <span className="truncate">{shortLineLabel(line.label)}</span>
                 </span>
-                <span className="tabular shrink-0 font-medium text-ink">
+                <span className="tabular shrink-0 font-bold text-ink">
                   {formatValue(line.value)}
-                  {featured ? <span className="mr-2 font-normal text-muted">{formatNumber(share)}٪</span> : null}
+                  {featured ? (
+                    <span className="mr-2 font-normal text-muted">
+                      {formatNumber(share)}٪
+                    </span>
+                  ) : null}
                 </span>
               </div>
               {featured ? null : (
-                <div className="h-1.5 overflow-hidden rounded-full bg-[var(--chart-track)]" aria-hidden="true">
+                <div className="h-1.5 overflow-hidden rounded-full bg-elevated" aria-hidden="true">
                   <div
                     className="h-full rounded-full"
                     style={{
@@ -142,7 +168,7 @@ export function MetricCardIcons({ name }: { name: HomeMetricCard["kind"] }) {
   const common = "h-5 w-5";
   if (name === "units") {
     return (
-      <svg viewBox="0 0 24 24" className={common} fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <svg viewBox="0 0 24 24" className={common} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
         <path d="M6 8h12l-1 11H7L6 8Z" />
         <path d="M9 8V7a3 3 0 0 1 6 0v1" />
       </svg>
@@ -150,7 +176,7 @@ export function MetricCardIcons({ name }: { name: HomeMetricCard["kind"] }) {
   }
   if (name === "snappay") {
     return (
-      <svg viewBox="0 0 24 24" className={common} fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <svg viewBox="0 0 24 24" className={common} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
         <path d="M4 7h16v10H4z" />
         <path d="M8 11h8" />
       </svg>
@@ -158,14 +184,14 @@ export function MetricCardIcons({ name }: { name: HomeMetricCard["kind"] }) {
   }
   if (name === "digipay") {
     return (
-      <svg viewBox="0 0 24 24" className={common} fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <svg viewBox="0 0 24 24" className={common} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
         <rect x="5" y="4" width="14" height="16" rx="2" />
         <path d="M9 8h6M9 12h6" />
       </svg>
     );
   }
   return (
-    <svg viewBox="0 0 24 24" className={common} fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+    <svg viewBox="0 0 24 24" className={common} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
       <path d="M12 3v18M16.5 7.5c0-1.7-2-3-4.5-3S7.5 5.8 7.5 7.5 9.5 10.5 12 10.5s4.5 1.3 4.5 3-2 3-4.5 3-4.5-1.3-4.5-3" />
     </svg>
   );
