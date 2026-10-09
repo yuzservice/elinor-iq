@@ -224,6 +224,28 @@ html:not(.dark) .glass-pill {
   box-shadow: 0 4px 18px rgba(37, 99, 235, 0.4), inset 0 1px 0 rgba(255,255,255,0.3);
 }
 
+/* Luxury Tier Badges */
+.badge-vip {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.18), rgba(236, 72, 153, 0.18));
+  border: 1px solid rgba(236, 72, 153, 0.35);
+  color: #ec4899;
+}
+.badge-diamond {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.18), rgba(59, 130, 246, 0.18));
+  border: 1px solid rgba(6, 182, 212, 0.35);
+  color: #06b6d4;
+}
+.badge-gold {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.18), rgba(217, 119, 6, 0.18));
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #f59e0b;
+}
+.badge-silver {
+  background: rgba(148, 163, 184, 0.15);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  color: #94a3b8;
+}
+
 /* Animations */
 @keyframes pulse-glow {
   0%, 100% { opacity: 1; transform: scale(1); }

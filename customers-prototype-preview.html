@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ELINOR IQ v2 | پیش‌نمایش پرتوتایپ صفحه مشتریان و باشگاه وفاداری</title>
+  <!-- Vazirmatn Persian Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: ['class', '[data-theme="dark"]'],
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Vazirmatn', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            obsidian: '#06080d',
+            cyber: {
+              blue: '#3b82f6',
+              cyan: '#06b6d4',
+              emerald: '#10b981',
+              violet: '#8b5cf6',
+              gold: '#f59e0b',
+              rose: '#f43f5e',
+            }
+          },
+          boxShadow: {
+            'glow-blue': '0 0 30px -5px rgba(59, 130, 246, 0.35)',
+            'glow-gold': '0 0 30px -5px rgba(245, 158, 11, 0.35)',
+            'glow-violet': '0 0 30px -5px rgba(139, 92, 246, 0.3)',
+            'glow-emerald': '0 0 30px -5px rgba(16, 185, 129, 0.35)',
+            'card-light': '0 10px 30px -5px rgba(15, 23, 42, 0.06), 0 0 0 1px rgba(15, 23, 42, 0.05)',
+            'card-dark': '0 20px 40px -15px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08)',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    :root, [data-theme="dark"] {
+      --bg-base: #06080d;
+      --bg-card: rgba(12, 16, 23, 0.85);
+      --bg-elevated: #131924;
+      --text-main: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-faint: #64748b;
+      --border-card: rgba(255, 255, 255, 0.08);
+      --glass-highlight: rgba(255, 255, 255, 0.12);
+      --glow-mesh-1: rgba(59, 130, 246, 0.14);
+      --glow-mesh-2: rgba(245, 158, 11, 0.10);
+      --glow-mesh-3: rgba(139, 92, 246, 0.10);
+      --frame-border: #18202c;
+      --hover-color: rgba(255, 255, 255, 0.04);
+    }
+    [data-theme="light"] {
+      --bg-base: #f1f5f9;
+      --bg-card: #ffffff;
+      --bg-elevated: #f8fafc;
+      --text-main: #090d16;
+      --text-secondary: #475569;
+      --text-faint: #94a3b8;
+      --border-card: rgba(15, 23, 42, 0.09);
+      --glass-highlight: rgba(255, 255, 255, 0.98);
+      --glow-mesh-1: rgba(59, 130, 246, 0.07);
+      --glow-mesh-2: rgba(245, 158, 11, 0.05);
+      --glow-mesh-3: rgba(139, 92, 246, 0.05);
+      --frame-border: #cbd5e1;
+      --hover-color: rgba(15, 23, 42, 0.04);
+    }
+
+    body {
+      font-family: 'Vazirmatn', sans-serif;
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      transition: background-color 0.3s cubic-bezier(0.16, 1, 0.3, 1), color 0.3s ease;
+      font-feature-settings: "ss01", "ss02";
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .tabular {
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Ambient 2026 Liquid Aurora Background */
+    .aurora-bg {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(1100px 550px at 85% -10%, var(--glow-mesh-1), transparent 60%),
+        radial-gradient(900px 500px at 15% 105%, var(--glow-mesh-2), transparent 55%),
+        radial-gradient(700px 450px at 50% 45%, var(--glow-mesh-3), transparent 65%),
+        var(--bg-base);
+    }
+
+    /* 2026 Interactive Spotlight Bento Card */
+    .bento-card {
+      position: relative;
+      background: var(--bg-card);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border-card);
+      border-radius: 28px;
+      overflow: hidden;
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+    }
+
+    .bento-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 28px;
+      padding: 1px;
+      background: radial-gradient(450px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(59, 130, 246, 0.22), transparent 45%);
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .bento-card:hover::before {
+      opacity: 1;
+    }
+
+    .bento-card:hover {
+      transform: translateY(-2px);
+    }
+
+    [data-theme="dark"] .bento-card:hover {
+      box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.6);
+      border-color: rgba(255, 255, 255, 0.16);
+    }
+
+    [data-theme="light"] .bento-card:hover {
+      box-shadow: 0 20px 35px -8px rgba(15, 23, 42, 0.12);
+      border-color: rgba(59, 130, 246, 0.3);
+    }
+
+    .glass-rim {
+      box-shadow: inset 0 1px 0 0 var(--glass-highlight);
+    }
+
+    /* 2026 Floating Glass Pill */
+    .glass-pill {
+      border: 1px solid var(--border-card);
+      border-radius: 9999px;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    [data-theme="dark"] .glass-pill {
+      background: rgba(255, 255, 255, 0.05);
+      color: #94a3b8;
+    }
+    [data-theme="light"] .glass-pill {
+      background: rgba(255, 255, 255, 0.75);
+      color: #475569;
+    }
+
+    .glass-pill.active {
+      background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%) !important;
+      border-color: rgba(255, 255, 255, 0.3) !important;
+      color: #ffffff !important;
+      box-shadow: 0 4px 18px rgba(37, 99, 235, 0.4), inset 0 1px 0 rgba(255,255,255,0.3);
+    }
+
+    /* Mobile Device Frame styling */
+    .mobile-frame {
+      width: 390px;
+      height: 844px;
+      border-radius: 54px;
+      box-shadow: 0 0 0 12px var(--frame-border), 0 30px 80px -15px rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+      position: relative;
+      background: var(--bg-base);
+    }
+
+    .dynamic-island {
+      width: 122px;
+      height: 30px;
+      background: #000;
+      border-radius: 22px;
+      margin: 11px auto 4px auto;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px;
+    }
+
+    /* Floating VisionOS style dock on mobile */
+    .floating-dock {
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border-radius: 36px;
+    }
+    [data-theme="dark"] .floating-dock {
+      background: rgba(15, 22, 33, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    }
+    [data-theme="light"] .floating-dock {
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid rgba(15, 23, 42, 0.12);
+      box-shadow: 0 20px 40px -10px rgba(15, 23, 42, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    }
+
+    /* Shimmer animation for live badge */
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.55; transform: scale(1.15); }
+    }
+    .pulse-glow {
+      animation: pulse-glow 2.4s infinite cubic-bezier(0.4, 0, 0.6, 1);
+    }
+
+    /* Luxury Tier Badges */
+    .badge-vip {
+      background: linear-gradient(135deg, rgba(168, 85, 247, 0.18), rgba(236, 72, 153, 0.18));
+      border: 1px solid rgba(236, 72, 153, 0.35);
+      color: #ec4899;
+    }
+    .badge-diamond {
+      background: linear-gradient(135deg, rgba(6, 182, 212, 0.18), rgba(59, 130, 246, 0.18));
+      border: 1px solid rgba(6, 182, 212, 0.35);
+      color: #06b6d4;
+    }
+    .badge-gold {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.18), rgba(217, 119, 6, 0.18));
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      color: #f59e0b;
+    }
+    .badge-silver {
+      background: rgba(148, 163, 184, 0.15);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body class="min-h-screen text-slate-900 dark:text-white relative selection:bg-blue-500 selection:text-white">
+
+  <!-- Ambient Aurora Background -->
+  <div class="aurora-bg"></div>
+
+  <!-- Meta Control Header (Top Bar with View Switcher & Theme Toggle) -->
+  <header class="sticky top-0 z-50 border-b border-slate-200 dark:border-white/10 bg-white/85 dark:bg-slate-950/85 backdrop-blur-xl px-4 py-2.5 text-slate-900 dark:text-white transition-colors">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      
+      <!-- Brand & Page Identification -->
+      <div class="flex items-center gap-3">
+        <div class="h-9 w-9 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-400 p-[1px] shadow-lg shadow-blue-500/25">
+          <div class="h-full w-full bg-slate-950 rounded-[11px] flex items-center justify-center font-extrabold text-transparent bg-clip-text bg-gradient-to-tr from-blue-400 to-cyan-300 text-sm">
+            EQ
+          </div>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-black tracking-wider uppercase text-blue-600 dark:text-blue-400">ELINOR IQ v2.2</span>
+            <span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/25 text-blue-600 dark:text-blue-300 font-semibold">
+              پرتوتایپ صفحه مشتریان و باشگاه وفاداری ۲۰۲۶
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400">پیش‌نمایش تعاملی دسکتاپ و موبایل • طراحی کاملاً لوکس و بدون باگ کنتراست</p>
+        </div>
+      </div>
+
+      <!-- Live Switchers (Desktop/Mobile & Theme) -->
+      <div class="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/90 p-1 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm">
+        <button id="view-desktop-btn" onclick="switchView('desktop')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white transition-all shadow-md">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+          نمای دسکتاپ (۱۴۴۰px)
+        </button>
+        <button id="view-mobile-btn" onclick="switchView('mobile')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-white transition-all">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+          نمای موبایل (۳۹۰px)
+        </button>
+        <div class="h-4 w-[1px] bg-slate-300 dark:bg-slate-700 mx-1"></div>
+        <button onclick="toggleTheme()" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-slate-800 text-slate-800 dark:text-amber-300 transition-all border border-slate-200 dark:border-slate-700 shadow-sm">
+          <span id="theme-icon">☀️</span>
+          <span id="theme-text">حالت روشن</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ============================================================== -->
+  <!-- 1. DESKTOP VIEW CONTAINER (1440px)                             -->
+  <!-- ============================================================== -->
+  <div id="desktop-container" class="relative z-10 transition-all duration-300">
+    <div class="flex min-h-[calc(100vh-57px)]">
+      
+      <!-- 2026 Floating Style Sidebar -->
+      <aside class="w-64 shrink-0 p-5 flex flex-col justify-between">
+        <div class="space-y-6">
+          
+          <!-- Brand Badge Card -->
+          <div class="bento-card p-4 glass-rim">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-[10px] font-extrabold tracking-[0.25em] text-blue-600 dark:text-blue-400 uppercase">ELINOR BOUTIQUE</div>
+                <div class="text-base font-extrabold mt-0.5 tracking-tight flex items-center gap-2 text-slate-900 dark:text-white">
+                  <span>هوش فروشگاهی</span>
+                  <span class="h-2 w-2 rounded-full bg-emerald-500 pulse-glow"></span>
+                </div>
+              </div>
+              <div class="h-7 w-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                ✨
+              </div>
+            </div>
+
+            <!-- Branch Quick Switcher Menu -->
+            <div class="mt-4 pt-3 border-t border-slate-200 dark:border-white/5">
+              <label class="text-[10px] text-slate-500 dark:text-slate-400 font-semibold block mb-1.5">شعبه فعال:</label>
+              <select class="w-full bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-white/10 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500 cursor-pointer">
+                <option>همه خطوط فروش (۴ شعبه)</option>
+                <option>فروشگاه آنلاین (سایت)</option>
+                <option>شعبه ساری (حضوری POS)</option>
+                <option>شعبه گرگان (حضوری POS)</option>
+                <option>شعبه کاپری (حضوری POS)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Navigation Pills (With Customers active!) -->
+          <nav class="space-y-1.5">
+            <a href="#" class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/5 text-xs font-semibold transition-all">
+              <div class="flex items-center gap-3">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+                <span>داشبورد و بینش فروش</span>
+              </div>
+            </a>
+
+            <a href="#" class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/5 text-xs font-semibold transition-all">
+              <div class="flex items-center gap-3">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                <span>تحلیل پیشرفته فروش</span>
+              </div>
+            </a>
+
+            <!-- Active Customers Link -->
+            <a href="#" class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-blue-600 text-white font-bold text-xs shadow-glow-blue border border-blue-400/30">
+              <div class="flex items-center gap-3">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                <span>مشتریان و شناسنامه ۳۶۰</span>
+              </div>
+              <span class="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-mono">۴,۲۱۸</span>
+            </a>
+
+            <a href="#" class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/5 text-xs font-semibold transition-all">
+              <div class="flex items-center gap-3">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                <span>موجودی و تنوع سایز</span>
+              </div>
+            </a>
+
+            <a href="#" class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/5 text-xs font-semibold transition-all">
+              <div class="flex items-center gap-3">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                <span>دایرکت اینستاگرام</span>
+              </div>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 text-white font-bold shadow-sm">۳ پیام</span>
+            </a>
+          </nav>
+        </div>
+
+        <!-- Sidebar User Card -->
+        <div class="bento-card p-3 flex items-center justify-between glass-rim">
+          <div class="flex items-center gap-2.5">
+            <div class="h-9 w-9 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-500 p-[1px]">
+              <div class="h-full w-full bg-slate-900 rounded-[15px] flex items-center justify-center font-bold text-white text-xs">
+                RS
+              </div>
+            </div>
+            <div>
+              <div class="text-xs font-bold text-slate-900 dark:text-white">رضا سلطانی</div>
+              <div class="text-[10px] text-slate-500 dark:text-slate-400">مدیر ارشد فروشگاه</div>
+            </div>
+          </div>
+          <button title="خروج" class="p-1.5 rounded-xl hover:bg-slate-200 dark:hover:bg-white/10 text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+          </button>
+        </div>
+      </aside>
+
+      <!-- Main Customers Workspace -->
+      <main class="flex-1 p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+        
+        <!-- Header & Action Row -->
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-2.5">
+              <h1 class="text-2xl font-black tracking-tight text-slate-950 dark:text-white">باشگاه مشتریان و شناسنامه ۳۶۰</h1>
+              <span class="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400 font-bold border border-blue-500/25">
+                ۴,۲۱۸ پرونده هوشمند
+              </span>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              مدیریت رفتار خرید، تفکیک خریداران بر اساس رتبه وفاداری (VIP / الماس / طلایی / نقره‌ای) و ارتباط یکپارچه با صندوق شعب
+            </p>
+          </div>
+
+          <div class="flex items-center gap-2.5">
+            <button class="glass-pill px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-white flex items-center gap-2 shadow-sm transition-all">
+              <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              <span>خروجی اکسل کامل</span>
+            </button>
+
+            <button class="px-4 py-2 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-glow-blue flex items-center gap-2 transition-all">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+              <span>محاسبه مجدد سطوح وفاداری</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 4 Top KPI Bento Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          
+          <!-- Card 1: Total -->
+          <div class="bento-card p-5 glass-rim shadow-card-light dark:shadow-card-dark">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-600 dark:text-slate-400">کل مشتریان پایگاه داده</span>
+              <div class="h-8 w-8 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-sm">
+                👥
+              </div>
+            </div>
+            <div class="mt-3">
+              <div class="text-3xl font-black text-slate-950 dark:text-white tabular">۴,۲۱۸</div>
+              <div class="flex items-center gap-1.5 text-xs mt-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
+                <span>↑ ۴.۸٪</span>
+                <span class="text-slate-500 dark:text-slate-400 font-normal">عضویت جدید این ماه</span>
+              </div>
+            </div>
+            <div class="mt-3 pt-2.5 border-t border-slate-200 dark:border-white/5 flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
+              <span>وبسایت: ۱,۸۵۰</span>
+              <span>شعب ۳گانه: ۲,۳۶۸</span>
+            </div>
+          </div>
+
+          <!-- Card 2: Active Buyers -->
+          <div class="bento-card p-5 glass-rim shadow-card-light dark:shadow-card-dark">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-600 dark:text-slate-400">مشتریان خریدار فعال</span>
+              <div class="h-8 w-8 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-sm">
+                🛍️
+              </div>
+            </div>
+            <div class="mt-3">
+              <div class="text-3xl font-black text-slate-950 dark:text-white tabular">۲,۸۴۰</div>
+              <div class="flex items-center gap-1.5 text-xs mt-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
+                <span>۶۷.۳٪</span>
+                <span class="text-slate-500 dark:text-slate-400 font-normal">نرخ تبدیل ثبت‌نام به خرید</span>
+              </div>
+            </div>
+            <div class="mt-3 pt-2.5 border-t border-slate-200 dark:border-white/5 flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
+              <span>خرید اولی: ۱,۲۱۶</span>
+              <span>چندبار خرید: ۱,۶۲۴</span>
+            </div>
+          </div>
+
+          <!-- Card 3: Average LTV -->
+          <div class="bento-card p-5 glass-rim shadow-card-light dark:shadow-card-dark">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-600 dark:text-slate-400">میانگین ارزش مشتری (LTV)</span>
+              <div class="h-8 w-8 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold text-sm">
+                💎
+              </div>
+            </div>
+            <div class="mt-3">
+              <div class="text-3xl font-black text-slate-950 dark:text-white tabular">
+                ۶,۱۵۰,۰۰۰ <span class="text-xs font-normal text-slate-500 dark:text-slate-400">تومان</span>
+              </div>
+              <div class="flex items-center gap-1.5 text-xs mt-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
+                <span>↑ ۱۱.۲٪</span>
+                <span class="text-slate-500 dark:text-slate-400 font-normal">رشد سبد در ۶ ماه</span>
+              </div>
+            </div>
+            <div class="mt-3 pt-2.5 border-t border-slate-200 dark:border-white/5 flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
+              <span>میانگین فاکتور: ۳.۴</span>
+              <span class="text-purple-600 dark:text-purple-400 font-bold">شعبه ساری بالاترین</span>
+            </div>
+          </div>
+
+          <!-- Card 4: VIP Tier -->
+          <div class="bento-card p-5 glass-rim shadow-card-light dark:shadow-card-dark">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-600 dark:text-slate-400">کلوب مشتریان وفادار (VIP/طلا)</span>
+              <div class="h-8 w-8 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold text-sm">
+                👑
+              </div>
+            </div>
+            <div class="mt-3">
+              <div class="text-3xl font-black text-slate-950 dark:text-white tabular">۳۴۲</div>
+              <div class="flex items-center gap-1.5 text-xs mt-1.5 text-amber-600 dark:text-amber-400 font-bold">
+                <span>۴۲٪</span>
+                <span class="text-slate-500 dark:text-slate-400 font-normal">از کل درآمد بوتیک</span>
+              </div>
+            </div>
+            <div class="mt-3 pt-2.5 border-t border-slate-200 dark:border-white/5 flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
+              <span>VIP الماس: ۴۸ نفر</span>
+              <span class="text-amber-600 dark:text-amber-400 font-bold">طلایی: ۲۹۴ نفر</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Smart Filter & Search Bento Toolbar -->
+        <div class="bento-card p-5 glass-rim shadow-card-light dark:shadow-card-dark space-y-4">
+          
+          <!-- Search & Population Row -->
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            
+            <!-- Quick Search Input with Icon -->
+            <div class="relative flex-1 min-w-[280px]">
+              <span class="absolute inset-y-0 right-3.5 flex items-center pointer-events-none text-slate-400">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              </span>
+              <input
+                id="search-input"
+                type="text"
+                oninput="filterCustomers()"
+                placeholder="جستجوی هوشمند نام، شماره موبایل یا کد اشتراک مشتری..."
+                class="w-full pl-4 pr-10 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-white/10 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
+              >
+            </div>
+
+            <!-- Population Filter Tabs -->
+            <div class="flex items-center bg-slate-100 dark:bg-slate-900/80 p-1 rounded-2xl border border-slate-200 dark:border-white/10 text-xs">
+              <button onclick="setPopulation('all', this)" class="glass-pill active px-3 py-1.5 font-bold">همه (۴,۲۱۸)</button>
+              <button onclick="setPopulation('purchasing', this)" class="glass-pill px-3 py-1.5 text-slate-600 dark:text-slate-400">خریداران (۲,۸۴۰)</button>
+              <button onclick="setPopulation('registered', this)" class="glass-pill px-3 py-1.5 text-slate-600 dark:text-slate-400">بدون خرید (۱,۳۷۸)</button>
+              <button onclick="setPopulation('vip', this)" class="glass-pill px-3 py-1.5 text-slate-600 dark:text-slate-400">کلوب وفاداری (۳۴۲)</button>
+            </div>
+          </div>
+
+          <!-- Secondary Filters Strip -->
+          <div class="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-white/5 text-xs">
+            <div class="flex flex-wrap items-center gap-2">
+              
+              <!-- Tier Selector -->
+              <select id="tier-select" onchange="filterCustomers()" class="bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-white/10 rounded-xl px-3 py-1.5 font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500 cursor-pointer">
+                <option value="">همه رتبه‌های وفاداری</option>
+                <option value="VIP">👑 سطح VIP (خرید بالای ۵۰ م)</option>
+                <option value="DIAMOND">💎 سطح الماس (خرید ۳۰ تا ۵۰ م)</option>
+                <option value="GOLD_1">⭐️ طلایی سطح ۱ (خرید ۱۵ تا ۳۰ م)</option>
+                <option value="GOLD_2">⭐️ طلایی سطح ۲ (خرید ۱۰ تا ۱۵ م)</option>
+                <option value="SILVER">🥈 نقره‌ای (خرید ۵ تا ۱۰ م)</option>
+                <option value="BRONZE">🥉 برنزی (تا ۵ م)</option>
+              </select>
+
+              <!-- Branch Selector -->
+              <select id="branch-select" onchange="filterCustomers()" class="bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-white/10 rounded-xl px-3 py-1.5 font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500 cursor-pointer">
+                <option value="">همه کانال‌های خرید</option>
+                <option value="online">آنلاین (وب‌سایت)</option>
+                <option value="sari">شعبه ساری</option>
+                <option value="gorgan">شعبه گرگان</option>
+                <option value="capri">شعبه کاپری</option>
+              </select>
+
+              <!-- Min Purchases Filter -->
+              <input
+                id="min-purchases"
+                type="number"
+                placeholder="حداقل خرید (تعداد)"
+                oninput="filterCustomers()"
+                class="w-36 bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-white/10 rounded-xl px-3 py-1.5 font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500"
+              >
+
+              <button onclick="resetFilters()" class="text-xs text-slate-500 hover:text-rose-500 transition-colors mr-2">
+                ✕ بازنشانی فیلترها
+              </button>
+            </div>
+
+            <!-- Active results counter -->
+            <div class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+              نمایش <span id="filtered-count" class="font-bold text-slate-900 dark:text-white tabular">۶</span> از ۴,۲۱۸ مشتری
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 2026 High-Contrast Desktop Customer Table -->
+        <div class="bento-card p-6 glass-rim shadow-card-light dark:shadow-card-dark overflow-hidden">
+          
+          <div class="overflow-x-auto">
+            <table class="w-full text-right text-xs">
+              <thead>
+                <tr class="text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-white/10 pb-3 font-semibold">
+                  <th class="py-3 px-3">نام و مشخصات مشتری</th>
+                  <th class="py-3 px-3">شماره تماس</th>
+                  <th class="py-3 px-3">رتبه وفاداری</th>
+                  <th class="py-3 px-3">کل خرید (LTV)</th>
+                  <th class="py-3 px-3">تعداد فاکتور</th>
+                  <th class="py-3 px-3">آخرین خرید</th>
+                  <th class="py-3 px-3">کانال‌های استفاده‌شده</th>
+                  <th class="py-3 px-3">وضعیت</th>
+                  <th class="py-3 px-3 text-center">شناسنامه ۳۶۰</th>
+                </tr>
+              </thead>
+              <tbody id="customer-table-body" class="divide-y divide-slate-200 dark:divide-white/5">
+                
+                <!-- Row 1: VIP Mahsa Kazemi -->
+                <tr class="customer-row hover:bg-slate-100/60 dark:hover:bg-white/[0.03] transition-colors" data-name="مهسا کاظمی" data-mobile="09111234567" data-tier="VIP" data-branch="online,sari" data-population="purchasing,vip">
+                  <td class="py-3.5 px-3">
+                    <div class="flex items-center gap-3">
+                      <div class="h-9 w-9 rounded-2xl bg-gradient-to-tr from-pink-500 to-rose-600 flex items-center justify-center font-bold text-white text-xs shadow-sm">
+                        MK
+                      </div>
+                      <div>
+                        <div class="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <span>مهسا کاظمی</span>
+                          <span class="text-[9px] px-1.5 py-0.2 rounded bg-pink-500/15 text-pink-500 font-extrabold border border-pink-500/30">VIP</span>
+                        </div>
+                        <div class="text-[10px] text-slate-400 font-mono mt-0.5">شناسه: #EL-4091</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="py-3.5 px-3 font-mono tabular text-slate-600 dark:text-slate-300 ltr-iso">۰۹۱۱ ۱۲۳ ۴۵۶۷</td>
+                  <td class="py-3.5 px-3">
+                    <span class="badge-vip text-[11px] font-extrabold px-2.5 py-1 rounded-xl shadow-sm inline-flex items-center gap-1">
+                      👑 VIP پلاتینیوم
+                    </span>
+                  </td>
+                  <td class="py-3.5 px-3">
+                    <div class="font-black text-slate-900 dark:text-white tabular text-sm">۴۲,۸۵۰,۰۰۰</div>
+                    <div class="text-[10px] text-slate-400">تومان</div>
+                  </td>
+                  <td class="py-3.5 px-3">
+                    <div class="font-bold text-slate-900 dark:text-white tabular">۱۲ خرید</div>
+                    <div class="text-[10px] text-slate-400">۷ آنلاین • ۵ ساری</div>
+                  </td>
+                  <td class="py-3.5 px-3">
+                    <div class="font-medium text-slate-900 dark:text-white font-mono">۱۴۰۵/۰۷/۲۴</div>
+                    <div class="text-[10px] text-blue-500">آنلاین (۲ روز قبل)</div>
+                  </td>
+                  <td class="py-3.5 px-3">
+                    <div class="flex items-center gap-1">
+                      <span class="px-2 py-0.5 rounded-md bg-blue-500/15 text-blue-600 dark:text-blue-400 text-[10px] font-semibold border border-blue-500/25">آنلاین</span>
+                      <span class="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-semibold border border-emerald-500/25">ساری</span>
+                    </div>
+                  </td>
+                  <td class="py-3.5 px-3">
+                    <span class="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-semibold text-[11px]">فعال و وفادار</span>
+                  </td>
+                  <td class="py-3.5 px-3 text-center">
+                    <a href="#" class="px-3 py-1.5 rounded-xl bg-blue-500/10 hover:bg-blue-600 text-blue-600 hover:text-white font-bold text-xs transition-all inline-flex items-center gap-1 shadow-sm">
+                      <span>شناسنامه ۳۶۰</span>
+                      <span>←</span>
+                    </a>
+                  </td>
+                </tr>
+
+                <!-- Row 2: Niloofar Radmanesh -->
+                <tr class="customer-row hover:bg-slate-100/60 dark:hover:bg-white/[0.03] transition-colors" data-name="نیلوفر رادمنش" data-mobile="09123456789" data-tier="DIAMOND" data-branch="gorgan" data-population="purchasing,vip">
+                  <td class="py-3.5 px-3">
+                    <div class="flex items-center gap-3">
+                      <div class="h-9 w-9 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center font-bold text-white text-xs shadow-sm">
+                        NR
+                      </div>
+                      <div>
+                        <div class="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <span>نیلوفر رادمنش</span>
+                          <span class="text-[9px] px-1.5 py-0.2 rounded bg-cyan-500/15 text-cyan-500 font-extrabold border border-cyan-500/30">الماس</span>
+                        </div>
+                        <div class="text-[10px] text-slate-400 font-mono mt-0.5">شناسه: #EL-3104</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="py-3.5 px-3 font-mono tabular text-slate-600 dark:text-slate-300 ltr-iso">۰۹۱۲ ۳۴۵ ۶۷۸۹</td>
+                  <td class="py-3.5 px-3">
+                    <span class="badge-diamond text-[11px] font-extrabold px-2.5 py-1 rounded-xl shadow-sm inline-flex items-center gap-1">
+                      💎 الماس الینور
+                    </span>
+                  </td>
+                  <td class="py-3.5 px-3">
+                    <div class="font-black text-slate-900 dark:text-white tabular text-sm">۳۱,۴۰۰,۰۰۰</div>
+                    <div class="text-[10px] text-slate-400">تومان</div>
+                  </td>
+                  <td class="py-3.5 px-3">
+                    <div class="font-bold text-slate-900 dark:text-white tabular">۸ خرید</div>
+                    <div class="text-[10px] text-slate-400">حضوری گرگان</div>
+                  </td>
+                  <td class="py-3.5 px-3">
+                    <div class="font-medium text-slate-900 dark:text-white font-mono">۱۴۰۵/۰۷/۲۰</div>
+                    <div class="text-[10px] text-amber-500">شعبه گرگان</div>
+                  </td>
+                  <td class="py-3.5 px-3">
+                    <span class="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[10px] font-semibold border border-amber-500/25">گرگان</span>
+                  </td>
+                  <td class="py-3.5 px-3">
+                    <span class="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-semibold text-[11px]">فعال</span>
+                  </td>
+                  <td class="py-3.5 px-3 text-center">
+                    <a href="#" class="px-3 py-1.5 rounded-xl bg-blue-500/10 hover:bg-blue-600 text-blue-600 hover:text-white font-bold text-xs transition-all inline-flex items-center gap-1 shadow-sm">
+                      <span>شناسنامه ۳۶۰</span>
+                      <span>←</span>
+                    </a>
+                  </td>
+                </tr>
+
+                <!-- Row 3: Sara Mohammadi -->
+                <tr class="customer-row hover:bg-slate-100/60 dark:hover:bg-white/[0.03] transition-colors" data-name="سارا محمدی" data-mobile="09117654321" data-tier="GOLD_1" data-branch="sari,capri" data-population="purchasing,vip">
+                  <td class="py-3.5 px-3">
+                    <div class="flex items-center gap-3">
+                      <div class="h-9 w-9 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-600 flex items-center justify-center font-bold text-white text-xs shadow-sm">
+                        SM
+                      </div>
+                      <div>
+                        <div class="font-bold text-slate-900 dark:text-white">سارا محمدی</div>
+                        <div class="text-[10px] text-slate-400 font-mono mt-0.5">شناسه: #EL-2890</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="py-3.5 px-3 font-mono tabular text-slate-600 dark:text-slate-300 ltr-iso">۰۹۱۱ ۷۶۵ ۴۳۲۱</td>
+                  <td class="py-3.5 px-3">
+                    <span class="badge-gold text-[11px] font-extrabold px-2.5 py-1 rounded-xl shadow-sm inline-flex items-center gap-1">
+                      ⭐️ طلایی سطح ۱
+                    </span>
+                  </td>
+                  <td class="py-3.5 px-3">
+                    <div class="font-black text-slate-900 dark:text-white tabular text-sm">۱۹,۷۰۰,۰۰۰</div>
+                    <div class="text-[10px] text-slate-400">تومان</div>
+                  </td>
+                  <td class="py-3.5 px-3">
+                    <div class="font-bold text-slate-900 dark:text-white tabular">۶ خرید</div>
+                    <div class="text-[10px] text-slate-400">۴ ساری • ۲ کاپری</div>
+                  </td>
+                  <td class="py-3.5 px-3">
+                    <div class="font-medium text-slate-900 dark:text-white font-mono">۱۴۰۵/۰۷/۱۵</div>
+                    <div class="text-[10px] text-purple-500">شعبه کاپری</div>
+                  </td>
+                  <td class="py-3.5 px-3">
+                    <div class="flex items-center gap-1">
+                      <span class="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-semibold border border-emerald-500/25">ساری</span>
+                      <span class="px-2 py-0.5 rounded-md bg-purple-500/15 text-purple-600 dark:text-purple-400 text-[10px] font-semibold border border-purple-500/25">کاپری</span>
+                    </div>
+                  </td>
+                  <td class="py-3.5 px-3">
+                    <span class="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-semibold text-[11px]">فعال</span>
+                  </td>
+                  <td class="py-3.5 px-3 text-center">
+                    <a href="#" class="px-3 py-1.5 rounded-xl bg-blue-500/10 hover:bg-blue-600 text-blue-600 hover:text-white font-bold text-xs transition-all inline-flex items-center gap-1 shadow-sm">
+                      <span>شناسنامه ۳۶۰</span>
+                      <span>←</span>
+                    </a>
+                  </td>
+                </tr>
+
+                <!-- Row 4: Zahra Hosseini -->
+                <tr class="customer-row hover:bg-slate-100/60 dark:hover:bg-white/[0.03] transition-colors" data-name="زهرا حسینی" data-mobile="09351239876" data-tier="SILVER" data-branch="online" data-population="purchasing">
+                  <td class="py-3.5 px-3">
+                    <div class="flex items-center gap-3">
+                      <div class="h-9 w-9 rounded-2xl bg-gradient-to-tr from-slate-400 to-slate-600 flex items-center justify-center font-bold text-white text-xs shadow-sm">
+                        ZH
+                      </div>
+                      <div>
+                        <div class="font-bold text-slate-900 dark:text-white">زهرا حسینی</div>
+                        <div class="text-[10px] text-slate-400 font-mono mt-0.5">شناسه: #EL-1502</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="py-3.5 px-3 font-mono tabular text-slate-600 dark:text-slate-300 ltr-iso">۰۹۳۵ ۱۲۳ ۹۸۷۶</td>
+                  <td class="py-3.5 px-3">
+                    <span class="badge-silver text-[11px] font-extrabold px-2.5 py-1 rounded-xl shadow-sm inline-flex items-center gap-1">
+                      🥈 نقره‌ای
+                    </span>
+                  </td>
+                  <td class="py-3.5 px-3">
+                    <div class="font-black text-slate-900 dark:text-white tabular text-sm">۸,۲۰۰,۰۰۰</div>
+                    <div class="text-[10px] text-slate-400">تومان</div>
+                  </td>
+                  <td class="py-3.5 px-3">
+                    <div class="font-bold text-slate-900 dark:text-white tabular">۳ خرید</div>
+                    <div class="text-[10px] text-slate-400">همه آنلاین</div>
+                  </td>
+                  <td class="py-3.5 px-3">
+                    <div class="font-medium text-slate-900 dark:text-white font-mono">۱۴۰۵/۰۶/۲۸</div>
+                    <div class="text-[10px] text-slate-400">۲۸ روز قبل</div>
+                  </td>
+                  <td class="py-3.5 px-3">
+                    <span class="px-2 py-0.5 rounded-md bg-blue-500/15 text-blue-600 dark:text-blue-400 text-[10px] font-semibold border border-blue-500/25">آنلاین</span>
+                  </td>
+                  <td class="py-3.5 px-3">
+                    <span class="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 font-semibold text-[11px]">نیاز به پیگیری</span>
+                  </td>
+                  <td class="py-3.5 px-3 text-center">
+                    <a href="#" class="px-3 py-1.5 rounded-xl bg-blue-500/10 hover:bg-blue-600 text-blue-600 hover:text-white font-bold text-xs transition-all inline-flex items-center gap-1 shadow-sm">
+                      <span>شناسنامه ۳۶۰</span>
+                      <span>←</span>
+                    </a>
+                  </td>
+                </tr>
+
+                <!-- Row 5: Elham Rostami (Registered no purchase) -->
+                <tr class="customer-row hover:bg-slate-100/60 dark:hover:bg-white/[0.03] transition-colors" data-name="الهام رستمی" data-mobile="09118889900" data-tier="" data-branch="" data-population="registered">
+                  <td class="py-3.5 px-3">
+                    <div class="flex items-center gap-3">
+                      <div class="h-9 w-9 rounded-2xl bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold text-slate-600 dark:text-slate-400 text-xs">
+                        ER
+                      </div>
+                      <div>
+                        <div class="font-bold text-slate-900 dark:text-white">الهام رستمی</div>
+                        <div class="text-[10px] text-slate-400 font-mono mt-0.5">شناسه: #EL-0922</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="py-3.5 px-3 font-mono tabular text-slate-600 dark:text-slate-300 ltr-iso">۰۹۱۱ ۸۸۸ ۹۹۰۰</td>
+                  <td class="py-3.5 px-3">
+                    <span class="text-slate-400 text-xs">—</span>
+                  </td>
+                  <td class="py-3.5 px-3">
+                    <div class="font-bold text-slate-400 tabular text-sm">۰</div>
+                  </td>
+                  <td class="py-3.5 px-3 text-slate-400">بدون خرید</td>
+                  <td class="py-3.5 px-3 text-slate-400">عضویت ۱۴۰۵/۰۷/۰۱</td>
+                  <td class="py-3.5 px-3 text-slate-400">—</td>
+                  <td class="py-3.5 px-3">
+                    <span class="px-2.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold text-[11px]">لید جدید (سایت)</span>
+                  </td>
+                  <td class="py-3.5 px-3 text-center">
+                    <a href="#" class="px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-slate-300 hover:bg-blue-600 hover:text-white font-bold text-xs transition-all inline-flex items-center gap-1 shadow-sm">
+                      <span>شناسنامه</span>
+                      <span>←</span>
+                    </a>
+                  </td>
+                </tr>
+
+                <!-- Row 6: Maryam Tavakkoli -->
+                <tr class="customer-row hover:bg-slate-100/60 dark:hover:bg-white/[0.03] transition-colors" data-name="مریم توکلی" data-mobile="09112223344" data-tier="BRONZE" data-branch="sari" data-population="purchasing">
+                  <td class="py-3.5 px-3">
+                    <div class="flex items-center gap-3">
+                      <div class="h-9 w-9 rounded-2xl bg-gradient-to-tr from-orange-400 to-amber-700 flex items-center justify-center font-bold text-white text-xs shadow-sm">
+                        MT
+                      </div>
+                      <div>
+                        <div class="font-bold text-slate-900 dark:text-white">مریم توکلی</div>
+                        <div class="text-[10px] text-slate-400 font-mono mt-0.5">شناسه: #EL-0544</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="py-3.5 px-3 font-mono tabular text-slate-600 dark:text-slate-300 ltr-iso">۰۹۱۱ ۲۲۲ ۳۳۴۴</td>
+                  <td class="py-3.5 px-3">
+                    <span class="text-[11px] font-bold text-amber-700 dark:text-amber-500 px-2 py-0.5 rounded-lg bg-amber-500/10">
+                      🥉 برنزی سطح ۲
+                    </span>
+                  </td>
+                  <td class="py-3.5 px-3">
+                    <div class="font-black text-slate-900 dark:text-white tabular text-sm">۳,۸۰۰,۰۰۰</div>
+                    <div class="text-[10px] text-slate-400">تومان</div>
+                  </td>
+                  <td class="py-3.5 px-3">
+                    <div class="font-bold text-slate-900 dark:text-white tabular">۱ خرید</div>
+                  </td>
+                  <td class="py-3.5 px-3">
+                    <div class="font-medium text-slate-900 dark:text-white font-mono">۱۴۰۵/۰۷/۰۸</div>
+                    <div class="text-[10px] text-emerald-500">شعبه ساری</div>
+                  </td>
+                  <td class="py-3.5 px-3">
+                    <span class="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-[10px] font-semibold border border-emerald-500/25">ساری</span>
+                  </td>
+                  <td class="py-3.5 px-3">
+                    <span class="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-semibold text-[11px]">فعال</span>
+                  </td>
+                  <td class="py-3.5 px-3 text-center">
+                    <a href="#" class="px-3 py-1.5 rounded-xl bg-blue-500/10 hover:bg-blue-600 text-blue-600 hover:text-white font-bold text-xs transition-all inline-flex items-center gap-1 shadow-sm">
+                      <span>شناسنامه ۳۶۰</span>
+                      <span>←</span>
+                    </a>
+                  </td>
+                </tr>
+
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination Bar -->
+          <div class="mt-5 pt-4 border-t border-slate-200 dark:border-white/10 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
+            <div>
+              نمایش ۱ تا ۶ از ۴,۲۱۸ مشتری (صفحه ۱ از ۷۱)
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-400 cursor-not-allowed">قبلی</button>
+              <button class="px-3 py-1.5 rounded-xl bg-blue-600 text-white font-bold shadow-md">۱</button>
+              <button class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10">۲</button>
+              <button class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10">۳</button>
+              <span>...</span>
+              <button class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10">۷۱</button>
+              <button class="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/10">بعدی</button>
+            </div>
+          </div>
+
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- 2. MOBILE VIEW CONTAINER (iPhone 14 / SE 390px Mockup Frame)  -->
+  <!-- ============================================================== -->
+  <div id="mobile-container" class="hidden relative z-10 py-8 px-4 flex justify-center items-center min-h-[calc(100vh-57px)]">
+    
+    <!-- iPhone Device Chassis -->
+    <div class="mobile-frame flex flex-col justify-between">
+      
+      <!-- Top Dynamic Island & Status Bar -->
+      <div class="relative shrink-0">
+        <div class="dynamic-island">
+          <div class="h-2.5 w-2.5 rounded-full bg-blue-500/80"></div>
+          <div class="h-3 w-3 rounded-full bg-slate-900 border border-slate-800"></div>
+        </div>
+        <div class="px-6 py-1 flex justify-between items-center text-[10px] text-slate-500 font-mono">
+          <span>09:41</span>
+          <div class="flex items-center gap-1.5">
+            <span>5G</span>
+            <span>100%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mobile App Header -->
+      <div class="px-4 py-2.5 border-b border-slate-200 dark:border-white/10 flex items-center justify-between bg-white/80 dark:bg-slate-950/80 backdrop-blur-md">
+        <div class="flex items-center gap-2">
+          <div class="h-7 w-7 rounded-xl bg-blue-600 flex items-center justify-center font-black text-white text-[11px] shadow-md">
+            E
+          </div>
+          <div>
+            <div class="text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider">ELINOR LUXURY</div>
+            <div class="text-xs font-black text-slate-900 dark:text-white">باشگاه مشتریان</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="toggleTheme()" class="h-7 w-7 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-white/10 flex items-center justify-center text-xs">
+            ☀️
+          </button>
+          <div class="h-7 w-7 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-bold text-white text-[10px]">
+            RS
+          </div>
+        </div>
+      </div>
+
+      <!-- Scrollable Mobile Content Area -->
+      <div class="flex-1 overflow-y-auto p-4 space-y-4 pb-28">
+        
+        <!-- Mobile Search Bar -->
+        <div class="relative">
+          <span class="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          </span>
+          <input
+            type="text"
+            placeholder="جستجوی نام یا موبایل مشتری..."
+            class="w-full pl-3 pr-9 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none"
+          >
+        </div>
+
+        <!-- Mobile Filter Chips (Horizontal Scroll without wrap) -->
+        <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 text-[11px]">
+          <button class="glass-pill active px-3 py-1 font-bold whitespace-nowrap">همه (۴,۲۱۸)</button>
+          <button class="glass-pill px-3 py-1 text-slate-600 dark:text-slate-400 whitespace-nowrap">👑 VIP و طلا</button>
+          <button class="glass-pill px-3 py-1 text-slate-600 dark:text-slate-400 whitespace-nowrap">🛍️ خریداران فعال</button>
+          <button class="glass-pill px-3 py-1 text-slate-600 dark:text-slate-400 whitespace-nowrap">آنلاین</button>
+          <button class="glass-pill px-3 py-1 text-slate-600 dark:text-slate-400 whitespace-nowrap">ساری</button>
+        </div>
+
+        <!-- Mobile KPI Summary Pills (2x2) -->
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <div class="bento-card p-3 glass-rim">
+            <div class="text-[10px] text-slate-500 dark:text-slate-400">کل مشتریان</div>
+            <div class="text-lg font-black text-slate-950 dark:text-white tabular mt-0.5">۴,۲۱۸</div>
+            <div class="text-[9px] text-emerald-500 font-bold mt-0.5">↑ ۴.۸٪ این ماه</div>
+          </div>
+          <div class="bento-card p-3 glass-rim">
+            <div class="text-[10px] text-slate-500 dark:text-slate-400">میانگین LTV</div>
+            <div class="text-lg font-black text-slate-950 dark:text-white tabular mt-0.5">۶.۱ م <span class="text-[10px] font-normal">ت</span></div>
+            <div class="text-[9px] text-purple-500 font-bold mt-0.5">۳.۴ فاکتور</div>
+          </div>
+        </div>
+
+        <!-- Section Title -->
+        <div class="flex items-center justify-between pt-1">
+          <span class="text-xs font-black text-slate-900 dark:text-white">کارت‌های مشتریان (بدون اسکرول افقی)</span>
+          <span class="text-[10px] text-slate-500">مرتب‌سازی: بیشترین خرید ▾</span>
+        </div>
+
+        <!-- Mobile Touch Cards List (Dedicated Mobile Luxury UI) -->
+        <div class="space-y-3">
+          
+          <!-- Mobile Card 1: Mahsa Kazemi -->
+          <div class="bento-card p-3.5 glass-rim shadow-sm border-r-4 border-r-pink-500 space-y-2.5">
+            <div class="flex items-start justify-between">
+              <div class="flex items-center gap-2.5">
+                <div class="h-9 w-9 rounded-xl bg-gradient-to-tr from-pink-500 to-rose-600 flex items-center justify-center font-bold text-white text-xs">
+                  MK
+                </div>
+                <div>
+                  <div class="font-extrabold text-slate-900 dark:text-white text-xs">مهسا کاظمی</div>
+                  <div class="text-[10px] text-slate-400 font-mono ltr-iso">۰۹۱۱ ۱۲۳ ۴۵۶۷</div>
+                </div>
+              </div>
+              <span class="badge-vip text-[10px] font-extrabold px-2 py-0.5 rounded-lg">
+                👑 VIP پلاتینیوم
+              </span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200 dark:border-white/5 text-[11px]">
+              <div>
+                <span class="text-[10px] text-slate-500 dark:text-slate-400 block">مجموع خرید (LTV):</span>
+                <span class="font-black text-slate-900 dark:text-white tabular text-xs">۴۲,۸۵۰,۰۰۰ تومان</span>
+              </div>
+              <div>
+                <span class="text-[10px] text-slate-500 dark:text-slate-400 block">آخرین خرید:</span>
+                <span class="font-bold text-blue-600 dark:text-blue-400">۲ روز قبل (آنلاین)</span>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-white/5 text-xs">
+              <div class="flex items-center gap-1">
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400">سایت</span>
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">ساری</span>
+                <span class="text-[10px] text-slate-400 font-mono mr-1">۱۲ فاکتور</span>
+              </div>
+              <a href="#" class="px-2.5 py-1 rounded-lg bg-blue-600 text-white font-bold text-[10px] shadow-sm flex items-center gap-1">
+                <span>شناسنامه ۳۶۰</span>
+                <span>←</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- Mobile Card 2: Niloofar Radmanesh -->
+          <div class="bento-card p-3.5 glass-rim shadow-sm border-r-4 border-r-cyan-500 space-y-2.5">
+            <div class="flex items-start justify-between">
+              <div class="flex items-center gap-2.5">
+                <div class="h-9 w-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center font-bold text-white text-xs">
+                  NR
+                </div>
+                <div>
+                  <div class="font-extrabold text-slate-900 dark:text-white text-xs">نیلوفر رادمنش</div>
+                  <div class="text-[10px] text-slate-400 font-mono ltr-iso">۰۹۱۲ ۳۴۵ ۶۷۸۹</div>
+                </div>
+              </div>
+              <span class="badge-diamond text-[10px] font-extrabold px-2 py-0.5 rounded-lg">
+                💎 الماس
+              </span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200 dark:border-white/5 text-[11px]">
+              <div>
+                <span class="text-[10px] text-slate-500 dark:text-slate-400 block">مجموع خرید (LTV):</span>
+                <span class="font-black text-slate-900 dark:text-white tabular text-xs">۳۱,۴۰۰,۰۰۰ تومان</span>
+              </div>
+              <div>
+                <span class="text-[10px] text-slate-500 dark:text-slate-400 block">آخرین خرید:</span>
+                <span class="font-bold text-amber-500">۵ روز قبل (گرگان)</span>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-white/5 text-xs">
+              <div class="flex items-center gap-1">
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500">شعبه گرگان</span>
+                <span class="text-[10px] text-slate-400 font-mono mr-1">۸ فاکتور</span>
+              </div>
+              <a href="#" class="px-2.5 py-1 rounded-lg bg-blue-600 text-white font-bold text-[10px] shadow-sm flex items-center gap-1">
+                <span>شناسنامه ۳۶۰</span>
+                <span>←</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- Mobile Card 3: Sara Mohammadi -->
+          <div class="bento-card p-3.5 glass-rim shadow-sm border-r-4 border-r-amber-500 space-y-2.5">
+            <div class="flex items-start justify-between">
+              <div class="flex items-center gap-2.5">
+                <div class="h-9 w-9 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-600 flex items-center justify-center font-bold text-white text-xs">
+                  SM
+                </div>
+                <div>
+                  <div class="font-extrabold text-slate-900 dark:text-white text-xs">سارا محمدی</div>
+                  <div class="text-[10px] text-slate-400 font-mono ltr-iso">۰۹۱۱ ۷۶۵ ۴۳۲۱</div>
+                </div>
+              </div>
+              <span class="badge-gold text-[10px] font-extrabold px-2 py-0.5 rounded-lg">
+                ⭐️ طلایی سطح ۱
+              </span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200 dark:border-white/5 text-[11px]">
+              <div>
+                <span class="text-[10px] text-slate-500 dark:text-slate-400 block">مجموع خرید (LTV):</span>
+                <span class="font-black text-slate-900 dark:text-white tabular text-xs">۱۹,۷۰۰,۰۰۰ تومان</span>
+              </div>
+              <div>
+                <span class="text-[10px] text-slate-500 dark:text-slate-400 block">آخرین خرید:</span>
+                <span class="font-bold text-purple-500">۱۰ روز قبل (کاپری)</span>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-white/5 text-xs">
+              <div class="flex items-center gap-1">
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500">ساری</span>
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-500">کاپری</span>
+                <span class="text-[10px] text-slate-400 font-mono mr-1">۶ فاکتور</span>
+              </div>
+              <a href="#" class="px-2.5 py-1 rounded-lg bg-blue-600 text-white font-bold text-[10px] shadow-sm flex items-center gap-1">
+                <span>شناسنامه ۳۶۰</span>
+                <span>←</span>
+              </a>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- Mobile Floating VisionOS Dock -->
+      <div class="px-4 pb-4">
+        <nav class="floating-dock w-full px-3 py-2 flex items-center justify-around text-[10px] text-slate-500">
+          <a href="#" class="flex flex-col items-center gap-0.5">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+            <span class="text-[9px]">داشبورد</span>
+          </a>
+          <a href="#" class="flex flex-col items-center gap-0.5">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            <span class="text-[9px]">فروش</span>
+          </a>
+          <!-- Active Customers tab in Dock -->
+          <a href="#" class="flex flex-col items-center gap-0.5 text-blue-600 dark:text-blue-400 font-bold scale-105">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+            <span class="text-[9px]">مشتریان</span>
+          </a>
+          <a href="#" class="flex flex-col items-center gap-0.5 relative">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+            <span class="text-[9px]">دایرکت</span>
+            <span class="absolute top-0 right-0 h-1.5 w-1.5 rounded-full bg-pink-500"></span>
+          </a>
+          <a href="#" class="flex flex-col items-center gap-0.5">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/></svg>
+            <span class="text-[9px]">تنظیمات</span>
+          </a>
+        </nav>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Interactive Client-side Script -->
+  <script>
+    // View Switcher: Desktop vs Mobile
+    function switchView(view) {
+      const desktop = document.getElementById('desktop-container');
+      const mobile = document.getElementById('mobile-container');
+      const desktopBtn = document.getElementById('view-desktop-btn');
+      const mobileBtn = document.getElementById('view-mobile-btn');
+
+      if (view === 'mobile') {
+        desktop.classList.add('hidden');
+        mobile.classList.remove('hidden');
+        mobileBtn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white transition-all shadow-md";
+        desktopBtn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-white transition-all";
+      } else {
+        mobile.classList.add('hidden');
+        desktop.classList.remove('hidden');
+        desktopBtn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white transition-all shadow-md";
+        mobileBtn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-white transition-all";
+      }
+    }
+
+    // Theme Switcher (Light / Dark)
+    let isDark = true;
+    function toggleTheme() {
+      isDark = !isDark;
+      const html = document.documentElement;
+      const icon = document.getElementById('theme-icon');
+      const text = document.getElementById('theme-text');
+
+      if (isDark) {
+        html.setAttribute('data-theme', 'dark');
+        html.classList.add('dark');
+        icon.textContent = '☀️';
+        text.textContent = 'حالت روشن';
+      } else {
+        html.setAttribute('data-theme', 'light');
+        html.classList.remove('dark');
+        icon.textContent = '🌙';
+        text.textContent = 'حالت تیره';
+      }
+    }
+
+    // Interactive Filtering in Desktop Table
+    let currentPopulation = 'all';
+
+    function setPopulation(pop, btn) {
+      currentPopulation = pop;
+      // update active pill
+      const parent = btn.parentElement;
+      parent.querySelectorAll('button').forEach(b => {
+        b.className = "glass-pill px-3 py-1.5 text-slate-600 dark:text-slate-400";
+      });
+      btn.className = "glass-pill active px-3 py-1.5 font-bold";
+      filterCustomers();
+    }
+
+    function filterCustomers() {
+      const search = (document.getElementById('search-input')?.value || '').toLowerCase().trim();
+      const tier = document.getElementById('tier-select')?.value || '';
+      const branch = document.getElementById('branch-select')?.value || '';
+      const minPurchases = parseInt(document.getElementById('min-purchases')?.value || '0', 10);
+
+      const rows = document.querySelectorAll('.customer-row');
+      let visibleCount = 0;
+
+      rows.forEach(row => {
+        const name = (row.getAttribute('data-name') || '').toLowerCase();
+        const mobile = (row.getAttribute('data-mobile') || '').toLowerCase();
+        const rowTier = row.getAttribute('data-tier') || '';
+        const rowBranch = row.getAttribute('data-branch') || '';
+        const rowPop = row.getAttribute('data-population') || '';
+
+        let matchesSearch = !search || name.includes(search) || mobile.includes(search);
+        let matchesTier = !tier || rowTier === tier;
+        let matchesBranch = !branch || rowBranch.includes(branch);
+        let matchesPop = currentPopulation === 'all' || rowPop.includes(currentPopulation);
+
+        if (matchesSearch && matchesTier && matchesBranch && matchesPop) {
+          row.style.display = '';
+          visibleCount++;
+        } else {
+          row.style.display = 'none';
+        }
+      });
+
+      const countEl = document.getElementById('filtered-count');
+      if (countEl) countEl.textContent = visibleCount;
+    }
+
+    function resetFilters() {
+      document.getElementById('search-input').value = '';
+      document.getElementById('tier-select').value = '';
+      document.getElementById('branch-select').value = '';
+      document.getElementById('min-purchases').value = '';
+      filterCustomers();
+    }
+
+    // Mouse Spotlight on Bento Cards
+    document.querySelectorAll('.bento-card').forEach(card => {
+      card.addEventListener('mousemove', e => {
+        const rect = card.getBoundingClientRect();
+        card.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
+        card.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
+      });
+    });
+  </script>
+</body>
+</html>

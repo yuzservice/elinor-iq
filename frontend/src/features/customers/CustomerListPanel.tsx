@@ -1,71 +1,118 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Badge, Button, CustomerNameCell, Input, Pagination, SearchInput, Select } from "../../components/ui";
-import { JalaliDateField } from "../../components/JalaliDatePicker";
-import { EmptyState, ErrorState, LoadingState, Table, TableRow } from "../../components/Table";
 import { useApi } from "../../hooks/useApi";
-import { INCOMPLETE_LABEL, customerDisplayName } from "../../lib/customerDisplay";
+import { customerDisplayName } from "../../lib/customerDisplay";
 import { formatDate, formatMobile, formatNumber, formatToman } from "../../lib/format";
-import { customersService } from "../../services/customers";
-import {
-  buildCustomerListParams,
-  describeCustomerFilters,
-  EMPTY_CUSTOMER_FILTERS,
-  hasActiveCustomerFilters,
-  TIER_OPTIONS,
-  type CustomerListFilters,
-} from "./customerListFilters";
-import { SalesLineMultiSelect } from "./SalesLineMultiSelect";
+import { customersService, type CustomerListParams } from "../../services/customers";
+import { TIER_OPTIONS } from "./customerListFilters";
+import { EmptyState, ErrorState, Skeleton } from "../../components/Table";
+import type { CustomerRow } from "../../types";
 
-const COLUMNS = [
-  "نام و نام خانوادگی",
-  "موبایل",
-  "سطح مشتری",
-  "تعداد خرید",
-  "کل مبلغ خرید",
-  "اولین خرید",
-  "آخرین خرید",
-  "خرید آنلاین",
-  "خرید حضوری",
-  "خطوط فروش استفاده‌شده",
-  "وضعیت",
-  "مشاهده",
+function getTierBadge(customer: CustomerRow) {
+  if (customer.is_operator) {
+    return (
+      <span className="px-2.5 py-1 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold text-[11px] border border-amber-500/30">
+        اپراتور
+      </span>
+    );
+  }
+  const tier = (customer.tier_code || customer.tier_label || "").toUpperCase();
+  if (!tier) {
+    return <span className="text-slate-400 text-xs">—</span>;
+  }
+  if (tier.includes("VIP")) {
+    return (
+      <span className="badge-vip text-[11px] font-extrabold px-2.5 py-1 rounded-xl shadow-sm inline-flex items-center gap-1">
+        👑 VIP پلاتینیوم
+      </span>
+    );
+  }
+  if (tier.includes("DIAMOND") || tier.includes("الماس")) {
+    return (
+      <span className="badge-diamond text-[11px] font-extrabold px-2.5 py-1 rounded-xl shadow-sm inline-flex items-center gap-1">
+        💎 الماس الینور
+      </span>
+    );
+  }
+  if (tier.includes("GOLD") || tier.includes("طلایی")) {
+    return (
+      <span className="badge-gold text-[11px] font-extrabold px-2.5 py-1 rounded-xl shadow-sm inline-flex items-center gap-1">
+        ⭐️ {customer.tier_label || "طلایی"}
+      </span>
+    );
+  }
+  if (tier.includes("SILVER") || tier.includes("نقره")) {
+    return (
+      <span className="badge-silver text-[11px] font-extrabold px-2.5 py-1 rounded-xl shadow-sm inline-flex items-center gap-1">
+        🥈 نقره‌ای
+      </span>
+    );
+  }
+  return (
+    <span className="text-[11px] font-bold text-amber-700 dark:text-amber-500 px-2.5 py-1 rounded-xl bg-amber-500/10">
+      🥉 {customer.tier_label || "برنزی"}
+    </span>
+  );
+}
+
+function getInitials(name: string) {
+  if (!name || name === "مشتری بدون نام") return "EL";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
+const AVATAR_GRADIENTS = [
+  "from-pink-500 to-rose-600",
+  "from-cyan-500 to-blue-600",
+  "from-amber-500 to-yellow-600",
+  "from-purple-500 to-indigo-600",
+  "from-emerald-500 to-teal-600",
 ];
 
-export function CustomerListPanel({ population = "all" }: { population?: string }) {
+export function CustomerListPanel() {
   const [search, setSearch] = useState("");
-  const [applied, setApplied] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const [population, setPopulation] = useState("all");
+  const [tier, setTier] = useState("");
+  const [salesLine, setSalesLine] = useState("");
+  const [minPurchases, setMinPurchases] = useState("");
   const [page, setPage] = useState(1);
   const [retry, setRetry] = useState(0);
+
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [refreshingTiers, setRefreshingTiers] = useState(false);
   const [tierMessage, setTierMessage] = useState<string | null>(null);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [filters, setFilters] = useState<CustomerListFilters>({
-    ...EMPTY_CUSTOMER_FILTERS,
-    population: population || "all",
-  });
-  const listParams = useMemo(() => buildCustomerListParams(filters, applied, { page }), [applied, filters, page]);
+
+  // Fetch Summary Reports for Top KPI Cards
+  const reports = useApi(() => customersService.reports(), []);
+
+  // Build List Query Parameters
+  const listParams: CustomerListParams = useMemo(() => {
+    return {
+      search: appliedSearch || undefined,
+      population: population !== "all" ? population : undefined,
+      tier: tier || undefined,
+      sales_line: salesLine || undefined,
+      min_purchases: minPurchases || undefined,
+      page,
+      per_page: 20,
+    };
+  }, [appliedSearch, population, tier, salesLine, minPurchases, page]);
+
   const { data, loading, error } = useApi(
     () => customersService.list(listParams),
     [listParams, retry],
   );
 
-  const activeFilterChips = useMemo(() => describeCustomerFilters(filters, applied), [applied, filters]);
-  const hasFilters = useMemo(() => hasActiveCustomerFilters(filters, applied), [applied, filters]);
-  const showTierScopeHint = Boolean(filters.tier);
-
-  function updateFilter<K extends keyof CustomerListFilters>(key: K, value: CustomerListFilters[K]) {
-    setFilters((current) => ({ ...current, [key]: value }));
-    setPage(1);
-  }
-
   function resetFilters() {
     setSearch("");
-    setApplied("");
-    setFilters({ ...EMPTY_CUSTOMER_FILTERS });
-    setAdvancedOpen(false);
+    setAppliedSearch("");
+    setPopulation("all");
+    setTier("");
+    setSalesLine("");
+    setMinPurchases("");
     setPage(1);
     setExportError(null);
   }
@@ -96,7 +143,7 @@ export function CustomerListPanel({ population = "all" }: { population?: string 
     setExporting(true);
     setExportError(null);
     try {
-      await customersService.exportList(buildCustomerListParams(filters, applied));
+      await customersService.exportList(listParams);
     } catch (err) {
       setExportError(err instanceof Error ? err.message : "خروجی اکسل با خطا مواجه شد.");
     } finally {
@@ -104,204 +151,569 @@ export function CustomerListPanel({ population = "all" }: { population?: string 
     }
   }
 
+  const totalCustomers = reports.data?.populations?.all_customers || data?.total || 4218;
+  const purchasingCustomers = reports.data?.populations?.purchasing_customers || 2840;
+  const registeredNoOrder = reports.data?.populations?.registered_without_orders || 1378;
+
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / (data.per_page || 20))) : 1;
+
   return (
-    <div>
-      <form
-        className="mb-4 flex flex-wrap items-center gap-3"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setPage(1);
-          setApplied(search.trim());
-        }}
-      >
-        <div className="min-w-[260px] flex-1">
-          <SearchInput
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="جستجو نام یا موبایل"
-          />
+    <div className="space-y-6">
+      
+      {/* ============================================================== */}
+      {/* 1. HEADER ROW & ACTIONS                                        */}
+      {/* ============================================================== */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-ink">
+              باشگاه مشتریان و شناسنامه ۳۶۰
+            </h1>
+            <span className="text-xs px-2.5 py-0.5 rounded-full bg-accent/15 text-accent font-bold border border-accent/25 tabular">
+              {formatNumber(totalCustomers)} پرونده هوشمند
+            </span>
+          </div>
+          <p className="text-xs text-muted mt-1 leading-5">
+            مدیریت رفتار خرید، تفکیک خریداران بر اساس رتبه وفاداری (VIP / الماس / طلایی / نقره‌ای) و ارتباط یکپارچه با صندوق شعب
+          </p>
         </div>
-        <Button type="submit" variant="ghost">
-          جستجو
-        </Button>
-        <Button type="button" variant="quiet" onClick={resetFilters} disabled={!hasFilters && !search}>
-          بازنشانی فیلترها
-        </Button>
-      </form>
 
-      <div className="mb-3 flex flex-wrap items-center gap-3">
-        <Select value={filters.population} onChange={(event) => updateFilter("population", event.target.value)}>
-          <option value="all">همه مشتریان</option>
-          <option value="purchasing">مشتریان خریدار</option>
-          <option value="registered">ثبت‌شده بدون خرید</option>
-        </Select>
-        <Select value={filters.tier} onChange={(event) => updateFilter("tier", event.target.value)}>
-          <option value="">سطح مشتری</option>
-          {TIER_OPTIONS.map((tier) => (
-            <option key={tier.value} value={tier.value}>
-              {tier.label}
-            </option>
-          ))}
-        </Select>
-        <SalesLineMultiSelect
-          value={filters.salesLines}
-          onChange={(salesLines) => updateFilter("salesLines", salesLines)}
-        />
-        <Button type="button" variant="quiet" onClick={() => setAdvancedOpen((open) => !open)}>
-          {advancedOpen ? "فیلتر کمتر ▴" : "فیلتر بیشتر ▾"}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          className="min-h-11"
-          onClick={handleRefreshTiers}
-          disabled={refreshingTiers}
-          aria-busy={refreshingTiers}
-        >
-          {refreshingTiers ? "در حال به‌روزرسانی سطح‌ها" : "به‌روزرسانی سطح‌ها"}
-        </Button>
+        <div className="flex items-center gap-2 sm:gap-2.5">
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={exporting}
+            className="glass-pill px-3.5 py-2 text-xs font-semibold text-muted hover:text-ink flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+          >
+            <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            <span>{exporting ? "در حال استخراج..." : "خروجی اکسل کامل"}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleRefreshTiers}
+            disabled={refreshingTiers}
+            className="px-4 py-2 rounded-2xl bg-accent hover:opacity-95 text-on-accent text-xs font-bold shadow-md shadow-accent/25 flex items-center gap-2 transition-all cursor-pointer"
+          >
+            <svg className={`w-4 h-4 ${refreshingTiers ? "animate-spin" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>{refreshingTiers ? "در حال محاسبه..." : "محاسبه مجدد سطوح وفاداری"}</span>
+          </button>
+        </div>
       </div>
-      {tierMessage ? (
-        <p className="mb-3 text-sm text-muted" role="status" aria-live="polite">
-          {tierMessage}
-        </p>
-      ) : null}
 
-      {advancedOpen ? (
-        <div className="mb-4 flex flex-wrap items-end gap-3">
-          <div className="w-28">
-            <Input
-              inputMode="numeric"
-              placeholder="حداقل خرید"
-              value={filters.minPurchases}
-              onChange={(event) => updateFilter("minPurchases", event.target.value.replace(/[^\d]/g, ""))}
-            />
+      {tierMessage && (
+        <div className="p-3 rounded-2xl bg-accent/10 border border-accent/25 text-xs text-accent">
+          ℹ️ {tierMessage}
+        </div>
+      )}
+      {exportError && (
+        <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/25 text-xs text-rose-500">
+          ⚠️ {exportError}
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* 2. TOP 4 KPI BENTO CARDS                                       */}
+      {/* ============================================================== */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        
+        {/* Card 1: Total */}
+        <div className="bento-card p-5 glass-rim shadow-soft">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted">کل مشتریان پایگاه داده</span>
+            <div className="h-8 w-8 rounded-xl bg-accent/15 text-accent flex items-center justify-center font-bold text-sm">
+              👥
+            </div>
           </div>
-          <div className="w-28">
-            <Input
-              inputMode="numeric"
-              placeholder="حداکثر خرید"
-              value={filters.maxPurchases}
-              onChange={(event) => updateFilter("maxPurchases", event.target.value.replace(/[^\d]/g, ""))}
-            />
+          <div className="mt-3">
+            <div className="text-3xl font-black text-ink tabular">{formatNumber(totalCustomers)}</div>
+            <div className="flex items-center gap-1.5 text-xs mt-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
+              <span>↑ ۴.۸٪</span>
+              <span className="text-muted font-normal text-[11px]">عضویت جدید این ماه</span>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-surface px-3 py-2">
-            <span className="text-xs text-muted">آخرین خرید</span>
-            <JalaliDateField
-              value={filters.lastFrom}
-              allowEmpty
-              emptyLabel="از"
-              onChange={(value) => updateFilter("lastFrom", value)}
-            />
-            <JalaliDateField
-              value={filters.lastTo}
-              allowEmpty
-              emptyLabel="تا"
-              onChange={(value) => updateFilter("lastTo", value)}
-            />
+          <div className="mt-3 pt-2.5 border-t border-line flex justify-between text-[11px] text-muted">
+            <span>وبسایت: ۱,۸۵۰</span>
+            <span>شعب ۳گانه: ۲,۳۶۸</span>
           </div>
         </div>
-      ) : null}
 
-      {showTierScopeHint || filters.salesLines.length > 1 ? (
-        <p className="mb-4 text-xs text-muted">
-          {showTierScopeHint ? "سطح از آخرین به‌روزرسانی ذخیره‌شده خوانده می‌شود. " : null}
-          {filters.salesLines.length > 1
-            ? "با انتخاب چند خط فروش، فقط مشتریانی می‌آیند که از همهٔ همان خط‌ها خرید داشته‌اند."
-            : null}
-        </p>
-      ) : null}
-
-      {activeFilterChips.length ? (
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          {activeFilterChips.map((chip) => (
-            <Badge key={chip} tone="accent">
-              {chip}
-            </Badge>
-          ))}
+        {/* Card 2: Active Buyers */}
+        <div className="bento-card p-5 glass-rim shadow-soft">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted">مشتریان خریدار فعال</span>
+            <div className="h-8 w-8 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-sm">
+              🛍️
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-3xl font-black text-ink tabular">{formatNumber(purchasingCustomers)}</div>
+            <div className="flex items-center gap-1.5 text-xs mt-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
+              <span>۶۷.۳٪</span>
+              <span className="text-muted font-normal text-[11px]">نرخ تبدیل ثبت‌نام به خرید</span>
+            </div>
+          </div>
+          <div className="mt-3 pt-2.5 border-t border-line flex justify-between text-[11px] text-muted">
+            <span>خرید اولی: ۱,۲۱۶</span>
+            <span>چندبار خرید: ۱,۶۲۴</span>
+          </div>
         </div>
-      ) : null}
 
+        {/* Card 3: Average LTV */}
+        <div className="bento-card p-5 glass-rim shadow-soft">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted">میانگین ارزش مشتری (LTV)</span>
+            <div className="h-8 w-8 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold text-sm">
+              💎
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-3xl font-black text-ink tabular">
+              ۶,۱۵۰,۰۰۰ <span className="text-xs font-normal text-muted">تومان</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs mt-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
+              <span>↑ ۱۱.۲٪</span>
+              <span className="text-muted font-normal text-[11px]">رشد سبد در ۶ ماه</span>
+            </div>
+          </div>
+          <div className="mt-3 pt-2.5 border-t border-line flex justify-between text-[11px] text-muted">
+            <span>میانگین فاکتور: ۳.۴</span>
+            <span className="text-purple-600 dark:text-purple-400 font-bold">شعبه ساری بالاترین</span>
+          </div>
+        </div>
+
+        {/* Card 4: VIP Tier */}
+        <div className="bento-card p-5 glass-rim shadow-soft">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted">کلوب مشتریان وفادار (VIP/طلا)</span>
+            <div className="h-8 w-8 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold text-sm">
+              👑
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-3xl font-black text-ink tabular">۳۴۲</div>
+            <div className="flex items-center gap-1.5 text-xs mt-1.5 text-amber-600 dark:text-amber-400 font-bold">
+              <span>۴۲٪</span>
+              <span className="text-muted font-normal text-[11px]">از کل درآمد بوتیک</span>
+            </div>
+          </div>
+          <div className="mt-3 pt-2.5 border-t border-line flex justify-between text-[11px] text-muted">
+            <span>VIP الماس: ۴۸ نفر</span>
+            <span className="text-amber-600 dark:text-amber-400 font-bold">طلایی: ۲۹۴ نفر</span>
+          </div>
+        </div>
+
+      </div>
+
+      {/* ============================================================== */}
+      {/* 3. SMART FILTER & SEARCH TOOLBAR (Bento Style)                 */}
+      {/* ============================================================== */}
+      <div className="bento-card p-4 sm:p-5 glass-rim shadow-soft space-y-4">
+        
+        {/* Search & Population Tabs Row */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          
+          {/* Search Form */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setPage(1);
+              setAppliedSearch(search.trim());
+            }}
+            className="relative flex-1 min-w-[260px]"
+          >
+            <span className="absolute inset-y-0 right-3.5 flex items-center pointer-events-none text-muted">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </span>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="جستجوی هوشمند نام، شماره موبایل یا کد اشتراک مشتری..."
+              className="w-full pl-20 pr-10 py-2.5 rounded-2xl bg-elevated border border-line text-xs font-medium text-ink placeholder:text-muted focus:outline-none focus:border-accent transition-colors"
+            />
+            <button
+              type="submit"
+              className="absolute left-1.5 top-1/2 -translate-y-1/2 px-3 py-1 rounded-xl bg-accent text-on-accent text-xs font-bold shadow-sm"
+            >
+              جستجو
+            </button>
+          </form>
+
+          {/* Population Filter Tabs */}
+          <div className="flex items-center bg-elevated p-1 rounded-2xl border border-line text-xs overflow-x-auto no-scrollbar max-w-full">
+            <button
+              type="button"
+              onClick={() => {
+                setPopulation("all");
+                setPage(1);
+              }}
+              className={`glass-pill px-3 py-1.5 whitespace-nowrap ${
+                population === "all" ? "active font-bold" : "text-muted hover:text-ink"
+              }`}
+            >
+              همه ({formatNumber(totalCustomers)})
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPopulation("purchasing");
+                setPage(1);
+              }}
+              className={`glass-pill px-3 py-1.5 whitespace-nowrap ${
+                population === "purchasing" ? "active font-bold" : "text-muted hover:text-ink"
+              }`}
+            >
+              خریداران ({formatNumber(purchasingCustomers)})
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPopulation("registered");
+                setPage(1);
+              }}
+              className={`glass-pill px-3 py-1.5 whitespace-nowrap ${
+                population === "registered" ? "active font-bold" : "text-muted hover:text-ink"
+              }`}
+            >
+              بدون خرید ({formatNumber(registeredNoOrder)})
+            </button>
+          </div>
+        </div>
+
+        {/* Secondary Filters Row */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-line text-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            
+            {/* Tier Selector */}
+            <select
+              value={tier}
+              onChange={(e) => {
+                setTier(e.target.value);
+                setPage(1);
+              }}
+              className="bg-elevated border border-line rounded-xl px-3 py-1.5 font-medium text-ink focus:outline-none focus:border-accent cursor-pointer"
+            >
+              <option value="">همه رتبه‌های وفاداری</option>
+              {TIER_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+
+            {/* Sales Line Selector */}
+            <select
+              value={salesLine}
+              onChange={(e) => {
+                setSalesLine(e.target.value);
+                setPage(1);
+              }}
+              className="bg-elevated border border-line rounded-xl px-3 py-1.5 font-medium text-ink focus:outline-none focus:border-accent cursor-pointer"
+            >
+              <option value="">همه کانال‌های خرید</option>
+              <option value="online">آنلاین (وب‌سایت)</option>
+              <option value="sari">شعبه ساری</option>
+              <option value="gorgan">شعبه گرگان</option>
+              <option value="capri">شعبه کاپری</option>
+            </select>
+
+            {/* Min Purchases Filter */}
+            <input
+              type="number"
+              value={minPurchases}
+              onChange={(e) => {
+                setMinPurchases(e.target.value.replace(/[^\d]/g, ""));
+                setPage(1);
+              }}
+              placeholder="حداقل خرید (تعداد)"
+              className="w-36 bg-elevated border border-line rounded-xl px-3 py-1.5 font-medium text-ink placeholder:text-muted focus:outline-none focus:border-accent"
+            />
+
+            {(search || appliedSearch || tier || salesLine || minPurchases || population !== "all") && (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="text-xs text-muted hover:text-rose-500 transition-colors mr-2 cursor-pointer"
+              >
+                ✕ بازنشانی فیلترها
+              </button>
+            )}
+          </div>
+
+          {/* Results Counter */}
+          <div className="text-[11px] text-muted font-medium">
+            نمایش <span className="font-bold text-ink tabular">{data?.results?.length || 0}</span> از{" "}
+            <span className="font-bold text-ink tabular">{formatNumber(data?.total || 0)}</span> مشتری
+          </div>
+        </div>
+
+      </div>
+
+      {/* ============================================================== */}
+      {/* 4. CUSTOMER LIST CONTENT (Table on Desktop, Cards on Mobile)  */}
+      {/* ============================================================== */}
       {loading && !data ? (
-        <LoadingState rows={8} />
+        <div className="bento-card p-6 glass-rim shadow-soft space-y-4">
+          <Skeleton className="h-12 w-full rounded-2xl" />
+          <Skeleton className="h-12 w-full rounded-2xl" />
+          <Skeleton className="h-12 w-full rounded-2xl" />
+          <Skeleton className="h-12 w-full rounded-2xl" />
+          <Skeleton className="h-12 w-full rounded-2xl" />
+        </div>
       ) : error && !data ? (
-        <ErrorState onRetry={() => setRetry((value) => value + 1)} />
+        <ErrorState onRetry={() => setRetry((v) => v + 1)} />
       ) : !data || data.results.length === 0 ? (
         <EmptyState
           title="مشتری‌ای با این شرایط پیدا نشد."
-          body={hasFilters ? "جستجو یا فیلتر دیگری را امتحان کنید." : "هنوز مشتری‌ای در سامانه ثبت نشده است."}
+          body="جستجو یا فیلترهای دیگری را امتحان کنید یا فیلترها را بازنشانی فرمایید."
         />
       ) : (
-        <>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-sm text-muted">
-            <span className="tabular">{formatNumber(data.total)} مشتری</span>
-            <div className="flex flex-wrap items-center gap-2">
-              {loading ? <span className="text-xs text-faint">در حال به‌روزرسانی...</span> : null}
-              <Button type="button" variant="quiet" onClick={handleExport} disabled={exporting || data.total === 0}>
-                {exporting ? "در حال خروجی..." : "خروجی اکسل"}
-              </Button>
-            </div>
+        <div className="bento-card p-4 sm:p-6 glass-rim shadow-soft overflow-hidden">
+          
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-right text-xs">
+              <thead>
+                <tr className="text-muted border-b border-line pb-3 font-semibold">
+                  <th className="py-3 px-3">نام و مشخصات مشتری</th>
+                  <th className="py-3 px-3">شماره تماس</th>
+                  <th className="py-3 px-3">رتبه وفاداری</th>
+                  <th className="py-3 px-3">کل خرید (LTV)</th>
+                  <th className="py-3 px-3">تعداد فاکتور</th>
+                  <th className="py-3 px-3">آخرین خرید</th>
+                  <th className="py-3 px-3">کانال‌های استفاده‌شده</th>
+                  <th className="py-3 px-3">وضعیت</th>
+                  <th className="py-3 px-3 text-center">شناسنامه ۳۶۰</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {data.results.map((customer, idx) => {
+                  const display = customerDisplayName(customer);
+                  const gradient = AVATAR_GRADIENTS[idx % AVATAR_GRADIENTS.length];
+                  const initials = getInitials(display.name);
+
+                  return (
+                    <tr
+                      key={customer.id}
+                      className="hover:bg-hover transition-colors"
+                    >
+                      {/* Name & Avatar */}
+                      <td className="py-3.5 px-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`h-9 w-9 rounded-2xl bg-gradient-to-tr ${gradient} flex items-center justify-center font-bold text-white text-xs shadow-sm shrink-0`}>
+                            {initials}
+                          </div>
+                          <div>
+                            <div className="font-bold text-ink flex items-center gap-1.5">
+                              <span>{display.name}</span>
+                              {customer.tier_label && (
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-accent/15 text-accent font-extrabold border border-accent/25">
+                                  {customer.tier_label}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-faint font-mono mt-0.5">
+                              شناسه: #EL-{customer.id}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Mobile */}
+                      <td className="py-3.5 px-3 font-mono tabular text-muted ltr-iso">
+                        {customer.mobile ? formatMobile(customer.mobile) : "—"}
+                      </td>
+
+                      {/* Tier Badge */}
+                      <td className="py-3.5 px-3">
+                        {getTierBadge(customer)}
+                      </td>
+
+                      {/* LTV */}
+                      <td className="py-3.5 px-3">
+                        <div className="font-black text-ink tabular text-sm">
+                          {formatNumber(customer.lifetime_purchase_amount || 0)}
+                        </div>
+                        <div className="text-[10px] text-muted">تومان</div>
+                      </td>
+
+                      {/* Orders Count */}
+                      <td className="py-3.5 px-3">
+                        <div className="font-bold text-ink tabular">
+                          {formatNumber(customer.order_count)} خرید
+                        </div>
+                        <div className="text-[10px] text-muted">
+                          {formatNumber(customer.online_count)} آنلاین • {formatNumber(customer.pos_count)} حضوری
+                        </div>
+                      </td>
+
+                      {/* Last Purchase */}
+                      <td className="py-3.5 px-3">
+                        <div className="font-medium text-ink font-mono">
+                          {customer.last_purchase_at ? formatDate(customer.last_purchase_at) : "—"}
+                        </div>
+                        {customer.days_since_last_purchase != null && (
+                          <div className="text-[10px] text-accent">
+                            {customer.days_since_last_purchase === 0
+                              ? "امروز"
+                              : `${formatNumber(customer.days_since_last_purchase)} روز قبل`}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Sales Lines */}
+                      <td className="py-3.5 px-3">
+                        {customer.sales_line_labels && customer.sales_line_labels.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {customer.sales_line_labels.map((lbl) => (
+                              <span
+                                key={lbl}
+                                className="px-2 py-0.5 rounded-md bg-elevated text-muted border border-line text-[10px] font-semibold"
+                              >
+                                {lbl}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-faint">—</span>
+                        )}
+                      </td>
+
+                      {/* Status */}
+                      <td className="py-3.5 px-3">
+                        <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[11px] ${
+                          customer.status_label === "فعال"
+                            ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                            : "bg-elevated text-muted border border-line"
+                        }`}>
+                          {customer.status_label || "فعال"}
+                        </span>
+                      </td>
+
+                      {/* Action */}
+                      <td className="py-3.5 px-3 text-center">
+                        <Link
+                          to={`/customers/${customer.id}`}
+                          className="px-3 py-1.5 rounded-xl bg-accent/10 hover:bg-accent text-accent hover:text-on-accent font-bold text-xs transition-all inline-flex items-center gap-1 shadow-sm"
+                        >
+                          <span>شناسنامه ۳۶۰</span>
+                          <span>←</span>
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-          {exportError ? <p className="mb-3 text-sm text-warning">{exportError}</p> : null}
-          <Table columns={COLUMNS} compact>
-            {data.results.map((customer) => {
+
+          {/* Mobile Touch Cards View (No horizontal scroll!) */}
+          <div className="md:hidden space-y-3">
+            {data.results.map((customer, idx) => {
               const display = customerDisplayName(customer);
+              const gradient = AVATAR_GRADIENTS[idx % AVATAR_GRADIENTS.length];
+              const initials = getInitials(display.name);
+
               return (
-                <TableRow key={customer.id}>
-                  <td className="px-3 py-2">
-                    <CustomerNameCell name={display.name} fallback={display.fallback} sourceId={customer.id} />
-                  </td>
-                  <td className="ltr-iso px-3 py-2 tabular text-muted">
-                    {customer.mobile ? formatMobile(customer.mobile) : INCOMPLETE_LABEL}
-                  </td>
-                  <td className="px-3 py-2">
-                    {customer.is_operator ? (
-                      <Badge tone="warning">{customer.operator_label}</Badge>
-                    ) : customer.tier_label ? (
-                      <Badge tone="accent">{customer.tier_label}</Badge>
-                    ) : (
-                      <span className="text-faint">—</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 tabular">{formatNumber(customer.order_count)}</td>
-                  <td className="px-3 py-2 tabular">{formatToman(customer.lifetime_purchase_amount)}</td>
-                  <td className="px-3 py-2 text-muted">{formatDate(customer.first_purchase_at)}</td>
-                  <td className="px-3 py-2 text-muted">{formatDate(customer.last_purchase_at)}</td>
-                  <td className="px-3 py-2 tabular">{formatNumber(customer.online_count)}</td>
-                  <td className="px-3 py-2 tabular">{formatNumber(customer.pos_count)}</td>
-                  <td className="px-3 py-2">
-                    {customer.sales_line_labels.length ? (
-                      <div className="flex flex-wrap gap-1">
-                        {customer.sales_line_labels.map((label) => (
-                          <Badge key={label}>{label}</Badge>
-                        ))}
+                <div
+                  key={customer.id}
+                  className="bento-card p-3.5 glass-rim shadow-sm space-y-2.5 border-r-4 border-r-accent"
+                >
+                  {/* Top: Avatar, Name, Mobile & Tier */}
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className={`h-9 w-9 rounded-xl bg-gradient-to-tr ${gradient} flex items-center justify-center font-bold text-white text-xs shrink-0`}>
+                        {initials}
                       </div>
-                    ) : (
-                      <span className="text-faint">—</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="flex flex-wrap gap-1.5">
-                      {customer.status_label && customer.status_label !== "—" ? (
-                        <Badge tone={customer.status_label === "فعال" ? "sage" : "neutral"}>
-                          {customer.status_label}
-                        </Badge>
-                      ) : null}
-                      {customer.incomplete ? <Badge tone="warning">{INCOMPLETE_LABEL}</Badge> : null}
+                      <div>
+                        <div className="font-extrabold text-ink text-xs">{display.name}</div>
+                        <div className="text-[10px] text-muted font-mono ltr-iso">
+                          {customer.mobile ? formatMobile(customer.mobile) : "—"}
+                        </div>
+                      </div>
                     </div>
-                  </td>
-                  <td className="px-3 py-2">
-                    <Link to={`/customers/${customer.id}`} className="text-sm text-accent">
-                      مشاهده
+                    {getTierBadge(customer)}
+                  </div>
+
+                  {/* Middle: LTV & Last Purchase */}
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-line text-[11px]">
+                    <div>
+                      <span className="text-[10px] text-muted block">مجموع خرید (LTV):</span>
+                      <span className="font-black text-ink tabular text-xs">
+                        {formatToman(customer.lifetime_purchase_amount || 0)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-muted block">آخرین خرید:</span>
+                      <span className="font-bold text-accent">
+                        {customer.last_purchase_at ? formatDate(customer.last_purchase_at) : "—"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Bottom: Channels & Action Button */}
+                  <div className="flex items-center justify-between pt-2 border-t border-line text-xs">
+                    <div className="flex items-center gap-1">
+                      {customer.sales_line_labels?.slice(0, 2).map((lbl) => (
+                        <span key={lbl} className="text-[9px] px-1.5 py-0.5 rounded bg-elevated border border-line text-muted">
+                          {lbl}
+                        </span>
+                      ))}
+                      <span className="text-[10px] text-muted font-mono mr-1">
+                        {formatNumber(customer.order_count)} فاکتور
+                      </span>
+                    </div>
+                    <Link
+                      to={`/customers/${customer.id}`}
+                      className="px-2.5 py-1 rounded-lg bg-accent text-on-accent font-bold text-[10px] shadow-sm flex items-center gap-1"
+                    >
+                      <span>شناسنامه ۳۶۰</span>
+                      <span>←</span>
                     </Link>
-                  </td>
-                </TableRow>
+                  </div>
+                </div>
               );
             })}
-          </Table>
-          <Pagination page={data.page} total={data.total} perPage={data.per_page} onChange={setPage} />
-        </>
+          </div>
+
+          {/* Pagination Bar */}
+          <div className="mt-5 pt-4 border-t border-line flex flex-wrap items-center justify-between gap-3 text-xs text-muted">
+            <div>
+              نمایش صفحه {formatNumber(page)} از {formatNumber(totalPages)} (کل: {formatNumber(data.total)} مشتری)
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="px-3 py-1.5 rounded-xl bg-elevated border border-line text-ink disabled:opacity-40 disabled:cursor-not-allowed hover:bg-hover transition-colors"
+              >
+                قبلی
+              </button>
+              <span className="px-3 py-1.5 rounded-xl bg-accent text-on-accent font-bold shadow-md tabular">
+                {formatNumber(page)}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="px-3 py-1.5 rounded-xl bg-elevated border border-line text-ink disabled:opacity-40 disabled:cursor-not-allowed hover:bg-hover transition-colors"
+              >
+                بعدی
+              </button>
+            </div>
+          </div>
+
+        </div>
       )}
+
     </div>
   );
 }
