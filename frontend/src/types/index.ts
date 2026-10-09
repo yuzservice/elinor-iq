@@ -380,13 +380,87 @@ export type Customer360 = {
   }[];
 };
 
+export type ProductChannelUnits = {
+  online: number;
+  sari: number;
+  gorgan: number;
+  capri: number;
+};
+
 export type ProductRow = {
   id: number;
   product: string;
   variant: string;
+  category?: string;
+  sku?: string;
   sold_quantity: number;
   order_count: number;
+  revenue?: number;
+  channels?: ProductChannelUnits;
   last_sale_at: string | null;
+  status?: "hero" | "stable" | "slow" | "dead";
+  status_label?: string;
+  action_recommendation?: string;
+  complementary_items?: string[];
+};
+
+export type ProductKpis = {
+  gross_revenue: number;
+  units_sold: number;
+  hero_product: {
+    title: string;
+    revenue: number;
+    units: number;
+    share_pct: number;
+  } | null;
+  slow_movers_count: number;
+  capital_at_risk: number;
+  cross_sell_index: number;
+  active_products_count: number;
+};
+
+export type ProductBundle = {
+  item_a: string;
+  item_b: string;
+  co_occurrence_count: number;
+  confidence_pct: number;
+  recommendation: string;
+  target_audience: string;
+};
+
+export type ProductSizeColor = {
+  sizes: { label: string; units_sold: number; share_pct: number }[];
+  colors: { label: string; units_sold: number; share_pct: number }[];
+};
+
+export type Product360Data = {
+  id: number;
+  title: string;
+  sku: string;
+  category: string;
+  total_units: number;
+  total_revenue: number;
+  channels: {
+    online: { units: number; pct: number };
+    sari: { units: number; pct: number };
+    gorgan: { units: number; pct: number };
+    capri: { units: number; pct: number };
+  };
+  variants: {
+    id: number;
+    title: string;
+    size: string;
+    color: string;
+    units_sold: number;
+    price: number;
+  }[];
+  complementary_products: { product: string; times_together: number }[];
+  action_recommendation: string;
+};
+
+export type ProductsListResponse = Paginated<ProductRow> & {
+  kpis?: ProductKpis;
+  window?: WindowMeta | null;
 };
 
 export type SystemStatus = {

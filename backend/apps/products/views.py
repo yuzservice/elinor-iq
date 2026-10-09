@@ -1,71 +1,77 @@
-from django.db.models import Count, Max, Q, Sum
+import time
+
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from apps.core.coverage import coverage_payload
-from apps.sales.models import OrderItem
+from apps.products.intelligence import (
+    product_360_report,
+    product_bundles_report,
+    product_intelligence_report,
+    product_size_color_intelligence,
+)
+from apps.sales.semantics import parse_sales_line_filter
+from apps.sales.services import parse_range
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def product_list(request):
+    """Unified sales intelligence list across online & physical stores (Sari, Gorgan, Capri)."""
+    started = time.perf_counter()
+    start, end = parse_range(request)
+    sales_line = parse_sales_line_filter(request.query_params.get("sales_line"))
     page = max(1, int(request.query_params.get("page") or 1))
-    per_page = min(50, max(1, int(request.query_params.get("per_page") or 20)))
+    per_page = min(100, max(1, int(request.query_params.get("per_page") or 20)))
     search = (request.query_params.get("search") or "").strip()
-    qs = (
-        OrderItem.objects.filter(status=1)
-        .values(
-            "product_source_id",
-            "variant_source_id",
-            "product__title",
-            "variant__title",
-            "variant__name",
-            "variant__color_name",
-            "variant__size",
-            "title",
-        )
-        .annotate(
-            sold_quantity=Sum("quantity"),
-            order_count=Count("order_id", distinct=True),
-            last_sale_at=Max("order__created_at"),
-        )
-        .order_by("-sold_quantity", "-last_sale_at")
+    sort = (request.query_params.get("sort") or "units").strip().lower()
+    order = (request.query_params.get("order") or "desc").strip().lower()
+    tab = (request.query_params.get("tab") or "all").strip().lower()
+
+    payload = product_intelligence_report(
+        start=start,
+        end=end,
+        sales_line=sales_line,
+        search=search,
+        sort=sort,
+        order=order,
+        tab=tab,
+        page=page,
+        per_page=per_page,
     )
-    if search:
-        qs = qs.filter(
-            Q(product__title__icontains=search)
-            | Q(variant__title__icontains=search)
-            | Q(variant__name__icontains=search)
-            | Q(variant__sku__icontains=search)
-            | Q(title__icontains=search)
-        )
-    total = qs.count()
-    start_idx = (page - 1) * per_page
-    rows = list(qs[start_idx : start_idx + per_page])
-    return Response(
-        {
-            "page": page,
-            "per_page": per_page,
-            "total": total,
-            "data_coverage": coverage_payload(),
-            "results": [_row_payload(row) for row in rows],
-        }
-    )
+    payload["timing_ms"] = round((time.perf_counter() - started) * 1000, 1)
+    return Response(payload)
 
 
-def _row_payload(row):
-    variant_bits = [
-        row.get("variant__title") or row.get("variant__name") or "",
-        " / ".join(part for part in [row.get("variant__color_name"), row.get("variant__size")] if part),
-    ]
-    variant = " — ".join(bit for bit in variant_bits if bit) or "—"
-    product = row.get("product__title") or row.get("title") or "—"
-    return {
-        "id": row.get("variant_source_id") or row.get("product_source_id") or 0,
-        "product": product,
-        "variant": variant,
-        "sold_quantity": row.get("sold_quantity") or 0,
-        "order_count": row.get("order_count") or 0,
-        "last_sale_at": row.get("last_sale_at"),
-    }
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def product_bundles(request):
+    """Returns top market basket bundles and co-occurrence pairs."""
+    started = time.perf_counter()
+    start, end = parse_range(request)
+    limit = min(20, max(1, int(request.query_params.get("limit") or 5)))
+    payload = product_bundles_report(start=start, end=end, limit=limit)
+    payload["timing_ms"] = round((time.perf_counter() - started) * 1000, 1)
+    return Response(payload)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def product_size_color(request):
+    """Returns size and color demand distribution."""
+    started = time.perf_counter()
+    start, end = parse_range(request)
+    sales_line = parse_sales_line_filter(request.query_params.get("sales_line"))
+    payload = product_size_color_intelligence(start=start, end=end, sales_line=sales_line)
+    payload["timing_ms"] = round((time.perf_counter() - started) * 1000, 1)
+    return Response(payload)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def product_360(request, product_id):
+    """Returns complete 360-degree sales intelligence for a single product."""
+    started = time.perf_counter()
+    payload = product_360_report(product_id)
+    payload["timing_ms"] = round((time.perf_counter() - started) * 1000, 1)
+    return Response(payload)

@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ELINOR IQ v2 | پرتوتایپ بخش محصولات و افزایش فروش</title>
+  <!-- فونت وزیرمتن -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: ['class', '[data-theme="dark"]'],
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Vazirmatn', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            obsidian: '#07090e',
+            cyber: {
+              blue: '#3b82f6',
+              cyan: '#06b6d4',
+              emerald: '#10b981',
+              violet: '#8b5cf6',
+              amber: '#f59e0b',
+              rose: '#f43f5e',
+            }
+          },
+          boxShadow: {
+            'glow-blue': '0 0 25px -4px rgba(59, 130, 246, 0.3)',
+            'glow-emerald': '0 0 25px -4px rgba(16, 185, 129, 0.3)',
+            'glow-amber': '0 0 25px -4px rgba(245, 158, 11, 0.25)',
+            'card-light': '0 4px 20px -2px rgba(15, 23, 42, 0.05), 0 0 0 1px rgba(15, 23, 42, 0.05)',
+            'card-dark': '0 16px 36px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.07)',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    :root, [data-theme="dark"] {
+      --bg-base: #07090e;
+      --bg-card: rgba(13, 17, 25, 0.85);
+      --bg-elevated: #141b27;
+      --text-main: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-faint: #64748b;
+      --border-card: rgba(255, 255, 255, 0.07);
+      --glass-highlight: rgba(255, 255, 255, 0.1);
+      --glow-mesh-1: rgba(59, 130, 246, 0.12);
+      --glow-mesh-2: rgba(16, 185, 129, 0.09);
+      --glow-mesh-3: rgba(139, 92, 246, 0.08);
+      --frame-border: #18202c;
+    }
+    [data-theme="light"] {
+      --bg-base: #f8fafc;
+      --bg-card: #ffffff;
+      --bg-elevated: #f1f5f9;
+      --text-main: #090d16;
+      --text-secondary: #475569;
+      --text-faint: #94a3b8;
+      --border-card: rgba(15, 23, 42, 0.08);
+      --glass-highlight: rgba(255, 255, 255, 0.95);
+      --glow-mesh-1: rgba(59, 130, 246, 0.06);
+      --glow-mesh-2: rgba(16, 185, 129, 0.05);
+      --glow-mesh-3: rgba(139, 92, 246, 0.04);
+      --frame-border: #cbd5e1;
+    }
+
+    body {
+      font-family: 'Vazirmatn', sans-serif;
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      transition: background-color 0.25s ease, color 0.25s ease;
+      font-feature-settings: "ss01", "ss02";
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .tabular {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .aurora-bg {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(1000px 500px at 85% -10%, var(--glow-mesh-1), transparent 60%),
+        radial-gradient(900px 500px at 15% 105%, var(--glow-mesh-2), transparent 55%),
+        radial-gradient(700px 400px at 50% 40%, var(--glow-mesh-3), transparent 65%),
+        var(--bg-base);
+    }
+
+    .bento-card {
+      position: relative;
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border-card);
+      border-radius: 24px;
+      overflow: hidden;
+      transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    .bento-card:hover {
+      transform: translateY(-2px);
+    }
+
+    [data-theme="dark"] .bento-card:hover {
+      box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.65);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    [data-theme="light"] .bento-card:hover {
+      box-shadow: 0 16px 32px -8px rgba(15, 23, 42, 0.1);
+      border-color: rgba(59, 130, 246, 0.25);
+    }
+
+    .glass-rim {
+      box-shadow: inset 0 1px 0 0 var(--glass-highlight);
+    }
+
+    .glass-pill {
+      border: 1px solid var(--border-card);
+      border-radius: 9999px;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    [data-theme="dark"] .glass-pill {
+      background: rgba(255, 255, 255, 0.04);
+      color: #94a3b8;
+    }
+    [data-theme="light"] .glass-pill {
+      background: rgba(255, 255, 255, 0.8);
+      color: #475569;
+    }
+
+    .glass-pill.active {
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+      border-color: rgba(255, 255, 255, 0.25) !important;
+      color: #ffffff !important;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+    }
+
+    /* Mobile Frame */
+    .mobile-frame {
+      width: 390px;
+      height: 844px;
+      border-radius: 50px;
+      box-shadow: 0 0 0 12px var(--frame-border), 0 25px 60px -15px rgba(0, 0, 0, 0.55);
+      overflow: hidden;
+      position: relative;
+      background: var(--bg-base);
+    }
+
+    .dynamic-island {
+      width: 120px;
+      height: 28px;
+      background: #000;
+      border-radius: 20px;
+      margin: 10px auto 4px auto;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+    }
+
+    .floating-dock {
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 32px;
+    }
+    [data-theme="dark"] .floating-dock {
+      background: rgba(15, 22, 33, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 15px 35px -8px rgba(0, 0, 0, 0.7);
+    }
+    [data-theme="light"] .floating-dock {
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid rgba(15, 23, 42, 0.1);
+      box-shadow: 0 15px 35px -8px rgba(15, 23, 42, 0.15);
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.15); }
+    }
+    .pulse-glow {
+      animation: pulse-glow 2.5s infinite cubic-bezier(0.4, 0, 0.6, 1);
+    }
+
+    .drawer-overlay {
+      transition: opacity 0.25s ease, visibility 0.25s ease;
+    }
+    .drawer-panel {
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+  </style>
+</head>
+<body class="min-h-screen text-slate-900 dark:text-white relative selection:bg-blue-500 selection:text-white">
+
+  <!-- پس‌زمینه نوری -->
+  <div class="aurora-bg"></div>
+
+  <!-- نوار کنترل بالا (تغییر نما و پوسته) -->
+  <header class="sticky top-0 z-50 border-b border-slate-200 dark:border-white/10 bg-white/85 dark:bg-slate-950/85 backdrop-blur-xl px-4 py-2 text-slate-900 dark:text-white transition-colors">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      
+      <!-- برند و عنوان بخش -->
+      <div class="flex items-center gap-3">
+        <div class="h-8 w-8 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-400 p-[1px] shadow-md shadow-blue-500/20">
+          <div class="h-full w-full bg-slate-950 rounded-[11px] flex items-center justify-center font-extrabold text-transparent bg-clip-text bg-gradient-to-tr from-blue-400 to-cyan-300 text-xs">
+            EQ
+          </div>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-black tracking-wider uppercase text-blue-600 dark:text-blue-400">ELINOR IQ v2</span>
+            <span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-300 font-semibold">
+              پرتوتایپ بخش محصولات و افزایش فروش
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400">تحلیل یکپارچه کالاها (آنلاین + شعب حضوری) • طراحی مدرن و مینیمال</p>
+        </div>
+      </div>
+
+      <!-- کنترل‌های تعویض نما و تم -->
+      <div class="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/90 p-1 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+        <button id="view-desktop-btn" onclick="switchView('desktop')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white transition-all shadow-sm">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+          نمای دسکتاپ
+        </button>
+        <button id="view-mobile-btn" onclick="switchView('mobile')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-white transition-all">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+          نمای موبایل
+        </button>
+        <div class="h-3.5 w-[1px] bg-slate-300 dark:bg-slate-700 mx-1"></div>
+        <button onclick="toggleTheme()" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-slate-800 text-slate-800 dark:text-amber-300 transition-all border border-slate-200 dark:border-slate-700">
+          <span id="theme-icon">☀️</span>
+          <span id="theme-text">حالت روشن</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ============================================================== -->
+  <!-- ۱. نمای دسکتاپ (Desktop View)                                 -->
+  <!-- ============================================================== -->
+  <div id="desktop-container" class="relative z-10 transition-all duration-300">
+    <div class="flex min-h-[calc(100vh-53px)]">
+      
+      <!-- سایدبار مینیمال و شناور -->
+      <aside class="w-60 shrink-0 p-4 flex flex-col justify-between border-l border-slate-200/80 dark:border-white/5">
+        <div class="space-y-5">
+          
+          <!-- سلکتور شعبه فعال -->
+          <div class="bento-card p-3.5 glass-rim">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-[9px] font-extrabold tracking-widest text-blue-600 dark:text-blue-400 uppercase">ELINOR RETAIL</div>
+                <div class="text-sm font-extrabold mt-0.5 tracking-tight flex items-center gap-1.5 text-slate-900 dark:text-white">
+                  <span>کانال‌های فروش</span>
+                  <span class="h-2 w-2 rounded-full bg-emerald-500 pulse-glow"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-3 pt-2.5 border-t border-slate-200 dark:border-white/5">
+              <label class="text-[10px] text-slate-500 dark:text-slate-400 font-semibold block mb-1">فیلتر کانال فروش:</label>
+              <select id="channel-filter-desktop" onchange="applyFilters()" class="w-full bg-slate-100 dark:bg-slate-900/90 border border-slate-200 dark:border-white/10 rounded-xl px-2 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500 cursor-pointer">
+                <option value="all">همه کانال‌ها (۴ خط)</option>
+                <option value="online">آنلاین (وب‌سایت)</option>
+                <option value="sari">شعبه ساری (POS)</option>
+                <option value="gorgan">شعبه گرگان (POS)</option>
+                <option value="capri">شعبه کاپری (POS)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- ناوبری اصلی (با فعال بودن بخش محصولات) -->
+          <nav class="space-y-1">
+            <a href="#" class="flex items-center justify-between px-3 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 text-xs font-medium transition-all">
+              <div class="flex items-center gap-2.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+                <span>داشبورد فروش</span>
+              </div>
+            </a>
+
+            <!-- بخش فعال: محصولات و هوش کالا -->
+            <a href="#" class="flex items-center justify-between px-3 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-xs shadow-glow-blue border border-blue-400/25">
+              <div class="flex items-center gap-2.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                <span>محصولات و هوش فروش</span>
+              </div>
+              <span class="text-[10px] bg-white/20 px-1.5 py-0.5 rounded-md font-mono">Live</span>
+            </a>
+
+            <a href="#" class="flex items-center justify-between px-3 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 text-xs font-medium transition-all">
+              <div class="flex items-center gap-2.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                <span>مشتریان و وفاداری</span>
+              </div>
+            </a>
+
+            <a href="#" class="flex items-center justify-between px-3 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 text-xs font-medium transition-all">
+              <div class="flex items-center gap-2.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                <span>تحلیل‌های مالی و درگاه</span>
+              </div>
+            </a>
+
+            <a href="#" class="flex items-center justify-between px-3 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 text-xs font-medium transition-all">
+              <div class="flex items-center gap-2.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                <span>دایرکت اینستاگرام</span>
+              </div>
+              <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-500/15 text-rose-500 font-bold">۳</span>
+            </a>
+          </nav>
+        </div>
+
+        <!-- راهنمای هوشمند افزایش فروش در پایین سایدبار -->
+        <div class="space-y-3">
+          <div class="bento-card p-3 glass-rim bg-emerald-500/5 border-emerald-500/20 text-xs">
+            <div class="flex items-center gap-1.5 font-bold text-emerald-600 dark:text-emerald-400">
+              <span class="text-sm">💡</span>
+              <span>پیشنهاد افزایش فروش:</span>
+            </div>
+            <p class="text-[11px] text-slate-600 dark:text-slate-300 mt-1.5 leading-5">
+              ترکیب <strong class="text-slate-900 dark:text-white">کت لنین + شلوار راسته</strong> در ۴۶ فاکتور همزمان خریده شده است. ایجاد باندل با ۵٪ تخفیف می‌تواند نرخ تبدیل را ۱۲٪ بالا ببرد.
+            </p>
+          </div>
+
+          <!-- پروفایل کاربر -->
+          <div class="bento-card p-2.5 flex items-center justify-between glass-rim">
+            <div class="flex items-center gap-2">
+              <div class="h-8 w-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-bold text-white text-xs">
+                RS
+              </div>
+              <div>
+                <div class="text-xs font-bold text-slate-900 dark:text-white">رضا سلطانی</div>
+                <div class="text-[10px] text-slate-500 dark:text-slate-400">مدیر سیستم</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </aside>
+
+      <!-- فضای اصلی کار (Workspace) -->
+      <main class="flex-1 p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+        
+        <!-- هدر صفحه و فیلتر زمان -->
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-2.5">
+              <h1 class="text-2xl font-black tracking-tight text-slate-950 dark:text-white">هوش کالا و گزارش‌های افزایش فروش</h1>
+              <span class="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold border border-blue-500/20">
+                ترکیب آنلاین + ۳ شعبه حضوری
+              </span>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              شناسایی پیشران‌های درآمدی، کالاهای کندفروش برای پروموشن هدفمند، ترکیب‌های مکمل سبد خرید و توزیع تقاضای سایز و رنگ
+            </p>
+          </div>
+
+          <!-- بازه زمانی سریع -->
+          <div class="flex items-center gap-2">
+            <div class="flex items-center bg-slate-100 dark:bg-slate-900/80 p-1 rounded-2xl border border-slate-200 dark:border-white/10 text-xs">
+              <button onclick="setTimeRange('7d', this)" class="glass-pill px-3 py-1 text-slate-600 dark:text-slate-400">۷ روز</button>
+              <button onclick="setTimeRange('30d', this)" class="glass-pill active px-3.5 py-1 text-white font-bold">۳۰ روز گذشته</button>
+              <button onclick="setTimeRange('season', this)" class="glass-pill px-3 py-1 text-slate-600 dark:text-slate-400">فصل پاییز</button>
+            </div>
+            <button class="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              <span>خروجی گزارش</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- ۴ کارت شاخص‌های کلیدی (4 Actionable KPI Bento Cards) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          
+          <!-- کارت ۱: درآمد کل فروش کالاها -->
+          <div class="bento-card p-5 glass-rim shadow-card-light dark:shadow-card-dark">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-600 dark:text-slate-400">درآمد خالص فروش کالا</span>
+              <div class="h-8 w-8 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-sm">
+                💰
+              </div>
+            </div>
+            <div class="mt-3">
+              <div class="text-2xl lg:text-3xl font-black text-slate-950 dark:text-white tabular">
+                ۱,۸۴۲,۵۰۰,۰۰۰ <span class="text-xs font-normal text-slate-500 dark:text-slate-400">تومان</span>
+              </div>
+              <div class="flex items-center gap-1 text-xs mt-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
+                <span>↑ ۱۴.۲٪</span>
+                <span class="text-slate-500 dark:text-slate-400 font-normal">نسبت به دوره قبل</span>
+              </div>
+            </div>
+            <div class="mt-3 pt-2 border-t border-slate-200 dark:border-white/5 flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
+              <span>تعداد کل اقلام: ۲,۱۴۰ قلم</span>
+              <span class="text-blue-600 dark:text-blue-400 font-semibold">میانگین هر کالا: ۸۶۰ ه.ت</span>
+            </div>
+          </div>
+
+          <!-- کارت ۲: کالای پیشران ماه (Hero Best Seller) -->
+          <div class="bento-card p-5 glass-rim shadow-card-light dark:shadow-card-dark">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-600 dark:text-slate-400">پیشران درآمدی (Top Hero)</span>
+              <div class="h-8 w-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-sm">
+                ⭐
+              </div>
+            </div>
+            <div class="mt-3">
+              <div class="text-lg font-black text-slate-950 dark:text-white truncate">مانتو کتی شانتون پاییزه</div>
+              <div class="text-xs font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5 tabular">
+                ۳۱۲,۰۰۰,۰۰۰ تومان (۱۷٪ از کل فروش)
+              </div>
+            </div>
+            <div class="mt-3 pt-2 border-t border-slate-200 dark:border-white/5 flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
+              <span>تعداد فروش: ۱۸۶ عدد</span>
+              <span class="text-emerald-600 dark:text-emerald-400 font-medium">ساری بالاترین تقاضا</span>
+            </div>
+          </div>
+
+          <!-- کارت ۳: هشدار سرمایه راکد و کالاهای نیازمند اقدام (Dead Stock Alert) -->
+          <div class="bento-card p-5 glass-rim shadow-card-light dark:shadow-card-dark border-r-2 border-r-amber-500">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-600 dark:text-slate-400">کالاهای کندفروش و راکد</span>
+              <div class="h-8 w-8 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold text-sm">
+                ⏳
+              </div>
+            </div>
+            <div class="mt-3">
+              <div class="text-2xl lg:text-3xl font-black text-amber-600 dark:text-amber-400 tabular">
+                ۱۸ <span class="text-xs font-normal text-slate-500 dark:text-slate-400">محصول بدون فروش</span>
+              </div>
+              <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                بیش از ۲۵ روز از آخرین فروش گذشته
+              </div>
+            </div>
+            <div class="mt-3 pt-2 border-t border-slate-200 dark:border-white/5 flex justify-between text-[11px]">
+              <span class="text-slate-500 dark:text-slate-400">سرمایه در گردش بلوکه:</span>
+              <span class="text-amber-600 dark:text-amber-400 font-bold tabular">۱۴۵ م تومان</span>
+            </div>
+          </div>
+
+          <!-- کارت ۴: نرخ مکمل‌پذیری سبد خرید (Cross-Sell / Basket Index) -->
+          <div class="bento-card p-5 glass-rim shadow-card-light dark:shadow-card-dark">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-600 dark:text-slate-400">نرخ سبد مکمل (Cross-Sell)</span>
+              <div class="h-8 w-8 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold text-sm">
+                🔗
+              </div>
+            </div>
+            <div class="mt-3">
+              <div class="text-2xl lg:text-3xl font-black text-slate-950 dark:text-white tabular">
+                ۱.۷۶ <span class="text-xs font-normal text-slate-500 dark:text-slate-400">قلم در هر فاکتور</span>
+              </div>
+              <div class="flex items-center gap-1 text-xs mt-1.5 text-purple-600 dark:text-purple-400 font-bold">
+                <span>۳۸٪ فاکتورها چندکالایی</span>
+              </div>
+            </div>
+            <div class="mt-3 pt-2 border-t border-slate-200 dark:border-white/5 flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
+              <span>باندل‌های پیشنهادی فعال: ۵</span>
+              <span class="text-purple-600 dark:text-purple-400 font-medium">پتانسیل افزایش: +۱۵٪</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- زبانه‌های استراتژی‌های فروش (Strategic Report Tabs) -->
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-white/10 pb-3">
+          <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-900/80 p-1 rounded-2xl border border-slate-200 dark:border-white/10 text-xs">
+            <button onclick="switchTab('all', this)" class="glass-pill active px-4 py-2 font-bold flex items-center gap-1.5">
+              <span>📋</span>
+              <span>همه محصولات و عملکرد تجاری</span>
+            </button>
+            <button onclick="switchTab('bestsellers', this)" class="glass-pill px-4 py-2 text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+              <span>🔥</span>
+              <span>پیشران‌های فروش (Best Sellers)</span>
+            </button>
+            <button onclick="switchTab('slowmovers', this)" class="glass-pill px-4 py-2 text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+              <span>⚠️</span>
+              <span>کالاهای راکد / نیازمند تخفیف</span>
+            </button>
+            <button onclick="switchTab('bundles', this)" class="glass-pill px-4 py-2 text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+              <span>✨</span>
+              <span>تحلیل مکمل‌یابی و باندل سبد</span>
+            </button>
+            <button onclick="switchTab('variants', this)" class="glass-pill px-4 py-2 text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+              <span>🎨</span>
+              <span>تقاضای سایز و رنگ</span>
+            </button>
+          </div>
+
+          <!-- جستجوی زنده در جدول -->
+          <div class="relative min-w-[240px]">
+            <input
+              id="product-search"
+              type="text"
+              oninput="filterProducts()"
+              placeholder="جستجوی نام کالا، کد SKU یا رنگ..."
+              class="w-full pl-3 pr-9 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-white/10 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500"
+            >
+            <span class="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            </span>
+          </div>
+        </div>
+
+        <!-- بخش جدول اصلی گزارش محصولات (Interactive Product Intelligence Table) -->
+        <div class="bento-card p-5 glass-rim shadow-card-light dark:shadow-card-dark">
+          <div class="overflow-x-auto">
+            <table class="w-full text-right text-xs">
+              <thead>
+                <tr class="text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-white/10 pb-3 font-semibold">
+                  <th class="py-3 px-3">کالا و مشخصات تنوع</th>
+                  <th class="py-3 px-3">دسته‌بندی</th>
+                  <th class="py-3 px-3 text-center">وضعیت عملکرد</th>
+                  <th class="py-3 px-3">کل تعداد فروش</th>
+                  <th class="py-3 px-3">درآمد ناخالص (تومان)</th>
+                  <th class="py-3 px-3">تفکیک کانال (آنلاین / شعب)</th>
+                  <th class="py-3 px-3">آخرین فروش</th>
+                  <th class="py-3 px-3">پیشنهاد هوشمند رشد فروش</th>
+                  <th class="py-3 px-3 text-center">شناسنامه ۳۶۰</th>
+                </tr>
+              </thead>
+              <tbody id="products-table-body" class="divide-y divide-slate-100 dark:divide-white/[0.04]">
+                <!-- ردیف‌های جدول توسط جاوااسکریپت رندر می‌شوند -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- فوتر جدول -->
+          <div class="mt-4 pt-3 border-t border-slate-200 dark:border-white/5 flex flex-wrap items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+            <div>
+              نمایش <span id="visible-count" class="font-bold text-slate-900 dark:text-white tabular">۶</span> کالا از پایگاه داده همگام‌سازی‌شده
+            </div>
+            <div class="flex items-center gap-1">
+              <span class="text-[11px]">راهنما:</span>
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold">⭐ کالای پیشران</span>
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-bold">✓ پایدار</span>
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-bold">⚠️ کندفروش</span>
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[10px] font-bold">⛔ رسوب‌کرده</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ۲ پنل مکمل: تحلیل هوشمند باندل‌ها + توزیع رنگ و سایز پرفروش -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          
+          <!-- پنل ۱: موتور هوشمند پیشنهاد مکمل و باندلینگ (Market Basket & Bundling Engine) (Span 7) -->
+          <div class="lg:col-span-7 bento-card p-6 glass-rim shadow-card-light dark:shadow-card-dark space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-sm font-extrabold text-slate-950 dark:text-white flex items-center gap-2">
+                  <span>🛍️ ترکیب‌های طلایی خرید همزمان (Basket Bundles)</span>
+                  <span class="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 font-bold">تولید خودکار</span>
+                </h3>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  کالاهایی که بیشترین نرخ تکرار خرید در یک فاکتور مشترک را دارند؛ آماده برای پیشنهاد به مشتریان حضوری و آنلاین
+                </p>
+              </div>
+            </div>
+
+            <div class="space-y-3">
+              <!-- باندل ۱ -->
+              <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 flex flex-wrap items-center justify-between gap-3">
+                <div class="space-y-1">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold text-slate-900 dark:text-white">کت لنین پاییزه کرم</span>
+                    <span class="text-purple-500 font-bold">+</span>
+                    <span class="text-xs font-bold text-slate-900 dark:text-white">شلوار راسته بگ نسکافه‌ای</span>
+                  </div>
+                  <div class="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-3">
+                    <span>همپوشانی فاکتور: <strong class="text-emerald-600 dark:text-emerald-400 tabular font-bold">۴۶ فاکتور</strong></span>
+                    <span>ضریب اطمینان سبد: <strong class="text-slate-700 dark:text-slate-300 tabular">۷۴٪</strong></span>
+                  </div>
+                </div>
+                <div class="text-left">
+                  <span class="text-[10px] px-2.5 py-1 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold">
+                    پیشنهاد تخفیف ۵٪ به صندوق
+                  </span>
+                </div>
+              </div>
+
+              <!-- باندل ۲ -->
+              <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 flex flex-wrap items-center justify-between gap-3">
+                <div class="space-y-1">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold text-slate-900 dark:text-white">بارانی دو رو کره‌ای مشکی</span>
+                    <span class="text-purple-500 font-bold">+</span>
+                    <span class="text-xs font-bold text-slate-900 dark:text-white">شال پلیسه موهر دودی</span>
+                  </div>
+                  <div class="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-3">
+                    <span>همپوشانی فاکتور: <strong class="text-emerald-600 dark:text-emerald-400 tabular font-bold">۳۱ فاکتور</strong></span>
+                    <span>محبوب در: <strong class="text-blue-600 dark:text-blue-400">وبسایت و ساری</strong></span>
+                  </div>
+                </div>
+                <div class="text-left">
+                  <span class="text-[10px] px-2.5 py-1 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400 font-bold">
+                    فعال‌سازی در پیشنهاد کارت سبد آنلاین
+                  </span>
+                </div>
+              </div>
+
+              <!-- باندل ۳ -->
+              <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 flex flex-wrap items-center justify-between gap-3">
+                <div class="space-y-1">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold text-slate-900 dark:text-white">شومیز ابریشم ژاکارد سفید</span>
+                    <span class="text-purple-500 font-bold">+</span>
+                    <span class="text-xs font-bold text-slate-900 dark:text-white">دامن پلیسه میدی کرپ</span>
+                  </div>
+                  <div class="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-3">
+                    <span>همپوشانی فاکتور: <strong class="text-emerald-600 dark:text-emerald-400 tabular font-bold">۲۷ فاکتور</strong></span>
+                    <span>خریداران VIP: <strong class="text-purple-600 dark:text-purple-400">۶۲٪</strong></span>
+                  </div>
+                </div>
+                <div class="text-left">
+                  <span class="text-[10px] px-2.5 py-1 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 font-bold">
+                    ارسال پیامک اختصاصی به کلوپ VIP
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- پنل ۲: ماتریس هوش سایز و رنگ (Size & Color Intelligence) (Span 5) -->
+          <div class="lg:col-span-5 bento-card p-6 glass-rim shadow-card-light dark:shadow-card-dark space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-sm font-extrabold text-slate-950 dark:text-white flex items-center gap-2">
+                  <span>🎨 رفتار تقاضای رنگ و سایز</span>
+                </h3>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  توزیع بیشترین سهم فروش برای بهینه‌سازی تأمین موجودی
+                </p>
+              </div>
+            </div>
+
+            <!-- تفکیک سایزها -->
+            <div class="space-y-2">
+              <span class="text-xs font-bold text-slate-700 dark:text-slate-300 block">سهم فروش سایزها:</span>
+              
+              <div class="space-y-1.5 text-xs">
+                <div>
+                  <div class="flex justify-between text-[11px] mb-1">
+                    <span class="text-slate-600 dark:text-slate-400">سایز ۳۸ (Medium)</span>
+                    <span class="font-bold tabular text-blue-600 dark:text-blue-400">۳۸٪ (بیشترین تقاضا)</span>
+                  </div>
+                  <div class="h-2 w-full bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
+                    <div class="h-full bg-blue-500 rounded-full" style="width: 38%"></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="flex justify-between text-[11px] mb-1">
+                    <span class="text-slate-600 dark:text-slate-400">سایز ۴۰ (Large)</span>
+                    <span class="font-bold tabular text-slate-700 dark:text-slate-300">۳۱٪</span>
+                  </div>
+                  <div class="h-2 w-full bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
+                    <div class="h-full bg-indigo-500 rounded-full" style="width: 31%"></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="flex justify-between text-[11px] mb-1">
+                    <span class="text-slate-600 dark:text-slate-400">سایز ۳۶ (Small)</span>
+                    <span class="font-bold tabular text-slate-700 dark:text-slate-300">۱۸٪</span>
+                  </div>
+                  <div class="h-2 w-full bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
+                    <div class="h-full bg-cyan-500 rounded-full" style="width: 18%"></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="flex justify-between text-[11px] mb-1">
+                    <span class="text-slate-600 dark:text-slate-400">سایز ۴۲ و بزرگتر (X-Large+)</span>
+                    <span class="font-bold tabular text-amber-500">۱۳٪ (ریسک رسوب در انبار)</span>
+                  </div>
+                  <div class="h-2 w-full bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
+                    <div class="h-full bg-amber-500 rounded-full" style="width: 13%"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- رنگ‌های پرفروش دوره -->
+            <div class="pt-3 border-t border-slate-200 dark:border-white/5">
+              <span class="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-2">رنگ‌های پیشتاز دوره:</span>
+              <div class="grid grid-cols-3 gap-2 text-center text-xs">
+                <div class="p-2 rounded-xl bg-slate-100 dark:bg-white/[0.03] border border-slate-200 dark:border-white/5">
+                  <div class="h-3 w-3 rounded-full bg-amber-200 border border-amber-300 mx-auto mb-1"></div>
+                  <div class="font-bold text-slate-900 dark:text-white">کرم / نسکافه‌ای</div>
+                  <div class="text-[10px] text-slate-500 dark:text-slate-400 tabular">۴۱٪ فروش</div>
+                </div>
+                <div class="p-2 rounded-xl bg-slate-100 dark:bg-white/[0.03] border border-slate-200 dark:border-white/5">
+                  <div class="h-3 w-3 rounded-full bg-slate-900 border border-slate-700 mx-auto mb-1"></div>
+                  <div class="font-bold text-slate-900 dark:text-white">مشکی زغالی</div>
+                  <div class="text-[10px] text-slate-500 dark:text-slate-400 tabular">۲۸٪ فروش</div>
+                </div>
+                <div class="p-2 rounded-xl bg-slate-100 dark:bg-white/[0.03] border border-slate-200 dark:border-white/5">
+                  <div class="h-3 w-3 rounded-full bg-emerald-800 border border-emerald-600 mx-auto mb-1"></div>
+                  <div class="font-bold text-slate-900 dark:text-white">سبز زیتونی</div>
+                  <div class="text-[10px] text-slate-500 dark:text-slate-400 tabular">۱۶٪ فروش</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </main>
+
+    </div>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- ۲. نمای موبایل شبیه‌سازی‌شده (390px Mobile View)               -->
+  <!-- ============================================================== -->
+  <div id="mobile-container" class="hidden py-8 px-4 flex justify-center items-center relative z-10 transition-all duration-300">
+    <div class="mobile-frame flex flex-col justify-between text-slate-900 dark:text-white">
+      
+      <!-- Dynamic Island -->
+      <div class="dynamic-island">
+        <span class="text-[9px] text-slate-400 font-mono">09:41</span>
+        <div class="h-2.5 w-2.5 rounded-full bg-emerald-500"></div>
+      </div>
+
+      <!-- محتوای قابل اسکرول موبایل -->
+      <div class="flex-1 overflow-y-auto px-4 py-3 space-y-4 pb-20">
+        
+        <!-- هدر موبایل -->
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">ELINOR IQ</span>
+            <h2 class="text-base font-black text-slate-950 dark:text-white">محصولات و فروش</h2>
+          </div>
+          <select id="channel-filter-mobile" onchange="applyFiltersMobile()" class="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-xl px-2 py-1 text-[11px] font-bold">
+            <option value="all">همه شعب</option>
+            <option value="online">آنلاین</option>
+            <option value="sari">ساری</option>
+            <option value="gorgan">گرگان</option>
+            <option value="capri">کاپری</option>
+          </select>
+        </div>
+
+        <!-- کارت‌های درآمدی موبایل -->
+        <div class="bento-card p-4 glass-rim bg-gradient-to-tr from-blue-600/10 to-transparent">
+          <div class="text-[11px] text-slate-500 dark:text-slate-400">درآمد کل دوره (۳۰ روز)</div>
+          <div class="text-xl font-black text-slate-950 dark:text-white mt-1 tabular">۱,۸۴۲,۵۰۰,۰۰۰ تومان</div>
+          <div class="text-[10px] text-emerald-500 font-bold mt-1">↑ ۱۴.۲٪ رشد ماهانه • ۲,۱۴۰ قلم کالا</div>
+        </div>
+
+        <!-- کارت‌های کالای لیدر و راکد موبایل -->
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <div class="bento-card p-3 glass-rim">
+            <span class="text-[10px] text-slate-500 dark:text-slate-400 block">⭐ پیشران فروش</span>
+            <div class="font-bold text-slate-900 dark:text-white mt-1 truncate">مانتو کتی شانتون</div>
+            <div class="text-[10px] text-emerald-500 font-bold mt-0.5 tabular">۳۱۲ م تومان</div>
+          </div>
+          <div class="bento-card p-3 glass-rim border-r-2 border-r-amber-500">
+            <span class="text-[10px] text-amber-500 block">⚠️ کالای راکد</span>
+            <div class="font-bold text-slate-900 dark:text-white mt-1">۱۸ محصول</div>
+            <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 tabular">۱۴۵ م سرمایه خوابیده</div>
+          </div>
+        </div>
+
+        <!-- لیست فشرده محصولات موبایل -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between text-xs font-bold">
+            <span>کالاهای پرفروش و نیازمند اقدام:</span>
+            <span class="text-[10px] text-blue-500">مشاهده همه</span>
+          </div>
+
+          <div id="mobile-products-list" class="space-y-2 text-xs">
+            <!-- آیتم‌ها توسط جاوااسکریپت تزریق می‌شوند -->
+          </div>
+        </div>
+
+      </div>
+
+      <!-- داک شناور ناوبری موبایل -->
+      <div class="p-3">
+        <div class="floating-dock p-2 flex justify-around items-center text-xs">
+          <button class="p-2 text-slate-400">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
+          <button class="p-2 text-blue-500 font-bold flex flex-col items-center">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+          </button>
+          <button class="p-2 text-slate-400">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- ۳. کشوی شناسنامه ۳۶۰ درجه کالا (Product 360 Insight Drawer)    -->
+  <!-- ============================================================== -->
+  <div id="drawer-overlay" class="drawer-overlay fixed inset-0 z-50 bg-black/60 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity" onclick="closeProductDrawer()">
+    <div class="h-full w-full flex justify-end">
+      <div id="drawer-panel" class="drawer-panel w-full max-w-lg h-full bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-white/10 p-6 overflow-y-auto space-y-6 shadow-2xl translate-x-full" onclick="event.stopPropagation()">
+        
+        <!-- هدر کشو -->
+        <div class="flex items-start justify-between pb-4 border-b border-slate-200 dark:border-white/10">
+          <div>
+            <div class="flex items-center gap-2">
+              <span id="drawer-status-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold"></span>
+              <span id="drawer-sku" class="text-xs text-slate-500 dark:text-slate-400 font-mono"></span>
+            </div>
+            <h2 id="drawer-title" class="text-lg font-black text-slate-950 dark:text-white mt-1"></h2>
+            <div id="drawer-variant" class="text-xs text-slate-500 dark:text-slate-400"></div>
+          </div>
+          <button onclick="closeProductDrawer()" class="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors">
+            ✕
+          </button>
+        </div>
+
+        <!-- خلاصه مالی و مقایسه کانال‌ها -->
+        <div class="grid grid-cols-2 gap-3 text-xs">
+          <div class="p-3 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/5">
+            <span class="text-slate-500 dark:text-slate-400">کل درآمد فروش:</span>
+            <div id="drawer-revenue" class="text-base font-extrabold text-slate-900 dark:text-white tabular mt-1"></div>
+          </div>
+          <div class="p-3 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/5">
+            <span class="text-slate-500 dark:text-slate-400">تعداد فروش کل:</span>
+            <div id="drawer-quantity" class="text-base font-extrabold text-slate-900 dark:text-white tabular mt-1"></div>
+          </div>
+        </div>
+
+        <!-- سهم فروش در شعب و آنلاین -->
+        <div class="space-y-2">
+          <span class="text-xs font-bold text-slate-800 dark:text-slate-200">سهم فروش به تفکیک کانال:</span>
+          <div id="drawer-channels" class="space-y-2 text-xs">
+            <!-- جزئیات کانال‌ها -->
+          </div>
+        </div>
+
+        <!-- اقلام مکمل پیشنهادی (Cross-Selling Recommendations) -->
+        <div class="space-y-3 p-4 rounded-2xl bg-purple-500/5 border border-purple-500/20">
+          <div class="flex items-center gap-1.5 text-xs font-bold text-purple-600 dark:text-purple-400">
+            <span>✨ اقلام مکمل پیشنهادی جهت افزایش فروش:</span>
+          </div>
+          <p class="text-[11px] text-slate-600 dark:text-slate-300 leading-5">
+            خریداران این محصول در <strong class="text-slate-900 dark:text-white">۷۲٪ موارد</strong> مایل به خرید کالاهای زیر بوده‌اند:
+          </p>
+          <div id="drawer-complementary-items" class="space-y-2 text-xs">
+            <!-- اقلام مکمل -->
+          </div>
+        </div>
+
+        <!-- اقدام فوری برای تیم فروش (Action Items) -->
+        <div class="space-y-2">
+          <span class="text-xs font-bold text-slate-800 dark:text-slate-200">پیشنهاد هوشمند تیم الینور:</span>
+          <div id="drawer-recommendation" class="p-3.5 rounded-2xl bg-slate-100 dark:bg-white/[0.03] border border-slate-200 dark:border-white/5 text-xs leading-5 text-slate-700 dark:text-slate-300">
+          </div>
+        </div>
+
+        <!-- دکمه‌های عملیاتی -->
+        <div class="pt-4 border-t border-slate-200 dark:border-white/10 flex gap-2">
+          <button onclick="alert('کمپین پیامکی به خریداران بالقوه این دسته فعال شد.')" class="flex-1 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-500 transition-all shadow-md">
+            ارسال پیامک هدفمند به خریداران این سبک
+          </button>
+          <button onclick="closeProductDrawer()" class="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5">
+            بستن
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- اسکریپت داده‌ها و تعاملات نمونه -->
+  <script>
+    // داده‌های نمونه منطبق با ساختار دیتابیس الینور (ترکیب آنلاین + شعب حضوری)
+    const productsData = [
+      {
+        id: 101,
+        title: "مانتو کتی شانتون پاییزه",
+        variant: "کرم / سایز ۳۸",
+        sku: "ELN-MNT-101",
+        category: "مانتو و پالتو",
+        status: "hero",
+        statusText: "⭐ پیشران فروش",
+        soldQuantity: 186,
+        revenue: 312000000,
+        channels: { online: 58, sari: 74, gorgan: 32, capri: 22 },
+        lastSale: "امروز (۱ ساعت قبل)",
+        actionRecommendation: "موجودی شعبه ساری به ۳ عدد رسیده؛ انتقال فوری ۱۰ واحد از انبار مرکزی به ساری جهت حفظ مومنتوم فروش.",
+        complementary: ["شلوار راسته بگ نسکافه‌ای (۴۶ بار)", "شال لنین موهر پاییزه (۳۲ بار)"]
+      },
+      {
+        id: 102,
+        title: "بارانی دو رو کره‌ای لیمیتد",
+        variant: "مشکی / سایز ۴۰",
+        sku: "ELN-RN-204",
+        category: "بارانی و کاپشن",
+        status: "hero",
+        statusText: "⭐ پیشران فروش",
+        soldQuantity: 142,
+        revenue: 298200000,
+        channels: { online: 82, sari: 30, gorgan: 18, capri: 12 },
+        lastSale: "امروز (۳ ساعت قبل)",
+        actionRecommendation: "فروش آنلاین بسیار بالا (۵۷٪)؛ توصیه به ایجاد پکیج تخفیف ارسال رایگان با شال پاییزه.",
+        complementary: ["شال پلیسه موهر دودی (۳۱ بار)", "کلاه بافت فرانسوی (۱۹ بار)"]
+      },
+      {
+        id: 103,
+        title: "شلوار راسته کرپ مازراتی",
+        variant: "نسکافه‌ای / سایز ۳۸",
+        sku: "ELN-PNT-092",
+        category: "شلوار زنانه",
+        status: "stable",
+        statusText: "✓ فروش پایدار",
+        soldQuantity: 115,
+        revenue: 126500000,
+        channels: { online: 24, sari: 48, gorgan: 28, capri: 15 },
+        lastSale: "دیروز",
+        actionRecommendation: "کالای مکمل اصلی کت‌های پاییزه؛ قرارگیری کنار استند مانتوهای کرم در شعب حضوری.",
+        complementary: ["مانتو کتی شانتون پاییزه (۴۶ بار)", "کمربند چرم باریک (۲۳ بار)"]
+      },
+      {
+        id: 104,
+        title: "شومیز ابریشم ژاکارد طرح الیزه",
+        variant: "شیری / سایز ۳۶",
+        sku: "ELN-SHM-301",
+        category: "شومیز و بلوز",
+        status: "stable",
+        statusText: "✓ فروش پایدار",
+        soldQuantity: 94,
+        revenue: 112800000,
+        channels: { online: 40, sari: 22, gorgan: 20, capri: 12 },
+        lastSale: "۲ روز قبل",
+        actionRecommendation: "محبوب میان خریداران VIP؛ ارسال پیشنهاد ست مجلسی به کلوب مشتریان طلایی.",
+        complementary: ["دامن پلیسه میدی کرپ (۲۷ بار)"]
+      },
+      {
+        id: 105,
+        title: "پیراهن ماکسی کلوش تابستانه",
+        variant: "سبز پسته‌ای / سایز ۴۲",
+        sku: "ELN-DRS-055",
+        category: "پیراهن",
+        status: "slow",
+        statusText: "⚠️ کندفروش (آف‌سیزن)",
+        soldQuantity: 14,
+        revenue: 19600000,
+        channels: { online: 4, sari: 5, gorgan: 3, capri: 2 },
+        lastSale: "۱۸ روز قبل",
+        actionRecommendation: "تغییر فصل؛ اعمال تخفیف ۲۵٪ پایان فصل (Clearance) یا باندل با روپوش بافت.",
+        complementary: ["صندل چرم راحتی (۸ بار)"]
+      },
+      {
+        id: 106,
+        title: "پالتو فوتر یقه انگلیسی ضخیم",
+        variant: "طوسی / سایز ۴۴",
+        sku: "ELN-PLT-882",
+        category: "مانتو و پالتو",
+        status: "dead",
+        statusText: "⛔ راکد (بدون فروش اخیر)",
+        soldQuantity: 3,
+        revenue: 10500000,
+        channels: { online: 1, sari: 1, gorgan: 1, capri: 0 },
+        lastSale: "۲۸ روز قبل",
+        actionRecommendation: "سایز بزرگ و قیمت بالا؛ ارسال به حراج بلک فرایدی یا تخفیف ویژه برای مشتریان سایز ۴۴ با پیامک هدفمند.",
+        complementary: ["شال کشمیر بافت"]
+      }
+    ];
+
+    let activeTab = 'all';
+    let currentFilterChannel = 'all';
+
+    // تغییر تم (Dark / Light)
+    function toggleTheme() {
+      const html = document.documentElement;
+      const isDark = html.getAttribute('data-theme') === 'dark';
+      html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+      document.getElementById('theme-icon').textContent = isDark ? '🌙' : '☀️';
+      document.getElementById('theme-text').textContent = isDark ? 'حالت تیره' : 'حالت روشن';
+    }
+
+    // تغییر نمای دسکتاپ و موبایل
+    function switchView(view) {
+      const desktop = document.getElementById('desktop-container');
+      const mobile = document.getElementById('mobile-container');
+      const desktopBtn = document.getElementById('view-desktop-btn');
+      const mobileBtn = document.getElementById('view-mobile-btn');
+
+      if (view === 'desktop') {
+        desktop.classList.remove('hidden');
+        mobile.classList.add('hidden');
+        desktopBtn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white transition-all shadow-sm";
+        mobileBtn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-white transition-all";
+      } else {
+        desktop.classList.add('hidden');
+        mobile.classList.remove('hidden');
+        mobileBtn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white transition-all shadow-sm";
+        desktopBtn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-white transition-all";
+        renderMobileProducts();
+      }
+    }
+
+    // تغییر بازه زمانی
+    function setTimeRange(range, btn) {
+      btn.parentElement.querySelectorAll('button').forEach(b => {
+        b.className = "glass-pill px-3 py-1 text-slate-600 dark:text-slate-400";
+      });
+      btn.className = "glass-pill active px-3.5 py-1 text-white font-bold";
+    }
+
+    // تغییر زبانه استراتژیک
+    function switchTab(tab, btn) {
+      activeTab = tab;
+      btn.parentElement.querySelectorAll('button').forEach(b => {
+        b.classList.remove('active');
+        b.classList.add('text-slate-600', 'dark:text-slate-400');
+      });
+      btn.classList.add('active');
+      btn.classList.remove('text-slate-600', 'dark:text-slate-400');
+      filterProducts();
+    }
+
+    function applyFilters() {
+      currentFilterChannel = document.getElementById('channel-filter-desktop').value;
+      filterProducts();
+    }
+
+    function applyFiltersMobile() {
+      currentFilterChannel = document.getElementById('channel-filter-mobile').value;
+      renderMobileProducts();
+    }
+
+    // فیلتر و رندر محصولات
+    function filterProducts() {
+      const search = (document.getElementById('product-search').value || '').trim().toLowerCase();
+      const tbody = document.getElementById('products-table-body');
+      tbody.innerHTML = '';
+
+      let list = productsData.filter(p => {
+        if (activeTab === 'bestsellers' && p.status !== 'hero') return false;
+        if (activeTab === 'slowmovers' && p.status !== 'slow' && p.status !== 'dead') return false;
+        if (activeTab === 'bundles' && (!p.complementary || p.complementary.length === 0)) return false;
+        if (activeTab === 'variants' && !p.variant) return false;
+        if (search) {
+          const matchTitle = p.title.toLowerCase().includes(search);
+          const matchVariant = p.variant.toLowerCase().includes(search);
+          const matchSku = p.sku.toLowerCase().includes(search);
+          const matchCat = p.category.toLowerCase().includes(search);
+          if (!matchTitle && !matchVariant && !matchSku && !matchCat) return false;
+        }
+        return true;
+      });
+
+      document.getElementById('visible-count').textContent = list.length;
+
+      list.forEach(p => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors cursor-pointer";
+        tr.onclick = () => openProductDrawer(p);
+
+        // رنگ برچسب وضعیت
+        let statusBadgeClass = "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20";
+        if (p.status === 'hero') statusBadgeClass = "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30";
+        if (p.status === 'slow') statusBadgeClass = "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30";
+        if (p.status === 'dead') statusBadgeClass = "bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30";
+
+        tr.innerHTML = `
+          <td class="py-3 px-3">
+            <div class="font-extrabold text-slate-900 dark:text-white">${p.title}</div>
+            <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">${p.variant} • <span class="font-mono">${p.sku}</span></div>
+          </td>
+          <td class="py-3 px-3 text-slate-600 dark:text-slate-300">${p.category}</td>
+          <td class="py-3 px-3 text-center">
+            <span class="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold ${statusBadgeClass}">
+              ${p.statusText}
+            </span>
+          </td>
+          <td class="py-3 px-3 tabular font-bold text-slate-900 dark:text-white">${p.soldQuantity.toLocaleString('fa-IR')} قلم</td>
+          <td class="py-3 px-3 tabular font-extrabold text-slate-900 dark:text-white">${p.revenue.toLocaleString('fa-IR')}</td>
+          <td class="py-3 px-3">
+            <div class="flex items-center gap-1.5 text-[10px] tabular">
+              <span class="text-blue-600 dark:text-blue-400 font-semibold" title="آنلاین">وب: ${p.channels.online}</span>
+              <span class="text-slate-400">/</span>
+              <span class="text-emerald-600 dark:text-emerald-400 font-semibold" title="ساری">ساری: ${p.channels.sari}</span>
+              <span class="text-slate-400">/</span>
+              <span class="text-amber-600 dark:text-amber-400 font-semibold" title="گرگان">گرگان: ${p.channels.gorgan}</span>
+              <span class="text-slate-400">/</span>
+              <span class="text-purple-600 dark:text-purple-400 font-semibold" title="کاپری">کاپری: ${p.channels.capri}</span>
+            </div>
+          </td>
+          <td class="py-3 px-3 text-slate-500 dark:text-slate-400 text-[11px]">${p.lastSale}</td>
+          <td class="py-3 px-3">
+            <div class="max-w-xs text-[11px] text-slate-700 dark:text-slate-300 leading-4 bg-slate-100 dark:bg-white/[0.03] p-1.5 rounded-xl border border-slate-200 dark:border-white/5 truncate hover:whitespace-normal">
+              ⚡ ${p.actionRecommendation}
+            </div>
+          </td>
+          <td class="py-3 px-3 text-center">
+            <button class="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-white/5 hover:bg-blue-600 hover:text-white text-slate-600 dark:text-slate-300 text-[10px] font-bold transition-all">
+              شناسنامه ۳۶۰
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // رندر کارت‌های موبایل
+    function renderMobileProducts() {
+      const container = document.getElementById('mobile-products-list');
+      container.innerHTML = '';
+      productsData.forEach(p => {
+        const div = document.createElement('div');
+        div.className = "bento-card p-3 glass-rim cursor-pointer";
+        div.onclick = () => openProductDrawer(p);
+        div.innerHTML = `
+          <div class="flex items-start justify-between">
+            <div class="font-extrabold text-xs text-slate-900 dark:text-white">${p.title}</div>
+            <span class="text-[9px] font-bold text-blue-500">${p.soldQuantity} فروش</span>
+          </div>
+          <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">${p.variant}</div>
+          <div class="flex justify-between items-center mt-2 pt-2 border-t border-slate-200 dark:border-white/5 text-[10px]">
+            <span class="text-emerald-500 font-bold tabular">${p.revenue.toLocaleString('fa-IR')} ت</span>
+            <span class="text-slate-400">${p.lastSale}</span>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    // مدیریت کشوی ۳۶۰ درجه محصول
+    function openProductDrawer(p) {
+      document.getElementById('drawer-title').textContent = p.title;
+      document.getElementById('drawer-variant').textContent = `${p.variant} • دسته: ${p.category}`;
+      document.getElementById('drawer-sku').textContent = p.sku;
+      
+      const badge = document.getElementById('drawer-status-badge');
+      badge.textContent = p.statusText;
+      badge.className = p.status === 'hero' ? 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' :
+                        p.status === 'slow' ? 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400' :
+                        'px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400';
+
+      document.getElementById('drawer-revenue').textContent = `${p.revenue.toLocaleString('fa-IR')} تومان`;
+      document.getElementById('drawer-quantity').textContent = `${p.soldQuantity.toLocaleString('fa-IR')} عدد`;
+      document.getElementById('drawer-recommendation').textContent = p.actionRecommendation;
+
+      // کانال‌ها
+      const channelsContainer = document.getElementById('drawer-channels');
+      channelsContainer.innerHTML = `
+        <div class="flex justify-between p-2 rounded-xl bg-slate-50 dark:bg-white/[0.02]">
+          <span>وب‌سایت آنلاین:</span>
+          <span class="font-bold tabular">${p.channels.online} عدد (${Math.round(p.channels.online/p.soldQuantity*100)}٪)</span>
+        </div>
+        <div class="flex justify-between p-2 rounded-xl bg-slate-50 dark:bg-white/[0.02]">
+          <span>شعبه ساری (حضوری):</span>
+          <span class="font-bold tabular text-emerald-500">${p.channels.sari} عدد (${Math.round(p.channels.sari/p.soldQuantity*100)}٪)</span>
+        </div>
+        <div class="flex justify-between p-2 rounded-xl bg-slate-50 dark:bg-white/[0.02]">
+          <span>شعبه گرگان (حضوری):</span>
+          <span class="font-bold tabular">${p.channels.gorgan} عدد (${Math.round(p.channels.gorgan/p.soldQuantity*100)}٪)</span>
+        </div>
+        <div class="flex justify-between p-2 rounded-xl bg-slate-50 dark:bg-white/[0.02]">
+          <span>شعبه کاپری (حضوری):</span>
+          <span class="font-bold tabular">${p.channels.capri} عدد (${Math.round(p.channels.capri/p.soldQuantity*100)}٪)</span>
+        </div>
+      `;
+
+      // اقلام مکمل
+      const compContainer = document.getElementById('drawer-complementary-items');
+      compContainer.innerHTML = '';
+      if (p.complementary && p.complementary.length > 0) {
+        p.complementary.forEach(item => {
+          const itemDiv = document.createElement('div');
+          itemDiv.className = "flex items-center justify-between p-2 rounded-xl bg-purple-500/10 text-purple-700 dark:text-purple-300 text-[11px] font-semibold";
+          itemDiv.innerHTML = `
+            <span>🔗 ${item}</span>
+            <span class="text-[10px] bg-purple-500/20 px-2 py-0.5 rounded-lg">پیشنهاد باندل</span>
+          `;
+          compContainer.appendChild(itemDiv);
+        });
+      } else {
+        compContainer.innerHTML = `<span class="text-slate-400 text-[11px]">اقلام مکمل کافی یافت نشد.</span>`;
+      }
+
+      const overlay = document.getElementById('drawer-overlay');
+      const panel = document.getElementById('drawer-panel');
+      overlay.classList.remove('opacity-0', 'pointer-events-none');
+      panel.classList.remove('translate-x-full');
+    }
+
+    function closeProductDrawer() {
+      const overlay = document.getElementById('drawer-overlay');
+      const panel = document.getElementById('drawer-panel');
+      overlay.classList.add('opacity-0', 'pointer-events-none');
+      panel.classList.add('translate-x-full');
+    }
+
+    // لود اولیه
+    window.addEventListener('DOMContentLoaded', () => {
+      filterProducts();
+    });
+  </script>
+</body>
+</html>
