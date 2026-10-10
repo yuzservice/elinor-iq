@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ELINOR IQ v2 | پیش‌نمایش تحلیل پیشرفته فروش (مینیمال ۲۰۲۶)</title>
+  <!-- Vazirmatn Persian Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: ['class', '[data-theme="dark"]'],
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Vazirmatn', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            canvas: 'var(--bg)',
+            surface: 'var(--surface)',
+            elevated: 'var(--elevated)',
+            ink: 'var(--text)',
+            muted: 'var(--text-secondary)',
+            faint: 'var(--text-faint)',
+            line: 'var(--border)',
+            accent: 'var(--accent)',
+            'on-accent': 'var(--on-accent)',
+            sage: 'var(--success)',
+            warning: 'var(--warning)',
+            rose: 'var(--danger)',
+            ch: {
+              online: '#3b82f6',
+              sari: '#10b981',
+              gorgan: '#f59e0b',
+              capri: '#8b5cf6',
+            }
+          },
+          boxShadow: {
+            soft: 'var(--shadow)',
+            'glow-accent': '0 0 30px -5px rgba(59, 130, 246, 0.35)',
+            'card-light': '0 10px 30px -5px rgba(15, 23, 42, 0.06), 0 0 0 1px rgba(15, 23, 42, 0.05)',
+            'card-dark': '0 20px 40px -15px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08)',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    :root, [data-theme="dark"] {
+      --bg: #06080d;
+      --surface: #0c1017;
+      --elevated: #131924;
+      --text: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-faint: #64748b;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-card: rgba(255, 255, 255, 0.08);
+      --glass-highlight: rgba(255, 255, 255, 0.10);
+      --accent: #3b82f6;
+      --on-accent: #ffffff;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #f43f5e;
+      --hover: rgba(255, 255, 255, 0.04);
+      --stripe: rgba(255, 255, 255, 0.02);
+      --glow-1: rgba(59, 130, 246, 0.12);
+      --glow-2: rgba(16, 185, 129, 0.08);
+      --glow-3: rgba(139, 92, 246, 0.07);
+      --shadow: 0 20px 50px -15px rgba(0, 0, 0, 0.7);
+      --frame-border: #18202c;
+    }
+    [data-theme="light"] {
+      --bg: #f1f5f9;
+      --surface: #ffffff;
+      --elevated: #f8fafc;
+      --text: #090d16;
+      --text-secondary: #475569;
+      --text-faint: #94a3b8;
+      --border: rgba(15, 23, 42, 0.09);
+      --border-card: rgba(15, 23, 42, 0.09);
+      --glass-highlight: rgba(255, 255, 255, 0.98);
+      --accent: #2563eb;
+      --on-accent: #ffffff;
+      --success: #059669;
+      --warning: #d97706;
+      --danger: #e11d48;
+      --hover: rgba(15, 23, 42, 0.04);
+      --stripe: rgba(15, 23, 42, 0.02);
+      --glow-1: rgba(59, 130, 246, 0.06);
+      --glow-2: rgba(16, 185, 129, 0.04);
+      --glow-3: rgba(139, 92, 246, 0.03);
+      --shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.08);
+      --frame-border: #cbd5e1;
+    }
+
+    body {
+      font-family: 'Vazirmatn', sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      transition: background-color 0.25s cubic-bezier(0.16, 1, 0.3, 1), color 0.25s ease;
+      font-feature-settings: "ss01", "ss02";
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .tabular {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .ltr-iso {
+      unicode-bidi: isolate;
+      direction: ltr;
+      display: inline-block;
+    }
+
+    /* Ambient Minimal Mesh Background */
+    .ambient-mesh {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(1000px 500px at 80% -10%, var(--glow-1), transparent 60%),
+        radial-gradient(800px 450px at 20% 105%, var(--glow-2), transparent 55%),
+        var(--bg);
+    }
+
+    /* 2026 Minimalist Bento Card */
+    .bento-card {
+      position: relative;
+      background: var(--surface);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border-card);
+      border-radius: 24px;
+      overflow: hidden;
+      transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    .bento-card:hover {
+      border-color: rgba(59, 130, 246, 0.25);
+    }
+
+    [data-theme="dark"] .bento-card:hover {
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6);
+    }
+
+    [data-theme="light"] .bento-card:hover {
+      box-shadow: 0 16px 32px -8px rgba(15, 23, 42, 0.10);
+    }
+
+    .glass-rim {
+      box-shadow: inset 0 1px 0 0 var(--glass-highlight);
+    }
+
+    /* Minimal Pill */
+    .glass-pill {
+      border: 1px solid var(--border);
+      border-radius: 9999px;
+      transition: all 0.2s ease;
+      background: var(--elevated);
+      color: var(--text-secondary);
+    }
+
+    .glass-pill:hover {
+      color: var(--text);
+      border-color: rgba(59, 130, 246, 0.3);
+    }
+
+    .glass-pill.active {
+      background: var(--accent) !important;
+      border-color: transparent !important;
+      color: var(--on-accent) !important;
+      box-shadow: 0 4px 16px rgba(59, 130, 246, 0.35);
+    }
+
+    /* Mobile Device Frame styling */
+    .mobile-frame {
+      width: 390px;
+      height: 844px;
+      border-radius: 54px;
+      box-shadow: 0 0 0 12px var(--frame-border), 0 30px 80px -15px rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+      position: relative;
+      background: var(--bg);
+    }
+
+    .dynamic-island {
+      width: 120px;
+      height: 28px;
+      background: #000;
+      border-radius: 20px;
+      margin: 10px auto 4px auto;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+    }
+
+    /* Floating VisionOS Dock */
+    .floating-dock {
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border-radius: 32px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.5);
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.55; transform: scale(1.15); }
+    }
+    .pulse-glow {
+      animation: pulse-glow 2.4s infinite cubic-bezier(0.4, 0, 0.6, 1);
+    }
+  </style>
+</head>
+<body class="min-h-screen text-ink relative selection:bg-accent selection:text-white">
+
+  <!-- Ambient Minimal Mesh Background -->
+  <div class="ambient-mesh"></div>
+
+  <!-- Meta Control Header (Top Bar with View Switcher & Theme Toggle) -->
+  <header class="sticky top-0 z-50 border-b border-line bg-surface/85 backdrop-blur-xl px-4 py-2.5 transition-colors">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      
+      <!-- Brand Tag -->
+      <div class="flex items-center gap-3">
+        <div class="h-8 w-8 rounded-xl bg-accent flex items-center justify-center font-bold text-white text-xs shadow-md">
+          E
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-black tracking-wider uppercase text-accent">ELINOR IQ v2.2</span>
+            <span class="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 border border-accent/25 text-accent font-semibold">
+              پرتوتایپ بازطراحی پیشرفته بخش فروش ۲۰۲۶
+            </span>
+          </div>
+          <p class="text-[11px] text-muted">تحلیل یکپارچه فروش آنلاین + ۳ پایانه POS شعب ساری، گرگان و کاپری • طراحی مینیمال و داده‌محور</p>
+        </div>
+      </div>
+
+      <!-- Live Switchers (Desktop/Mobile & Theme) -->
+      <div class="flex items-center gap-2 bg-elevated p-1 rounded-2xl border border-line shadow-sm">
+        <button id="view-desktop-btn" onclick="switchView('desktop')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-accent text-white transition-all shadow-sm">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+          نمای دسکتاپ (۱۴۴۰px)
+        </button>
+        <button id="view-mobile-btn" onclick="switchView('mobile')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-muted hover:text-ink transition-all">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+          نمای موبایل (۳۹۰px)
+        </button>
+        <div class="h-4 w-[1px] bg-line mx-1"></div>
+        <button onclick="toggleTheme()" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-surface text-ink transition-all border border-line shadow-sm">
+          <span id="theme-icon">☀️</span>
+          <span id="theme-text">حالت روشن</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ============================================================== -->
+  <!-- 1. DESKTOP VIEW CONTAINER (1440px)                             -->
+  <!-- ============================================================== -->
+  <div id="desktop-container" class="relative z-10 transition-all duration-300">
+    <div class="flex min-h-[calc(100vh-57px)]">
+      
+      <!-- Minimalist Luxury Sidebar (With Sales Active) -->
+      <aside class="w-72 shrink-0 p-5 flex flex-col justify-between">
+        <div class="space-y-4">
+          
+          <!-- Brand Badge Card -->
+          <div class="bento-card p-4 glass-rim">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-[10px] font-extrabold tracking-[0.25em] text-accent uppercase">ELINOR BOUTIQUE</div>
+                <div class="text-base font-extrabold mt-0.5 tracking-tight flex items-center gap-2 text-ink">
+                  <span class="h-2.5 w-2.5 rounded-full bg-emerald-500 pulse-glow shrink-0"></span>
+                  <span>هوش فروشگاهی</span>
+                </div>
+              </div>
+              <div class="h-7 w-7 rounded-lg bg-elevated border border-line flex items-center justify-center text-muted text-xs">
+                ‹
+              </div>
+            </div>
+
+            <!-- Branch Selector -->
+            <div class="mt-3.5 pt-3 border-t border-line">
+              <label class="text-[10px] text-muted font-semibold block mb-1.5">شعبه فعال:</label>
+              <div class="relative">
+                <select class="w-full appearance-none bg-elevated border border-line rounded-xl px-3 py-2 text-xs font-semibold text-ink focus:outline-none focus:border-accent cursor-pointer pr-3 pl-8">
+                  <option>همه خطوط فروش (۴ شعبه)</option>
+                  <option>فروشگاه آنلاین (سایت)</option>
+                  <option>شعبه ساری (حضوری POS)</option>
+                  <option>شعبه گرگان (حضوری POS)</option>
+                  <option>شعبه کاپری (حضوری POS)</option>
+                </select>
+                <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none text-xs">▾</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Navigation Links (With Sales Active) -->
+          <nav class="space-y-1">
+            <a href="#" class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-muted hover:text-ink hover:bg-hover text-xs font-semibold transition-all">
+              <div class="flex items-center gap-3">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+                <span>داشبورد و بینش فروش</span>
+              </div>
+            </a>
+
+            <!-- Active Sales Link -->
+            <a href="#" class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-accent text-on-accent font-bold text-xs shadow-md shadow-accent/25 border border-accent/30">
+              <div class="flex items-center gap-3">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                <span>تحلیل پیشرفته فروش</span>
+              </div>
+              <span class="text-[10px] bg-white/20 px-2 py-0.5 rounded-md font-mono">Live</span>
+            </a>
+
+            <a href="#" class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-muted hover:text-ink hover:bg-hover text-xs font-semibold transition-all">
+              <div class="flex items-center gap-3">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                <span>مشتریان و شناسنامه ۳۶۰</span>
+              </div>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-elevated text-muted font-mono border border-line">۴,۲۱۸</span>
+            </a>
+
+            <a href="#" class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-muted hover:text-ink hover:bg-hover text-xs font-semibold transition-all">
+              <div class="flex items-center gap-3">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                <span>محصولات و موجودی</span>
+              </div>
+            </a>
+
+            <a href="#" class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-muted hover:text-ink hover:bg-hover text-xs font-semibold transition-all">
+              <div class="flex items-center gap-3">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                <span>دایرکت هوشمند</span>
+              </div>
+              <span class="text-[10px] px-2.5 py-0.5 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 text-white font-bold shadow-sm">۳ پیام</span>
+            </a>
+          </nav>
+        </div>
+
+        <!-- Sidebar User Card -->
+        <div class="bento-card p-3 glass-rim space-y-2.5">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <div class="h-9 w-9 rounded-full border-2 border-accent bg-slate-900 flex items-center justify-center font-bold text-white text-xs shrink-0 shadow-sm">
+                AD
+              </div>
+              <div>
+                <div class="text-xs font-bold text-ink">admin</div>
+                <div class="text-[10px] text-faint">مدیر ارشد فروشگاه</div>
+              </div>
+            </div>
+            <button title="خروج" class="p-1.5 rounded-xl hover:bg-hover text-muted hover:text-rose-500 transition-colors">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Main Sales Workspace -->
+      <main class="flex-1 p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+        
+        <!-- Header & Action Row -->
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-2.5">
+              <h1 class="text-2xl font-black tracking-tight text-ink">تحلیل پیشرفته و هوش فروش</h1>
+              <span class="text-xs px-2.5 py-0.5 rounded-full bg-accent/15 text-accent font-bold border border-accent/25">
+                تلفیق زنده ۴ کانال فروش
+              </span>
+            </div>
+            <p class="text-xs text-muted mt-1 leading-5">
+              پایش عملکرد درآمدی وبسایت و پایانه‌های صندوق شعب ساری، گرگان و کاپری، بررسی الگوهای رشد و رفتار مرجوعی‌ها
+            </p>
+          </div>
+
+          <!-- Date Filter & Branch Controls -->
+          <div class="flex flex-wrap items-center gap-2">
+            
+            <!-- Branch Selector -->
+            <div class="relative">
+              <select id="sales-branch-filter" onchange="updateBranchFilter(this.value)" class="bg-elevated border border-line rounded-2xl px-3 py-1.5 text-xs font-bold text-ink focus:outline-none focus:border-accent cursor-pointer pr-3 pl-7 shadow-sm">
+                <option value="all">همه خطوط فروش (۴ شعبه)</option>
+                <option value="ONLINE">فروشگاه آنلاین (سایت)</option>
+                <option value="SARI">شعبه ساری (حضوری)</option>
+                <option value="GORGAN">شعبه گرگان (حضوری)</option>
+                <option value="CAPRI">شعبه کاپری (حضوری)</option>
+              </select>
+              <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none text-xs">▾</span>
+            </div>
+
+            <!-- Time Window Pills -->
+            <div class="flex items-center bg-elevated p-1 rounded-2xl border border-line text-xs">
+              <button onclick="setPeriod('7d', this)" class="glass-pill px-3 py-1 text-muted">۷ روز</button>
+              <button onclick="setPeriod('30d', this)" class="glass-pill active px-3.5 py-1 font-bold">۳۰ روز گذشته</button>
+              <button onclick="setPeriod('quarter', this)" class="glass-pill px-3 py-1 text-muted">فصل پاییز</button>
+            </div>
+
+            <!-- Custom Calendar Trigger -->
+            <button class="glass-pill px-3 py-1.5 text-xs text-ink hover:border-accent flex items-center gap-1.5 shadow-sm transition-all">
+              <span>📅</span>
+              <span class="tabular font-mono text-[11px]">۱ تا ۲۵ مهر ۱۴۰۳</span>
+            </button>
+
+            <!-- Export Button -->
+            <button class="glass-pill px-3 py-1.5 text-xs text-muted hover:text-ink flex items-center gap-1.5 shadow-sm transition-all" title="دریافت گزارش اکسل">
+              <svg class="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              <span>خروجی اکسل</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 4 Top Executive KPI Bento Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          
+          <!-- Card 1: Gross Sales -->
+          <div class="bento-card p-5 glass-rim shadow-soft border-t-2 border-t-accent">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-muted">مجموع فروش ناخالص</span>
+              <div class="h-8 w-8 rounded-xl bg-accent/15 text-accent flex items-center justify-center font-bold text-sm">
+                💰
+              </div>
+            </div>
+            <div class="mt-3">
+              <div class="text-3xl font-black text-ink tabular">
+                ۲,۴۸۵,۶۰۰,۰۰۰ <span class="text-xs font-normal text-muted">ت</span>
+              </div>
+              <div class="flex items-center gap-1.5 text-xs mt-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
+                <span>↑ ۱۸.۴٪</span>
+                <span class="text-muted font-normal text-[11px]">نسبت به بازه مشابه ماه قبل</span>
+              </div>
+            </div>
+            <div class="mt-3 pt-2.5 border-t border-line flex justify-between text-[11px] text-muted">
+              <span>هدف ۳ میلیاردی: <strong class="text-accent tabular">۸۲.۸٪</strong></span>
+              <span class="text-emerald-500 font-semibold">روند صعودی</span>
+            </div>
+          </div>
+
+          <!-- Card 2: Orders Count -->
+          <div class="bento-card p-5 glass-rim shadow-soft">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-muted">تعداد فاکتورهای موفق</span>
+              <div class="h-8 w-8 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-sm">
+                🧾
+              </div>
+            </div>
+            <div class="mt-3">
+              <div class="text-3xl font-black text-ink tabular">۱,۴۲۰</div>
+              <div class="flex items-center gap-1.5 text-xs mt-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
+                <span>↑ ۸.۲٪</span>
+                <span class="text-muted font-normal text-[11px]">رشد تعداد خریداران</span>
+              </div>
+            </div>
+            <div class="mt-3 pt-2.5 border-t border-line flex justify-between text-[11px] text-muted">
+              <span>آنلاین: ۶۲۰ فاکتور</span>
+              <span>شعب حضوری: ۸۰۰ فاکتور</span>
+            </div>
+          </div>
+
+          <!-- Card 3: AOV -->
+          <div class="bento-card p-5 glass-rim shadow-soft">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-muted">ارزش میانگین سبد (AOV)</span>
+              <div class="h-8 w-8 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold text-sm">
+                💎
+              </div>
+            </div>
+            <div class="mt-3">
+              <div class="text-3xl font-black text-ink tabular">
+                ۱,۷۵۰,۰۰۰ <span class="text-xs font-normal text-muted">ت</span>
+              </div>
+              <div class="flex items-center gap-1.5 text-xs mt-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
+                <span>↑ ۱۲.۵٪</span>
+                <span class="text-muted font-normal text-[11px]">میانگین ۲.۳ قلم در سبد</span>
+              </div>
+            </div>
+            <div class="mt-3 pt-2.5 border-t border-line flex justify-between text-[11px] text-muted">
+              <span>بالاترین سبد: شعبه ساری</span>
+              <span class="text-purple-500 font-semibold">۲,۱۰۰,۰۰۰ ت</span>
+            </div>
+          </div>
+
+          <!-- Card 4: Returns & Exchanges -->
+          <div class="bento-card p-5 glass-rim shadow-soft">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-muted">مرجوعی و تعویض حضوری</span>
+              <div class="h-8 w-8 rounded-xl bg-rose-500/15 text-rose-500 flex items-center justify-center font-bold text-sm">
+                🔄
+              </div>
+            </div>
+            <div class="mt-3">
+              <div class="text-3xl font-black text-rose-500 tabular">۲.۱٪</div>
+              <div class="flex items-center gap-1.5 text-xs mt-1.5 text-muted">
+                <span>۳۱ مورد در کل دوره</span>
+                <span class="text-emerald-500 font-bold text-[11px]">✓ در محدوده امن</span>
+              </div>
+            </div>
+            <div class="mt-3 pt-2.5 border-t border-line flex justify-between text-[11px] text-muted">
+              <span>تعویض سایز: ۲۴ مورد</span>
+              <span>مرجوع کامل: ۷ مورد</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 2026 Master Trend & Omnichannel Breakdown Bento Row -->
+        <div class="grid grid-cols-12 gap-5">
+          
+          <!-- Large Wave Trend Chart (Span 8) -->
+          <div class="col-span-12 lg:col-span-8 bento-card p-6 lg:p-7 glass-rim shadow-soft space-y-6">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h3 class="text-base font-extrabold text-ink">روند فروش تفکیکی دوره (میلیون تومان)</h3>
+                <p class="text-xs text-muted mt-0.5">پایش تغییرات فروش روزانه به همراه نقاط اوج کمپین‌های تبلیغاتی</p>
+              </div>
+
+              <!-- Time Step Switcher (Daily, Weekly, Monthly) -->
+              <div class="flex items-center bg-elevated p-1 rounded-xl border border-line text-xs">
+                <button class="px-2.5 py-1 rounded-lg bg-accent text-on-accent font-bold">روزانه</button>
+                <button class="px-2.5 py-1 rounded-lg text-muted hover:text-ink">هفتگی</button>
+                <button class="px-2.5 py-1 rounded-lg text-muted hover:text-ink">ماهانه</button>
+              </div>
+            </div>
+
+            <!-- SVG Vector Wave Curve -->
+            <div class="h-52 w-full relative" style="direction: ltr;">
+              <svg viewBox="0 0 800 200" class="w-full h-full overflow-visible" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="salesGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.35"/>
+                    <stop offset="60%" stop-color="#3b82f6" stop-opacity="0.08"/>
+                    <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/>
+                  </linearGradient>
+                  <linearGradient id="salesStroke" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stop-color="#3b82f6"/>
+                    <stop offset="50%" stop-color="#60a5fa"/>
+                    <stop offset="100%" stop-color="#06b6d4"/>
+                  </linearGradient>
+                </defs>
+
+                <!-- Grid lines -->
+                <line x1="40" x2="780" y1="40" y2="40" stroke="var(--border)" stroke-dasharray="4 6"/>
+                <line x1="40" x2="780" y1="90" y2="90" stroke="var(--border)" stroke-dasharray="4 6"/>
+                <line x1="40" x2="780" y1="140" y2="140" stroke="var(--border)" stroke-dasharray="4 6"/>
+
+                <!-- Wave Area -->
+                <path d="M 40 150 Q 150 120, 240 100 T 420 120 T 580 40 T 680 25 T 780 50 L 780 180 L 40 180 Z" fill="url(#salesGrad)"/>
+                
+                <!-- Wave Stroke -->
+                <path d="M 40 150 Q 150 120, 240 100 T 420 120 T 580 40 T 680 25 T 780 50" fill="none" stroke="url(#salesStroke)" stroke-width="3.5" stroke-linecap="round"/>
+
+                <!-- Glow Data Points -->
+                <circle cx="240" cy="100" r="4.5" fill="#3b82f6" stroke="#ffffff" stroke-width="2"/>
+                <circle cx="420" cy="120" r="4.5" fill="#3b82f6" stroke="#ffffff" stroke-width="2"/>
+                <circle cx="580" cy="40" r="5.5" fill="#10b981" stroke="#ffffff" stroke-width="2"/>
+                <!-- Peak Point -->
+                <circle cx="680" cy="25" r="7" fill="#2563eb" stroke="#ffffff" stroke-width="2.5" class="animate-pulse"/>
+                <circle cx="780" cy="50" r="4.5" fill="#3b82f6" stroke="#ffffff" stroke-width="2"/>
+              </svg>
+            </div>
+
+            <!-- Date Labels along Axis -->
+            <div class="flex justify-between text-[11px] text-muted font-mono pt-2 border-t border-line">
+              <span>۱ مهر</span>
+              <span>۵ مهر</span>
+              <span>۱۰ مهر</span>
+              <span>۱۵ مهر</span>
+              <span>۲۰ مهر</span>
+              <span class="text-accent font-bold">۲۵ مهر (امروز)</span>
+            </div>
+          </div>
+
+          <!-- Omnichannel 4-Branch Matrix (Span 4) -->
+          <div class="col-span-12 lg:col-span-4 bento-card p-6 glass-rim shadow-soft flex flex-col justify-between space-y-4">
+            <div>
+              <div class="flex items-center justify-between">
+                <h3 class="text-base font-extrabold text-ink">سهم و رتبه شعب</h3>
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-accent/15 text-accent font-bold">۴ خط فروش</span>
+              </div>
+              <p class="text-xs text-muted mt-0.5">تفکیک عملکرد درآمدی آنلاین در برابر فروشگاه‌های فیزیکی</p>
+            </div>
+
+            <div class="space-y-2.5 text-xs">
+              
+              <!-- Online Store -->
+              <div class="p-3 rounded-2xl bg-elevated border border-line space-y-1.5">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-ink flex items-center gap-1.5">
+                    <span class="h-2.5 w-2.5 rounded-full bg-blue-500"></span>
+                    <span>فروشگاه آنلاین (وبسایت)</span>
+                  </span>
+                  <span class="font-bold text-accent tabular">۴۱.۸٪ سهم</span>
+                </div>
+                <div class="flex items-center justify-between text-[11px] text-muted">
+                  <span class="tabular">۱,۰۴۰,۰۰۰,۰۰۰ تومان</span>
+                  <span>۶۲۰ سفارش</span>
+                </div>
+                <div class="h-1.5 w-full bg-surface rounded-full overflow-hidden">
+                  <div class="h-full bg-blue-500 rounded-full" style="width: 41.8%;"></div>
+                </div>
+              </div>
+
+              <!-- Sari Store -->
+              <div class="p-3 rounded-2xl bg-elevated border border-line space-y-1.5">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-ink flex items-center gap-1.5">
+                    <span class="h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+                    <span>شعبه ساری (حضوری)</span>
+                  </span>
+                  <span class="font-bold text-emerald-500 tabular">۲۸.۰٪ سهم</span>
+                </div>
+                <div class="flex items-center justify-between text-[11px] text-muted">
+                  <span class="tabular">۶۹۵,۰۰۰,۰۰۰ تومان</span>
+                  <span>۳۹۰ فاکتور</span>
+                </div>
+                <div class="h-1.5 w-full bg-surface rounded-full overflow-hidden">
+                  <div class="h-full bg-emerald-500 rounded-full" style="width: 28%;"></div>
+                </div>
+              </div>
+
+              <!-- Gorgan Store -->
+              <div class="p-3 rounded-2xl bg-elevated border border-line space-y-1.5">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-ink flex items-center gap-1.5">
+                    <span class="h-2.5 w-2.5 rounded-full bg-amber-500"></span>
+                    <span>شعبه گرگان (حضوری)</span>
+                  </span>
+                  <span class="font-bold text-amber-500 tabular">۱۸.۱٪ سهم</span>
+                </div>
+                <div class="flex items-center justify-between text-[11px] text-muted">
+                  <span class="tabular">۴۵۰,۰۰۰,۰۰۰ تومان</span>
+                  <span>۲۵۰ فاکتور</span>
+                </div>
+                <div class="h-1.5 w-full bg-surface rounded-full overflow-hidden">
+                  <div class="h-full bg-amber-500 rounded-full" style="width: 18.1%;"></div>
+                </div>
+              </div>
+
+              <!-- Capri Store -->
+              <div class="p-3 rounded-2xl bg-elevated border border-line space-y-1.5">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-ink flex items-center gap-1.5">
+                    <span class="h-2.5 w-2.5 rounded-full bg-purple-500"></span>
+                    <span>شعبه کاپری (حضوری)</span>
+                  </span>
+                  <span class="font-bold text-purple-500 tabular">۱۲.۱٪ سهم</span>
+                </div>
+                <div class="flex items-center justify-between text-[11px] text-muted">
+                  <span class="tabular">۳۰۰,۰۰۰,۰۰۰ تومان</span>
+                  <span>۱۶۰ فاکتور</span>
+                </div>
+                <div class="h-1.5 w-full bg-surface rounded-full overflow-hidden">
+                  <div class="h-full bg-purple-500 rounded-full" style="width: 12.1%;"></div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 4 Strategic Workspace Tabs (Linear / Apple Style) -->
+        <div class="space-y-4">
+          
+          <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar bg-elevated p-1.5 rounded-2xl border border-line text-xs max-w-full">
+            <button onclick="switchSalesTab('overview', this)" class="sales-tab-btn glass-pill active px-4 py-2 font-bold whitespace-nowrap">
+              📊 خلاصه جامع و دسته‌بندی‌ها
+            </button>
+            <button onclick="switchSalesTab('size-color', this)" class="sales-tab-btn glass-pill px-4 py-2 text-muted whitespace-nowrap">
+              👗 تحلیل تقاضای سایز و رنگ
+            </button>
+            <button onclick="switchSalesTab('returns', this)" class="sales-tab-btn glass-pill px-4 py-2 text-muted whitespace-nowrap">
+              🔄 مانیتورینگ مرجوعی و تعویض
+            </button>
+            <button onclick="switchSalesTab('orders', this)" class="sales-tab-btn glass-pill px-4 py-2 text-muted whitespace-nowrap">
+              🧾 فاکتورها و تراکنش‌های زنده (۱,۴۲۰)
+            </button>
+          </div>
+
+          <!-- TAB 1: OVERVIEW & TOP SELLERS -->
+          <div id="sales-tab-overview" class="sales-tab-content bento-card p-6 glass-rim shadow-soft space-y-5">
+            <div class="flex items-center justify-between">
+              <div>
+                <h4 class="text-base font-extrabold text-ink">پرفروش‌ترین کالاهای دوره (Hero Products)</h4>
+                <p class="text-xs text-muted mt-0.5">شناسایی پیشران‌های فروش جهت شارژ مجدد و توزیع بین شعب</p>
+              </div>
+              <span class="text-xs text-accent font-bold">نمایش ۵ قلم برتر</span>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-right text-xs">
+                <thead>
+                  <tr class="text-muted border-b border-line pb-3 font-semibold">
+                    <th class="py-3 px-3">نام محصول</th>
+                    <th class="py-3 px-3">دسته‌بندی</th>
+                    <th class="py-3 px-3">تعداد فروخته‌شده</th>
+                    <th class="py-3 px-3">مبلغ فروش کل</th>
+                    <th class="py-3 px-3">شعبه پیشتاز</th>
+                    <th class="py-3 px-3 text-center">وضعیت انبار</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-line">
+                  
+                  <tr class="hover:bg-hover transition-colors">
+                    <td class="py-3.5 px-3 font-bold text-ink flex items-center gap-2">
+                      <span class="h-7 w-7 rounded-xl bg-accent/15 text-accent flex items-center justify-center font-bold text-xs">۱</span>
+                      <span>مانتو کتی شانتون پاییزه</span>
+                    </td>
+                    <td class="py-3.5 px-3 text-muted">مانتو و کت زنانه</td>
+                    <td class="py-3.5 px-3 font-bold text-ink tabular">۱۸۴ عدد</td>
+                    <td class="py-3.5 px-3 font-black text-ink tabular">۵۲۴,۴۰۰,۰۰۰ تومان</td>
+                    <td class="py-3.5 px-3 text-emerald-500 font-semibold">شعبه ساری (۴۴٪)</td>
+                    <td class="py-3.5 px-3 text-center">
+                      <span class="px-2.5 py-0.5 rounded-full bg-rose-500/15 text-rose-500 font-bold text-[10px]">موجودی اندک (۳ عدد)</span>
+                    </td>
+                  </tr>
+
+                  <tr class="hover:bg-hover transition-colors">
+                    <td class="py-3.5 px-3 font-bold text-ink flex items-center gap-2">
+                      <span class="h-7 w-7 rounded-xl bg-accent/15 text-accent flex items-center justify-center font-bold text-xs">۲</span>
+                      <span>کت و شلوار لنین وال استریت</span>
+                    </td>
+                    <td class="py-3.5 px-3 text-muted">ست زنانه</td>
+                    <td class="py-3.5 px-3 font-bold text-ink tabular">۱۲۶ ست</td>
+                    <td class="py-3.5 px-3 font-black text-ink tabular">۴۷۸,۸۰۰,۰۰۰ تومان</td>
+                    <td class="py-3.5 px-3 text-blue-500 font-semibold">آنلاین (۵۲٪)</td>
+                    <td class="py-3.5 px-3 text-center">
+                      <span class="px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 font-bold text-[10px]">موجودی پایدار</span>
+                    </td>
+                  </tr>
+
+                  <tr class="hover:bg-hover transition-colors">
+                    <td class="py-3.5 px-3 font-bold text-ink flex items-center gap-2">
+                      <span class="h-7 w-7 rounded-xl bg-accent/15 text-accent flex items-center justify-center font-bold text-xs">۳</span>
+                      <span>اورکت بارانی ترنچ بلند مشکی</span>
+                    </td>
+                    <td class="py-3.5 px-3 text-muted">پالتو و بارانی</td>
+                    <td class="py-3.5 px-3 font-bold text-ink tabular">۹۲ عدد</td>
+                    <td class="py-3.5 px-3 font-black text-ink tabular ۳۸۶,۴۰۰,۰۰۰ تومان</td>
+                    <td class="py-3.5 px-3 text-amber-500 font-semibold">شعبه گرگان (۳۸٪)</td>
+                    <td class="py-3.5 px-3 text-center">
+                      <span class="px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 font-bold text-[10px]">موجودی پایدار</span>
+                    </td>
+                  </tr>
+
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- TAB 2: SIZE & COLOR MATRIX -->
+          <div id="sales-tab-size-color" class="hidden sales-tab-content bento-card p-6 glass-rim shadow-soft space-y-6">
+            <div>
+              <h4 class="text-base font-extrabold text-ink">ماتریس تقاضای سایز و رنگ</h4>
+              <p class="text-xs text-muted mt-0.5">تحلیل هوشمند جهت سفارش‌گذاری بهینه تولید و جلوگیری از موجودی مازاد</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
+              
+              <!-- Size Distribution -->
+              <div class="p-4 rounded-2xl bg-elevated border border-line space-y-3">
+                <span class="font-bold text-ink block">سهم فروش سایزهای مختلف:</span>
+                
+                <div class="space-y-2">
+                  <div>
+                    <div class="flex justify-between text-[11px] mb-1">
+                      <span class="text-muted">سایز ۳۸ (سایز ۱)</span>
+                      <span class="font-bold text-ink tabular">۴۲٪ (۵۹۶ قلم)</span>
+                    </div>
+                    <div class="h-2 w-full bg-surface rounded-full overflow-hidden">
+                      <div class="h-full bg-accent rounded-full" style="width: 42%;"></div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div class="flex justify-between text-[11px] mb-1">
+                      <span class="text-muted">سایز ۴۰ (سایز ۲)</span>
+                      <span class="font-bold text-ink tabular">۳۴٪ (۴۸۲ قلم)</span>
+                    </div>
+                    <div class="h-2 w-full bg-surface rounded-full overflow-hidden">
+                      <div class="h-full bg-emerald-500 rounded-full" style="width: 34%;"></div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div class="flex justify-between text-[11px] mb-1">
+                      <span class="text-muted">سایز ۴۲ (سایز ۳)</span>
+                      <span class="font-bold text-ink tabular">۱۶٪ (۲۲۷ قلم)</span>
+                    </div>
+                    <div class="h-2 w-full bg-surface rounded-full overflow-hidden">
+                      <div class="h-full bg-amber-500 rounded-full" style="width: 16%;"></div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div class="flex justify-between text-[11px] mb-1">
+                      <span class="text-muted">فری‌سایز</span>
+                      <span class="font-bold text-ink tabular">۸٪ (۱۱۵ قلم)</span>
+                    </div>
+                    <div class="h-2 w-full bg-surface rounded-full overflow-hidden">
+                      <div class="h-full bg-purple-500 rounded-full" style="width: 8%;"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Color Distribution -->
+              <div class="p-4 rounded-2xl bg-elevated border border-line space-y-3">
+                <span class="font-bold text-ink block">رنگ‌های پیشتاز دوره:</span>
+                
+                <div class="grid grid-cols-2 gap-2.5">
+                  <div class="p-3 rounded-xl bg-surface border border-line flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <span class="h-4 w-4 rounded-full bg-slate-900 border border-line"></span>
+                      <span class="font-semibold text-ink">مشکی کلاسیک</span>
+                    </div>
+                    <span class="font-black text-ink tabular">۳۸٪</span>
+                  </div>
+
+                  <div class="p-3 rounded-xl bg-surface border border-line flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <span class="h-4 w-4 rounded-full bg-[#1e3a8a] border border-line"></span>
+                      <span class="font-semibold text-ink">سرمه‌ای دیپ</span>
+                    </div>
+                    <span class="font-black text-ink tabular">۲۸٪</span>
+                  </div>
+
+                  <div class="p-3 rounded-xl bg-surface border border-line flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <span class="h-4 w-4 rounded-full bg-[#d2b48c] border border-line"></span>
+                      <span class="font-semibold text-ink">کرم لنین</span>
+                    </div>
+                    <span class="font-black text-ink tabular">۲۱٪</span>
+                  </div>
+
+                  <div class="p-3 rounded-xl bg-surface border border-line flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <span class="h-4 w-4 rounded-full bg-slate-400 border border-line"></span>
+                      <span class="font-semibold text-ink">طوسی روشن</span>
+                    </div>
+                    <span class="font-black text-ink tabular">۱۳٪</span>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- TAB 3: RETURNS & EXCHANGES -->
+          <div id="sales-tab-returns" class="hidden sales-tab-content bento-card p-6 glass-rim shadow-soft space-y-4">
+            <h4 class="text-base font-extrabold text-ink">مانیتورینگ مرجوعی و تعویض حضوری شعب POS</h4>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+              <div class="p-4 rounded-2xl bg-elevated border border-line">
+                <span class="text-muted block">شعبه ساری:</span>
+                <div class="text-lg font-black text-ink tabular mt-1">۱۴ مورد تعویض • ۳ مرجوعی</div>
+                <span class="text-[10px] text-emerald-500 font-bold mt-1 block">علت اصلی: تغییر سایز ۳۸ به ۴۰</span>
+              </div>
+
+              <div class="p-4 rounded-2xl bg-elevated border border-line">
+                <span class="text-muted block">شعبه گرگان:</span>
+                <div class="text-lg font-black text-ink tabular mt-1">۷ مورد تعویض • ۲ مرجوعی</div>
+                <span class="text-[10px] text-emerald-500 font-bold mt-1 block">علت اصلی: تغییر رنگ به مشکی</span>
+              </div>
+
+              <div class="p-4 rounded-2xl bg-elevated border border-line">
+                <span class="text-muted block">شعبه کاپری:</span>
+                <div class="text-lg font-black text-ink tabular mt-1">۳ مورد تعویض • ۲ مرجوعی</div>
+                <span class="text-[10px] text-emerald-500 font-bold mt-1 block">کمترین نرخ مرجوعی</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 4: RECENT ORDERS -->
+          <div id="sales-tab-orders" class="hidden sales-tab-content bento-card p-6 glass-rim shadow-soft space-y-4">
+            <div class="flex items-center justify-between">
+              <h4 class="text-base font-extrabold text-ink">تراکنش‌ها و فاکتورهای زنده</h4>
+              <span class="text-xs text-muted">۱,۴۲۰ فاکتور ثبت‌شده</span>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-right text-xs">
+                <thead>
+                  <tr class="text-muted border-b border-line pb-3 font-semibold">
+                    <th class="py-3 px-3">تاریخ / ساعت</th>
+                    <th class="py-3 px-3">کانال فروش</th>
+                    <th class="py-3 px-3">شناسه فاکتور</th>
+                    <th class="py-3 px-3">مشتری</th>
+                    <th class="py-3 px-3">مبلغ کل</th>
+                    <th class="py-3 px-3">وضعیت</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-line">
+                  <tr class="hover:bg-hover transition-colors">
+                    <td class="py-3.5 px-3 font-mono text-muted">۱۰ دقیقه قبل</td>
+                    <td class="py-3.5 px-3"><span class="px-2 py-0.5 rounded bg-blue-500/15 text-blue-500 font-bold">آنلاین</span></td>
+                    <td class="py-3.5 px-3 font-mono font-bold text-ink">#ORD-9821</td>
+                    <td class="py-3.5 px-3 font-bold text-ink">مهسا کاظمی</td>
+                    <td class="py-3.5 px-3 font-black text-ink tabular">۳,۴۵۰,۰۰۰ تومان</td>
+                    <td class="py-3.5 px-3"><span class="text-emerald-500 font-bold">تأیید شد</span></td>
+                  </tr>
+
+                  <tr class="hover:bg-hover transition-colors">
+                    <td class="py-3.5 px-3 font-mono text-muted">۲۵ دقیقه قبل</td>
+                    <td class="py-3.5 px-3"><span class="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-500 font-bold">ساری</span></td>
+                    <td class="py-3.5 px-3 font-mono font-bold text-ink">#POS-4120</td>
+                    <td class="py-3.5 px-3 font-bold text-ink">صندوق حضوری ۱</td>
+                    <td class="py-3.5 px-3 font-black text-ink tabular">۲,۸۰۰,۰۰۰ تومان</td>
+                    <td class="py-3.5 px-3"><span class="text-blue-500 font-bold">تکمیل شده</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- 2. MOBILE VIEW CONTAINER (iPhone 14 / SE 390px Mockup Frame)  -->
+  <!-- ============================================================== -->
+  <div id="mobile-container" class="hidden relative z-10 py-8 px-4 flex justify-center items-center min-h-[calc(100vh-57px)]">
+    
+    <!-- iPhone Device Chassis -->
+    <div class="mobile-frame flex flex-col justify-between">
+      
+      <!-- Top Dynamic Island & Status Bar -->
+      <div class="relative shrink-0">
+        <div class="dynamic-island">
+          <div class="h-2.5 w-2.5 rounded-full bg-accent/80"></div>
+          <div class="h-3 w-3 rounded-full bg-slate-900 border border-slate-800"></div>
+        </div>
+        <div class="px-6 py-1 flex justify-between items-center text-[10px] text-muted font-mono">
+          <span>09:41</span>
+          <div class="flex items-center gap-1.5">
+            <span>5G</span>
+            <span>100%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mobile App Header -->
+      <div class="px-4 py-2.5 border-b border-line flex items-center justify-between bg-surface/90 backdrop-blur-md">
+        <div class="flex items-center gap-2">
+          <div class="h-7 w-7 rounded-xl bg-accent flex items-center justify-center font-bold text-white text-xs shadow-md">
+            E
+          </div>
+          <div>
+            <div class="text-[9px] font-black text-accent uppercase tracking-wider">تحلیل فروش</div>
+            <div class="text-xs font-black text-ink">الینور بوتیک</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <button onclick="toggleTheme()" class="h-7 w-7 rounded-xl bg-elevated border border-line flex items-center justify-center text-xs">
+            ☀️
+          </button>
+          <div class="h-7 w-7 rounded-xl bg-accent text-white flex items-center justify-center font-bold text-[10px]">
+            AD
+          </div>
+        </div>
+      </div>
+
+      <!-- Scrollable Mobile Content Area -->
+      <div class="flex-1 overflow-y-auto p-4 space-y-4 pb-28">
+        
+        <!-- Mobile Period & Branch Filters (Single Line Scroll) -->
+        <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 text-[11px]">
+          <button class="glass-pill active px-3 py-1 font-bold whitespace-nowrap">همه شعب</button>
+          <button class="glass-pill px-3 py-1 whitespace-nowrap">آنلاین</button>
+          <button class="glass-pill px-3 py-1 whitespace-nowrap">ساری</button>
+          <button class="glass-pill px-3 py-1 whitespace-nowrap">گرگان</button>
+          <button class="glass-pill px-3 py-1 whitespace-nowrap">۳۰ روزه</button>
+        </div>
+
+        <!-- Master Revenue Mobile Card -->
+        <div class="bento-card p-4 glass-rim shadow-sm space-y-3 border-t-2 border-t-accent">
+          <div class="flex items-start justify-between">
+            <div>
+              <span class="text-[10px] text-muted font-medium block">مجموع فروش دوره:</span>
+              <div class="text-2xl font-black text-ink tabular mt-0.5">۲,۴۸۵ م <span class="text-xs font-normal text-muted">تومان</span></div>
+            </div>
+            <span class="px-2 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-500 font-extrabold text-[10px]">
+              ↑ ۱۸.۴٪ رشد
+            </span>
+          </div>
+
+          <!-- Mini Channel Breakdown (2x2) -->
+          <div class="grid grid-cols-2 gap-2 pt-2 border-t border-line text-xs">
+            <div class="p-2 rounded-xl bg-elevated">
+              <span class="text-[10px] text-muted block">آنلاین:</span>
+              <span class="font-bold text-accent tabular">۱,۰۴۰ م (۴۱.۸٪)</span>
+            </div>
+            <div class="p-2 rounded-xl bg-elevated">
+              <span class="text-[10px] text-muted block">ساری:</span>
+              <span class="font-bold text-emerald-500 tabular">۶۹۵ م (۲۸٪)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mobile 2x2 KPI Pills -->
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <div class="bento-card p-3 glass-rim">
+            <span class="text-[10px] text-muted block">تعداد فاکتورها</span>
+            <span class="text-lg font-black text-ink tabular block mt-0.5">۱,۴۲۰</span>
+            <span class="text-[9px] text-emerald-500 font-bold">↑ ۸.۲٪ ماهانه</span>
+          </div>
+          <div class="bento-card p-3 glass-rim">
+            <span class="text-[10px] text-muted block">میانگین سبد (AOV)</span>
+            <span class="text-lg font-black text-ink tabular block mt-0.5">۱.۷۵ م <span class="text-[10px] font-normal">ت</span></span>
+            <span class="text-[9px] text-purple-500 font-bold">۲.۳ قلم کالا</span>
+          </div>
+        </div>
+
+        <!-- Recent Orders Touch Cards on Mobile -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-black text-ink">سفارشات اخیر</span>
+            <span class="text-[10px] text-muted">مشاهده همه ←</span>
+          </div>
+
+          <div class="bento-card p-3 glass-rim shadow-sm space-y-1.5">
+            <div class="flex items-center justify-between text-xs">
+              <span class="font-bold text-ink">#ORD-9821 • آنلاین</span>
+              <span class="font-black text-ink tabular">۳,۴۵۰,۰۰۰ ت</span>
+            </div>
+            <div class="text-[10px] text-muted">مانتو کتی شانتون سرمه‌ای • مهسا کاظمی</div>
+          </div>
+
+          <div class="bento-card p-3 glass-rim shadow-sm space-y-1.5">
+            <div class="flex items-center justify-between text-xs">
+              <span class="font-bold text-ink">#POS-4120 • ساری</span>
+              <span class="font-black text-ink tabular">۲,۸۰۰,۰۰۰ ت</span>
+            </div>
+            <div class="text-[10px] text-muted">کت و شلوار لنین کرم • صندوق حضوری ۱</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Mobile Floating VisionOS Dock -->
+      <div class="px-4 pb-4">
+        <nav class="floating-dock w-full px-3 py-2 flex items-center justify-around text-[10px] text-muted">
+          <a href="#" class="flex flex-col items-center gap-0.5">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+            <span class="text-[9px]">داشبورد</span>
+          </a>
+          <!-- Active Sales Dock Item -->
+          <a href="#" class="flex flex-col items-center gap-0.5 text-accent font-bold scale-105">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            <span class="text-[9px]">فروش</span>
+          </a>
+          <a href="#" class="flex flex-col items-center gap-0.5">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+            <span class="text-[9px]">مشتریان</span>
+          </a>
+          <a href="#" class="flex flex-col items-center gap-0.5">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+            <span class="text-[9px]">دایرکت</span>
+          </a>
+          <a href="#" class="flex flex-col items-center gap-0.5">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/></svg>
+            <span class="text-[9px]">تنظیمات</span>
+          </a>
+        </nav>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Interactive JavaScript -->
+  <script>
+    function switchView(view) {
+      const desktop = document.getElementById('desktop-container');
+      const mobile = document.getElementById('mobile-container');
+      const desktopBtn = document.getElementById('view-desktop-btn');
+      const mobileBtn = document.getElementById('view-mobile-btn');
+
+      if (view === 'mobile') {
+        desktop.classList.add('hidden');
+        mobile.classList.remove('hidden');
+        mobileBtn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-accent text-white transition-all shadow-sm";
+        desktopBtn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-muted hover:text-ink transition-all";
+      } else {
+        mobile.classList.add('hidden');
+        desktop.classList.remove('hidden');
+        desktopBtn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-accent text-white transition-all shadow-sm";
+        mobileBtn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-muted hover:text-ink transition-all";
+      }
+    }
+
+    let isDark = true;
+    function toggleTheme() {
+      isDark = !isDark;
+      const html = document.documentElement;
+      const icon = document.getElementById('theme-icon');
+      const text = document.getElementById('theme-text');
+
+      if (isDark) {
+        html.setAttribute('data-theme', 'dark');
+        html.classList.add('dark');
+        icon.textContent = '☀️';
+        text.textContent = 'حالت روشن';
+      } else {
+        html.setAttribute('data-theme', 'light');
+        html.classList.remove('dark');
+        icon.textContent = '🌙';
+        text.textContent = 'حالت تیره';
+      }
+    }
+
+    function switchSalesTab(tabId, btn) {
+      document.querySelectorAll('.sales-tab-btn').forEach(b => {
+        b.className = "sales-tab-btn glass-pill px-4 py-2 text-muted whitespace-nowrap";
+      });
+      btn.className = "sales-tab-btn glass-pill active px-4 py-2 font-bold whitespace-nowrap";
+
+      document.querySelectorAll('.sales-tab-content').forEach(c => {
+        c.classList.add('hidden');
+      });
+      const target = document.getElementById('sales-tab-' + tabId);
+      if (target) target.classList.remove('hidden');
+    }
+
+    function setPeriod(p, btn) {
+      const parent = btn.parentElement;
+      parent.querySelectorAll('button').forEach(b => {
+        b.className = "glass-pill px-3 py-1 text-muted";
+      });
+      btn.className = "glass-pill active px-3.5 py-1 font-bold";
+    }
+
+    function updateBranchFilter(val) {
+      console.log('Filtered by branch:', val);
+    }
+  </script>
+</body>
+</html>
