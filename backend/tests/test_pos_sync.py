@@ -14,6 +14,7 @@ from apps.integrations.elinor.sync import (
     pos_range_activity,
     pos_week_activity,
     pos_window,
+    repair_mismatched_pos_day_syncs,
     resume_explicit_pos_start,
 )
 from apps.sales.models import PosSale, PosSaleItem, SalesLine, Store
@@ -451,3 +452,63 @@ def test_explicit_pos_range_resumes_unfinished_day():
         {"next_date": "2026-09-17", "window_start": "2026-09-14", "window_end": "2026-09-25"},
     )
     assert fresh == start
+
+
+@pytest.mark.django_db
+def test_resumed_pos_sync_accumulates_seen_counts():
+    today = timezone.localdate() - timedelta(days=2)
+    PosDaySync.objects.create(
+        day=today, branch="sari", status=PosDaySync.STATUS_PARTIAL, next_page=2, sales_upserted=50
+    )
+    PosDaySync.objects.create(
+        day=today, branch="gorgan", status=PosDaySync.STATUS_PARTIAL, next_page=2, sales_upserted=30
+    )
+    PosDaySync.objects.create(
+        day=today, branch="capri", status=PosDaySync.STATUS_PARTIAL, next_page=2, sales_upserted=5
+    )
+    pages = []
+    service = _sync_service(pages)
+    service.client.get_mini_orders = lambda **kwargs: pages.append(kwargs["page"]) or {
+        "results": [_mini_order(source_id=200, store_id=3, created_at=f"{today.isoformat()} 14:00:00")],
+        "current_page": 2,
+        "last_page": 2,
+        "total": 1,
+        "raw": {},
+    }
+    service.client.get_mini_order = lambda source_id: {"mini_order": _mini_order(source_id=source_id)}
+    service.client.get_product = lambda source_id: {"id": source_id, "title": "شال", "status": "1", "varieties": []}
+
+    service._sync_pos_sales(today, today)
+    mark_sari = PosDaySync.objects.get(day=today, branch="sari")
+    assert mark_sari.status == PosDaySync.STATUS_COMPLETE
+    # Started at 50 from previous partial run, saw 1 more sale in page 2 -> total 51
+    assert mark_sari.api_count == 51
+
+
+@pytest.mark.django_db
+def test_repair_mismatched_pos_day_syncs():
+    day = timezone.localdate() - timedelta(days=3)
+    Store.objects.create(source_id=3, label="ساری")
+    # Simulate DB having 179 sales, but api_count was truncated to 23 due to the old resume bug
+    customer = Customer.objects.create(source_id=999, first_name="تست", last_name="تست", mobile="09121111111")
+    store = Store.objects.get(source_id=3)
+    created_dt = timezone.make_aware(datetime.combine(day, datetime.min.time()), timezone.get_current_timezone())
+    for i in range(5):
+        PosSale.objects.create(
+            source_id=5000 + i,
+            customer=customer,
+            store=store,
+            store_source_id=3,
+            sales_line=SalesLine.SARI,
+            created_at=created_dt + timedelta(hours=i),
+        )
+    PosDaySync.objects.create(
+        day=day, branch="sari", status=PosDaySync.STATUS_COMPLETE, api_count=2, sales_upserted=2
+    )
+
+    repaired = repair_mismatched_pos_day_syncs(days=[day])
+    assert repaired == 1
+    mark = PosDaySync.objects.get(day=day, branch="sari")
+    assert mark.api_count == 5
+    assert mark.sales_upserted == 5
+

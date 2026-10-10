@@ -477,6 +477,9 @@ class SyncService:
             repaired = repair_stored_customer_profiles()
             if repaired:
                 logger.info("Filled %s customer profiles from stored API payloads.", repaired)
+            repaired_syncs = repair_mismatched_pos_day_syncs()
+            if repaired_syncs:
+                logger.info("Repaired %s truncated POS day sync records.", repaired_syncs)
             # Today and yesterday first. Then unhealthy days in the past month,
             # newest first, so an old mismatch cannot spend the run.
             if pos_days and self.client.requests_made < MAX_REQUESTS_PER_RUN:
@@ -625,7 +628,17 @@ class SyncService:
                 return False
 
             self._pos_days_fetched += 1
-            self._day_branch_seen = {branch: 0 for branch in self._active_pos_branches()}
+            if page > 1:
+                prev_marks = {
+                    row.branch: row.sales_upserted
+                    for row in PosDaySync.objects.filter(day=day, branch__in=self._active_pos_branches())
+                }
+                self._day_branch_seen = {
+                    branch: prev_marks.get(branch, 0)
+                    for branch in self._active_pos_branches()
+                }
+            else:
+                self._day_branch_seen = {branch: 0 for branch in self._active_pos_branches()}
             day_end = day + timedelta(days=1)
             last_page = page
             previous_ids = set()
@@ -840,21 +853,32 @@ class SyncService:
     def _note_branches(self, day, branches, status, next_page, seen):
         now = timezone.now()
         for branch in branches:
+            seen_count = int(seen.get(branch, 0))
+            stored = branch_stored_count(day, branch)
+            if status == PosDaySync.STATUS_COMPLETE:
+                # If a day was read in partial chunks, seen_count could be lower than
+                # records already safely stored in database from earlier chunks.
+                # Never truncate api_count below stored sales count for completed days.
+                api_count = max(seen_count, stored)
+                upserted = max(seen_count, stored)
+            else:
+                api_count = None
+                upserted = seen_count
             PosDaySync.objects.update_or_create(
                 day=day,
                 branch=branch,
                 defaults={
                     "status": status,
                     "next_page": max(1, int(next_page or 1)),
-                    "sales_upserted": int(seen.get(branch, 0)),
-                    "api_count": int(seen.get(branch, 0)) if status == PosDaySync.STATUS_COMPLETE else None,
+                    "sales_upserted": upserted,
+                    "api_count": api_count,
                     "completed_at": now if status == PosDaySync.STATUS_COMPLETE else None,
                 },
             )
 
     def _pause_pos_day(self, cursor, day, start_date, end_date, page, sales):
         self._save_pos_cursor(cursor, day, start_date, end_date, next_page=page)
-        self._note_pos_day(day, PosDaySync.STATUS_PARTIAL, next_page=page, sales=sales)
+        self._note_pos_day(day, PosDaySync.STATUS_PARTIAL, next_page=page, sales=sales, seen=self._day_branch_seen)
 
     def _upsert_pos_header(self, row):
         source_id = as_int(row.get("id"), default=None)
@@ -1298,6 +1322,25 @@ class SyncService:
             refresh_stored_tiers(self._tier_customer_ids)
         except Exception:
             logger.exception("Stored tier refresh failed for customers touched by this sync")
+
+
+def repair_mismatched_pos_day_syncs(days=None):
+    """Repair PosDaySync records where api_count was truncated below stored sales count due to resumed partial syncs."""
+    repaired = 0
+    qs = PosDaySync.objects.filter(
+        status=PosDaySync.STATUS_COMPLETE,
+        api_count__isnull=False,
+    )
+    if days:
+        qs = qs.filter(day__in=days)
+    for mark in qs:
+        stored = branch_stored_count(mark.day, mark.branch)
+        if stored > 0 and mark.api_count < stored:
+            mark.api_count = stored
+            mark.sales_upserted = max(mark.sales_upserted, stored)
+            mark.save(update_fields=["api_count", "sales_upserted", "updated_at"])
+            repaired += 1
+    return repaired
 
 
 def pos_week_activity(today=None):
