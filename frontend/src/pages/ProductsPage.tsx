@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   formatCompactToman,
   formatDate,
@@ -657,11 +658,13 @@ export function ProductsPage() {
       </div>
 
       {/* کشوی شناسنامه ۳۶۰ درجه کالا (Product 360 Drawer) */}
-      {selectedProductId && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-end"
-          onClick={handleCloseDrawer}
-        >
+      {selectedProductId &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex justify-end"
+            onClick={handleCloseDrawer}
+          >
           <div
             className="w-full max-w-lg h-full bg-surface border-r border-line p-6 overflow-y-auto space-y-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
@@ -785,7 +788,8 @@ export function ProductsPage() {
               </>
             ) : null}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
     </div>

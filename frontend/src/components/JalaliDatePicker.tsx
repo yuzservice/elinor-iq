@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   formatJalali,
   isoToJalali,
@@ -204,8 +205,8 @@ export function JalaliRangeModal({
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+  const modalContent = (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
       <div
         className="w-full max-w-md bento-card p-6 glass-rim shadow-2xl space-y-5 animate-scale-up"
         onClick={(e) => e.stopPropagation()}
@@ -305,4 +306,6 @@ export function JalaliRangeModal({
       </div>
     </div>
   );
+
+  return typeof document !== "undefined" ? createPortal(modalContent, document.body) : modalContent;
 }

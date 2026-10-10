@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   Badge,
@@ -692,62 +693,68 @@ export function SalesPage() {
       </div>
 
       {/* Target Edit Modal */}
-      {isTargetModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bento-card p-6 w-full max-w-md glass-rim shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-line pb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">🎯</span>
-                <h3 className="font-bold text-ink text-sm sm:text-base">تنظیم تارگت فروش دوره</h3>
+      {isTargetModalOpen &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div
+              className="bento-card p-6 w-full max-w-md glass-rim shadow-2xl space-y-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-line pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🎯</span>
+                  <h3 className="font-bold text-ink text-sm sm:text-base">تنظیم تارگت فروش دوره</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsTargetModalOpen(false)}
+                  className="text-muted hover:text-ink text-sm p-1"
+                >
+                  ✕
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsTargetModalOpen(false)}
-                className="text-muted hover:text-ink text-sm p-1"
-              >
-                ✕
-              </button>
-            </div>
 
-            <div className="space-y-3 text-xs">
-              <label className="text-muted font-medium block">
-                مبلغ هدف‌گذاری شده فروش ناخالص دوره (تومان):
-              </label>
-              <input
-                type="number"
-                value={targetInputVal}
-                onChange={(e) => setTargetInputVal(e.target.value)}
-                className="w-full bg-elevated border border-line rounded-xl px-3 py-2 text-sm font-bold text-ink focus:outline-none focus:border-accent tabular"
-                placeholder="مثلاً ۳۰۰۰۰۰۰۰۰۰"
-              />
-              <p className="text-[11px] text-muted">
-                مبلغ جاری وارد شده: <strong className="text-accent tabular">{formatToman(Number(targetInputVal) || 0)}</strong>
-              </p>
-            </div>
+              <div className="space-y-3 text-xs">
+                <label className="text-muted font-medium block">
+                  مبلغ هدف‌گذاری شده فروش ناخالص دوره (تومان):
+                </label>
+                <input
+                  type="number"
+                  value={targetInputVal}
+                  onChange={(e) => setTargetInputVal(e.target.value)}
+                  className="w-full bg-elevated border border-line rounded-xl px-3 py-2 text-sm font-bold text-ink focus:outline-none focus:border-accent tabular"
+                  placeholder="مثلاً ۳۰۰۰۰۰۰۰۰۰"
+                />
+                <p className="text-[11px] text-muted">
+                  مبلغ جاری وارد شده: <strong className="text-accent tabular">{formatToman(Number(targetInputVal) || 0)}</strong>
+                </p>
+              </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-line">
-              <button
-                type="button"
-                onClick={() => setIsTargetModalOpen(false)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-muted hover:bg-hover"
-              >
-                انصراف
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const val = Number(targetInputVal);
-                  if (val > 0) setMonthlyTarget(val);
-                  setIsTargetModalOpen(false);
-                }}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-accent text-on-accent shadow-md shadow-accent/25 hover:opacity-90"
-              >
-                ذخیره تارگت
-              </button>
+              <div className="flex justify-end gap-2 pt-2 border-t border-line">
+                <button
+                  type="button"
+                  onClick={() => setIsTargetModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-muted hover:bg-hover"
+                >
+                  انصراف
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const val = Number(targetInputVal);
+                    if (val > 0) setMonthlyTarget(val);
+                    setIsTargetModalOpen(false);
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-accent text-on-accent shadow-md shadow-accent/25 hover:opacity-90"
+                >
+                  ذخیره تارگت
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
 
       {/* ============================================================== */}
       {/* 5. SEGMENTED ANALYTICAL TABS (Bento Switcher)                  */}
