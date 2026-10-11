@@ -12,8 +12,8 @@ export type ProductListParams = {
   per_page?: number;
   search?: string;
   sales_line?: SalesLineKey | "all";
-  tab?: "all" | "bestsellers" | "slowmovers" | "bundles" | "variants";
-  sort?: "units" | "revenue" | "last_sale" | "title";
+  tab?: "all" | "bestsellers" | "slowmovers" | "velocity" | "bundles" | "variants";
+  sort?: "units" | "revenue" | "last_sale" | "title" | "velocity" | "sell_through";
   order?: "asc" | "desc";
   from?: string;
   to?: string;

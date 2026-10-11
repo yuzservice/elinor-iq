@@ -398,10 +398,15 @@ export type ProductRow = {
   revenue?: number;
   channels?: ProductChannelUnits;
   last_sale_at: string | null;
-  status?: "hero" | "stable" | "slow" | "dead";
+  status?: "hero" | "stable" | "slow" | "dead" | "fast_mover";
   status_label?: string;
   action_recommendation?: string;
   complementary_items?: string[];
+  initial_quantity?: number;
+  sell_through_pct?: number;
+  days_to_sell_out?: number;
+  velocity_score?: number;
+  restock_date?: string | null;
 };
 
 export type ProductKpis = {
@@ -417,6 +422,15 @@ export type ProductKpis = {
   capital_at_risk: number;
   cross_sell_index: number;
   active_products_count: number;
+  fast_movers_count?: number;
+  avg_days_to_sell_out?: number;
+  top_velocity_product?: {
+    title: string;
+    velocity_score: number;
+    days_to_sell_out: number;
+    sell_through_pct: number;
+    sold_quantity: number;
+  } | null;
 };
 
 export type ProductBundle = {
