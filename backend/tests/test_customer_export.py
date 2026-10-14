@@ -79,6 +79,26 @@ def test_customer_export_respects_filters(auth_api):
 
 
 @pytest.mark.django_db
+def test_customer_export_includes_every_filtered_row(auth_api, monkeypatch):
+    monkeypatch.setattr("apps.customers.export.EXPORT_BATCH_SIZE", 2)
+    for index in range(5):
+        _customer(
+            source_id=index + 1,
+            first_name=f"نفر{index}",
+            last_name="تست",
+            mobile=f"0912000000{index}",
+        )
+
+    response = auth_api.get("/api/customers/export/")
+    assert response.status_code == 200
+
+    rows = _read_csv(response.content)
+    assert rows[0] == EXPORT_HEADERS
+    assert len(rows) == 6
+    assert {row[0] for row in rows[1:]} == {f"نفر{index} تست" for index in range(5)}
+
+
+@pytest.mark.django_db
 def test_customer_export_requires_auth(api_client):
     response = api_client.get("/api/customers/export/")
     assert response.status_code in {401, 403}

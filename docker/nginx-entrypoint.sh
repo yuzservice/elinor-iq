@@ -65,6 +65,17 @@ proxy_locations() {
         root /var/www/certbot;
     }
 
+    location /api/customers/export/ {
+        set $export_upstream backend:8000;
+        proxy_pass http://$export_upstream;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 3600s;
+        proxy_buffering off;
+    }
+
     location /api/ {
         set $api_upstream backend:8000;
         proxy_pass http://$api_upstream;

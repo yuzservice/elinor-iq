@@ -4,7 +4,6 @@ from io import StringIO
 from apps.core.dates import format_jalali_date
 from apps.customers.presentation import INCOMPLETE_LABEL, UNNAMED_CUSTOMER
 
-EXPORT_LIMIT = 50_000
 EXPORT_BATCH_SIZE = 500
 
 EXPORT_HEADERS = [
@@ -59,14 +58,35 @@ def export_row_cells(row):
     ]
 
 
-def build_customer_export_csv(rows, *, truncated=False, total=0):
+def iter_export_row_batches(qs, batch_size=None):
+    from apps.customers.list_query import hydrate_customer_rows
+
+    if batch_size is None:
+        batch_size = EXPORT_BATCH_SIZE
+
+    offset = 0
+    while True:
+        batch = list(qs[offset : offset + batch_size])
+        if not batch:
+            break
+        yield hydrate_customer_rows(batch)
+        if len(batch) < batch_size:
+            break
+        offset += batch_size
+
+
+def iter_customer_export_csv(row_batches):
     buffer = StringIO()
     buffer.write("\ufeff")
     writer = csv.writer(buffer)
-    if truncated:
-        writer.writerow([f"توجه: فقط {len(rows):,} از {total:,} مشتری صادر شد (حداکثر {EXPORT_LIMIT:,} ردیف)."])
-        writer.writerow([])
     writer.writerow(EXPORT_HEADERS)
-    for row in rows:
-        writer.writerow(export_row_cells(row))
-    return buffer.getvalue().encode("utf-8")
+    yield buffer.getvalue().encode("utf-8")
+
+    for rows in row_batches:
+        buffer = StringIO()
+        writer = csv.writer(buffer)
+        for row in rows:
+            writer.writerow(export_row_cells(row))
+        chunk = buffer.getvalue()
+        if chunk:
+            yield chunk.encode("utf-8")

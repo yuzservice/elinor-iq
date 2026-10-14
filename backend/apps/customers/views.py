@@ -1,4 +1,4 @@
-from django.http import HttpResponse, JsonResponse
+from django.http import JsonResponse, StreamingHttpResponse
 from django.utils import timezone
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -9,7 +9,7 @@ from apps.core.coverage import coverage_payload
 from apps.sales.services import parse_range, window_meta
 
 from .detail import HISTORY_PER_PAGE, customer_360_payload, product_history, purchase_history
-from .list_query import customer_list_queryset, hydrate_customer_rows, paginate_customers
+from .list_query import customer_list_queryset, paginate_customers
 from .models import Customer
 from .operators import exclude_operator_accounts
 
@@ -60,26 +60,27 @@ def reports(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def customer_export(request):
-    from .export import EXPORT_BATCH_SIZE, EXPORT_LIMIT, build_customer_export_csv
+    from .export import iter_customer_export_csv, iter_export_row_batches
 
     try:
         qs = customer_list_queryset(request.query_params)
-        total = qs.count()
-        limit = min(total, EXPORT_LIMIT)
-        truncated = total > EXPORT_LIMIT
-        exported_rows = []
-
-        for offset in range(0, limit, EXPORT_BATCH_SIZE):
-            batch = list(qs[offset : offset + EXPORT_BATCH_SIZE])
-            exported_rows.extend(hydrate_customer_rows(batch))
-
-        content = build_customer_export_csv(exported_rows, truncated=truncated, total=total)
-        filename = f"customers-{timezone.localdate().isoformat()}.csv"
-        response = HttpResponse(content, content_type="text/csv; charset=utf-8")
-        response["Content-Disposition"] = f'attachment; filename="{filename}"'
-        return response
+        batches = iter_export_row_batches(qs)
+        first_batch = next(batches, None)
     except Exception:
         return JsonResponse({"detail": "تهیه خروجی اکسل با خطا مواجه شد."}, status=500)
+
+    def row_batches():
+        if first_batch is not None:
+            yield first_batch
+        yield from batches
+
+    filename = f"customers-{timezone.localdate().isoformat()}.csv"
+    response = StreamingHttpResponse(
+        iter_customer_export_csv(row_batches()),
+        content_type="text/csv; charset=utf-8",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 @api_view(["GET", "POST"])
