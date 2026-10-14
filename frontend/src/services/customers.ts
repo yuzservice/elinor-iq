@@ -10,47 +10,67 @@ export type CustomerListParams = {
   channel?: string;
   sales_line?: string;
   sales_lines?: string;
+  sales_lines_mode?: "any" | "all";
   min_purchases?: string;
   max_purchases?: string;
+  min_amount?: string;
+  max_amount?: string;
   last_from?: string;
   last_to?: string;
+  first_from?: string;
+  first_to?: string;
+  payment_method?: string;
+  has_discount?: string;
+  order_behavior?: string;
+  size?: string;
+  category?: string;
+  city?: string;
+  profile_state?: string;
+  birth_month?: string;
   page?: number;
   per_page?: number;
   sort?: string;
 };
 
-export function customerListQuery(params: CustomerListParams): string {
-  return queryPath("/customers/", {
+function serializeFilterParams(params: CustomerListParams) {
+  return {
     search: params.search,
     population: params.population,
     tier: params.tier,
     channel: params.channel,
     sales_line: params.sales_line,
     sales_lines: params.sales_lines,
+    sales_lines_mode: params.sales_lines_mode,
     min_purchases: params.min_purchases,
     max_purchases: params.max_purchases,
+    min_amount: params.min_amount,
+    max_amount: params.max_amount,
     last_from: params.last_from,
     last_to: params.last_to,
+    first_from: params.first_from,
+    first_to: params.first_to,
+    payment_method: params.payment_method,
+    has_discount: params.has_discount,
+    order_behavior: params.order_behavior,
+    size: params.size,
+    category: params.category,
+    city: params.city,
+    profile_state: params.profile_state,
+    birth_month: params.birth_month,
+    sort: params.sort,
+  };
+}
+
+export function customerListQuery(params: CustomerListParams): string {
+  return queryPath("/customers/", {
+    ...serializeFilterParams(params),
     page: params.page || 1,
     per_page: params.per_page || 20,
-    sort: params.sort,
   });
 }
 
 export function customerExportQuery(params: CustomerListParams): string {
-  return queryPath("/customers/export/", {
-    search: params.search,
-    population: params.population,
-    tier: params.tier,
-    channel: params.channel,
-    sales_line: params.sales_line,
-    sales_lines: params.sales_lines,
-    min_purchases: params.min_purchases,
-    max_purchases: params.max_purchases,
-    last_from: params.last_from,
-    last_to: params.last_to,
-    sort: params.sort,
-  });
+  return queryPath("/customers/export/", serializeFilterParams(params));
 }
 
 async function downloadExport(path: string, fallbackFilename: string): Promise<void> {

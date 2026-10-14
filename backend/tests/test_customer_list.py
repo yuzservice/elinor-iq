@@ -3,10 +3,11 @@ from datetime import timedelta
 import pytest
 from django.utils import timezone
 
-from apps.customers.models import Customer
-from apps.customers.tiers import refresh_stored_tiers
+from apps.customers.models import Customer, CustomerAddress
 from apps.customers.presentation import UNNAMED_CUSTOMER
-from apps.sales.models import Order, PosSale, SalesLine
+from apps.customers.tiers import refresh_stored_tiers
+from apps.products.models import Category, Product, ProductCategory, Variant
+from apps.sales.models import Order, OrderItem, PosSale, PosSaleItem, SalesLine
 
 
 def _customer(**kwargs):
@@ -16,17 +17,32 @@ def _customer(**kwargs):
     return Customer.objects.create(source_id=source_id, **defaults)
 
 
-def _online(customer, source_id, status="delivered", days=1, amount=100000):
+def _online(customer, source_id, status="delivered", days=1, amount=100000, discount_amount=0, is_shopino=False, receiver_city=""):
     return Order.objects.create(
         source_id=source_id,
         customer=customer,
         status=status,
         total_amount=amount,
+        discount_amount=discount_amount,
+        is_shopino=is_shopino,
+        receiver_city=receiver_city,
         created_at=timezone.now() - timedelta(days=days),
     )
 
 
-def _pos(customer, source_id, sales_line=SalesLine.SARI, sale_type="sell", days=1, cancelled=False, deleted=False):
+def _pos(
+    customer,
+    source_id,
+    sales_line=SalesLine.SARI,
+    sale_type="sell",
+    days=1,
+    cancelled=False,
+    deleted=False,
+    discount_amount=0,
+    snappay_amount=0,
+    digipay_amount=0,
+    wallet_amount=0,
+):
     now = timezone.now()
     return PosSale.objects.create(
         source_id=source_id,
@@ -34,6 +50,10 @@ def _pos(customer, source_id, sales_line=SalesLine.SARI, sale_type="sell", days=
         store_source_id={"SARI": 3, "GORGAN": 2, "CAPRI": 4}.get(sales_line, 3),
         sales_line=sales_line,
         type=sale_type,
+        discount_amount=discount_amount,
+        snappay_cashier_amount=snappay_amount,
+        digipay_cashier_amount=digipay_amount,
+        from_wallet_amount=wallet_amount,
         is_cancelled=cancelled,
         deleted_at=now if deleted else None,
         created_at=now - timedelta(days=days),
@@ -151,6 +171,7 @@ def test_customer_list_default_is_all_customers(auth_api):
     capri = auth_api.get("/api/customers/?sales_line=capri")
     online_line = auth_api.get("/api/customers/?sales_line=online")
     sari_and_gorgan = auth_api.get("/api/customers/?sales_lines=sari,gorgan")
+    sari_or_gorgan = auth_api.get("/api/customers/?sales_lines=sari,gorgan&sales_lines_mode=any")
     online_and_sari = auth_api.get("/api/customers/?sales_lines=online,sari")
     online_and_capri = auth_api.get("/api/customers/?sales_lines=online,capri")
     assert _ids(sari) == {5, 7}
@@ -158,6 +179,7 @@ def test_customer_list_default_is_all_customers(auth_api):
     assert _ids(capri) == {6}
     assert _ids(online_line) == {2, 3, 4, 6}
     assert _ids(sari_and_gorgan) == {7}
+    assert _ids(sari_or_gorgan) == {5, 7}
     assert _ids(online_and_sari) == set()
     assert _ids(online_and_capri) == {6}
 
@@ -182,3 +204,74 @@ def test_customer_list_default_is_all_customers(auth_api):
     refund_listing = auth_api.get("/api/customers/?population=purchasing")
     assert refund_only.source_id not in _ids(refund_listing)
     assert auth_api.get("/api/customers/").data["total"] == 9
+
+
+@pytest.mark.django_db
+def test_customer_list_diverse_filters_and_sorting(auth_api):
+    c_vip = _customer(source_id=101, first_name="پریسا", last_name="تهرانی", mobile="09121010101")
+    c_snapp = _customer(source_id=102, first_name="مینا", last_name="گرگانی", mobile="09122020202")
+    c_incomplete = _customer(source_id=103, first_name="", last_name="", mobile="09123030303")
+
+    cat = Category.objects.create(source_id=501, title="مانتو")
+    prod = Product.objects.create(source_id=601, title="مانتو کتان بهاره")
+    ProductCategory.objects.create(product=prod, category=cat)
+    var_m = Variant.objects.create(source_id=701, product=prod, title="مانتو کتان", size="M", color_name="مشکی")
+    var_xl = Variant.objects.create(source_id=702, product=prod, title="مانتو کتان", size="XL", color_name="کرم")
+
+    ord_vip = _online(c_vip, 801, days=5, amount=12_000_000, discount_amount=500_000, is_shopino=True, receiver_city="تهران")
+    OrderItem.objects.create(source_id=901, order=ord_vip, product=prod, variant=var_m, quantity=1, amount=12_000_000)
+
+    pos_snapp = _pos(c_snapp, 802, SalesLine.GORGAN, sale_type="sell", days=20, snappay_amount=3_500_000)
+    PosSaleItem.objects.create(
+        source_id=902,
+        pos_sale=pos_snapp,
+        product=prod,
+        variant=var_xl,
+        quantity=1,
+        amount=3_500_000,
+        type="sell",
+    )
+    _pos(c_snapp, 803, SalesLine.GORGAN, sale_type="refund", days=15)
+    CustomerAddress.objects.create(source_id=950, customer=c_snapp, city_name="گرگان", province_name="گلستان")
+
+    # 1. Lifetime purchase amount filter
+    high_ltv = auth_api.get("/api/customers/?min_amount=10000000")
+    assert _ids(high_ltv) == {101}
+    mid_ltv = auth_api.get("/api/customers/?min_amount=2000000&max_amount=5000000")
+    assert _ids(mid_ltv) == {102}
+
+    # 2. Payment method filter (SnappPay / Installment / Shopino)
+    snapp_res = auth_api.get("/api/customers/?payment_method=snappay")
+    installment_res = auth_api.get("/api/customers/?payment_method=installment")
+    shopino_res = auth_api.get("/api/customers/?payment_method=shopino")
+    assert _ids(snapp_res) == {102}
+    assert _ids(installment_res) == {102}
+    assert _ids(shopino_res) == {101}
+
+    # 3. Discount filter
+    with_discount = auth_api.get("/api/customers/?has_discount=yes")
+    no_discount = auth_api.get("/api/customers/?has_discount=no")
+    assert _ids(with_discount) == {101}
+    assert _ids(no_discount) == {102}
+
+    # 4. Size & Category affinity filters
+    size_m = auth_api.get("/api/customers/?size=M")
+    size_xl = auth_api.get("/api/customers/?size=xl")
+    cat_manto = auth_api.get("/api/customers/?category=مانتو")
+    assert _ids(size_m) == {101}
+    assert _ids(size_xl) == {102}
+    assert _ids(cat_manto) == {101, 102}
+
+    # 5. Refund behavior, City & Profile completeness filters
+    refund_res = auth_api.get("/api/customers/?order_behavior=has_refund")
+    city_gorgan = auth_api.get("/api/customers/?city=گرگان")
+    city_tehran = auth_api.get("/api/customers/?city=تهران")
+    incomplete_res = auth_api.get("/api/customers/?profile_state=incomplete")
+    assert _ids(refund_res) == {102}
+    assert _ids(city_gorgan) == {102}
+    assert _ids(city_tehran) == {101}
+    assert _ids(incomplete_res) == {103}
+
+    # 6. Enriched sorting (lifetime_amount)
+    sorted_ltv = auth_api.get("/api/customers/?population=purchasing&sort=lifetime_amount")
+    assert [row["id"] for row in sorted_ltv.data["results"]] == [101, 102]

@@ -4,9 +4,9 @@ These rules belong to customer segmentation only. They do not change sales
 qualifying purchases, sales reports, or POS exchange counting outside this module.
 """
 
-from django.db.models import Count, IntegerField, Max, Min, OuterRef, Subquery, Sum
+from django.db.models import BigIntegerField, Count, DateTimeField, IntegerField, Max, Min, OuterRef, Subquery, Sum, Value
 from django.db.models.expressions import RawSQL
-from django.db.models.functions import Coalesce, Greatest
+from django.db.models.functions import Coalesce, Greatest, Least
 from django.utils import timezone
 
 from apps.customers.operators import operator_customer_ids, operator_mobile_variants
@@ -307,8 +307,6 @@ def tier_purchase_count_expression():
 
 
 def tier_last_purchase_expression():
-    from django.db.models import DateTimeField
-
     last_online = Subquery(
         Order.objects.filter(customer_id=OuterRef("pk"))
         .exclude(status__in=TIER_ONLINE_EXCLUDED_STATUSES)
@@ -328,6 +326,55 @@ def tier_last_purchase_expression():
         output_field=DateTimeField(),
     )
     return Greatest(last_online, last_sell)
+
+
+def tier_first_purchase_expression():
+    first_online = Subquery(
+        Order.objects.filter(customer_id=OuterRef("pk"))
+        .exclude(status__in=TIER_ONLINE_EXCLUDED_STATUSES)
+        .order_by("created_at")
+        .values("created_at")[:1],
+        output_field=DateTimeField(),
+    )
+    first_sell = Subquery(
+        PosSale.objects.filter(
+            customer_id=OuterRef("pk"),
+            deleted_at__isnull=True,
+            is_cancelled=False,
+            type=TIER_POS_SELL,
+        )
+        .order_by("created_at")
+        .values("created_at")[:1],
+        output_field=DateTimeField(),
+    )
+    return Least(first_online, first_sell)
+
+
+def tier_lifetime_amount_expression():
+    online_sum = Subquery(
+        Order.objects.filter(customer_id=OuterRef("pk"))
+        .exclude(status__in=TIER_ONLINE_EXCLUDED_STATUSES)
+        .values("customer_id")
+        .annotate(total=Sum("total_amount"))
+        .values("total"),
+        output_field=BigIntegerField(),
+    )
+    pos_sum = Subquery(
+        PosSaleItem.objects.filter(
+            deleted_at__isnull=True,
+            pos_sale__customer_id=OuterRef("pk"),
+            pos_sale__deleted_at__isnull=True,
+            pos_sale__is_cancelled=False,
+            pos_sale__type__in=(TIER_POS_SELL, TIER_POS_EXCHANGE, TIER_POS_REFUND),
+        )
+        .values("pos_sale__customer_id")
+        .annotate(total=Sum(_signed_line_sql()))
+        .values("total"),
+        output_field=BigIntegerField(),
+    )
+    return Coalesce(online_sum, Value(0), output_field=BigIntegerField()) + Coalesce(
+        pos_sum, Value(0), output_field=BigIntegerField()
+    )
 
 
 def metrics_for_customers(customer_ids, reference_date=None):
@@ -403,14 +450,14 @@ def _pos_amounts(customer_ids):
 
 
 def _line_total():
-    from django.db.models import F, Value
+    from django.db.models import F
     from django.db.models.functions import Coalesce as CoalesceFn
 
     return CoalesceFn(F("amount"), Value(0)) * CoalesceFn(F("quantity"), Value(0))
 
 
 def _signed_line_sql():
-    from django.db.models import BigIntegerField, Case, Value, When
+    from django.db.models import Case, When
 
     return Case(
         When(pos_sale__type=TIER_POS_SELL, then=_line_total()),
