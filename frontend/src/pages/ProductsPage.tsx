@@ -326,7 +326,11 @@ export function ProductsPage() {
           </div>
           <div className="mt-3">
             <div className="text-base font-black text-ink truncate">
-              {topVelocityCandidate?.product || topVelocityCandidate?.title || "تحلیل شتاب انبار"}
+              {(topVelocityCandidate &&
+                ("product" in topVelocityCandidate
+                  ? topVelocityCandidate.product
+                  : topVelocityCandidate.title)) ||
+                "تحلیل شتاب انبار"}
             </div>
             <div className="text-xs font-bold text-cyan-600 dark:text-cyan-400 mt-1 flex items-center gap-1.5 tabular">
               <span>
