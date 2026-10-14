@@ -20,11 +20,25 @@ echo "در حال دریافت نسخه جدید..."
 git fetch origin main
 git reset --hard origin/main
 
+# حذف index.html قبلی تا بیلد جدید فرانت‌اند حتماً جایگزین شود
+rm -f frontend/dist/index.html
+
 echo "در حال به‌روزرسانی سرویس‌ها..."
 if ! docker compose up -d --build --force-recreate; then
   echo "ساخت ایمیج از داکرهاب ناموفق بود. سرویس‌ها با ایمیج‌های موجود دوباره بالا می‌آیند..."
   docker compose up -d --force-recreate --no-build --pull never
 fi
+
+echo "در حال انتظار برای تکمیل بیلد فرانت‌اند..."
+for i in $(seq 1 60); do
+  if [[ -f frontend/dist/index.html ]]; then
+    break
+  fi
+  sleep 2
+done
+
+# ری‌استارت nginx برای اطمینان از اتصال به inode جدید پوشه frontend/dist
+docker compose restart nginx
 
 domain=""
 if [[ -f .env ]]; then
