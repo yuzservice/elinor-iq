@@ -162,6 +162,25 @@ class ElinorClient:
         payload = self._request("GET", f"/admin/mini_orders/{mini_order_id}")
         return unwrap_data(payload) or {}
 
+    def get_actions(self, page=1, per_page=50, **extra):
+        params = {"page": page, "per_page": per_page, **extra}
+        payload = self._request("GET", "/admin/actions", params=params)
+        data = unwrap_data(payload) or {}
+        rows, current, last, total = extract_paginator(data, ("actions",))
+        return {
+            "results": rows,
+            "current_page": current,
+            "last_page": last,
+            "total": total,
+            "raw": payload,
+        }
+
+    def get_action(self, action_id):
+        payload = self._request("GET", f"/admin/actions/{action_id}")
+        data = unwrap_data(payload) or {}
+        return extract_object(data, ("action", "actions"))
+
+
     def _request(self, method, path, *, auth=True, retries=5, **kwargs):
         url = f"{self.base_url}{path}"
         last_error = None

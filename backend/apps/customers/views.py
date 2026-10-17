@@ -171,3 +171,17 @@ def customer_products(request, source_id):
     payload = product_history(customer)
     payload["id"] = customer.source_id
     return Response(payload)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def customer_campaigns(request):
+    from .campaigns import get_campaigns_summary
+
+    action_id = request.query_params.get("action_id")
+    branch = request.query_params.get("branch")
+    page = _positive_int(request.query_params.get("page"), default=1)
+    per_page = _positive_int(request.query_params.get("per_page"), default=20, cap=100)
+    payload = get_campaigns_summary(action_id=action_id, branch=branch, page=page, per_page=per_page)
+    return Response(payload)
+
