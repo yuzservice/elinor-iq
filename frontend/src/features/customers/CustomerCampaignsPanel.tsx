@@ -18,6 +18,13 @@ const BRANCH_OPTIONS = [
   { value: "ONLINE", label: "وب‌سایت آنلاین" },
 ] as const;
 
+const GIFT_PRESETS = [
+  { label: "همه هدایای سطوح", value: "هدیه سطح" },
+  { label: "هدیه سطح نقره‌ای ۱", value: "هدیه سطح نقره ای ۱ فروشگاه" },
+  { label: "هدیه سطح طلایی ۱", value: "هدیه سطح طلایی ۱ فروشگاه" },
+  { label: "هدیه سطح الماسی ۱", value: "هدیه سطح الماسی ۱ فروشگاه" },
+] as const;
+
 const LINE_COLORS: Record<string, string> = {
   ONLINE: "bg-accent",
   SARI: "bg-emerald-500",
@@ -28,6 +35,7 @@ const LINE_COLORS: Record<string, string> = {
 export function CustomerCampaignsPanel() {
   const [selectedActionId, setSelectedActionId] = useState<number | undefined>(undefined);
   const [selectedBranch, setSelectedBranch] = useState<string>("");
+  const [giftKeyword, setGiftKeyword] = useState<string>("هدیه سطح");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [retry, setRetry] = useState(0);
@@ -36,10 +44,11 @@ export function CustomerCampaignsPanel() {
     () => ({
       action_id: selectedActionId,
       branch: selectedBranch || undefined,
+      gift_keyword: giftKeyword.trim() || undefined,
       page,
       per_page: 20,
     }),
-    [selectedActionId, selectedBranch, page],
+    [selectedActionId, selectedBranch, giftKeyword, page],
   );
 
   const { data, loading, error } = useApi(
@@ -75,11 +84,11 @@ export function CustomerCampaignsPanel() {
               گزارش کمپین‌ها و هدایای کیف پول
             </h2>
             <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/25">
-              فعال و برخط
+              تفکیک دقیق از کش‌بک
             </span>
           </div>
           <p className="text-xs text-muted mt-1 leading-5">
-            رصد و تحلیل کمپین‌های شارژ هدیه کیف پول، نرخ مصرف، فروش ایجادشده و رفتار خرید مشتریان
+            فیلتر اختصاصی بر اساس رکوردهای افزایش هدیه سطح باشگاه و تفکیک از پاداش‌های عادی خرید
           </p>
         </div>
 
@@ -108,10 +117,10 @@ export function CustomerCampaignsPanel() {
       </div>
 
       {/* ============================================================== */}
-      {/* 2. SELECTED CAMPAIGN BANNER                                    */}
+      {/* 2. SELECTED CAMPAIGN BANNER & GIFT DESCRIPTION FILTER BAR     */}
       {/* ============================================================== */}
-      {currentCampaign && (
-        <div className="bento-card p-4 sm:p-5 glass-rim shadow-soft border-r-4 border-r-accent space-y-3">
+      <div className="bento-card p-4 sm:p-5 glass-rim shadow-soft border-r-4 border-r-accent space-y-3">
+        {currentCampaign && (
           <div className="flex flex-wrap items-center justify-between gap-2.5">
             <div className="flex items-center gap-2.5">
               <span className="text-2xl">🎁</span>
@@ -152,8 +161,49 @@ export function CustomerCampaignsPanel() {
               </span>
             </div>
           </div>
+        )}
+
+        {/* Gift Description Preset Filter Strip */}
+        <div className="pt-2 border-t border-line/70 flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-muted font-bold text-[11px]">الگوی شرح افزایش هدیه:</span>
+          <div className="flex flex-wrap gap-1.5">
+            {GIFT_PRESETS.map((p) => {
+              const active = giftKeyword === p.value;
+              return (
+                <button
+                  key={p.value}
+                  type="button"
+                  onClick={() => {
+                    setGiftKeyword(p.value);
+                    setPage(1);
+                  }}
+                  className={`px-2.5 py-1 rounded-xl text-[11px] font-semibold transition-all cursor-pointer ${
+                    active
+                      ? "bg-accent text-on-accent shadow-xs"
+                      : "bg-elevated text-muted border border-line hover:text-ink"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mr-auto flex items-center gap-1.5 w-full sm:w-auto">
+            <span className="text-[10px] text-muted">متن سفارشی:</span>
+            <input
+              type="text"
+              value={giftKeyword}
+              onChange={(e) => {
+                setGiftKeyword(e.target.value);
+                setPage(1);
+              }}
+              placeholder="مثلاً: هدیه سطح نقره ای ۱..."
+              className="px-2.5 py-1 rounded-xl bg-elevated border border-line text-xs text-ink placeholder:text-muted focus:outline-none focus:border-accent w-48 font-mono"
+            />
+          </div>
         </div>
-      )}
+      </div>
 
       {/* ============================================================== */}
       {/* 3. 4 BENTO KPI SUMMARY CARDS                                   */}
@@ -179,7 +229,7 @@ export function CustomerCampaignsPanel() {
 
         <div className="bento-card p-4 glass-rim shadow-soft">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted">کل اعتبار مصرف‌شده</span>
+            <span className="text-xs font-semibold text-muted">کل هدیه مصرف‌شده</span>
             <div className="h-7 w-7 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-xs">
               🛍️
             </div>
@@ -285,7 +335,7 @@ export function CustomerCampaignsPanel() {
           <div>
             <h3 className="text-sm sm:text-base font-extrabold text-ink">ریز مشتریان استفاده‌کننده از هدیه</h3>
             <p className="text-[11px] text-muted mt-0.5">
-              لیست فاکتورها، میزان استفاده از هدیه کیف پول و سود مازاد خرید نقدی مشتری
+              لیست فاکتورها، شرح هدیه مشمول، مبلغ استفاده از هدیه کیف پول و سود مازاد خرید نقدی مشتری
             </p>
           </div>
 
@@ -336,8 +386,8 @@ export function CustomerCampaignsPanel() {
           <ErrorState onRetry={() => setRetry((v) => v + 1)} />
         ) : filteredRedemptions.length === 0 ? (
           <EmptyState
-            title="فاکتوری برای این کمپین یافت نشد."
-            body="هنوز تراکنشی با استفاده از اعتبار هدیه کیف پول در این بازه ثبت نشده است."
+            title="فاکتوری برای این الگوی هدیه یافت نشد."
+            body="هنوز تراکنشی با این شرح هدیه کیف پول ثبت نشده یا کش‌بک‌های عادی به درستی فیلتر شده‌اند."
           />
         ) : (
           <>
@@ -348,6 +398,7 @@ export function CustomerCampaignsPanel() {
                   <tr className="text-muted border-b border-line font-semibold">
                     <th className="py-2.5 px-3">نام مشتری</th>
                     <th className="py-2.5 px-3">شماره تماس</th>
+                    <th className="py-2.5 px-3">شرح هدیه مشمول</th>
                     <th className="py-2.5 px-3">شعبه خرید</th>
                     <th className="py-2.5 px-3">تاریخ فاکتور</th>
                     <th className="py-2.5 px-3">مبلغ مصرف هدیه</th>
@@ -367,6 +418,11 @@ export function CustomerCampaignsPanel() {
                       </td>
                       <td className="py-3 px-3 font-mono tabular text-muted ltr-iso">
                         {row.customer_mobile ? formatMobile(row.customer_mobile) : "—"}
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className="px-2 py-0.5 rounded-md bg-accent/15 text-accent text-[11px] font-bold border border-accent/25">
+                          {row.gift_description || "هدیه سطح باشگاه"}
+                        </span>
                       </td>
                       <td className="py-3 px-3">
                         <span className="px-2 py-0.5 rounded-md bg-elevated border border-line text-ink text-[11px] font-semibold">
@@ -414,6 +470,10 @@ export function CustomerCampaignsPanel() {
                     <span className="text-[10px] px-2 py-0.5 rounded-md bg-elevated border border-line text-ink font-semibold">
                       {row.sales_line_label}
                     </span>
+                  </div>
+
+                  <div className="text-[11px] text-accent font-bold pt-1">
+                    شرح هدیه: {row.gift_description || "هدیه سطح باشگاه"}
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 pt-2 border-t border-line text-[11px]">

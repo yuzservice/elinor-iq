@@ -180,8 +180,16 @@ def customer_campaigns(request):
 
     action_id = request.query_params.get("action_id")
     branch = request.query_params.get("branch")
+    gift_keyword = request.query_params.get("gift_keyword")
     page = _positive_int(request.query_params.get("page"), default=1)
     per_page = _positive_int(request.query_params.get("per_page"), default=20, cap=100)
-    payload = get_campaigns_summary(action_id=action_id, branch=branch, page=page, per_page=per_page)
+    payload = get_campaigns_summary(
+        action_id=action_id,
+        branch=branch,
+        gift_keyword=gift_keyword,
+        page=page,
+        per_page=per_page,
+    )
     return Response(payload)
+
 

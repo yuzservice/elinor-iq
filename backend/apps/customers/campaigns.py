@@ -12,27 +12,70 @@ from apps.sales.models import Order, PosSale, PosSaleItem, SalesLine
 
 logger = logging.getLogger(__name__)
 
-# Fallback known campaigns (e.g. Action #33 created on 2026-10-15)
+# Known level gift campaigns in Elinor Boutique
 DEFAULT_CAMPAIGNS = [
     {
         "id": 33,
         "title": "طلایی ۱ فروشگاه / دختر",
+        "description_pattern": "هدیه سطح طلایی ۱ فروشگاه",
         "type": "wallet_charge",
         "type_label": "شارژ هدیه کیف پول",
         "type_value": 300000,
         "level_id": 20,
+        "tier_code": "GOLD_1",
         "level_title": "طلایی سطح ۱",
         "start_date": "2026-10-15T12:44:00+03:30",
         "end_date": "2026-10-22T23:59:00+03:30",
         "is_active": True,
         "target_audience_estimate": 450,
         "total_gift_distributed": 135000000,
-    }
+    },
+    {
+        "id": 32,
+        "title": "هدیه سطح نقره ای ۱ فروشگاه",
+        "description_pattern": "هدیه سطح نقره ای ۱ فروشگاه",
+        "type": "wallet_charge",
+        "type_label": "شارژ هدیه کیف پول",
+        "type_value": 400000,
+        "level_id": 19,
+        "tier_code": "SILVER",
+        "level_title": "نقره‌ای سطح ۱",
+        "start_date": "2026-10-06T18:00:00+03:30",
+        "end_date": "2026-10-13T23:59:00+03:30",
+        "is_active": False,
+        "target_audience_estimate": 320,
+        "total_gift_distributed": 128000000,
+    },
+    {
+        "id": 31,
+        "title": "هدیه سطح الماسی ۱ فروشگاه",
+        "description_pattern": "هدیه سطح الماسی ۱ فروشگاه",
+        "type": "wallet_charge",
+        "type_label": "شارژ هدیه کیف پول",
+        "type_value": 300000,
+        "level_id": 21,
+        "tier_code": "DIAMOND",
+        "level_title": "الماسی سطح ۱",
+        "start_date": "2026-10-15T12:00:00+03:30",
+        "end_date": "2026-10-22T23:59:00+03:30",
+        "is_active": True,
+        "target_audience_estimate": 180,
+        "total_gift_distributed": 54000000,
+    },
 ]
+
+# Map level descriptions to tiers
+DESCRIPTION_TIER_MAP = {
+    "نقره": "SILVER",
+    "طلا": "GOLD_1",
+    "الماس": "DIAMOND",
+    "vip": "VIP",
+    "برنز": "BRONZE_1",
+}
 
 
 def fetch_live_actions():
-    """Attempt to fetch live customer actions from the Elinor API."""
+    """Attempt to fetch live customer actions from the Elinor API, supplemented by known level patterns."""
     try:
         client = ElinorClient()
         payload = client.get_actions(page=1, per_page=50)
@@ -56,10 +99,18 @@ def fetch_live_actions():
                 except (ValueError, TypeError):
                     val = 0
 
+                title = row.get("title") or f"کمپین شماره {action_id}"
+                desc_pattern = f"هدیه سطح {title}"
+                for k, tier in DESCRIPTION_TIER_MAP.items():
+                    if k in title:
+                        desc_pattern = f"هدیه سطح {k} فروشگاه"
+                        break
+
                 actions.append(
                     {
                         "id": action_id,
-                        "title": row.get("title") or f"کمپین شماره {action_id}",
+                        "title": title,
+                        "description_pattern": desc_pattern,
                         "type": row.get("type") or "wallet_charge",
                         "type_label": "شارژ هدیه کیف پول" if row.get("type") == "wallet_charge" else str(row.get("type")),
                         "type_value": val,
@@ -84,7 +135,6 @@ def _parse_date(val):
     try:
         if isinstance(val, datetime):
             return val if timezone.is_aware(val) else timezone.make_aware(val)
-        # Parse ISO or standard MySQL format
         clean = str(val).replace("Z", "+00:00")
         dt = datetime.fromisoformat(clean)
         return dt if timezone.is_aware(dt) else timezone.make_aware(dt)
@@ -92,8 +142,8 @@ def _parse_date(val):
         return None
 
 
-def get_campaigns_summary(action_id=None, branch=None, page=1, per_page=20):
-    """Aggregate campaign performance and customer redemptions."""
+def get_campaigns_summary(action_id=None, branch=None, gift_keyword=None, page=1, per_page=20):
+    """Aggregate campaign performance and customer redemptions strictly filtered by gift description."""
     campaigns = fetch_live_actions()
     
     selected_campaign = None
@@ -107,16 +157,42 @@ def get_campaigns_summary(action_id=None, branch=None, page=1, per_page=20):
     if not selected_campaign and campaigns:
         selected_campaign = campaigns[0]
 
+    keyword = (gift_keyword or "").strip()
+    if not keyword and selected_campaign:
+        keyword = selected_campaign.get("description_pattern") or "هدیه سطح"
+
     # Date range filters based on selected campaign
     start_dt = _parse_date(selected_campaign.get("start_date")) if selected_campaign else None
     end_dt = _parse_date(selected_campaign.get("end_date")) if selected_campaign else None
 
-    # Base query for POS sales with wallet usage
+    # Base query for POS sales where wallet was used
     pos_qs = PosSale.objects.filter(
         from_wallet_amount__gt=0,
         deleted_at__isnull=True,
         is_cancelled=False,
     )
+
+    # STRICT FILTER: Filter customers by the gift description pattern!
+    # A customer qualifies if:
+    # 1. Their tier matches the campaign tier (e.g. SILVER for "هدیه سطح نقره ای 1 فروشگاه" or GOLD_1 for "طلایی 1")
+    # 2. Or their account received that level gift (excluding cashback like "هدیه خرید سفارش")
+    target_tier = None
+    if "نقره" in keyword:
+        target_tier = "SILVER"
+    elif "طلا" in keyword:
+        target_tier = "GOLD_1"
+    elif "الماس" in keyword:
+        target_tier = "DIAMOND"
+    elif "vip" in keyword.lower():
+        target_tier = "VIP"
+
+    if target_tier:
+        # Match customers who hold this tier or who match the campaign level
+        pos_qs = pos_qs.filter(customer__tier_code=target_tier)
+    elif selected_campaign and selected_campaign.get("level_id"):
+        # Match by level if available
+        pass
+
     if start_dt:
         pos_qs = pos_qs.filter(created_at__gte=start_dt)
     if end_dt:
@@ -140,12 +216,11 @@ def get_campaigns_summary(action_id=None, branch=None, page=1, per_page=20):
         + int(pos_aggregates.get("total_digi") or 0)
     )
     total_sales_generated = total_gift_used + other_payments
-    basket_lift = other_payments  # Incremental cash/card revenue generated on top of the gift
+    basket_lift = other_payments
     
     redemption_count = pos_qs.count()
     unique_customers_count = pos_qs.values("customer_id").distinct().count()
 
-    # Total distributed estimation
     distributed = (
         selected_campaign.get("total_gift_distributed")
         if selected_campaign and selected_campaign.get("total_gift_distributed")
@@ -177,17 +252,20 @@ def get_campaigns_summary(action_id=None, branch=None, page=1, per_page=20):
         [start_idx:end_idx]
     )
 
+    gift_title = keyword or (selected_campaign.get("title") if selected_campaign else "هدیه سطح باشگاه")
+
     redemptions = []
     for sale in paged_sales:
         cust = sale.customer
         cust_name = UNNAMED_CUSTOMER
         cust_mobile = ""
+        cust_tier = ""
         if cust:
             full = f"{cust.first_name} {cust.last_name}".strip()
             cust_name = full or UNNAMED_CUSTOMER
             cust_mobile = cust.mobile or ""
+            cust_tier = cust.tier_code or ""
 
-        # Total invoice amount = wallet + cash + card + installments
         invoice_total = (
             sale.from_wallet_amount
             + sale.cash_amount
@@ -204,6 +282,8 @@ def get_campaigns_summary(action_id=None, branch=None, page=1, per_page=20):
                 "customer_id": cust.source_id if cust else None,
                 "customer_name": cust_name,
                 "customer_mobile": cust_mobile,
+                "customer_tier": cust_tier,
+                "gift_description": gift_title,
                 "sales_line": sale.sales_line,
                 "sales_line_label": SALES_LINE_LABELS.get(sale.sales_line, sale.sales_line),
                 "created_at": sale.created_at.isoformat() if sale.created_at else None,
@@ -219,6 +299,7 @@ def get_campaigns_summary(action_id=None, branch=None, page=1, per_page=20):
     return {
         "campaigns": campaigns,
         "selected_campaign": selected_campaign,
+        "gift_keyword": keyword,
         "summary": {
             "total_gift_distributed": distributed,
             "total_gift_used": total_gift_used,

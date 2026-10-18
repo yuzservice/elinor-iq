@@ -3,6 +3,7 @@ import { api, queryPath } from "./api";
 export type CampaignItem = {
   id: number;
   title: string;
+  description_pattern?: string;
   type: string;
   type_label: string;
   type_value: number;
@@ -40,6 +41,8 @@ export type CustomerRedemption = {
   customer_id: number | null;
   customer_name: string;
   customer_mobile: string;
+  customer_tier?: string;
+  gift_description?: string;
   sales_line: string;
   sales_line_label: string;
   created_at: string;
@@ -52,6 +55,7 @@ export type CustomerRedemption = {
 export type CampaignsReportResponse = {
   campaigns: CampaignItem[];
   selected_campaign: CampaignItem | null;
+  gift_keyword: string;
   summary: CampaignSummary;
   redemptions: CustomerRedemption[];
   pagination: {
@@ -65,6 +69,7 @@ export type CampaignsReportResponse = {
 export type CampaignReportParams = {
   action_id?: number;
   branch?: string;
+  gift_keyword?: string;
   page?: number;
   per_page?: number;
 };
@@ -75,6 +80,7 @@ export const campaignsService = {
       queryPath("/customers/campaigns/", {
         action_id: params?.action_id,
         branch: params?.branch,
+        gift_keyword: params?.gift_keyword,
         page: params?.page || 1,
         per_page: params?.per_page || 20,
       }),
