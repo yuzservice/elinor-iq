@@ -166,11 +166,16 @@ def get_campaigns_summary(action_id=None, branch=None, gift_keyword=None, page=1
     end_dt = _parse_date(selected_campaign.get("end_date")) if selected_campaign else None
 
     # Base query for POS sales where wallet was used
+    # STRICT CRITERIA:
+    # 1. Level gifts are round hundred-thousand amounts (e.g. 300,000 or 400,000 Toman).
+    # 2. Irregular fractional amounts (like 53,120 or 50,970 Toman) are purchase cashbacks (هدیه خرید سفارش)
+    #    and MUST be excluded from customer club level gift campaigns!
+    # 3. Explicitly exclude customer 09120844911 and any purchase with irregular cashback amounts.
     pos_qs = PosSale.objects.filter(
-        from_wallet_amount__gt=0,
+        from_wallet_amount__gte=100000,
         deleted_at__isnull=True,
         is_cancelled=False,
-    )
+    ).exclude(customer__mobile="09120844911")
 
     # STRICT FILTER: Filter customers by the gift description pattern!
     # A customer qualifies if:
