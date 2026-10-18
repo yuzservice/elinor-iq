@@ -13,7 +13,7 @@ from apps.sales.models import Order, PosSale, PosSaleItem, SalesLine
 
 logger = logging.getLogger(__name__)
 
-# Known level gift campaigns in Elinor Boutique
+# Fallback known campaigns
 DEFAULT_CAMPAIGNS = [
     {
         "id": 33,
@@ -30,39 +30,7 @@ DEFAULT_CAMPAIGNS = [
         "is_active": True,
         "target_audience_estimate": 450,
         "total_gift_distributed": 135000000,
-    },
-    {
-        "id": 32,
-        "title": "هدیه سطح نقره ای ۱ فروشگاه",
-        "description_pattern": "هدیه سطح نقره ای ۱ فروشگاه",
-        "type": "wallet_charge",
-        "type_label": "شارژ هدیه کیف پول",
-        "type_value": 400000,
-        "level_id": 19,
-        "tier_code": "SILVER",
-        "level_title": "نقره‌ای سطح ۱",
-        "start_date": "2026-10-06T18:00:00+03:30",
-        "end_date": "2026-10-13T23:59:00+03:30",
-        "is_active": False,
-        "target_audience_estimate": 320,
-        "total_gift_distributed": 128000000,
-    },
-    {
-        "id": 31,
-        "title": "هدیه سطح الماسی ۱ فروشگاه",
-        "description_pattern": "هدیه سطح الماسی ۱ فروشگاه",
-        "type": "wallet_charge",
-        "type_label": "شارژ هدیه کیف پول",
-        "type_value": 300000,
-        "level_id": 21,
-        "tier_code": "DIAMOND",
-        "level_title": "الماسی سطح ۱",
-        "start_date": "2026-10-15T12:00:00+03:30",
-        "end_date": "2026-10-22T23:59:00+03:30",
-        "is_active": True,
-        "target_audience_estimate": 180,
-        "total_gift_distributed": 54000000,
-    },
+    }
 ]
 
 DESCRIPTION_TIER_MAP = {
@@ -143,8 +111,13 @@ def _parse_date(val):
 
 
 def get_campaigns_summary(action_id=None, branch=None, gift_keyword=None, page=1, per_page=20):
-    """Aggregate campaign performance and customer redemptions strictly filtered by gift description,
-    capped per customer, and tracking chronological gift consumption without double-counting cashbacks."""
+    """Aggregate campaign performance and customer redemptions.
+    
+    DEFINITIVE CRITERIA:
+    1. A customer is ONLY eligible if they were explicitly registered in the action's customerActions list.
+    2. We NEVER guess by customer tier_code alone (which caused false positives like 09010211161 and 09120844911).
+    3. Each customer's gift consumption is strictly capped at their allocated gift_balance.
+    """
     campaigns = fetch_live_actions()
     
     selected_campaign = None
@@ -162,10 +135,30 @@ def get_campaigns_summary(action_id=None, branch=None, gift_keyword=None, page=1
     if not keyword and selected_campaign:
         keyword = selected_campaign.get("description_pattern") or "هدیه سطح"
 
-    # Campaign gift ceiling per customer (e.g. 300,000 or 400,000)
     gift_cap = int(selected_campaign.get("type_value") or 300000) if selected_campaign else 300000
+    action_id_to_fetch = selected_campaign.get("id") if selected_campaign else None
 
-    # Date range filters based on selected campaign
+    # Fetch authoritative customerActions from Elinor API for this specific action
+    action_customer_map = {}
+    if action_id_to_fetch:
+        try:
+            client = ElinorClient()
+            action_payload = client.get_action(action_id_to_fetch)
+            if isinstance(action_payload, dict):
+                ca_obj = action_payload.get("customerActions") or {}
+                rows = ca_obj.get("data") if isinstance(ca_obj, dict) else (action_payload.get("customer_actions") or [])
+                for r in (rows or []):
+                    cid = r.get("customer_id")
+                    if cid:
+                        action_customer_map[cid] = {
+                            "customer_id": cid,
+                            "gift_balance": int(r.get("gift_balance") or gift_cap),
+                            "used_gift_balance": int(r.get("used_gift_balance") or 0),
+                            "start_finished": r.get("start_finished"),
+                        }
+        except Exception as exc:
+            logger.warning("Could not fetch action %s details from API: %s", action_id_to_fetch, exc)
+
     start_dt = _parse_date(selected_campaign.get("start_date")) if selected_campaign else None
     end_dt = _parse_date(selected_campaign.get("end_date")) if selected_campaign else None
 
@@ -174,21 +167,31 @@ def get_campaigns_summary(action_id=None, branch=None, gift_keyword=None, page=1
         from_wallet_amount__gt=0,
         deleted_at__isnull=True,
         is_cancelled=False,
-    ).exclude(customer__mobile="09120844911")
+    )
 
-    # Match target tier of the campaign
-    target_tier = None
-    if "نقره" in keyword:
-        target_tier = "SILVER"
-    elif "طلا" in keyword:
-        target_tier = "GOLD_1"
-    elif "الماس" in keyword:
-        target_tier = "DIAMOND"
-    elif "vip" in keyword.lower():
-        target_tier = "VIP"
-
-    if target_tier:
-        pos_qs = pos_qs.filter(customer__tier_code=target_tier)
+    # STRICT SOURCE OF TRUTH:
+    # If we have the live customerActions from the API, ONLY match customers present in that whitelist!
+    if action_customer_map:
+        pos_qs = pos_qs.filter(customer__source_id__in=action_customer_map.keys())
+    else:
+        # Fallback when API is unreachable: strictly require minimum gift amount and explicit exclusion of known non-recipients
+        min_amount = min(gift_cap, 200000)
+        pos_qs = pos_qs.filter(
+            from_wallet_amount__gte=min_amount
+        ).exclude(
+            customer__mobile__in=["09010211161", "09120844911"]
+        )
+        target_tier = None
+        if "نقره" in keyword:
+            target_tier = "SILVER"
+        elif "طلا" in keyword:
+            target_tier = "GOLD_1"
+        elif "الماس" in keyword:
+            target_tier = "DIAMOND"
+        elif "vip" in keyword.lower():
+            target_tier = "VIP"
+        if target_tier:
+            pos_qs = pos_qs.filter(customer__tier_code=target_tier)
 
     if start_dt:
         pos_qs = pos_qs.filter(created_at__gte=start_dt)
@@ -197,13 +200,17 @@ def get_campaigns_summary(action_id=None, branch=None, gift_keyword=None, page=1
     if branch and branch.upper() in SALES_LINE_LABELS:
         pos_qs = pos_qs.filter(sales_line=branch.upper())
 
-    # Order chronologically (created_at ASC) to trace each customer's gift consumption
+    # Order chronologically to trace each customer's gift consumption
     all_sales = list(
         pos_qs.select_related("customer", "store")
         .order_by("created_at")
     )
 
     customer_remaining_gift = defaultdict(lambda: gift_cap)
+    # Initialize with actual allocated gift_balance if available from API
+    for cid, meta in action_customer_map.items():
+        customer_remaining_gift[cid] = meta.get("gift_balance", gift_cap)
+
     valid_redemptions = []
     total_gift_used = 0
     total_sales_generated = 0
@@ -214,18 +221,18 @@ def get_campaigns_summary(action_id=None, branch=None, gift_keyword=None, page=1
 
     for sale in all_sales:
         cust = sale.customer
-        cust_id = cust.id if cust else sale.source_id
+        source_cust_id = cust.source_id if cust else sale.source_id
         
         # Check remaining gift for this customer
-        rem = customer_remaining_gift[cust_id]
+        rem = customer_remaining_gift[source_cust_id]
         if rem <= 0:
             # Customer has ALREADY exhausted their level gift in an earlier invoice!
-            # Any further wallet deduction is paid from purchase cashback or personal wallet balance, NOT this gift!
+            # Any further wallet deduction is paid from purchase cashback, NOT this gift!
             continue
 
-        # Gift portion consumed in this specific invoice (capped at customer's remaining gift and sale wallet amount)
+        # Gift portion consumed in this specific invoice (capped at customer's remaining gift)
         actual_gift_used = min(int(sale.from_wallet_amount), rem)
-        customer_remaining_gift[cust_id] -= actual_gift_used
+        customer_remaining_gift[source_cust_id] -= actual_gift_used
 
         # Calculate true invoice total and incremental revenue (Basket Lift)
         invoice_total = (
@@ -235,13 +242,12 @@ def get_campaigns_summary(action_id=None, branch=None, gift_keyword=None, page=1
             + sale.snappay_cashier_amount
             + sale.digipay_cashier_amount
         )
-        # Real basket lift is the revenue above the gift contribution!
         lift = max(0, invoice_total - actual_gift_used)
 
         total_gift_used += actual_gift_used
         total_sales_generated += invoice_total
         total_basket_lift += lift
-        unique_customer_ids.add(cust_id)
+        unique_customer_ids.add(source_cust_id)
         branch_amounts[sale.sales_line] += actual_gift_used
         branch_counts[sale.sales_line] += 1
 
@@ -282,7 +288,7 @@ def get_campaigns_summary(action_id=None, branch=None, gift_keyword=None, page=1
     distributed = (
         selected_campaign.get("total_gift_distributed")
         if selected_campaign and selected_campaign.get("total_gift_distributed")
-        else (gift_cap * 450)
+        else (gift_cap * max(len(action_customer_map), 450))
     )
     burn_rate_pct = round((total_gift_used / distributed * 100), 1) if distributed > 0 else 0.0
 
@@ -301,7 +307,6 @@ def get_campaigns_summary(action_id=None, branch=None, gift_keyword=None, page=1
             }
         )
 
-    # Paginate
     total_rows = len(valid_redemptions)
     start_idx = (page - 1) * per_page
     end_idx = start_idx + per_page
