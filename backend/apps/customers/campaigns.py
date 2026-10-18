@@ -1,4 +1,5 @@
 import logging
+from collections import defaultdict
 from datetime import datetime
 from django.db.models import F, Q, Sum
 from django.utils import timezone
@@ -64,7 +65,6 @@ DEFAULT_CAMPAIGNS = [
     },
 ]
 
-# Map level descriptions to tiers
 DESCRIPTION_TIER_MAP = {
     "نقره": "SILVER",
     "طلا": "GOLD_1",
@@ -143,7 +143,8 @@ def _parse_date(val):
 
 
 def get_campaigns_summary(action_id=None, branch=None, gift_keyword=None, page=1, per_page=20):
-    """Aggregate campaign performance and customer redemptions strictly filtered by gift description."""
+    """Aggregate campaign performance and customer redemptions strictly filtered by gift description,
+    capped per customer, and tracking chronological gift consumption without double-counting cashbacks."""
     campaigns = fetch_live_actions()
     
     selected_campaign = None
@@ -161,26 +162,21 @@ def get_campaigns_summary(action_id=None, branch=None, gift_keyword=None, page=1
     if not keyword and selected_campaign:
         keyword = selected_campaign.get("description_pattern") or "هدیه سطح"
 
+    # Campaign gift ceiling per customer (e.g. 300,000 or 400,000)
+    gift_cap = int(selected_campaign.get("type_value") or 300000) if selected_campaign else 300000
+
     # Date range filters based on selected campaign
     start_dt = _parse_date(selected_campaign.get("start_date")) if selected_campaign else None
     end_dt = _parse_date(selected_campaign.get("end_date")) if selected_campaign else None
 
     # Base query for POS sales where wallet was used
-    # STRICT CRITERIA:
-    # 1. Level gifts are round hundred-thousand amounts (e.g. 300,000 or 400,000 Toman).
-    # 2. Irregular fractional amounts (like 53,120 or 50,970 Toman) are purchase cashbacks (هدیه خرید سفارش)
-    #    and MUST be excluded from customer club level gift campaigns!
-    # 3. Explicitly exclude customer 09120844911 and any purchase with irregular cashback amounts.
     pos_qs = PosSale.objects.filter(
-        from_wallet_amount__gte=100000,
+        from_wallet_amount__gt=0,
         deleted_at__isnull=True,
         is_cancelled=False,
     ).exclude(customer__mobile="09120844911")
 
-    # STRICT FILTER: Filter customers by the gift description pattern!
-    # A customer qualifies if:
-    # 1. Their tier matches the campaign tier (e.g. SILVER for "هدیه سطح نقره ای 1 فروشگاه" or GOLD_1 for "طلایی 1")
-    # 2. Or their account received that level gift (excluding cashback like "هدیه خرید سفارش")
+    # Match target tier of the campaign
     target_tier = None
     if "نقره" in keyword:
         target_tier = "SILVER"
@@ -192,11 +188,7 @@ def get_campaigns_summary(action_id=None, branch=None, gift_keyword=None, page=1
         target_tier = "VIP"
 
     if target_tier:
-        # Match customers who hold this tier or who match the campaign level
         pos_qs = pos_qs.filter(customer__tier_code=target_tier)
-    elif selected_campaign and selected_campaign.get("level_id"):
-        # Match by level if available
-        pass
 
     if start_dt:
         pos_qs = pos_qs.filter(created_at__gte=start_dt)
@@ -205,63 +197,54 @@ def get_campaigns_summary(action_id=None, branch=None, gift_keyword=None, page=1
     if branch and branch.upper() in SALES_LINE_LABELS:
         pos_qs = pos_qs.filter(sales_line=branch.upper())
 
-    # Calculate overall metrics
-    pos_aggregates = pos_qs.aggregate(
-        total_wallet=Sum("from_wallet_amount"),
-        total_cash=Sum("cash_amount"),
-        total_card=Sum("card_by_card_amount"),
-        total_snapp=Sum("snappay_cashier_amount"),
-        total_digi=Sum("digipay_cashier_amount"),
-    )
-    total_gift_used = int(pos_aggregates.get("total_wallet") or 0)
-    other_payments = (
-        int(pos_aggregates.get("total_cash") or 0)
-        + int(pos_aggregates.get("total_card") or 0)
-        + int(pos_aggregates.get("total_snapp") or 0)
-        + int(pos_aggregates.get("total_digi") or 0)
-    )
-    total_sales_generated = total_gift_used + other_payments
-    basket_lift = other_payments
-    
-    redemption_count = pos_qs.count()
-    unique_customers_count = pos_qs.values("customer_id").distinct().count()
-
-    distributed = (
-        selected_campaign.get("total_gift_distributed")
-        if selected_campaign and selected_campaign.get("total_gift_distributed")
-        else (selected_campaign.get("type_value", 300000) * 450 if selected_campaign else 135000000)
-    )
-    burn_rate_pct = round((total_gift_used / distributed * 100), 1) if distributed > 0 else 0.0
-
-    # Branch breakdown
-    branch_stats = {}
-    for line_key, line_label in SALES_LINE_LABELS.items():
-        line_qs = pos_qs.filter(sales_line=line_key)
-        line_wallet = int(line_qs.aggregate(w=Sum("from_wallet_amount")).get("w") or 0)
-        line_count = line_qs.count()
-        branch_stats[line_key] = {
-            "key": line_key,
-            "label": line_label,
-            "wallet_amount": line_wallet,
-            "count": line_count,
-            "share_pct": round((line_wallet / total_gift_used * 100), 1) if total_gift_used > 0 else 0.0,
-        }
-
-    # Itemized customer redemptions list (paginated)
-    total_rows = redemption_count
-    start_idx = (page - 1) * per_page
-    end_idx = start_idx + per_page
-    paged_sales = list(
+    # Order chronologically (created_at ASC) to trace each customer's gift consumption
+    all_sales = list(
         pos_qs.select_related("customer", "store")
-        .order_by("-created_at")
-        [start_idx:end_idx]
+        .order_by("created_at")
     )
 
-    gift_title = keyword or (selected_campaign.get("title") if selected_campaign else "هدیه سطح باشگاه")
+    customer_remaining_gift = defaultdict(lambda: gift_cap)
+    valid_redemptions = []
+    total_gift_used = 0
+    total_sales_generated = 0
+    total_basket_lift = 0
+    unique_customer_ids = set()
+    branch_amounts = defaultdict(int)
+    branch_counts = defaultdict(int)
 
-    redemptions = []
-    for sale in paged_sales:
+    for sale in all_sales:
         cust = sale.customer
+        cust_id = cust.id if cust else sale.source_id
+        
+        # Check remaining gift for this customer
+        rem = customer_remaining_gift[cust_id]
+        if rem <= 0:
+            # Customer has ALREADY exhausted their level gift in an earlier invoice!
+            # Any further wallet deduction is paid from purchase cashback or personal wallet balance, NOT this gift!
+            continue
+
+        # Gift portion consumed in this specific invoice (capped at customer's remaining gift and sale wallet amount)
+        actual_gift_used = min(int(sale.from_wallet_amount), rem)
+        customer_remaining_gift[cust_id] -= actual_gift_used
+
+        # Calculate true invoice total and incremental revenue (Basket Lift)
+        invoice_total = (
+            sale.from_wallet_amount
+            + sale.cash_amount
+            + sale.card_by_card_amount
+            + sale.snappay_cashier_amount
+            + sale.digipay_cashier_amount
+        )
+        # Real basket lift is the revenue above the gift contribution!
+        lift = max(0, invoice_total - actual_gift_used)
+
+        total_gift_used += actual_gift_used
+        total_sales_generated += invoice_total
+        total_basket_lift += lift
+        unique_customer_ids.add(cust_id)
+        branch_amounts[sale.sales_line] += actual_gift_used
+        branch_counts[sale.sales_line] += 1
+
         cust_name = UNNAMED_CUSTOMER
         cust_mobile = ""
         cust_tier = ""
@@ -271,16 +254,9 @@ def get_campaigns_summary(action_id=None, branch=None, gift_keyword=None, page=1
             cust_mobile = cust.mobile or ""
             cust_tier = cust.tier_code or ""
 
-        invoice_total = (
-            sale.from_wallet_amount
-            + sale.cash_amount
-            + sale.card_by_card_amount
-            + sale.snappay_cashier_amount
-            + sale.digipay_cashier_amount
-        )
-        incremental = max(0, invoice_total - sale.from_wallet_amount)
+        gift_title = keyword or (selected_campaign.get("title") if selected_campaign else "هدیه سطح باشگاه")
 
-        redemptions.append(
+        valid_redemptions.append(
             {
                 "id": sale.id,
                 "source_id": sale.source_id,
@@ -292,13 +268,44 @@ def get_campaigns_summary(action_id=None, branch=None, gift_keyword=None, page=1
                 "sales_line": sale.sales_line,
                 "sales_line_label": SALES_LINE_LABELS.get(sale.sales_line, sale.sales_line),
                 "created_at": sale.created_at.isoformat() if sale.created_at else None,
-                "wallet_amount": int(sale.from_wallet_amount),
+                "wallet_amount": actual_gift_used,
                 "total_amount": int(invoice_total),
-                "incremental_amount": int(incremental),
+                "incremental_amount": int(lift),
                 "tracking_code": sale.tracking_code or "",
             }
         )
 
+    # Sort redemptions newest first for display
+    valid_redemptions.sort(key=lambda r: r["created_at"] or "", reverse=True)
+
+    # Total distributed estimation
+    distributed = (
+        selected_campaign.get("total_gift_distributed")
+        if selected_campaign and selected_campaign.get("total_gift_distributed")
+        else (gift_cap * 450)
+    )
+    burn_rate_pct = round((total_gift_used / distributed * 100), 1) if distributed > 0 else 0.0
+
+    # Branch breakdown
+    branch_stats = []
+    for line_key, line_label in SALES_LINE_LABELS.items():
+        w = branch_amounts[line_key]
+        c = branch_counts[line_key]
+        branch_stats.append(
+            {
+                "key": line_key,
+                "label": line_label,
+                "wallet_amount": w,
+                "count": c,
+                "share_pct": round((w / total_gift_used * 100), 1) if total_gift_used > 0 else 0.0,
+            }
+        )
+
+    # Paginate
+    total_rows = len(valid_redemptions)
+    start_idx = (page - 1) * per_page
+    end_idx = start_idx + per_page
+    paged_redemptions = valid_redemptions[start_idx:end_idx]
     total_pages = max(1, (total_rows + per_page - 1) // per_page)
 
     return {
@@ -309,13 +316,13 @@ def get_campaigns_summary(action_id=None, branch=None, gift_keyword=None, page=1
             "total_gift_distributed": distributed,
             "total_gift_used": total_gift_used,
             "total_sales_generated": total_sales_generated,
-            "basket_lift": basket_lift,
+            "basket_lift": total_basket_lift,
             "burn_rate_pct": burn_rate_pct,
-            "redemption_count": redemption_count,
-            "unique_customers_count": unique_customers_count,
-            "branches": list(branch_stats.values()),
+            "redemption_count": total_rows,
+            "unique_customers_count": len(unique_customer_ids),
+            "branches": branch_stats,
         },
-        "redemptions": redemptions,
+        "redemptions": paged_redemptions,
         "pagination": {
             "page": page,
             "per_page": per_page,
