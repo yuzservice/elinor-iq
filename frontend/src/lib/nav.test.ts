@@ -13,8 +13,8 @@ describe("product scope and coverage", () => {
     expect(DATA_COVERAGE_MESSAGE).toBe("داده فعلی: بخشی از سفارش‌های اخیر الینور");
   });
 
-  it("adds Smart Direct as a main nav item", () => {
-    expect(NAV_ITEMS.find((item) => item.to === "/smart-direct")?.label).toBe("دایرکت هوشمند");
-    expect(NAV_ITEMS.some((item) => item.label.includes("اینباکس") || item.label.includes("پیام‌ها"))).toBe(false);
+  it("does not expose a direct-messaging nav item", () => {
+    expect(NAV_ITEMS.map((item) => item.to)).not.toContain("/smart-direct");
+    expect(NAV_ITEMS.some((item) => item.label.includes("دایرکت"))).toBe(false);
   });
 });

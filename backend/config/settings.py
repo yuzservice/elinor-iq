@@ -48,7 +48,6 @@ INSTALLED_APPS = [
     "apps.sales.apps.SalesConfig",
     "apps.products.apps.ProductsConfig",
     "apps.system.apps.SystemConfig",
-    "apps.smart_direct.apps.SmartDirectConfig",
 ]
 
 MIDDLEWARE = [
@@ -149,14 +148,6 @@ ELINOR_SYNC_HOURLY_ONLINE_DETAILS_LIMIT = int(os.environ.get("ELINOR_SYNC_HOURLY
 ELINOR_SYNC_HOURLY_POS_DAYS = int(os.environ.get("ELINOR_SYNC_HOURLY_POS_DAYS", "3"))
 ELINOR_SYNC_INTERVAL_SECONDS = int(os.environ.get("ELINOR_SYNC_INTERVAL_SECONDS", "3600"))
 
-INSTAGRAM_APP_ID = os.environ.get("INSTAGRAM_APP_ID", "")
-INSTAGRAM_APP_SECRET = os.environ.get("INSTAGRAM_APP_SECRET", "")
-INSTAGRAM_ACCESS_TOKEN = os.environ.get("INSTAGRAM_ACCESS_TOKEN", "")
-INSTAGRAM_ACCOUNT_ID = os.environ.get("INSTAGRAM_ACCOUNT_ID", "")
-INSTAGRAM_VERIFY_TOKEN = os.environ.get("INSTAGRAM_VERIFY_TOKEN", "")
-INSTAGRAM_API_VERSION = os.environ.get("INSTAGRAM_API_VERSION", "v25.0")
-SMART_DIRECT_CONTEXT_TTL_HOURS = int(os.environ.get("SMART_DIRECT_CONTEXT_TTL_HOURS", "72"))
-
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -169,6 +160,5 @@ LOGGING = {
     "root": {"handlers": ["console"], "level": "INFO"},
     "loggers": {
         "apps.integrations.elinor": {"level": "INFO", "handlers": ["console"], "propagate": False},
-        "apps.smart_direct": {"level": "INFO", "handlers": ["console"], "propagate": False},
     },
 }

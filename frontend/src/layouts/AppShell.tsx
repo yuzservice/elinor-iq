@@ -7,7 +7,6 @@ import {
   IconProducts,
   IconSales,
   IconSettings,
-  IconSmartDirect,
 } from "../components/Icons";
 import { CoverageNotice } from "../components/ui";
 import { NAV_ITEMS } from "../lib/nav";
@@ -18,7 +17,6 @@ const ICONS = {
   sales: IconSales,
   customers: IconCustomers,
   products: IconProducts,
-  smart_direct: IconSmartDirect,
 };
 
 function MobileThemeToggle() {
@@ -90,7 +88,6 @@ export function AppShell() {
           <nav className="floating-dock pointer-events-auto w-full max-w-sm px-3 py-2 flex items-center justify-around text-[10px] text-muted shadow-2xl">
             {NAV_ITEMS.map((item) => {
               const Icon = ICONS[item.key];
-              const isSmartDirect = item.key === "smart_direct";
               return (
                 <NavLink
                   key={item.to}
@@ -104,9 +101,6 @@ export function AppShell() {
                 >
                   <Icon />
                   <span className="text-[9px] leading-tight">{item.label}</span>
-                  {isSmartDirect && (
-                    <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-pink-500 animate-pulse" />
-                  )}
                 </NavLink>
               );
             })}

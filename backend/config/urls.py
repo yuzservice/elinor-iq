@@ -10,5 +10,4 @@ urlpatterns = [
     path("api/customers/", include("apps.customers.urls")),
     path("api/products/", include("apps.products.urls")),
     path("api/system/", include("apps.system.urls")),
-    path("api/smart-direct/", include("apps.smart_direct.urls")),
 ]

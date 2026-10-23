@@ -8,7 +8,6 @@ import { SalesPage } from "../pages/SalesPage";
 import { CustomersPage } from "../pages/CustomersPage";
 import { Customer360Page } from "../pages/Customer360Page";
 import { ProductsPage } from "../pages/ProductsPage";
-import { SmartDirectPage } from "../pages/SmartDirectPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { authService } from "../services/auth";
 import { ThemeProvider } from "../theme/ThemeProvider";
@@ -73,7 +72,6 @@ export function App() {
             <Route path="/customers" element={<CustomersPage />} />
             <Route path="/customers/:id" element={<Customer360Page />} />
             <Route path="/products" element={<ProductsPage />} />
-            <Route path="/smart-direct" element={<SmartDirectPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
           <Route path="*" element={<Navigate to={user ? "/" : "/login"} replace />} />

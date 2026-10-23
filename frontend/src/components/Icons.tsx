@@ -38,15 +38,6 @@ export function IconProducts() {
   );
 }
 
-export function IconSmartDirect() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="M12 3.8 13.6 8.4 18.4 10 13.6 11.6 12 16.2 10.4 11.6 5.6 10 10.4 8.4z" />
-      <path d="M18.2 14.2 19 16.4 21.2 17.2 19 18 18.2 20.2 17.4 18 15.2 17.2 17.4 16.4z" />
-    </svg>
-  );
-}
-
 export function IconSettings() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">

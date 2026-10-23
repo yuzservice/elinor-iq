@@ -10,7 +10,6 @@ import {
   IconProducts,
   IconSales,
   IconSettings,
-  IconSmartDirect,
 } from "../components/Icons";
 import { NAV_ITEMS } from "../lib/nav";
 
@@ -19,7 +18,6 @@ const ICONS = {
   sales: IconSales,
   customers: IconCustomers,
   products: IconProducts,
-  smart_direct: IconSmartDirect,
 };
 
 export function Sidebar() {
@@ -113,7 +111,6 @@ export function Sidebar() {
         <nav className="space-y-1 pt-1">
           {NAV_ITEMS.map((item) => {
             const Icon = ICONS[item.key];
-            const isSmartDirect = item.key === "smart_direct";
             const isHome = item.key === "home";
             const isCustomers = item.key === "customers";
 
@@ -153,17 +150,7 @@ export function Sidebar() {
                         ۴,۲۱۸
                       </span>
                     )}
-                    {isSmartDirect && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 text-white font-bold shadow-sm">
-                        ۳ پیام
-                      </span>
-                    )}
                   </div>
-                )}
-
-                {/* Notification indicator dot (Collapsed Mode) */}
-                {collapsed && isSmartDirect && (
-                  <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-pink-500 ring-2 ring-surface animate-pulse" />
                 )}
 
                 {/* Hover Tooltip (Collapsed Mode) */}

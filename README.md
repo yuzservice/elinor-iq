@@ -110,13 +110,3 @@ backups/     future PostgreSQL backup location
 Internal only. No public registration. Current role: `admin`.
 
 Future roles (`manager`, `analyst`, `staff`) exist on the user model but are not enforced yet.
-
-## Smart Direct / Instagram
-
-Webhook and messaging setup: [docs/SMART_DIRECT_INSTAGRAM.md](docs/SMART_DIRECT_INSTAGRAM.md)
-
-Public callback format:
-
-```text
-https://<your-public-host>/api/smart-direct/instagram/webhook/
-```
