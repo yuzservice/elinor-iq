@@ -60,3 +60,32 @@ SYSTEM_OVERVIEW, MODULE_REGISTRY (`## 8.`) and FEATURE_MATRIX mark it retired; `
 - Never claim tests, typechecks or builds passed unless they were actually run in this session. Report failures verbatim.
 - Backend tests require PostgreSQL (Docker Compose). Say so when they cannot run.
 - After meaningful code changes, update the affected module docs. Run `graphify update .` only when asked.
+
+## AI Collaboration, Shared Workspace & Knowledge Preservation
+**Two sessions, one local repo**
+- Product Architect: analysis, requirements, business rules, UI/UX and implementation specs. Read-only by default.
+- Software Engineer: approved implementation, testing and documentation.
+- Never edit the same file from both sessions at the same time.
+
+**Account-independent knowledge**
+- Git-tracked code and Markdown docs are the durable source of truth. Knowledge must survive changes of Claude account, machine or AI assistant.
+- Never rely solely on conversation history or account-specific memory.
+
+**Graphify and Obsidian**
+- Use Graphify MCP selectively for structure and dependencies; verify critical findings against source.
+- After significant structural code changes, propose `graphify update .` so artifacts stay current.
+- Obsidian (vault root `docs/00-HOME.md`) organizes Markdown knowledge; it is not an automatic AI memory.
+
+**Documentation continuity**
+- `docs/handover/HANDOFF.md` is the project handoff: current status, completed work, active priorities, key decisions, known issues, next steps. Keep it concise and update it after every task.
+- Keep architecture, module and business-rule docs consistent with the code. Extend existing docs; do not duplicate them.
+- Record product decisions in `docs/decisions/` and business rules in `docs/business-rules/`, not only in chat.
+
+**Git and backups**
+- Check `git status` before editing. Commit and push only with explicit authorization.
+- Verify remote backup state (ahead/behind `origin`) instead of assuming work is saved.
+- Never commit credentials, secrets, production database contents or customer data.
+
+**Execution safeguards**
+- Implement nothing without explicit approval. Preserve existing business semantics unless a change is authorized.
+- Verify completed changes and test results. Label every claim as verified or assumed.
