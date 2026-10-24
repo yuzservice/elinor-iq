@@ -3,7 +3,7 @@
 Durable state for the next engineer or AI assistant. Do not rely on chat history; this file plus the repo is the source of truth.
 Update this file at the end of every implementation task (newest entry first in the Log).
 
-Last updated: 2026-10-24 · HEAD `3bc0a48` (branch `main`)
+Last updated: 2026-10-24 · HEAD `494e3f4` (branch `main`, pushed)
 
 ## 1. Current priority
 
@@ -60,17 +60,19 @@ Notes for the Product Architect / next task:
 ## 6. Git and backup state (checked 2026-10-24)
 
 - Remote `origin` → GitHub `yuzservice/elinor-iq`.
-- `main` is **ahead of `origin/main` by 2** (`3bc0a48` Smart Direct removal, and the docs/knowledge-base commit): not backed up remotely. Push only when authorized.
-- Committed locally (2026-10-24): `CLAUDE.md`, `docs/`, `.claude/skills/`.
-- Still untracked, by choice: `.mcp.json`, `.graphifyignore`, `graphify-out*/`, `.agents/`, `.cursor/`, `skills-lock.json`, three `*-prototype*.html` files.
-- Security: the `origin` URL in local `.git/config` embeds a GitHub personal access token. It is not in any tracked file, but it should be revoked and the remote switched to a credential helper or SSH (owner action).
+- `main` = `origin/main` at `494e3f4` (pushed 2026-10-24). Everything committed is backed up on GitHub.
+- Tracked docs: `CLAUDE.md`, `docs/`, `.claude/skills/`.
+- Still untracked, pending a decision: `.mcp.json`, `.graphifyignore`, `graphify-out*/`, `.agents/`, `.cursor/`, `skills-lock.json`, three `*-prototype*.html` files.
+- Auth: git uses the GitHub CLI credential helper (`gh auth setup-git`, account `yuzservice`). The remote URL no longer embeds a token.
+- Pending owner action: revoke the old personal access token (prefix `ghp_QGQM`) in GitHub settings, if not already done.
+- Graphify graph was built at `3bc0a48`; later commits are docs-only, so code structure in the graph is still current.
 
 ## 7. Open gaps
 
 - `docs/business-rules/` is empty: RFM, tier, campaign and gift rules live only in code and tests.
 - `docs/decisions/` is empty: no decision log yet.
 - README index pages listed as pending in `00-HOME.md` (architecture, modules, implementation-status) do not exist.
-- `graphify-out/`, `.mcp.json` and prototypes are untracked; local commits are not pushed.
+- Decide whether to track or gitignore `graphify-out/`, `.mcp.json`, prototypes, `.agents/`, `.cursor/`, `skills-lock.json`.
 - No test suite has been run in a recorded session; FEATURE_MATRIX verification columns are unconfirmed.
 
 ## 8. Next step
@@ -82,4 +84,4 @@ Wait for an approved Customer RFM / Customer 360 implementation task from the Pr
 ### 2026-10-24 — Orientation and handoff created
 - Read `CLAUDE.md`, `docs/00-HOME.md`, MODULE_REGISTRY `## 3.`, FEATURE_MATRIX (RFM/360 rows), `elinor-context` skill.
 - Verified Graphify MCP access; graph matches HEAD.
-- Created this file; added shared-workspace rules and verified git/backup state. Linked from `docs/00-HOME.md`. Committed docs locally (not pushed). No code, migrations or tests touched or run.
+- Created this file; added shared-workspace rules and verified git/backup state. Linked from `docs/00-HOME.md`. Committed docs and CLAUDE.md collaboration rules; removed the embedded token from the remote URL; pushed `main` to `origin` (`793edcd..494e3f4`). No code, migrations or tests touched or run.
