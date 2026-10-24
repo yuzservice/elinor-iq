@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 
+from apps.accounts.permissions import IsSuperAdmin
 from apps.core.coverage import coverage_payload
 from apps.sales.services import parse_range, window_meta
 
@@ -193,3 +194,91 @@ def customer_campaigns(request):
     return Response(payload)
 
 
+
+
+def _tier_rule_errors(exc):
+    return Response({"detail": str(exc), "errors": exc.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["GET"])
+@permission_classes([IsSuperAdmin])
+def tier_rules(request):
+    from .tier_rule_admin import rules_state
+
+    return Response(rules_state())
+
+
+@api_view(["PUT", "DELETE"])
+@permission_classes([IsSuperAdmin])
+def tier_rules_draft(request):
+    from .tier_rule_admin import TierRuleConflict, delete_draft, rules_state, save_draft
+    from .tier_rules import TierRulesError
+
+    try:
+        if request.method == "DELETE":
+            if not delete_draft():
+                return Response({"detail": "پیش‌نویسی وجود ندارد."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(rules_state())
+        save_draft(request.user, rules=request.data.get("rules"), note=request.data.get("note"))
+    except TierRulesError as exc:
+        return _tier_rule_errors(exc)
+    except TierRuleConflict as exc:
+        return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
+    return Response(rules_state())
+
+
+@api_view(["POST"])
+@permission_classes([IsSuperAdmin])
+def tier_rules_preview(request):
+    from .tier_rule_admin import TierRuleConflict, preview_draft
+    from .tier_rules import TierRulesError
+
+    try:
+        return Response(preview_draft())
+    except TierRulesError as exc:
+        return _tier_rule_errors(exc)
+    except TierRuleConflict as exc:
+        return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
+
+
+@api_view(["POST"])
+@permission_classes([IsSuperAdmin])
+def tier_rules_activate(request):
+    from .tier_rule_admin import TierRuleConflict, start_activation
+    from .tier_rules import TierRulesError
+
+    try:
+        draft = start_activation(request.user)
+    except TierRulesError as exc:
+        return _tier_rule_errors(exc)
+    except TierRuleConflict as exc:
+        return Response({"started": False, "detail": str(exc)}, status=status.HTTP_409_CONFLICT)
+    return Response(
+        {"started": True, "version": draft.version, "detail": "فعال‌سازی قوانین جدید شروع شد."},
+        status=status.HTTP_202_ACCEPTED,
+    )
+
+
+@api_view(["POST"])
+@permission_classes([IsSuperAdmin])
+def tier_rules_restore(request, version):
+    from .tier_rule_admin import TierRuleConflict, restore_version, rules_state
+    from .tier_rules import TierRulesError
+
+    try:
+        draft = restore_version(request.user, version)
+    except TierRulesError as exc:
+        return _tier_rule_errors(exc)
+    except TierRuleConflict as exc:
+        return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
+    if draft is None:
+        return Response({"detail": "این نسخه پیدا نشد."}, status=status.HTTP_404_NOT_FOUND)
+    return Response(rules_state())
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def customer_tiers(request):
+    from .tier_rule_admin import public_tiers
+
+    return Response({"results": public_tiers()})

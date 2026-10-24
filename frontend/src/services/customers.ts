@@ -1,5 +1,16 @@
 import { api, queryPath } from "./api";
-import type { Customer360, CustomerPurchase, CustomerReports, CustomerRow, Paginated, CustomerProductHistory } from "../types";
+import type {
+  Customer360,
+  CustomerPurchase,
+  CustomerReports,
+  CustomerRow,
+  Paginated,
+  CustomerProductHistory,
+  PublicTier,
+  TierRules,
+  TierRulesPreview,
+  TierRulesState,
+} from "../types";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
 
@@ -121,4 +132,16 @@ export const customersService = {
     ),
   products: (id: number) =>
     api<{ id: number; total: number; results: CustomerProductHistory[] }>(`/customers/${id}/products/`),
+  tiers: () => api<{ results: PublicTier[] }>("/customers/tiers/"),
+  tierRules: () => api<TierRulesState>("/customers/tier-rules/"),
+  saveTierRulesDraft: (payload: { rules?: TierRules; note?: string }) =>
+    api<TierRulesState>("/customers/tier-rules/draft/", { method: "PUT", body: JSON.stringify(payload) }),
+  deleteTierRulesDraft: () => api<TierRulesState>("/customers/tier-rules/draft/", { method: "DELETE" }),
+  previewTierRulesDraft: () => api<TierRulesPreview>("/customers/tier-rules/draft/preview/", { method: "POST" }),
+  activateTierRulesDraft: () =>
+    api<{ started: boolean; detail: string; version?: number }>("/customers/tier-rules/draft/activate/", {
+      method: "POST",
+    }),
+  restoreTierRules: (version: number) =>
+    api<TierRulesState>(`/customers/tier-rules/${version}/restore/`, { method: "POST" }),
 };

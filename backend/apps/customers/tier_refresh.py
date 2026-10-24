@@ -38,7 +38,7 @@ def refresh_due_tiers():
         return "skipped"
     if not _claim():
         return "skipped"
-    return "done" if _run_full_refresh() else "failed"
+    return "done" if _run_full_refresh(reason="daily") else "failed"
 
 
 def start_full_tier_refresh():
@@ -47,16 +47,16 @@ def start_full_tier_refresh():
         return False
     threading.Thread(
         target=_run_full_refresh,
-        kwargs={"close_connection": True},
+        kwargs={"close_connection": True, "reason": "manual"},
         name="customer-tier-refresh",
         daemon=True,
     ).start()
     return True
 
 
-def _run_full_refresh(close_connection=False):
+def _run_full_refresh(close_connection=False, reason="manual"):
     try:
-        refresh_stored_tiers()
+        refresh_stored_tiers(reason=reason)
         _finish(success=True)
         return True
     except Exception:

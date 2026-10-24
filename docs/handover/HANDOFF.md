@@ -3,17 +3,16 @@
 Durable state for the next engineer or AI assistant. Do not rely on chat history; this file plus the repo is the source of truth.
 Update this file at the end of every implementation task (newest entry first in the Log).
 
-Last updated: 2026-10-24 · HEAD `494e3f4` (branch `main`, pushed)
+Last updated: 2026-10-24 · branch `main`; tier-rules work committed and pushed (see §6)
 
 ## 1. Current priority
 
 **Customer RFM and Customer 360.** Requirements and specs come from the Product Architect session.
 The engineer implements only explicitly approved tasks.
 
-Out of scope until approved:
-- Loyalty Rules Settings page.
-- Any redesign of customer tiers.
-- Smart Direct (retired in `3bc0a48`; do not rebuild).
+Done: **Customer Tier Rules** (Phase 1 + Amendment A + Correction), committed and pushed; owner checked the UI locally.
+Out of scope until approved: Smart Direct (retired in `3bc0a48`; do not rebuild); changes to `campaigns.py`;
+Customer 360 content changes.
 
 ## 2. Workflow
 
@@ -24,17 +23,31 @@ Out of scope until approved:
 5. Run the module's tests (backend tests need PostgreSQL via Docker Compose).
 6. Update module docs and this file. No commit/push unless asked.
 
-## 3. State of the RFM / Customer 360 area (verified by reading docs and graph, not by running tests)
+## 3. State of the RFM / Customer 360 area
 
-| Feature | Source | Tests | Status |
+| Feature | Source | Tests (run 2026-10-24 in Docker) | Status |
 |---|---|---|---|
-| Exclusive tier engine (VIP, DIAMOND, GOLD_1/2, SILVER, BRONZE_1/2/3) | `backend/apps/customers/tiers.py` (`tier_code_for`, `refresh_stored_tiers`), `tier_refresh.py` | `backend/tests/test_customer_tiers.py` | Implemented; tests not run in any recorded session |
-| Customer 360 | `backend/apps/customers/detail.py` (`customer_360_payload`), `frontend/src/pages/Customer360Page.tsx` | `test_customer_360.py`, `customer360Display.test.ts` | Implemented; tests not run in any recorded session |
-| Tier refresh API | `POST /api/customers/refresh-tiers/` | — | Implemented |
+| Tier engine (rule-driven, ordered, first match) | `backend/apps/customers/tiers.py`, `tier_rules.py` | `test_customer_tiers.py`, `test_customer_tier_rules.py` | PASSING |
+| Tier rules admin (draft, preview, activation, history) | `tier_rule_admin.py`, views/urls `tier-rules/…`, `tiers/` | `test_customer_tier_rules.py`, `tierRules.test.ts` | PASSING |
+| Tier rules modal (Customers page) | `frontend/src/features/customers/TierRulesModal.tsx`, `tierRules.ts`, `tierDisplay.tsx`, `hooks/useTiers.ts` | `tsc -b`, Vitest, `npm run build` | Passing; owner checked it locally, no bugs found |
+| Customer 360 | `backend/apps/customers/detail.py`, `frontend/src/pages/Customer360Page.tsx` | `test_customer_360.py`, `customer360Display.test.ts` | PASSING (tier pill now dynamic) |
+| Customer export | `export.py` | `test_customer_export.py` | FAILING before this work (3× `.content` on streaming response, 1× missing fixture `api_client`) |
+| Campaign report | `campaigns.py` | `test_customer_campaigns.py` | FAILING before this work (`test_customer_campaigns_api_and_redemptions`: `assert 0 >= 600000`) |
+
+Rules and decisions: `docs/business-rules/customer-tiers.md`, `docs/decisions/0001-…`, `0002-…`.
+
+Files of the tier-rules work: backend `tier_rules.py`, `tier_rule_admin.py`, migration `0006_tier_rule_sets.py`,
+`tests/test_customer_tier_rules.py`, edits to `tiers.py`, `tier_refresh.py`, `models.py`, `views.py`, `urls.py`, `list_query.py`;
+frontend `TierRulesModal.tsx`, `tierRules.ts`, `tierDisplay.tsx`, `hooks/useTiers.ts`, edits to `CustomersPage.tsx`,
+`Customer360Page.tsx`, `CustomerListPanel.tsx`, `customerListFilters.ts`, `services/customers.ts`, `types/index.ts`.
+
+**Local database state:** rewritten 0006 is applied to the local dev DB (rolled back and re-applied 2026-10-24 with owner
+approval). Version 1 reproduces every stored tier count exactly (199,280 tiered customers, 199,280 baseline rows with titles).
+The 0006 reverse step runs `SET CONSTRAINTS ALL IMMEDIATE` so rollback can drop its tables.
 
 Notes for the Product Architect / next task:
 - `detail.py` module docstring states Customer 360 is "Not a revenue, VIP, RFM, or CLV layer." Adding RFM to 360 changes that contract; the spec should say so explicitly.
-- `Customer.tier_code` stores the computed tier; operator desk accounts are excluded from tiering.
+- Operator desk accounts are excluded from tiering.
 - Revenue figures must use `apps/sales/semantics.py` qualifiers; never mix online `Order.total_amount` with POS tenders.
 
 ## 4. Knowledge infrastructure
@@ -46,8 +59,8 @@ Notes for the Product Architect / next task:
 | Docs index (Obsidian vault root) | `docs/00-HOME.md` | Present |
 | Module registry | `docs/modules/MODULE_REGISTRY.md` | Present |
 | Architecture / risks | `docs/architecture/SYSTEM_OVERVIEW.md` (section 8) | Present |
-| Feature verification | `docs/implementation-status/FEATURE_MATRIX.md` | Present; most tests `NOT_RUN` |
-| Graphify graph | `graphify-out/` | Built at `3bc0a488` = HEAD on 2026-10-24; MCP reachable (1506 nodes, 4606 edges, 91 communities) |
+| Feature verification | `docs/implementation-status/FEATURE_MATRIX.md` | Present; Customer Master rows re-run 2026-10-24, others `NOT_RUN` |
+| Graphify graph | `graphify-out/` (tracked since `b238c21`) | Built at `3bc0a488`; does **not** include the tier-rules modules. Run `graphify update .` when asked |
 
 ## 5. Shared workspace rules
 
@@ -60,26 +73,34 @@ Notes for the Product Architect / next task:
 ## 6. Git and backup state (checked 2026-10-24)
 
 - Remote `origin` → GitHub `yuzservice/elinor-iq`.
-- `main` = `origin/main` at `494e3f4` (pushed 2026-10-24). Everything committed is backed up on GitHub.
+- `main` = `origin/main` after the tier-rules commit (pushed 2026-10-24); verify with `git status -sb`.
 - Tracked docs: `CLAUDE.md`, `docs/`, `.claude/skills/`.
-- Still untracked, pending a decision: `.mcp.json`, `.graphifyignore`, `graphify-out*/`, `.agents/`, `.cursor/`, `skills-lock.json`, three `*-prototype*.html` files.
+- `b238c21` (owner) tracks Graphify artifacts, `.mcp.json`, `.graphifyignore` and the UI prototypes, and updates `.gitignore`.
 - Auth: git uses the GitHub CLI credential helper (`gh auth setup-git`, account `yuzservice`). The remote URL no longer embeds a token.
-- Pending owner action: revoke the old personal access token (prefix `ghp_QGQM`) in GitHub settings, if not already done.
-- Graphify graph was built at `3bc0a48`; later commits are docs-only, so code structure in the graph is still current.
+- The old personal access token was revoked by the owner on 2026-10-24.
 
 ## 7. Open gaps
 
-- `docs/business-rules/` is empty: RFM, tier, campaign and gift rules live only in code and tests.
-- `docs/decisions/` is empty: no decision log yet.
+- Full backend suite has not completed in a recorded session (two background runs were stopped; the export tests are slow). Run it once with no time limit.
+- Pre-existing failures: `test_customer_export.py` (4) and `test_customer_campaigns.py` (1), unrelated to tiers.
+- Graphify graph predates the tier-rules modules (`graphify update .` when asked).
 - README index pages listed as pending in `00-HOME.md` (architecture, modules, implementation-status) do not exist.
-- Decide whether to track or gitignore `graphify-out/`, `.mcp.json`, prototypes, `.agents/`, `.cursor/`, `skills-lock.json`.
-- No test suite has been run in a recorded session; FEATURE_MATRIX verification columns are unconfirmed.
 
 ## 8. Next step
 
-Wait for an approved Customer RFM / Customer 360 implementation task from the Product Architect session.
+1. Run the full backend suite once to completion and record the result.
+2. Decide on fixing the pre-existing export and campaign test failures.
+3. Later phase (needs a spec): campaigns on historical tiers.
 
 ## 9. Log
+
+### 2026-10-24 — Tier rules: Phase 1, Amendment A and Correction
+- Phase 1: versioned tier thresholds, preview with samples, background activation in one transaction, advisory-locked writers, `customer_tier_history`. 79 backend tests passed; Vitest 34/34; build OK. Owner applied 0006 to the local DB; live counts under version 1 matched stored tiers exactly (199,280 tiered customers, 199,280 baseline rows).
+- Amendment A + Correction: ordered/custom tiers (`{"tiers": [...]}`), server-issued `CUSTOM_<n>` codes, gte/lte for count and amount, days upper-bound only, titles from versions with history snapshots, `GET /api/customers/tiers/`, preview warnings (unmatched, held, campaign, empty), modal on the Customers page, dynamic tier options/badges. Migration 0006 rewritten in place (only local + test DBs had it).
+- Tests: `test_customer_tier_rules.py` + `test_customer_tiers.py` + `test_operator_accounts.py` + `test_customer_list.py` + `test_customer_360.py`: 90 passed (re-run before commit). Frontend: `tsc -b` OK, Vitest 38/38, `npm run build` OK. Full backend suite: not completed.
+- Local DB: rewritten 0006 rolled back and re-applied with approval; parity with stored tiers verified. Owner checked the modal and list locally: no bugs. Committed and pushed on owner request.
+- Baseline before this work (customer suites): 56 passed, 4 failed, 1 error (export and campaigns, see §3).
+
 
 ### 2026-10-24 — Orientation and handoff created
 - Read `CLAUDE.md`, `docs/00-HOME.md`, MODULE_REGISTRY `## 3.`, FEATURE_MATRIX (RFM/360 rows), `elinor-context` skill.

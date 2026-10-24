@@ -14,10 +14,11 @@
 - [[modules/README|Module Registry Index]] (pending)
 
 ## Business Rules
-- [[business-rules/README|Business Rules]] (pending: `docs/business-rules/` exists but is empty)
+- [[business-rules/customer-tiers|Customer Tiers]]
 
 ## Decisions
-- [[decisions/README|Decision Log]] (pending: `docs/decisions/` exists but is empty)
+- [[decisions/0001-configurable-tier-rules|0001 Configurable tier rules]]
+- [[decisions/0002-dynamic-tiers-and-modal|0002 Dynamic tiers and modal]]
 
 ## Implementation Status
 - [[implementation-status/FEATURE_MATRIX|Feature Verification Matrix]]

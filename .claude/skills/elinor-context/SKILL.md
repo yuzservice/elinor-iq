@@ -29,7 +29,7 @@ Smart Direct is retired (commit 3bc0a48). If a request touches it, stop and ask 
 ## 2. Read module docs only
 
 1. Read only the matching section of `docs/modules/MODULE_REGISTRY.md`: grep for its `## N.` heading, then read that range.
-2. Read business rules for the module if they exist in `docs/business-rules/` (currently empty).
+2. Read business rules for the module if they exist in `docs/business-rules/` (customer tiers: `customer-tiers.md`) and related records in `docs/decisions/`.
 3. For money, dates or sync, also read `docs/architecture/SYSTEM_OVERVIEW.md` section 8 (known risks).
 
 ## 3. Trace dependencies only when useful

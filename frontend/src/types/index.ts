@@ -536,3 +536,85 @@ export type SystemStatus = {
   data_coverage: DataCoverage;
   backup: { available: boolean; note: string };
 };
+
+export type TierCode = string;
+
+export type TierOperator = "gte" | "lte";
+
+export type TierConditionKey = "purchase_count" | "days_since_last" | "lifetime_amount";
+
+export type TierCondition = { enabled: boolean; value: number | null; operator?: TierOperator };
+
+export type TierRule = {
+  code: TierCode | null;
+  title: string;
+  enabled: boolean;
+  conditions: Record<TierConditionKey, TierCondition>;
+};
+
+export type TierRules = { tiers: TierRule[] };
+
+export type PublicTier = { code: TierCode; title: string; priority: number; summary: string };
+
+export type TierRuleSetPayload = {
+  version: number;
+  status: "draft" | "active" | "archived";
+  rules: TierRules;
+  note: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  previewed_at: string | null;
+  preview_current: boolean;
+  activated_by: string | null;
+  activated_at: string | null;
+  activation_status: "" | "running" | "succeeded" | "failed";
+  activation_error: string;
+};
+
+export type TierRulesState = {
+  active: TierRuleSetPayload | null;
+  draft: TierRuleSetPayload | null;
+  versions: {
+    version: number;
+    status: "active" | "archived";
+    activated_at: string | null;
+    activated_by: string | null;
+    note: string;
+  }[];
+  activation: { running: boolean; status: "" | "running" | "succeeded" | "failed"; error: string };
+  conditions: { key: TierConditionKey; label: string; operators: TierOperator[]; fixed_operator: TierOperator | null }[];
+  max_tiers: number;
+};
+
+export type TierRulesPreview = {
+  version: number;
+  tiers: {
+    tier_code: TierCode | null;
+    label: string | null;
+    enabled: boolean;
+    in_draft: boolean;
+    current: number;
+    draft: number;
+    delta: number;
+  }[];
+  transitions: { from: TierCode | null; to: TierCode | null; count: number }[];
+  samples: {
+    source_id: number;
+    full_name: string;
+    mobile: string;
+    purchase_count: number;
+    days_since_last_purchase: number | null;
+    lifetime_purchase_amount: number;
+    from: TierCode | null;
+    to: TierCode | null;
+  }[];
+  moved: number;
+  warnings: {
+    kind: "unmatched" | "held" | "campaign" | "empty";
+    tier_code: TierCode | null;
+    label: string | null;
+    count: number | null;
+    message: string;
+  }[];
+};

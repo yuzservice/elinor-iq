@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useApi } from "../../hooks/useApi";
+import { useTiers } from "../../hooks/useTiers";
 import { customerDisplayName } from "../../lib/customerDisplay";
 import { formatJalali, todayIso } from "../../lib/dates";
 import { formatDate, formatMobile, formatNumber, formatToman } from "../../lib/format";
@@ -20,7 +21,6 @@ import {
   SIZE_PRESETS,
   SMART_SEGMENTS,
   SORT_OPTIONS,
-  TIER_OPTIONS,
   buildCustomerListParams,
   type CustomerListFilters,
   type SalesLineValue,
@@ -29,6 +29,7 @@ import {
 import { JalaliRangeModal } from "../../components/JalaliDatePicker";
 import { EmptyState, ErrorState, Skeleton } from "../../components/Table";
 import type { CustomerRow } from "../../types";
+import { TierBadge, tierOptions } from "./tierDisplay";
 
 type FilterDrawerTab = "loyalty" | "financial" | "product" | "behavior";
 
@@ -47,50 +48,10 @@ function getTierBadge(customer: CustomerRow) {
       </span>
     );
   }
-  const tier = (customer.tier_code || customer.tier_label || "").toUpperCase();
-  if (!tier) {
+  if (!customer.tier_code) {
     return <span className="text-muted text-xs">—</span>;
   }
-  if (tier.includes("VIP")) {
-    return (
-      <span className="badge-vip text-[11px] font-extrabold px-2.5 py-1 rounded-xl shadow-sm inline-flex items-center gap-1">
-        👑 VIP پلاتینیوم
-      </span>
-    );
-  }
-  if (tier.includes("DIAMOND") || tier.includes("الماس")) {
-    return (
-      <span className="badge-diamond text-[11px] font-extrabold px-2.5 py-1 rounded-xl shadow-sm inline-flex items-center gap-1">
-        💎 الماس الینور
-      </span>
-    );
-  }
-  if (tier.includes("GOLD_1") || tier.includes("طلایی سطح ۱") || tier.includes("طلایی ۱")) {
-    return (
-      <span className="badge-gold text-[11px] font-extrabold px-2.5 py-1 rounded-xl shadow-sm inline-flex items-center gap-1">
-        ⭐️ طلایی ۱ (در خطر)
-      </span>
-    );
-  }
-  if (tier.includes("GOLD") || tier.includes("طلایی")) {
-    return (
-      <span className="badge-gold text-[11px] font-extrabold px-2.5 py-1 rounded-xl shadow-sm inline-flex items-center gap-1">
-        ⭐️ {customer.tier_label || "طلایی ۲"}
-      </span>
-    );
-  }
-  if (tier.includes("SILVER") || tier.includes("نقره")) {
-    return (
-      <span className="badge-silver text-[11px] font-extrabold px-2.5 py-1 rounded-xl shadow-sm inline-flex items-center gap-1">
-        🥈 نقره‌ای
-      </span>
-    );
-  }
-  return (
-    <span className="text-[11px] font-bold text-amber-700 dark:text-amber-500 px-2.5 py-1 rounded-xl bg-amber-500/10 border border-amber-500/20">
-      🥉 {customer.tier_label || "برنزی"}
-    </span>
-  );
+  return <TierBadge code={customer.tier_code} label={customer.tier_label} />;
 }
 
 function getInitials(name: string) {
@@ -112,6 +73,14 @@ export function CustomerListPanel() {
   const [search, setSearch] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
   const [filters, setFilters] = useState<CustomerListFilters>(EMPTY_CUSTOMER_FILTERS);
+  const { tiers } = useTiers();
+  const tierChoices = useMemo(() => tierOptions(tiers), [tiers]);
+  const visibleSegments = useMemo(() => {
+    const codes = new Set(tiers.map((tier) => tier.code));
+    return SMART_SEGMENTS.filter(
+      (seg) => (seg.id !== "vip" || codes.has("VIP")) && (seg.id !== "at_risk_vip" || codes.has("GOLD_1")),
+    );
+  }, [tiers]);
 
   // Minimal UI states
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -599,7 +568,7 @@ export function CustomerListPanel() {
         {/* Row 2: Horizontal Scrollable 1-Click Smart Segments */}
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-2 border-t border-line/60">
           <span className="text-[11px] text-muted font-medium shrink-0 ml-1">سگمنت سریع:</span>
-          {SMART_SEGMENTS.map((seg) => {
+          {visibleSegments.map((seg) => {
             const active = activeSegmentId === seg.id;
             return (
               <button
@@ -758,7 +727,7 @@ export function CustomerListPanel() {
                     )}
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-1.5">
-                    {TIER_OPTIONS.map((opt) => {
+                    {tierChoices.map((opt) => {
                       const active = filters.tier === opt.value;
                       return (
                         <button
@@ -1241,7 +1210,7 @@ export function CustomerListPanel() {
 
             {filters.tier && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-accent/15 text-accent font-bold text-[11px] border border-accent/25">
-                <span>سطح: {TIER_OPTIONS.find((t) => t.value === filters.tier)?.label || filters.tier}</span>
+                <span>سطح: {tierChoices.find((t) => t.value === filters.tier)?.label || filters.tier}</span>
                 <button type="button" onClick={() => updateFilter("tier", "")} className="hover:text-rose-500 mr-0.5">
                   ✕
                 </button>

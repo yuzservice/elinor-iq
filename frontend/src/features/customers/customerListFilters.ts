@@ -1,16 +1,5 @@
 import type { CustomerListParams } from "../../services/customers";
 
-export const TIER_OPTIONS = [
-  { value: "VIP", label: "VIP پلاتینیوم", shortLabel: "VIP", icon: "👑", desc: "+۱۰م، ۴+ خرید، زیر ۴۵ روز" },
-  { value: "DIAMOND", label: "الماس الینور", shortLabel: "الماس", icon: "💎", desc: "+۵م، ۳+ خرید، زیر ۹۰ روز" },
-  { value: "GOLD_1", label: "طلایی ۱ (در خطر)", shortLabel: "طلایی ۱", icon: "⭐️", desc: "+۱۰م، ۴+ خرید، ۹۰-۳۶۵ روز" },
-  { value: "GOLD_2", label: "طلایی سطح ۲", shortLabel: "طلایی ۲", icon: "⭐️", desc: "۲+ خرید، زیر ۹۰ روز" },
-  { value: "SILVER", label: "نقره‌ای", shortLabel: "نقره‌ای", icon: "🥈", desc: "۱+ خرید، ۳۰ تا ۹۰ روز" },
-  { value: "BRONZE_1", label: "برنزی ۱ (تازه)", shortLabel: "برنزی ۱", icon: "🥉", desc: "۱+ خرید، زیر ۳۰ روز" },
-  { value: "BRONZE_2", label: "برنزی ۲ (کم‌تحرک)", shortLabel: "برنزی ۲", icon: "🥉", desc: "۹۰ تا ۱۸۰ روز بدون خرید" },
-  { value: "BRONZE_3", label: "برنزی ۳ (سرد)", shortLabel: "برنزی ۳", icon: "🥉", desc: "بیش از ۱۸۰ روز بدون خرید" },
-] as const;
-
 export const SALES_LINE_OPTIONS = [
   { value: "online", label: "وب‌سایت آنلاین", branchCode: "ONLINE" },
   { value: "sari", label: "شعبه ساری", branchCode: "SARI" },

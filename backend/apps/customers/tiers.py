@@ -10,6 +10,14 @@ from django.db.models.functions import Coalesce, Greatest, Least
 from django.utils import timezone
 
 from apps.customers.operators import operator_customer_ids, operator_mobile_variants
+from apps.customers.tier_rules import (
+    VERSION_1_RULES,
+    active_rule_set,
+    default_rules,
+    enabled_tiers,
+    evaluate_tier,
+    tier_case_sql,
+)
 from apps.sales.models import Order, PosSale, PosSaleItem
 
 TIER_ONLINE_EXCLUDED_STATUSES = ("canceled", "failed", "wait_for_payment")
@@ -17,21 +25,13 @@ TIER_POS_SELL = "sell"
 TIER_POS_EXCHANGE = "both"
 TIER_POS_REFUND = "refund"
 
-TIER_LABELS = {
-    "VIP": "VIP",
-    "DIAMOND": "الماس",
-    "GOLD_1": "طلایی سطح ۱",
-    "GOLD_2": "طلایی سطح ۲",
-    "SILVER": "نقره‌ای",
-    "BRONZE_1": "برنزی سطح ۱",
-    "BRONZE_2": "برنزی سطح ۲",
-    "BRONZE_3": "برنزی سطح ۳",
-}
+# Version-1 titles of the eight original tiers. Not the source of truth: titles
+# come from rule versions (tier_title_map). Kept for callers and tests that need
+# the original codes.
+TIER_LABELS = {tier["code"]: tier["title"] for tier in VERSION_1_RULES["tiers"]}
 
-VIP_AMOUNT = 10_000_000
-DIAMOND_AMOUNT = 5_000_000
-YEAR_DAYS = 365
-SIX_MONTH_DAYS = 180
+# Serializes every tier write (full, by ids, activation) inside its transaction.
+TIER_WRITE_LOCK_KEY = 7_412_031
 
 _FACTS_CTE = """
 WITH online AS (
@@ -99,56 +99,56 @@ facts AS (
 )
 """
 
-_TIER_CASE = """
-CASE
-    WHEN purchase_count <= 0 OR days_since_last_purchase IS NULL THEN NULL
-    WHEN purchase_count >= 4 AND days_since_last_purchase <= 45 AND lifetime_purchase_amount >= 10000000 THEN 'VIP'
-    WHEN purchase_count >= 3 AND days_since_last_purchase <= 90 AND lifetime_purchase_amount >= 5000000 THEN 'DIAMOND'
-    WHEN purchase_count >= 4 AND days_since_last_purchase >= 90 AND days_since_last_purchase <= 365 AND lifetime_purchase_amount >= 10000000 THEN 'GOLD_1'
-    WHEN purchase_count >= 2 AND days_since_last_purchase <= 90 THEN 'GOLD_2'
-    WHEN purchase_count >= 1 AND days_since_last_purchase >= 30 AND days_since_last_purchase <= 90 THEN 'SILVER'
-    WHEN purchase_count >= 1 AND days_since_last_purchase <= 30 THEN 'BRONZE_1'
-    WHEN days_since_last_purchase >= 90 AND days_since_last_purchase < 180 THEN 'BRONZE_2'
-    WHEN days_since_last_purchase >= 180 THEN 'BRONZE_3'
-    ELSE NULL
-END
-"""
-
-
 def application_today():
     return timezone.localdate()
 
 
-def tier_label(code):
+def tier_title_map():
+    """code -> title. The active version wins, then the newest archived version containing the code."""
+    from apps.customers.models import TierRuleSet
+
+    try:
+        rows = list(TierRuleSet.objects.exclude(status=TierRuleSet.STATUS_DRAFT).values_list("status", "version", "rules"))
+    except RuntimeError:
+        rows = [(TierRuleSet.STATUS_ACTIVE, 1, VERSION_1_RULES)]
+    rows.sort(key=lambda row: (row[0] != TierRuleSet.STATUS_ACTIVE, -row[1]))
+    titles = {}
+    for _status, _version, rules in rows:
+        for tier in rules.get("tiers", []):
+            titles.setdefault(tier["code"], tier["title"])
+    return titles
+
+
+def tier_label(code, titles=None):
+    """Title for a stored tier code; the code itself when no version knows it."""
     if not code:
         return None
-    return TIER_LABELS.get(code)
+    titles = tier_title_map() if titles is None else titles
+    return titles.get(code, code)
 
 
-def tier_code_for(purchase_count, days_since_last_purchase, lifetime_purchase_amount):
-    """First matching tier wins. Zero qualifying purchases stay unassigned."""
-    count = int(purchase_count or 0)
-    amount = int(lifetime_purchase_amount or 0)
-    if count <= 0 or days_since_last_purchase is None:
-        return None
-    days = int(days_since_last_purchase)
-    if count >= 4 and days <= 45 and amount >= VIP_AMOUNT:
-        return "VIP"
-    if count >= 3 and days <= 90 and amount >= DIAMOND_AMOUNT:
-        return "DIAMOND"
-    if count >= 4 and 90 <= days <= YEAR_DAYS and amount >= VIP_AMOUNT:
-        return "GOLD_1"
-    if count >= 2 and days <= 90:
-        return "GOLD_2"
-    if count >= 1 and 30 <= days <= 90:
-        return "SILVER"
-    if count >= 1 and days <= 30:
-        return "BRONZE_1"
-    if 90 <= days < SIX_MONTH_DAYS:
-        return "BRONZE_2"
-    if days >= SIX_MONTH_DAYS:
-        return "BRONZE_3"
-    return None
+def enabled_tier_codes(rules=None):
+    """Codes a filter may use: enabled tiers of the active version, in priority order."""
+    rules = rules if rules is not None else _rules_of(active_rule_set())
+    return [tier["code"] for tier in enabled_tiers(rules)]
+
+
+def tier_code_for(purchase_count, days_since_last_purchase, lifetime_purchase_amount, rules=None):
+    """First matching tier wins. Zero qualifying purchases stay unassigned.
+
+    Without `rules`, the active rule set is used (version 1 when none is stored).
+    """
+    if rules is None:
+        rules = _rules_of(active_rule_set())
+    return evaluate_tier(rules, purchase_count, days_since_last_purchase, lifetime_purchase_amount)
+
+
+def _rules_of(rule_set):
+    return rule_set.rules if rule_set is not None else default_rules()
+
+
+def _lock_tier_writes(cursor):
+    cursor.execute("SELECT pg_advisory_xact_lock(%s)", [TIER_WRITE_LOCK_KEY])
 
 
 def _reference(reference_date):
@@ -171,110 +171,209 @@ def _fact_params(reference_date):
     return [_reference(reference_date), timezone.get_current_timezone_name(), *mobiles]
 
 
-def refresh_stored_tiers(customer_ids=None, reference_date=None):
-    """Write tier_code onto customers.
+def refresh_stored_tiers(customer_ids=None, reference_date=None, reason=None):
+    """Write tier_code onto customers with the active rules.
 
     A full pass scans every customer once. A list of ids only rewrites those
-    customers, which is what a sync uses after new sales.
+    customers, which is what a sync uses after new sales. Every change also
+    writes a CustomerTierHistory row in the same transaction.
     """
+    from apps.customers.models import CustomerTierHistory
+
     if customer_ids is not None:
-        return _refresh_tier_ids(customer_ids, reference_date)
-    return _refresh_all_tiers(reference_date)
+        return _refresh_tier_ids(customer_ids, reference_date, reason or CustomerTierHistory.REASON_SYNC)
+    return _refresh_all_tiers(reference_date, reason or CustomerTierHistory.REASON_MANUAL)
 
 
-def _refresh_all_tiers(reference_date):
+def _refresh_all_tiers(reference_date, reason):
+    from django.db import connection, transaction
+
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            _lock_tier_writes(cursor)
+        rule_set = active_rule_set()
+        return write_all_tiers(_rules_of(rule_set), rule_set.pk if rule_set else None, reason, reference_date)
+
+
+def write_all_tiers(rules, rule_set_id, reason, reference_date=None):
+    """Rewrite every changed tier_code and its history. Caller holds the write lock in a transaction."""
     from django.db import connection
 
     facts_sql, _mobiles = _facts_sql()
+    case_sql, case_params = tier_case_sql(rules)
+    previous_titles = tier_title_map()
+    new_titles = {**previous_titles, **{tier["code"]: tier["title"] for tier in rules["tiers"]}}
+    previous_sql, previous_params = _titles_values(previous_titles)
+    new_sql, new_params = _titles_values(new_titles)
     sql = f"""
         {facts_sql},
         scored AS (
-            SELECT customer_id, {_TIER_CASE} AS tier_code
-            FROM facts
+            SELECT customer_id, previous_tier_code, {case_sql} AS tier_code
+            FROM (
+                SELECT f.*, cur.tier_code AS previous_tier_code
+                FROM facts f
+                JOIN customers cur ON cur.id = f.customer_id
+            ) current_facts
+        ),
+        changed AS (
+            UPDATE customers AS c
+            SET tier_code = scored.tier_code,
+                tier_refreshed_at = NOW()
+            FROM scored
+            WHERE c.id = scored.customer_id
+              AND c.tier_code IS DISTINCT FROM scored.tier_code
+            RETURNING c.id, scored.previous_tier_code, c.tier_code
         )
-        UPDATE customers AS c
-        SET tier_code = scored.tier_code,
-            tier_refreshed_at = NOW()
-        FROM scored
-        WHERE c.id = scored.customer_id
-          AND c.tier_code IS DISTINCT FROM scored.tier_code
+        INSERT INTO customer_tier_history (
+            customer_id, previous_tier_code, previous_tier_title, tier_code, tier_title, rule_set_id, reason, changed_at
+        )
+        SELECT ch.id,
+               ch.previous_tier_code,
+               COALESCE(previous_titles.title, ch.previous_tier_code, ''),
+               ch.tier_code,
+               COALESCE(new_titles.title, ch.tier_code, ''),
+               %s, %s, NOW()
+        FROM changed ch
+        LEFT JOIN ({previous_sql}) AS previous_titles(code, title) ON previous_titles.code = ch.previous_tier_code
+        LEFT JOIN ({new_sql}) AS new_titles(code, title) ON new_titles.code = ch.tier_code
     """
     with connection.cursor() as cursor:
-        cursor.execute(sql, _fact_params(reference_date))
+        cursor.execute(
+            sql,
+            _fact_params(reference_date) + case_params + [rule_set_id, reason] + previous_params + new_params,
+        )
         updated = cursor.rowcount
-    return updated + clear_operator_tiers()
+    return updated + clear_operator_tiers(reason, rule_set_id, titles=previous_titles)
 
 
-def _refresh_tier_ids(customer_ids, reference_date):
-    from apps.customers.models import Customer
+def _titles_values(titles):
+    """A VALUES list of (code, title) as bound parameters; never empty."""
+    pairs = list(titles.items()) or [("", "")]
+    sql = "VALUES " + ", ".join(["(%s::text, %s::text)"] * len(pairs))
+    return sql, [item for pair in pairs for item in pair]
+
+
+def _refresh_tier_ids(customer_ids, reference_date, reason):
+    from django.db import connection, transaction
+
+    from apps.customers.models import Customer, CustomerTierHistory
 
     ids = list({int(pk) for pk in customer_ids if pk})
     if not ids:
         return 0
     updated = 0
     refreshed_at = timezone.now()
-    for start in range(0, len(ids), 400):
-        chunk = ids[start : start + 400]
-        metrics = metrics_for_customers(chunk, reference_date)
-        grouped = {}
-        for customer_id in chunk:
-            code = (metrics.get(customer_id) or {}).get("tier_code")
-            grouped.setdefault(code, []).append(customer_id)
-        for code, pks in grouped.items():
-            updated += (
-                Customer.objects.filter(pk__in=pks)
-                .exclude(tier_code=code)
-                .update(tier_code=code, tier_refreshed_at=refreshed_at)
-            )
-    return updated + clear_operator_tiers()
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            _lock_tier_writes(cursor)
+        rule_set = active_rule_set()
+        rules = _rules_of(rule_set)
+        titles = tier_title_map()
+        for start in range(0, len(ids), 400):
+            chunk = ids[start : start + 400]
+            metrics = metrics_for_customers(chunk, reference_date, rules=rules, titles=titles)
+            stored = dict(Customer.objects.filter(pk__in=chunk).values_list("pk", "tier_code"))
+            grouped = {}
+            history = []
+            for customer_id in chunk:
+                if customer_id not in stored:
+                    continue
+                code = (metrics.get(customer_id) or {}).get("tier_code")
+                if stored[customer_id] == code:
+                    continue
+                grouped.setdefault(code, []).append(customer_id)
+                history.append(
+                    CustomerTierHistory(
+                        customer_id=customer_id,
+                        previous_tier_code=stored[customer_id],
+                        previous_tier_title=tier_label(stored[customer_id], titles) or "",
+                        tier_code=code,
+                        tier_title=tier_label(code, titles) or "",
+                        rule_set=rule_set,
+                        reason=reason,
+                        changed_at=refreshed_at,
+                    )
+                )
+            for code, pks in grouped.items():
+                updated += Customer.objects.filter(pk__in=pks).update(tier_code=code, tier_refreshed_at=refreshed_at)
+            CustomerTierHistory.objects.bulk_create(history)
+        return updated + clear_operator_tiers(reason, rule_set.pk if rule_set else None, titles=titles)
 
 
-def clear_operator_tiers():
+def clear_operator_tiers(reason=None, rule_set_id=None, titles=None):
     """Desk accounts stay out of every tier, including after a later sync."""
-    from apps.customers.models import Customer
+    from django.db import transaction
+
+    from apps.customers.models import Customer, CustomerTierHistory
 
     variants = operator_mobile_variants()
     if not variants:
         return 0
-    return (
-        Customer.objects.filter(mobile__in=variants)
-        .exclude(tier_code__isnull=True)
-        .update(tier_code=None, tier_refreshed_at=timezone.now())
-    )
+    now = timezone.now()
+    with transaction.atomic():
+        tiered = list(
+            Customer.objects.filter(mobile__in=variants)
+            .exclude(tier_code__isnull=True)
+            .select_for_update()
+            .values_list("pk", "tier_code")
+        )
+        if not tiered:
+            return 0
+        updated = Customer.objects.filter(pk__in=[pk for pk, _code in tiered]).update(
+            tier_code=None, tier_refreshed_at=now
+        )
+        titles = tier_title_map() if titles is None else titles
+        CustomerTierHistory.objects.bulk_create(
+            CustomerTierHistory(
+                customer_id=pk,
+                previous_tier_code=code,
+                previous_tier_title=tier_label(code, titles) or "",
+                tier_code=None,
+                tier_title="",
+                rule_set_id=rule_set_id,
+                reason=reason or CustomerTierHistory.REASON_MANUAL,
+                changed_at=now,
+            )
+            for pk, code in tiered
+        )
+    return updated
 
 
-def filter_customers_by_tier(qs, tier_code, reference_date=None):
-    if tier_code not in TIER_LABELS:
+def filter_customers_by_tier(qs, tier_code, reference_date=None, rules=None):
+    rules = rules or _rules_of(active_rule_set())
+    if tier_code not in enabled_tier_codes(rules):
         return qs
     facts_sql, _mobiles = _facts_sql()
+    case_sql, case_params = tier_case_sql(rules)
     sql = f"""
         {facts_sql}
         SELECT customer_id
         FROM (
-            SELECT customer_id, {_TIER_CASE} AS tier_code
+            SELECT customer_id, {case_sql} AS tier_code
             FROM facts
         ) scored
         WHERE tier_code = %s
     """
-    params = _fact_params(reference_date) + [tier_code]
+    params = _fact_params(reference_date) + case_params + [tier_code]
     return qs.filter(pk__in=RawSQL(sql, params))
 
 
-def tier_population_summary(reference_date=None):
+def tier_population_summary(reference_date=None, rules=None):
     """Server-side tier counts. One row per assigned tier, plus null."""
     from django.db import connection
 
     facts_sql, _mobiles = _facts_sql()
+    case_sql, case_params = tier_case_sql(rules or _rules_of(active_rule_set()))
     sql = f"""
         {facts_sql}
-        SELECT {_TIER_CASE} AS tier_code,
+        SELECT {case_sql} AS tier_code,
                COUNT(*)::int AS customers,
                COUNT(*) FILTER (WHERE purchase_count > 0)::int AS purchasing
         FROM facts
         GROUP BY 1
     """
     with connection.cursor() as cursor:
-        cursor.execute(sql, _fact_params(reference_date))
+        cursor.execute(sql, _fact_params(reference_date) + case_params)
         rows = cursor.fetchall()
     return [
         {"tier_code": code, "customers": customers, "purchasing": purchasing}
@@ -377,12 +476,16 @@ def tier_lifetime_amount_expression():
     )
 
 
-def metrics_for_customers(customer_ids, reference_date=None):
+def metrics_for_customers(customer_ids, reference_date=None, rules=None, titles=None):
     """Batch tier facts for a page of customers. No per-customer queries."""
     reference = _reference(reference_date)
     ids = list(customer_ids)
     if not ids:
         return {}
+    if rules is None:
+        rules = _rules_of(active_rule_set())
+    if titles is None:
+        titles = tier_title_map()
 
     online = {
         row["customer_id"]: row
@@ -420,7 +523,7 @@ def metrics_for_customers(customer_ids, reference_date=None):
         days = None
         if last_at is not None:
             days = (reference - timezone.localtime(last_at).date()).days
-        code = None if customer_id in operators else tier_code_for(purchase_count, days, amount)
+        code = None if customer_id in operators else tier_code_for(purchase_count, days, amount, rules)
         payload[customer_id] = {
             "purchase_count": purchase_count,
             "first_purchase_at": first_at,
@@ -428,7 +531,7 @@ def metrics_for_customers(customer_ids, reference_date=None):
             "days_since_last_purchase": days,
             "lifetime_purchase_amount": amount,
             "tier_code": code,
-            "tier_label": tier_label(code),
+            "tier_label": tier_label(code, titles),
         }
     return payload
 

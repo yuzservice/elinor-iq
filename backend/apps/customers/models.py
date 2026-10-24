@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 
@@ -152,3 +153,105 @@ class CustomerAddress(models.Model):
     @property
     def recipient_name(self):
         return f"{self.first_name} {self.last_name}".strip()
+
+
+class TierRuleSet(models.Model):
+    """One version of the tier thresholds. At most one active and one draft."""
+
+    STATUS_DRAFT = "draft"
+    STATUS_ACTIVE = "active"
+    STATUS_ARCHIVED = "archived"
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, "Draft"),
+        (STATUS_ACTIVE, "Active"),
+        (STATUS_ARCHIVED, "Archived"),
+    ]
+    ACTIVATION_RUNNING = "running"
+    ACTIVATION_SUCCEEDED = "succeeded"
+    ACTIVATION_FAILED = "failed"
+    ACTIVATION_CHOICES = [
+        ("", "None"),
+        (ACTIVATION_RUNNING, "Running"),
+        (ACTIVATION_SUCCEEDED, "Succeeded"),
+        (ACTIVATION_FAILED, "Failed"),
+    ]
+
+    version = models.PositiveIntegerField(unique=True)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES)
+    rules = models.JSONField()
+    note = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        related_name="+",
+        on_delete=models.SET_NULL,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    previewed_at = models.DateTimeField(null=True, blank=True)
+    activated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        related_name="+",
+        on_delete=models.SET_NULL,
+    )
+    activated_at = models.DateTimeField(null=True, blank=True)
+    activation_status = models.CharField(max_length=16, choices=ACTIVATION_CHOICES, blank=True, default="")
+    activation_error = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "customer_tier_rule_sets"
+        ordering = ["-version"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["status"],
+                condition=models.Q(status="active"),
+                name="tier_rule_sets_one_active",
+            ),
+            models.UniqueConstraint(
+                fields=["status"],
+                condition=models.Q(status="draft"),
+                name="tier_rule_sets_one_draft",
+            ),
+        ]
+
+
+class CustomerTierHistory(models.Model):
+    """One row per actual change of Customer.tier_code."""
+
+    REASON_BASELINE = "baseline"
+    REASON_ACTIVATION = "activation"
+    REASON_DAILY = "daily"
+    REASON_MANUAL = "manual"
+    REASON_SYNC = "sync"
+    REASON_CHOICES = [
+        (REASON_BASELINE, "Baseline"),
+        (REASON_ACTIVATION, "Activation"),
+        (REASON_DAILY, "Daily"),
+        (REASON_MANUAL, "Manual"),
+        (REASON_SYNC, "Sync"),
+    ]
+
+    customer = models.ForeignKey(Customer, related_name="tier_history", on_delete=models.CASCADE)
+    previous_tier_code = models.CharField(max_length=16, null=True, blank=True)
+    previous_tier_title = models.CharField(max_length=40, blank=True)
+    tier_code = models.CharField(max_length=16, null=True, blank=True)
+    tier_title = models.CharField(max_length=40, blank=True)
+    rule_set = models.ForeignKey(
+        TierRuleSet,
+        null=True,
+        blank=True,
+        related_name="history",
+        on_delete=models.SET_NULL,
+    )
+    reason = models.CharField(max_length=16, choices=REASON_CHOICES)
+    changed_at = models.DateTimeField(db_index=True)
+
+    class Meta:
+        db_table = "customer_tier_history"
+        ordering = ["-changed_at", "-id"]
+        indexes = [
+            models.Index(fields=["customer", "changed_at"], name="tier_history_cust_at_idx"),
+        ]

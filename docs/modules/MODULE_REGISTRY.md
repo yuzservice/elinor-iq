@@ -84,6 +84,8 @@ This registry catalogs the core architectural modules of ELINOR IQ V2. Each entr
   - `backend/apps/customers/models.py`
   - `backend/apps/customers/views.py`
   - `backend/apps/customers/tiers.py`
+  - `backend/apps/customers/tier_rules.py`
+  - `backend/apps/customers/tier_rule_admin.py`
   - `backend/apps/customers/tier_refresh.py`
   - `backend/apps/customers/list_query.py`
   - `backend/apps/customers/detail.py`
@@ -96,6 +98,8 @@ This registry catalogs the core architectural modules of ELINOR IQ V2. Each entr
   - `CustomerAddress` (`customer_addresses` table): Physical addresses with province and city linkages.
   - `Province` (`provinces`), `City` (`cities`): Geographic administrative hierarchies.
   - `CustomerLevel` (`customer_levels`), `CustomerRole` (`customer_roles`): Legacy club and role lookups.
+  - `TierRuleSet` (`customer_tier_rule_sets`): Versioned, ordered tier list `{"tiers": [...]}` (`draft` / `active` / `archived`; at most one active and one draft). Version 1 = the former hard-coded rules (migration `0006_tier_rule_sets`).
+  - `CustomerTierHistory` (`customer_tier_history`): One row per actual `tier_code` change, with reason (`baseline`, `daily`, `manual`, `sync`, `activation`), rule version and title snapshots (`previous_tier_title`, `tier_title`).
 - **Important Services & APIs:**
   - `GET /api/customers/` (`customer_list`): Paginated customer list with rich multi-parameter filters (city, province, tier, channel, purchase frequency, registered-only, order behavior).
   - `GET /api/customers/<source_id>/` (`customer_detail`): Complete Customer 360 record combining online orders and POS sales.
@@ -104,10 +108,14 @@ This registry catalogs the core architectural modules of ELINOR IQ V2. Each entr
   - `GET /api/customers/campaigns/` (`customer_campaigns`): Audience estimation and segmentation for targeted marketing campaigns.
   - `GET /api/customers/export/` (`customer_export`): Streaming CSV exporter for filtered customer cohorts.
   - `POST /api/customers/refresh-tiers/` (`refresh_tiers`): Triggers full or incremental RFM tier calculation.
-  - `tier_code_for()` & `refresh_stored_tiers()` (`apps.customers.tiers`): High-performance Common Table Expression (CTE) scoring customers into exclusive tiers: `VIP`, `DIAMOND`, `GOLD_1`, `GOLD_2`, `SILVER`, `BRONZE_1`, `BRONZE_2`, `BRONZE_3`. Excludes operator desk accounts.
+  - `tier_code_for()` & `refresh_stored_tiers()` (`apps.customers.tiers`): High-performance Common Table Expression (CTE) scoring customers into exclusive tiers: `VIP`, `DIAMOND`, `GOLD_1`, `GOLD_2`, `SILVER`, `BRONZE_1`, `BRONZE_2`, `BRONZE_3`. Excludes operator desk accounts. Tiers, order, titles and conditions come from the active `TierRuleSet` (`tier_rules.tier_case_sql` / `evaluate_tier`); labels via `tiers.tier_title_map()` / `tier_label()`; every write holds a Postgres advisory lock and records `CustomerTierHistory`. `TIER_LABELS` is only the version-1 default.
+  - `GET /api/customers/tiers/` (`customer_tiers`, any signed-in user): enabled tiers of the active version `[{code, title, priority, summary}]` for filters and badges.
+  - Tier rules API (all `IsSuperAdmin`, `tier_rule_admin.py`): `GET /api/customers/tier-rules/`, `PUT|DELETE /api/customers/tier-rules/draft/`, `POST /api/customers/tier-rules/draft/preview/`, `POST /api/customers/tier-rules/draft/activate/` (202 / 409, background job under the `customer_tiers` lock), `POST /api/customers/tier-rules/<version>/restore/`. Rules: `docs/business-rules/customer-tiers.md`.
 - **Frontend Entrypoints & Components:**
   - Pages: `frontend/src/pages/CustomersPage.tsx`, `frontend/src/pages/Customer360Page.tsx`
   - Panels: `frontend/src/features/customers/CustomerListPanel.tsx`, `frontend/src/features/customers/CustomerCampaignsPanel.tsx`, `frontend/src/features/customers/CustomerReportsPanel.tsx`
+  - Tier rules editor: `frontend/src/features/customers/TierRulesModal.tsx` (+ `tierRules.ts` validation/summary/reorder), opened from `pages/CustomersPage.tsx` («قوانین سطح‌بندی», `?tierRules=1`) for super admins only
+  - Dynamic tiers: `frontend/src/hooks/useTiers.ts` (shared fetch of `/api/customers/tiers/`), `features/customers/tierDisplay.tsx` (`TierBadge`, per-code style)
   - Services: `frontend/src/services/customers.ts`, `frontend/src/services/campaigns.ts`
 - **Dependencies on Other Modules:**
   - `apps.sales` (queries `Order`, `OrderItem`, `PosSale`, `PosSaleItem` for tiering and purchase histories).

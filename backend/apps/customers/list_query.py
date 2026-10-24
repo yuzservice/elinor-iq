@@ -12,11 +12,12 @@ from apps.customers.purchases import (
     qualifying_pos_exists,
 )
 from apps.customers.tiers import (
-    TIER_LABELS,
     TIER_ONLINE_EXCLUDED_STATUSES,
+    enabled_tier_codes,
     metrics_for_customers,
     tier_first_purchase_expression,
     tier_label,
+    tier_title_map,
     tier_last_purchase_expression,
     tier_lifetime_amount_expression,
     tier_purchase_count_expression,
@@ -80,7 +81,7 @@ def customer_list_queryset(params):
     if search:
         qs = _apply_search(qs, search)
 
-    if tier in TIER_LABELS:
+    if tier and tier in enabled_tier_codes():
         qs = exclude_operator_accounts(qs.filter(tier_code=tier))
 
     min_count = _as_int(params.get("min_purchases"))
@@ -383,7 +384,8 @@ def hydrate_customer_rows(customers):
     pos_lines = {pk: set() for pk in ids}
     for row in qualifying_pos().filter(customer_id__in=ids).values("customer_id", "sales_line").distinct():
         pos_lines[row["customer_id"]].add(row["sales_line"])
-    tiers = metrics_for_customers(ids)
+    titles = tier_title_map()
+    tiers = metrics_for_customers(ids, titles=titles)
 
     payloads = []
     for customer in customers:
@@ -408,7 +410,7 @@ def hydrate_customer_rows(customers):
                 "lifetime_purchase_amount": int(tier.get("lifetime_purchase_amount") or 0),
                 "days_since_last_purchase": tier.get("days_since_last_purchase"),
                 "tier_code": None if is_operator_account(customer) else (customer.tier_code or None),
-                "tier_label": None if is_operator_account(customer) else tier_label(customer.tier_code),
+                "tier_label": None if is_operator_account(customer) else tier_label(customer.tier_code, titles),
                 "channel": channel_key,
                 "channel_label": channel_label,
                 "sales_lines": lines,
@@ -460,7 +462,7 @@ def _buyer_analytics_filter(
     size="",
     category="",
 ):
-    if tier in TIER_LABELS:
+    if tier and tier in enabled_tier_codes():
         return False
     return bool(
         population == "purchasing"

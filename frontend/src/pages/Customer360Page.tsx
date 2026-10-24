@@ -4,6 +4,8 @@ import { Badge, CustomerNameCell, Pagination, StatusBadge } from "../components/
 import { EmptyState, ErrorState, Skeleton } from "../components/Table";
 import { joinFacts, profileValue, salesLineTone } from "../features/customers/customer360Display";
 import { useApi } from "../hooks/useApi";
+import { useTiers } from "../hooks/useTiers";
+import { TierBadge } from "../features/customers/tierDisplay";
 import { INCOMPLETE_LABEL, customerDisplayName } from "../lib/customerDisplay";
 import { formatDate, formatDateLong, formatMobile, formatNumber, formatToman } from "../lib/format";
 import { customersService } from "../services/customers";
@@ -19,7 +21,7 @@ function getInitials(name: string) {
   return name.slice(0, 2).toUpperCase();
 }
 
-function getTierPill(data: Customer360) {
+function getTierPill(data: Customer360, summary?: string) {
   if (data.is_operator) {
     return (
       <span className="px-2.5 py-1 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold text-xs border border-amber-500/30">
@@ -27,39 +29,10 @@ function getTierPill(data: Customer360) {
       </span>
     );
   }
-  const tier = (data.tier_code || data.tier_label || "").toUpperCase();
-  if (!tier) return null;
-  if (tier.includes("VIP")) {
-    return (
-      <span className="badge-vip text-xs font-extrabold px-3 py-1 rounded-xl shadow-xs inline-flex items-center gap-1">
-        👑 {data.tier_label || "VIP پلاتینیوم"}
-      </span>
-    );
-  }
-  if (tier.includes("DIAMOND") || tier.includes("الماس")) {
-    return (
-      <span className="badge-diamond text-xs font-extrabold px-3 py-1 rounded-xl shadow-xs inline-flex items-center gap-1">
-        💎 {data.tier_label || "الماس الینور"}
-      </span>
-    );
-  }
-  if (tier.includes("GOLD") || tier.includes("طلایی")) {
-    return (
-      <span className="badge-gold text-xs font-extrabold px-3 py-1 rounded-xl shadow-xs inline-flex items-center gap-1">
-        ⭐️ {data.tier_label || "طلایی"}
-      </span>
-    );
-  }
-  if (tier.includes("SILVER") || tier.includes("نقره")) {
-    return (
-      <span className="badge-silver text-xs font-extrabold px-3 py-1 rounded-xl shadow-xs inline-flex items-center gap-1">
-        🥈 {data.tier_label || "نقره‌ای"}
-      </span>
-    );
-  }
+  if (!data.tier_code) return null;
   return (
-    <span className="text-xs font-bold text-amber-700 dark:text-amber-500 px-3 py-1 rounded-xl bg-amber-500/10 border border-amber-500/20 inline-flex items-center gap-1">
-      🥉 {data.tier_label || "برنزی"}
+    <span title={summary}>
+      <TierBadge code={data.tier_code} label={data.tier_label} className="px-3 text-xs" />
     </span>
   );
 }
@@ -73,6 +46,7 @@ const LINE_COLORS: Record<string, string> = {
 
 export function Customer360Page() {
   const { id } = useParams();
+  const { tiers } = useTiers();
   const [tab, setTab] = useState<TabKey>("purchases");
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [purchaseFilter, setPurchaseFilter] = useState<PurchaseKindFilter>("all");
@@ -207,7 +181,7 @@ export function Customer360Page() {
                 <h1 className="text-xl sm:text-2xl font-black tracking-tight text-ink">
                   <CustomerNameCell name={display.name} fallback={display.fallback} sourceId={data.id} />
                 </h1>
-                {getTierPill(data)}
+                {getTierPill(data, tiers.find((tier) => tier.code === data.tier_code)?.summary)}
                 {data.is_operator ? (
                   <Badge tone="warning">{data.operator_label}</Badge>
                 ) : (
