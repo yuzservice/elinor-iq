@@ -32,3 +32,10 @@ docker/certbot/logs/
 .idea/
 .vscode/
 *.egg-info/
+
+# Local AI tooling (per-machine)
+.agents/
+.cursor/
+skills-lock.json
+graphify-out/cache/
+graphify-out-pre-smart-direct-removal/

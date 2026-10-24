@@ -1,0 +1,10 @@
+/graphify-out-pre-smart-direct-removal/
+/graphify-out/
+/backups/
+/source/
+/.agents/
+/.cursor/
+**/node_modules/
+**/dist/
+**/.venv/
+**/__pycache__/

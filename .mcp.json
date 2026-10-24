@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "graphify": {
+      "command": "/Users/rezasoltani/.local/bin/graphify-mcp",
+      "args": [
+        "--transport", "stdio",
+        "--graph", "/Users/rezasoltani/Documents/elinor-iq-v2/graphify-out/graph.json"
+      ]
+    }
+  }
+}

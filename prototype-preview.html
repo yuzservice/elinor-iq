@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ELINOR IQ v2 | داشبورد نسل بعدی هوش خرده‌فروشی ۲۰۲۶</title>
+  <!-- Vazirmatn Persian Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS CDN with data-theme="dark" selector -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: ['class', '[data-theme="dark"]'],
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Vazirmatn', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            obsidian: '#06080d',
+            cyber: {
+              blue: '#3b82f6',
+              cyan: '#06b6d4',
+              emerald: '#10b981',
+              violet: '#8b5cf6',
+              gold: '#f59e0b',
+              rose: '#f43f5e',
+            }
+          },
+          boxShadow: {
+            'glow-blue': '0 0 30px -5px rgba(59, 130, 246, 0.35)',
+            'glow-emerald': '0 0 30px -5px rgba(16, 185, 129, 0.35)',
+            'glow-violet': '0 0 30px -5px rgba(139, 92, 246, 0.3)',
+            'card-light': '0 10px 30px -5px rgba(15, 23, 42, 0.06), 0 0 0 1px rgba(15, 23, 42, 0.05)',
+            'card-dark': '0 20px 40px -15px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08)',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    :root, [data-theme="dark"] {
+      --bg-base: #06080d;
+      --bg-card: rgba(12, 16, 23, 0.78);
+      --border-card: rgba(255, 255, 255, 0.08);
+      --glass-highlight: rgba(255, 255, 255, 0.12);
+      --glow-mesh-1: rgba(59, 130, 246, 0.15);
+      --glow-mesh-2: rgba(16, 185, 129, 0.12);
+      --glow-mesh-3: rgba(139, 92, 246, 0.10);
+      --frame-border: #18202c;
+    }
+    [data-theme="light"] {
+      --bg-base: #f1f5f9;
+      --bg-card: rgba(255, 255, 255, 0.92);
+      --border-card: rgba(15, 23, 42, 0.09);
+      --glass-highlight: rgba(255, 255, 255, 0.98);
+      --glow-mesh-1: rgba(59, 130, 246, 0.08);
+      --glow-mesh-2: rgba(16, 185, 129, 0.06);
+      --glow-mesh-3: rgba(139, 92, 246, 0.05);
+      --frame-border: #cbd5e1;
+    }
+
+    body {
+      font-family: 'Vazirmatn', sans-serif;
+      background-color: var(--bg-base);
+      transition: background-color 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      font-feature-settings: "ss01", "ss02";
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .tabular {
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Ambient 2026 Liquid Aurora Background */
+    .aurora-bg {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(1100px 550px at 85% -10%, var(--glow-mesh-1), transparent 60%),
+        radial-gradient(900px 500px at 15% 105%, var(--glow-mesh-2), transparent 55%),
+        radial-gradient(700px 450px at 50% 45%, var(--glow-mesh-3), transparent 65%),
+        var(--bg-base);
+    }
+
+    /* 2026 Interactive Spotlight Bento Card */
+    .bento-card {
+      position: relative;
+      background: var(--bg-card);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border-card);
+      border-radius: 28px;
+      overflow: hidden;
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+    }
+
+    .bento-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 28px;
+      padding: 1px;
+      background: radial-gradient(450px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(59, 130, 246, 0.22), transparent 45%);
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .bento-card:hover::before {
+      opacity: 1;
+    }
+
+    .bento-card:hover {
+      transform: translateY(-3px);
+    }
+
+    [data-theme="dark"] .bento-card:hover {
+      box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.6);
+      border-color: rgba(255, 255, 255, 0.16);
+    }
+
+    [data-theme="light"] .bento-card:hover {
+      box-shadow: 0 20px 35px -8px rgba(15, 23, 42, 0.12);
+      border-color: rgba(59, 130, 246, 0.3);
+    }
+
+    /* Top rim highlight (Specularity) */
+    .glass-rim {
+      box-shadow: inset 0 1px 0 0 var(--glass-highlight);
+    }
+
+    /* 2026 Floating Glass Pill */
+    .glass-pill {
+      border: 1px solid var(--border-card);
+      border-radius: 9999px;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    [data-theme="dark"] .glass-pill {
+      background: rgba(255, 255, 255, 0.05);
+    }
+    [data-theme="light"] .glass-pill {
+      background: rgba(255, 255, 255, 0.7);
+    }
+
+    .glass-pill.active {
+      background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%) !important;
+      border-color: rgba(255, 255, 255, 0.3) !important;
+      color: #ffffff !important;
+      box-shadow: 0 4px 18px rgba(37, 99, 235, 0.4), inset 0 1px 0 rgba(255,255,255,0.3);
+    }
+
+    /* Mobile Device Frame styling */
+    .mobile-frame {
+      width: 390px;
+      height: 844px;
+      border-radius: 54px;
+      box-shadow: 0 0 0 12px var(--frame-border), 0 30px 80px -15px rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+      position: relative;
+      background: var(--bg-base);
+    }
+
+    .dynamic-island {
+      width: 122px;
+      height: 30px;
+      background: #000;
+      border-radius: 22px;
+      margin: 11px auto 4px auto;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px;
+    }
+
+    /* Floating VisionOS style dock on mobile */
+    .floating-dock {
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border-radius: 36px;
+    }
+    [data-theme="dark"] .floating-dock {
+      background: rgba(15, 22, 33, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    }
+    [data-theme="light"] .floating-dock {
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid rgba(15, 23, 42, 0.12);
+      box-shadow: 0 20px 40px -10px rgba(15, 23, 42, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    }
+
+    /* Shimmer animation for live badge */
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.55; transform: scale(1.15); }
+    }
+    .pulse-glow {
+      animation: pulse-glow 2.4s infinite cubic-bezier(0.4, 0, 0.6, 1);
+    }
+  </style>
+</head>
+<body class="min-h-screen text-slate-900 dark:text-white relative selection:bg-blue-500 selection:text-white">
+
+  <!-- Ambient Aurora Background -->
+  <div class="aurora-bg"></div>
+
+  <!-- Meta Control Header (Top Bar) -->
+  <header class="sticky top-0 z-50 border-b border-slate-200 dark:border-white/10 bg-white/80 dark:bg-slate-950/85 backdrop-blur-xl px-4 py-2.5 text-slate-900 dark:text-white transition-colors">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      
+      <!-- Brand & Version Tag -->
+      <div class="flex items-center gap-3">
+        <div class="h-9 w-9 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-400 p-[1px] shadow-lg shadow-blue-500/25">
+          <div class="h-full w-full bg-slate-950 rounded-[11px] flex items-center justify-center font-extrabold text-transparent bg-clip-text bg-gradient-to-tr from-blue-400 to-cyan-300 text-sm">
+            EQ
+          </div>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-black tracking-wider uppercase text-blue-600 dark:text-blue-400">ELINOR IQ v2.2</span>
+            <span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/25 text-blue-600 dark:text-blue-300 font-semibold">
+              ترند ۲۰۲۶ • Luxury Retail (بهینه‌سازی کنتراست لایت/دارک)
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400">هوش مصنوعی خرده‌فروشی بوتیک الینور • وضوح کامل اعداد و کارت‌ها در هر دو تم</p>
+        </div>
+      </div>
+
+      <!-- Live Switchers (Desktop/Mobile & Theme) -->
+      <div class="flex items-center gap-2 bg-slate-100 dark:bg-slate-900/90 p-1 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm">
+        <button id="view-desktop-btn" onclick="switchView('desktop')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white transition-all shadow-md">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+          نمای دسکتاپ (۱۴۴۰px)
+        </button>
+        <button id="view-mobile-btn" onclick="switchView('mobile')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-white transition-all">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+          نمای موبایل (۳۹۰px)
+        </button>
+        <div class="h-4 w-[1px] bg-slate-300 dark:bg-slate-700 mx-1"></div>
+        <button onclick="toggleTheme()" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-slate-800 text-slate-800 dark:text-amber-300 transition-all border border-slate-200 dark:border-slate-700 shadow-sm">
+          <span id="theme-icon">☀️</span>
+          <span id="theme-text">حالت روشن</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ============================================================== -->
+  <!-- 1. DESKTOP VIEW CONTAINER (2026 Spatial Bento Grid)            -->
+  <!-- ============================================================== -->
+  <div id="desktop-container" class="relative z-10 transition-all duration-300">
+    <div class="flex min-h-[calc(100vh-57px)]">
+      
+      <!-- 2026 Floating Style Sidebar -->
+      <aside class="w-64 shrink-0 p-5 flex flex-col justify-between">
+        
+        <div class="space-y-6">
+          
+          <!-- Brand Badge Card -->
+          <div class="bento-card p-4 glass-rim">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-[10px] font-extrabold tracking-[0.25em] text-blue-600 dark:text-blue-400 uppercase">ELINOR BOUTIQUE</div>
+                <div class="text-base font-extrabold mt-0.5 tracking-tight flex items-center gap-2 text-slate-900 dark:text-white">
+                  <span>هوش فروشگاهی</span>
+                  <span class="h-2 w-2 rounded-full bg-emerald-500 pulse-glow"></span>
+                </div>
+              </div>
+              <div class="h-7 w-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                ✨
+              </div>
+            </div>
+
+            <!-- Branch Quick Switcher Menu -->
+            <div class="mt-4 pt-3 border-t border-slate-200 dark:border-white/5">
+              <label class="text-[10px] text-slate-500 dark:text-slate-400 font-semibold block mb-1.5">شعبه فعال:</label>
+              <div class="relative">
+                <select class="w-full bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-white/10 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-blue-500 cursor-pointer">
+                  <option>همه خطوط فروش (۴ شعبه)</option>
+                  <option>فروشگاه آنلاین (سایت)</option>
+                  <option>شعبه ساری (حضوری POS)</option>
+                  <option>شعبه گرگان (حضوری POS)</option>
+                  <option>شعبه کاپری (حضوری POS)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Navigation Pills -->
+          <nav class="space-y-1.5">
+            <a href="#" class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-blue-600 text-white font-bold text-xs shadow-glow-blue border border-blue-400/30">
+              <div class="flex items-center gap-3">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+                <span>داشبورد و بینش فروش</span>
+              </div>
+              <span class="text-[10px] bg-white/20 px-1.5 py-0.5 rounded-md font-mono">Live</span>
+            </a>
+
+            <a href="#" class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/5 text-xs font-semibold transition-all">
+              <div class="flex items-center gap-3">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                <span>تحلیل پیشرفته فروش</span>
+              </div>
+            </a>
+
+            <a href="#" class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/5 text-xs font-semibold transition-all">
+              <div class="flex items-center gap-3">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                <span>مشتریان و شناسنامه ۳۶۰</span>
+              </div>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono">۴,۲۱۸</span>
+            </a>
+
+            <a href="#" class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/5 text-xs font-semibold transition-all">
+              <div class="flex items-center gap-3">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                <span>موجودی و تنوع سایز</span>
+              </div>
+            </a>
+
+            <a href="#" class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/50 dark:hover:bg-white/5 text-xs font-semibold transition-all">
+              <div class="flex items-center gap-3">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                <span>دایرکت اینستاگرام</span>
+              </div>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 text-white font-bold shadow-sm">۳ پیام</span>
+            </a>
+          </nav>
+        </div>
+
+        <!-- 2026 AI Assistant Mini-Widget & User Card -->
+        <div class="space-y-3">
+          
+          <!-- AI Copilot Suggestion Box -->
+          <div class="bento-card p-3.5 glass-rim border-blue-500/25 bg-blue-50 dark:bg-blue-950/20">
+            <div class="flex items-center gap-2 text-xs font-bold text-blue-600 dark:text-blue-400">
+              <span class="h-2 w-2 rounded-full bg-blue-500 pulse-glow"></span>
+              <span>دستیار هوشمند الینور</span>
+            </div>
+            <p class="text-[11px] text-slate-700 dark:text-slate-300 mt-2 leading-5">
+              فروش مانتو کتی شانتون در شعبه ساری ۳۴٪ بالاتر از میانگین است؛ موجودی انبار به ۳ قلم کاهش یافته است.
+            </p>
+            <button class="mt-2.5 text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:text-blue-500 flex items-center gap-1 transition-colors">
+              <span>مشاهده جزییات تأمین موجودی</span>
+              <span>←</span>
+            </button>
+          </div>
+
+          <!-- User Profile -->
+          <div class="bento-card p-3 flex items-center justify-between glass-rim">
+            <div class="flex items-center gap-2.5">
+              <div class="h-9 w-9 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-500 p-[1px]">
+                <div class="h-full w-full bg-slate-900 rounded-[15px] flex items-center justify-center font-bold text-white text-xs">
+                  RS
+                </div>
+              </div>
+              <div>
+                <div class="text-xs font-bold text-slate-900 dark:text-white">رضا سلطانی</div>
+                <div class="text-[10px] text-slate-500 dark:text-slate-400">مدیر ارشد فروشگاه</div>
+              </div>
+            </div>
+            <button title="خروج" class="p-1.5 rounded-xl hover:bg-slate-200 dark:hover:bg-white/10 text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+            </button>
+          </div>
+
+        </div>
+
+      </aside>
+
+      <!-- Main Dashboard Canvas -->
+      <main class="flex-1 p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+        
+        <!-- Live Action Banner -->
+        <div class="bento-card px-5 py-3.5 glass-rim flex flex-wrap items-center justify-between gap-4 border-l-4 border-l-blue-500">
+          <div class="flex items-center gap-3">
+            <div class="h-3 w-3 rounded-full bg-emerald-500 pulse-glow"></div>
+            <div>
+              <span class="text-xs font-bold text-slate-900 dark:text-white">وضعیت یکپارچه‌سازی سیستم:</span>
+              <span class="text-xs text-slate-600 dark:text-slate-400 mr-1.5">همگام‌سازی لحظه‌ای وبسایت + ۳ ترمینال POS فعال است (آخرین استعلام ۲ دقیقه قبل).</span>
+            </div>
+          </div>
+          
+          <div class="flex items-center gap-2">
+            <!-- Period Glass Pills -->
+            <div class="flex items-center bg-slate-200/70 dark:bg-black/40 p-1 rounded-2xl border border-slate-300 dark:border-white/10 text-xs">
+              <button onclick="changePeriod(this)" class="glass-pill px-3 py-1 text-slate-600 dark:text-slate-400">امروز</button>
+              <button onclick="changePeriod(this)" class="glass-pill px-3 py-1 text-slate-600 dark:text-slate-400">۷ روز</button>
+              <button onclick="changePeriod(this)" class="glass-pill active px-3.5 py-1 text-white font-bold">۳۰ روز گذشته</button>
+              <button onclick="changePeriod(this)" class="glass-pill px-3 py-1 text-slate-600 dark:text-slate-400">فصل پاییز</button>
+            </div>
+            
+            <button class="glass-pill px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-white flex items-center gap-1.5">
+              <span>📅</span>
+              <span class="tabular">۱ تا ۲۵ مهر ۱۴۰۳</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 2026 Bento Grid Section -->
+        <div class="grid grid-cols-12 gap-5">
+          
+          <!-- Master Revenue Card (Span 8) -->
+          <div class="col-span-12 lg:col-span-8 bento-card p-7 glass-rim relative shadow-card-light dark:shadow-card-dark overflow-hidden border-t-2 border-t-blue-500">
+            
+            <!-- Ambient Radial Spotlight behind numbers -->
+            <div class="absolute -top-24 -left-24 w-80 h-80 bg-blue-600/10 rounded-full blur-3xl pointer-events-none"></div>
+
+            <div class="flex flex-wrap items-start justify-between gap-4 relative z-10">
+              <div>
+                <div class="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                  <span>مجموع فروش ناخالص دوره (Gross Revenue)</span>
+                  <span class="px-2.5 py-0.5 rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400 text-[10px] font-bold border border-blue-500/30">آنلاین + حضوری</span>
+                </div>
+                <div class="flex items-baseline gap-3 mt-3">
+                  <!-- HIGH CONTRAST NUMBERS: visible in both dark and light mode -->
+                  <h3 class="text-4xl lg:text-5xl font-black tracking-tight tabular text-slate-950 dark:text-white">۲,۴۸۵,۶۰۰,۰۰۰</h3>
+                  <span class="text-sm font-bold text-slate-500 dark:text-slate-400">تومان</span>
+                </div>
+              </div>
+
+              <!-- Growth Badge with Glass Border -->
+              <div class="flex items-center gap-2 px-3.5 py-1.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs shadow-glow-emerald">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                <span class="tabular">+۱۸.۴٪ رشد ماهانه</span>
+              </div>
+            </div>
+
+            <!-- Interactive 2026 Smooth Wave SVG Chart -->
+            <div class="mt-8 relative">
+              <div class="flex items-center justify-between text-xs text-slate-600 dark:text-slate-400 mb-2 font-medium">
+                <span>نمودار روند فروش (میلیون تومان)</span>
+                <span class="text-emerald-600 dark:text-emerald-400 font-bold tabular">اوج فروش: ۱۶۰ م (کمپین پاییزه)</span>
+              </div>
+
+              <div class="h-44 w-full relative">
+                <!-- SVG Vector Curve with Gradient Area Fill -->
+                <svg viewBox="0 0 800 200" class="w-full h-full overflow-visible" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.38"/>
+                      <stop offset="60%" stop-color="#3b82f6" stop-opacity="0.08"/>
+                      <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/>
+                    </linearGradient>
+                    <linearGradient id="strokeGradient" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stop-color="#2563eb"/>
+                      <stop offset="50%" stop-color="#3b82f6"/>
+                      <stop offset="100%" stop-color="#06b6d4"/>
+                    </linearGradient>
+                  </defs>
+
+                  <!-- Area -->
+                  <path d="M 0 160 Q 100 130, 200 110 T 400 130 T 600 50 T 700 30 T 800 60 L 800 200 L 0 200 Z" fill="url(#revenueGradient)"/>
+                  
+                  <!-- Smooth Line -->
+                  <path d="M 0 160 Q 100 130, 200 110 T 400 130 T 600 50 T 700 30 T 800 60" fill="none" stroke="url(#strokeGradient)" stroke-width="3.5" stroke-linecap="round"/>
+
+                  <!-- Interactive Glow Points -->
+                  <circle cx="200" cy="110" r="5" fill="#3b82f6" stroke="#ffffff" stroke-width="2" class="cursor-pointer hover:r-7 transition-all"/>
+                  <circle cx="400" cy="130" r="5" fill="#3b82f6" stroke="#ffffff" stroke-width="2" class="cursor-pointer hover:r-7 transition-all"/>
+                  <circle cx="600" cy="50" r="5" fill="#3b82f6" stroke="#ffffff" stroke-width="2" class="cursor-pointer hover:r-7 transition-all"/>
+                  <circle cx="700" cy="30" r="7" fill="#2563eb" stroke="#ffffff" stroke-width="2.5" class="shadow-glow-blue cursor-pointer animate-pulse"/>
+                  <circle cx="800" cy="60" r="5" fill="#3b82f6" stroke="#ffffff" stroke-width="2" class="cursor-pointer hover:r-7 transition-all"/>
+                </svg>
+              </div>
+
+              <!-- Date labels along chart with clear contrast -->
+              <div class="flex justify-between text-[11px] text-slate-500 dark:text-slate-400 font-mono mt-2 pt-2 border-t border-slate-200 dark:border-white/5">
+                <span>۱ مهر</span>
+                <span>۵ مهر</span>
+                <span>۱۰ مهر</span>
+                <span>۱۵ مهر</span>
+                <span>۲۰ مهر</span>
+                <span class="text-blue-600 dark:text-blue-400 font-bold">۲۵ مهر (امروز)</span>
+              </div>
+            </div>
+
+            <!-- Branch Attribution Strip: High Contrast in Light/Dark -->
+            <div class="mt-6 pt-5 border-t border-slate-200 dark:border-white/10 grid grid-cols-4 gap-3 text-xs">
+              <div class="bg-slate-100/80 dark:bg-white/[0.04] p-3 rounded-2xl border border-slate-200 dark:border-white/5">
+                <span class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">آنلاین (وب‌سایت)</span>
+                <div class="text-base font-extrabold text-slate-900 dark:text-white tabular mt-1">۱,۰۴۰ م</div>
+                <div class="text-[10px] text-blue-600 dark:text-blue-400 font-bold mt-0.5">۴۱.۸٪ سهم</div>
+              </div>
+              <div class="bg-slate-100/80 dark:bg-white/[0.04] p-3 rounded-2xl border border-slate-200 dark:border-white/5">
+                <span class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">شعبه ساری</span>
+                <div class="text-base font-extrabold text-slate-900 dark:text-white tabular mt-1">۶۹۵ م</div>
+                <div class="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mt-0.5">۲۸.۰٪ سهم</div>
+              </div>
+              <div class="bg-slate-100/80 dark:bg-white/[0.04] p-3 rounded-2xl border border-slate-200 dark:border-white/5">
+                <span class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">شعبه گرگان</span>
+                <div class="text-base font-extrabold text-slate-900 dark:text-white tabular mt-1">۴۵۰ م</div>
+                <div class="text-[10px] text-amber-600 dark:text-amber-400 font-bold mt-0.5">۱۸.۱٪ سهم</div>
+              </div>
+              <div class="bg-slate-100/80 dark:bg-white/[0.04] p-3 rounded-2xl border border-slate-200 dark:border-white/5">
+                <span class="text-[11px] text-slate-500 dark:text-slate-400 font-medium">شعبه کاپری</span>
+                <div class="text-base font-extrabold text-slate-900 dark:text-white tabular mt-1">۳۰۰ م</div>
+                <div class="text-[10px] text-purple-600 dark:text-purple-400 font-bold mt-0.5">۱۲.۱٪ سهم</div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Monthly Target Radial Gauge (Span 4) -->
+          <div class="col-span-12 lg:col-span-4 bento-card p-7 glass-rim flex flex-col justify-between shadow-card-light dark:shadow-card-dark">
+            <div>
+              <div class="flex items-center justify-between">
+                <div>
+                  <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">هدف‌گذاری فروش مهرماه</span>
+                  <h4 class="text-base font-extrabold text-slate-900 dark:text-white mt-1">تحقق تارگت ۳ میلیارد</h4>
+                </div>
+                <span class="text-xs px-2.5 py-1 rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400 font-bold border border-blue-500/30">۸۲٪</span>
+              </div>
+
+              <!-- Radial Gauge with High Contrast Percentage Text -->
+              <div class="my-6 flex justify-center items-center relative">
+                <svg class="w-44 h-44 -rotate-90">
+                  <circle cx="88" cy="88" r="70" stroke="rgba(148, 163, 184, 0.2)" stroke-width="14" fill="transparent"/>
+                  <circle cx="88" cy="88" r="70" stroke="url(#gaugeGradient)" stroke-width="14" stroke-dasharray="440" stroke-dashoffset="79" stroke-linecap="round" fill="transparent" class="transition-all duration-1000"/>
+                  <defs>
+                    <linearGradient id="gaugeGradient" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stop-color="#3b82f6"/>
+                      <stop offset="100%" stop-color="#10b981"/>
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <!-- Percentage: Fully visible in light and dark mode -->
+                <div class="absolute text-center">
+                  <span class="text-3xl font-black text-slate-950 dark:text-white tabular">۸۲.۸٪</span>
+                  <div class="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">۵ روز تا پایان ماه</div>
+                </div>
+              </div>
+
+              <!-- Target Breakdown -->
+              <div class="space-y-2 text-xs">
+                <div class="flex justify-between p-2.5 rounded-xl bg-slate-100/70 dark:bg-white/[0.03] border border-slate-200/60 dark:border-white/5">
+                  <span class="text-slate-600 dark:text-slate-400 font-medium">فروش ثبت شده:</span>
+                  <span class="font-bold text-slate-900 dark:text-white tabular">۲,۴۸۵ م تومان</span>
+                </div>
+                <div class="flex justify-between p-2.5 rounded-xl bg-slate-100/70 dark:bg-white/[0.03] border border-slate-200/60 dark:border-white/5">
+                  <span class="text-slate-600 dark:text-slate-400 font-medium">باقی‌مانده تا تارگت:</span>
+                  <span class="font-bold text-amber-600 dark:text-amber-400 tabular">۵۱۵ م تومان</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-5 p-3 rounded-2xl bg-blue-50 dark:bg-gradient-to-r dark:from-blue-900/30 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-500/30 text-xs text-blue-700 dark:text-blue-300">
+              ⚡ با حفظ نرخ فروش روزانه (۹۹ م/روز)، عبور از تارگت در ۲ روز آینده پیش‌بینی می‌شود.
+            </div>
+          </div>
+
+          <!-- Secondary Metric Grid (3 Cards x Span 4) -->
+          <!-- Card 1: Orders -->
+          <div class="col-span-12 md:col-span-4 bento-card p-6 glass-rim shadow-card-light dark:shadow-card-dark">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-600 dark:text-slate-400">تعداد فاکتورهای معتبر</span>
+              <div class="h-8 w-8 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
+                🧾
+              </div>
+            </div>
+            <div class="mt-4">
+              <div class="text-3xl font-black text-slate-900 dark:text-white tabular">۱,۴۲۰</div>
+              <div class="flex items-center gap-1.5 text-xs mt-2 text-emerald-600 dark:text-emerald-400 font-bold">
+                <span>↑ ۸.۲٪</span>
+                <span class="text-slate-500 dark:text-slate-400 font-normal">نسبت به ماه شهریور</span>
+              </div>
+            </div>
+            <div class="mt-4 pt-3 border-t border-slate-200 dark:border-white/5 flex justify-between text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+              <span>آنلاین: ۶۲۰ فاکتور</span>
+              <span>حضوری POS: ۸۰۰ فاکتور</span>
+            </div>
+          </div>
+
+          <!-- Card 2: Average Basket Value (AOV) -->
+          <div class="col-span-12 md:col-span-4 bento-card p-6 glass-rim shadow-card-light dark:shadow-card-dark">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-600 dark:text-slate-400">ارزش میانگین هر سبد (AOV)</span>
+              <div class="h-8 w-8 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold">
+                💎
+              </div>
+            </div>
+            <div class="mt-4">
+              <div class="text-3xl font-black text-slate-900 dark:text-white tabular">۱,۷۵۰,۰۰۰ <span class="text-xs font-normal text-slate-500 dark:text-slate-400">تومان</span></div>
+              <div class="flex items-center gap-1.5 text-xs mt-2 text-emerald-600 dark:text-emerald-400 font-bold">
+                <span>↑ ۱۲.۵٪</span>
+                <span class="text-slate-500 dark:text-slate-400 font-normal">افزایش اقلام در هر خرید</span>
+              </div>
+            </div>
+            <div class="mt-4 pt-3 border-t border-slate-200 dark:border-white/5 flex justify-between text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+              <span>میانگین اقلام: ۲.۳ عدد</span>
+              <span class="text-purple-600 dark:text-purple-400 font-bold">بالاترین در شعبه ساری</span>
+            </div>
+          </div>
+
+          <!-- Card 3: Repeat Customer Rate -->
+          <div class="col-span-12 md:col-span-4 bento-card p-6 glass-rim shadow-card-light dark:shadow-card-dark">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-600 dark:text-slate-400">نرخ وفاداری و بازگشت مشتری</span>
+              <div class="h-8 w-8 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
+                👑
+              </div>
+            </div>
+            <div class="mt-4">
+              <div class="text-3xl font-black text-slate-900 dark:text-white tabular">۳۸.۵٪</div>
+              <div class="flex items-center gap-1.5 text-xs mt-2 text-emerald-600 dark:text-emerald-400 font-bold">
+                <span>↑ ۴.۱٪</span>
+                <span class="text-slate-500 dark:text-slate-400 font-normal">خرید دوم به بعد</span>
+              </div>
+            </div>
+            <div class="mt-4 pt-3 border-t border-slate-200 dark:border-white/5 flex justify-between text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+              <span>مشتریان وفادار: ۱,۶۲۴ نفر</span>
+              <span class="text-amber-600 dark:text-amber-400 font-bold">باشگاه مشتریان فعال</span>
+            </div>
+          </div>
+
+          <!-- Recent Activity & High-Demand Products (Span 12) -->
+          <div class="col-span-12 bento-card p-6 glass-rim shadow-card-light dark:shadow-card-dark">
+            <div class="flex items-center justify-between mb-5">
+              <div>
+                <h4 class="text-base font-extrabold text-slate-900 dark:text-white">آخرین تراکنش‌ها و سفارشات ثبت‌شده</h4>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">تلفیق زنده فاکتورهای آنلاین وبسایت و پایانه‌های فروشگاهی</p>
+              </div>
+              <button class="glass-pill px-3 py-1.5 text-xs text-blue-600 dark:text-blue-400 font-bold hover:underline transition-all">
+                مشاهده همه فاکتورها (۱,۴۲۰) ←
+              </button>
+            </div>
+
+            <!-- Table with High Contrast Text -->
+            <div class="overflow-x-auto">
+              <table class="w-full text-right text-xs">
+                <thead>
+                  <tr class="text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-white/10 pb-3">
+                    <th class="py-3 px-3 font-semibold">شناسه / ساعت</th>
+                    <th class="py-3 px-3 font-semibold">خط فروش</th>
+                    <th class="py-3 px-3 font-semibold">مشتری</th>
+                    <th class="py-3 px-3 font-semibold">آیتم‌های فاکتور</th>
+                    <th class="py-3 px-3 font-semibold">مبلغ کل</th>
+                    <th class="py-3 px-3 font-semibold">وضعیت پردازش</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200/70 dark:divide-white/5">
+                  <tr class="hover:bg-slate-100/60 dark:hover:bg-white/[0.03] transition-colors">
+                    <td class="py-3.5 px-3">
+                      <span class="font-bold text-slate-900 dark:text-white">#ORD-9821</span>
+                      <div class="text-[10px] text-slate-500 font-mono">۱۰ دقیقه قبل</div>
+                    </td>
+                    <td class="py-3.5 px-3">
+                      <span class="px-2.5 py-1 rounded-full bg-blue-500/15 text-blue-600 dark:text-blue-400 font-semibold border border-blue-500/30">آنلاین (سایت)</span>
+                    </td>
+                    <td class="py-3.5 px-3 font-bold text-slate-900 dark:text-white">مهسا کاظمی</td>
+                    <td class="py-3.5 px-3 text-slate-700 dark:text-slate-300">مانتو کتی شانتون (سرمه‌ای - سایز ۲) + شال ابریشم</td>
+                    <td class="py-3.5 px-3 font-bold text-slate-900 dark:text-white tabular">۳,۴۵۰,۰۰۰ تومان</td>
+                    <td class="py-3.5 px-3">
+                      <span class="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-semibold">تأیید و ارسال انبار</span>
+                    </td>
+                  </tr>
+
+                  <tr class="hover:bg-slate-100/60 dark:hover:bg-white/[0.03] transition-colors">
+                    <td class="py-3.5 px-3">
+                      <span class="font-bold text-slate-900 dark:text-white">#POS-4120</span>
+                      <div class="text-[10px] text-slate-500 font-mono">۲۵ دقیقه قبل</div>
+                    </td>
+                    <td class="py-3.5 px-3">
+                      <span class="px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-semibold border border-emerald-500/30">شعبه ساری</span>
+                    </td>
+                    <td class="py-3.5 px-3 font-bold text-slate-900 dark:text-white">فروش حضوری (صندوق ۱)</td>
+                    <td class="py-3.5 px-3 text-slate-700 dark:text-slate-300">کت و شلوار لنین کرم (سایز ۳۸)</td>
+                    <td class="py-3.5 px-3 font-bold text-slate-900 dark:text-white tabular">۲,۸۰۰,۰۰۰ تومان</td>
+                    <td class="py-3.5 px-3">
+                      <span class="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-600 dark:text-blue-400 font-semibold">تکمیل شده (POS)</span>
+                    </td>
+                  </tr>
+
+                  <tr class="hover:bg-slate-100/60 dark:hover:bg-white/[0.03] transition-colors">
+                    <td class="py-3.5 px-3">
+                      <span class="font-bold text-slate-900 dark:text-white">#ORD-9820</span>
+                      <div class="text-[10px] text-slate-500 font-mono">۴۵ دقیقه قبل</div>
+                    </td>
+                    <td class="py-3.5 px-3">
+                      <span class="px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 font-semibold border border-amber-500/30">شعبه گرگان</span>
+                    </td>
+                    <td class="py-3.5 px-3 font-bold text-slate-900 dark:text-white">نیلوفر رادمنش (باشگاه طلایی)</td>
+                    <td class="py-3.5 px-3 text-slate-700 dark:text-slate-300">اورکت بارانی ترنچ مشکی</td>
+                    <td class="py-3.5 px-3 font-bold text-slate-900 dark:text-white tabular">۴,۲۰۰,۰۰۰ تومان</td>
+                    <td class="py-3.5 px-3">
+                      <span class="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-semibold">تکمیل شده (POS)</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+
+  <!-- ============================================================== -->
+  <!-- 2. MOBILE VIEW CONTAINER (2026 Mobile iPhone 16 Frame)         -->
+  <!-- ============================================================== -->
+  <div id="mobile-container" class="hidden py-8 flex justify-center items-center relative z-10">
+    
+    <div class="mobile-frame flex flex-col text-slate-900 dark:text-white">
+      
+      <!-- iPhone Dynamic Island with Live Indicator -->
+      <div class="dynamic-island shrink-0">
+        <div class="flex items-center gap-1.5">
+          <span class="h-2 w-2 rounded-full bg-emerald-400 animate-ping"></span>
+          <span class="text-[9px] text-emerald-300 font-mono font-bold">۲ فاکتور زنده</span>
+        </div>
+        <span class="text-[9px] text-slate-400 font-mono">Elinor IQ</span>
+      </div>
+
+      <!-- Mobile Top Navigation Header -->
+      <div class="px-5 py-3 border-b border-slate-200 dark:border-white/10 flex items-center justify-between bg-white/80 dark:bg-slate-950/70 backdrop-blur-xl shrink-0">
+        <div class="flex items-center gap-2.5">
+          <div class="h-8 w-8 rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-500 p-[1px]">
+            <div class="h-full w-full bg-slate-900 rounded-[11px] flex items-center justify-center font-bold text-white text-xs">
+              E
+            </div>
+          </div>
+          <div>
+            <div class="text-[10px] text-blue-600 dark:text-blue-400 font-black tracking-wider uppercase">ELINOR LUXURY</div>
+            <div class="text-xs font-extrabold text-slate-900 dark:text-white">داشبورد هوش فروش</div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button class="h-8 w-8 rounded-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center justify-center text-xs">
+            🔔
+          </button>
+          <div class="h-8 w-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-bold text-white text-[11px]">
+            RS
+          </div>
+        </div>
+      </div>
+
+      <!-- Mobile Scrollable Feed -->
+      <div class="flex-1 overflow-y-auto p-4 space-y-4">
+        
+        <!-- Mobile Period Tabs Pill Scroll -->
+        <div class="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-semibold no-scrollbar">
+          <span class="glass-pill active px-3.5 py-1.5 shrink-0 text-[11px]">۳۰ روز گذشته</span>
+          <span class="glass-pill px-3 py-1.5 shrink-0 text-[11px] text-slate-600 dark:text-slate-400">۷ روز گذشته</span>
+          <span class="glass-pill px-3 py-1.5 shrink-0 text-[11px] text-slate-600 dark:text-slate-400">امروز</span>
+          <span class="glass-pill px-3 py-1.5 shrink-0 text-[11px] text-slate-600 dark:text-slate-400">پاییز ۱۴۰۳</span>
+        </div>
+
+        <!-- Mobile 2026 Hero Bento Card (High Contrast in Light and Dark) -->
+        <div class="bento-card p-5 glass-rim bg-gradient-to-br from-blue-500/10 via-slate-100/50 to-white/80 dark:from-blue-900/30 dark:via-slate-900/60 dark:to-slate-950/80 border-blue-500/40 shadow-xl">
+          <div class="flex justify-between items-start">
+            <div>
+              <span class="text-[11px] text-blue-600 dark:text-blue-300 font-semibold">مجموع گردش مالی ۳۰ روزه</span>
+              <div class="flex items-baseline gap-2 mt-1">
+                <div class="text-3xl font-black text-slate-950 dark:text-white tabular">۲,۴۸۵,۶۰۰,۰۰۰</div>
+                <span class="text-xs text-slate-500 dark:text-slate-400 font-bold">تومان</span>
+              </div>
+            </div>
+            <span class="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">
+              ↑ ۱۸.۴٪
+            </span>
+          </div>
+
+          <!-- Micro Sparkline SVG -->
+          <div class="mt-4 pt-3 border-t border-slate-200 dark:border-white/10">
+            <svg viewBox="0 0 300 60" class="w-full h-12 overflow-visible">
+              <path d="M 0 50 Q 50 40, 100 35 T 200 15 T 300 20" fill="none" stroke="#3b82f6" stroke-width="2.5"/>
+              <circle cx="300" cy="20" r="4" fill="#2563eb" stroke="#fff" stroke-width="2"/>
+            </svg>
+            <div class="flex justify-between text-[10px] text-slate-600 dark:text-slate-400 font-medium mt-1">
+              <span>۱,۴۲۰ فاکتور ثبت شده</span>
+              <span class="text-blue-600 dark:text-blue-400 font-bold">هدف ماه: ۸۲٪ محقق</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mobile 2x2 Grid for Branches: Highly Visible Numbers in Both Modes -->
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bento-card p-3.5 glass-rim shadow-sm">
+            <span class="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">فروش آنلاین (وب)</span>
+            <div class="text-xl font-black text-slate-950 dark:text-white tabular mt-1">۱,۰۴۰ م</div>
+            <div class="text-[10px] text-blue-600 dark:text-blue-400 font-bold mt-0.5">۴۲٪ سهم کل</div>
+          </div>
+
+          <div class="bento-card p-3.5 glass-rim shadow-sm">
+            <span class="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">شعبه ساری (POS)</span>
+            <div class="text-xl font-black text-slate-950 dark:text-white tabular mt-1">۶۹۵ م</div>
+            <div class="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mt-0.5">۲۸٪ سهم کل</div>
+          </div>
+
+          <div class="bento-card p-3.5 glass-rim shadow-sm">
+            <span class="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">شعبه گرگان (POS)</span>
+            <div class="text-xl font-black text-slate-950 dark:text-white tabular mt-1">۴۵۰ م</div>
+            <div class="text-[10px] text-amber-600 dark:text-amber-400 font-bold mt-0.5">۱۸٪ سهم کل</div>
+          </div>
+
+          <div class="bento-card p-3.5 glass-rim shadow-sm">
+            <span class="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">شعبه کاپری (POS)</span>
+            <div class="text-xl font-black text-slate-950 dark:text-white tabular mt-1">۳۰۰ م</div>
+            <div class="text-[10px] text-purple-600 dark:text-purple-400 font-bold mt-0.5">۱۲٪ سهم کل</div>
+          </div>
+        </div>
+
+        <!-- Mobile Touch List: Recent Orders (Card format) -->
+        <div class="space-y-2.5">
+          <div class="flex justify-between items-center px-1">
+            <span class="text-xs font-bold text-slate-900 dark:text-white">تراکنش‌های لحظه‌ای</span>
+            <span class="text-[10px] text-blue-600 dark:text-blue-400 font-bold">۳۰ ثانیه قبل</span>
+          </div>
+
+          <div class="bento-card p-3.5 glass-rim flex items-center justify-between text-xs shadow-sm">
+            <div>
+              <div class="font-extrabold text-slate-900 dark:text-white">مانتو کتی شانتون سرمه‌ای</div>
+              <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">#ORD-9821 • آنلاین • مهسا کاظمی</div>
+            </div>
+            <div class="text-left">
+              <div class="font-bold text-slate-900 dark:text-white tabular">۳,۴۵۰,۰۰۰ ت</div>
+              <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold">ارسال شد</span>
+            </div>
+          </div>
+
+          <div class="bento-card p-3.5 glass-rim flex items-center justify-between text-xs shadow-sm">
+            <div>
+              <div class="font-extrabold text-slate-900 dark:text-white">کت لنین کرم سایز ۳۸</div>
+              <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">#POS-4120 • ساری • حضوری</div>
+            </div>
+            <div class="text-left">
+              <div class="font-bold text-slate-900 dark:text-white tabular">۲,۸۰۰,۰۰۰ ت</div>
+              <span class="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-600 dark:text-blue-400 font-bold">POS ساری</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="h-20"></div> <!-- Spacer for floating dock -->
+      </div>
+
+      <!-- 2026 Floating VisionOS Dock (Mobile Bottom Navigation) -->
+      <div class="absolute bottom-5 inset-x-4 z-40">
+        <nav class="floating-dock px-5 py-2.5 flex items-center justify-between text-[10px] text-slate-600 dark:text-slate-400">
+          <a href="#" class="flex flex-col items-center gap-1 text-blue-600 dark:text-blue-400 font-bold scale-105">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+            <span>داشبورد</span>
+          </a>
+          <a href="#" class="flex flex-col items-center gap-1 hover:text-slate-900 dark:hover:text-white transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            <span>فروش</span>
+          </a>
+          <a href="#" class="flex flex-col items-center gap-1 hover:text-slate-900 dark:hover:text-white transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+            <span>مشتریان</span>
+          </a>
+          <a href="#" class="flex flex-col items-center gap-1 hover:text-slate-900 dark:hover:text-white transition-colors relative">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+            <span>دایرکت</span>
+            <span class="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-pink-500"></span>
+          </a>
+          <a href="#" class="flex flex-col items-center gap-1 hover:text-slate-900 dark:hover:text-white transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            <span>تنظیمات</span>
+          </a>
+        </nav>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- Interactive JavaScript Logic -->
+  <script>
+    // 2026 Interactive Card Spotlight Effect
+    document.querySelectorAll('.bento-card').forEach(card => {
+      card.addEventListener('mousemove', e => {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        card.style.setProperty('--mouse-x', `${x}px`);
+        card.style.setProperty('--mouse-y', `${y}px`);
+      });
+    });
+
+    function switchView(mode) {
+      const desktop = document.getElementById('desktop-container');
+      const mobile = document.getElementById('mobile-container');
+      const btnDesktop = document.getElementById('view-desktop-btn');
+      const btnMobile = document.getElementById('view-mobile-btn');
+
+      if (mode === 'desktop') {
+        desktop.classList.remove('hidden');
+        mobile.classList.add('hidden');
+        btnDesktop.classList.add('bg-blue-600', 'text-white', 'shadow-md');
+        btnDesktop.classList.remove('text-slate-600', 'dark:text-slate-300');
+        btnMobile.classList.remove('bg-blue-600', 'text-white', 'shadow-md');
+        btnMobile.classList.add('text-slate-600', 'dark:text-slate-300');
+      } else {
+        desktop.classList.add('hidden');
+        mobile.classList.remove('hidden');
+        btnMobile.classList.add('bg-blue-600', 'text-white', 'shadow-md');
+        btnMobile.classList.remove('text-slate-600', 'dark:text-slate-300');
+        btnDesktop.classList.remove('bg-blue-600', 'text-white', 'shadow-md');
+        btnDesktop.classList.add('text-slate-600', 'dark:text-slate-300');
+      }
+    }
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const current = html.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+      
+      const icon = document.getElementById('theme-icon');
+      const text = document.getElementById('theme-text');
+      if (next === 'light') {
+        icon.textContent = '🌙';
+        text.textContent = 'حالت تاریک';
+      } else {
+        icon.textContent = '☀️';
+        text.textContent = 'حالت روشن';
+      }
+    }
+
+    function changePeriod(button) {
+      const parent = button.parentElement;
+      Array.from(parent.children).forEach(child => {
+        child.classList.remove('active', 'text-white', 'font-bold');
+        child.classList.add('text-slate-600', 'dark:text-slate-400');
+      });
+      button.classList.add('active', 'text-white', 'font-bold');
+      button.classList.remove('text-slate-600', 'dark:text-slate-400');
+    }
+  </script>
+</body>
+</html>
