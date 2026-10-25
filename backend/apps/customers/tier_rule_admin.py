@@ -111,9 +111,26 @@ def public_tiers():
     """Enabled tiers of the active version, for filters and badges (any signed-in user)."""
     from apps.customers.tier_rules import active_rule_set
 
+    from django.db.models import Count
+
+    from apps.customers.models import Customer
+    from apps.customers.operators import exclude_operator_accounts
+
     rules = _rules_of(active_rule_set())
+    counts = dict(
+        exclude_operator_accounts(Customer.objects.exclude(tier_code__isnull=True))
+        .values_list("tier_code")
+        .annotate(n=Count("pk"))
+        .order_by()
+    )
     return [
-        {"code": tier["code"], "title": tier["title"], "priority": index, "summary": tier_summary(tier)}
+        {
+            "code": tier["code"],
+            "title": tier["title"],
+            "priority": index,
+            "summary": tier_summary(tier),
+            "customers": counts.get(tier["code"], 0),
+        }
         for index, tier in enumerate(enabled_tiers(rules), start=1)
     ]
 

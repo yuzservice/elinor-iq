@@ -319,6 +319,7 @@ def test_public_tiers_endpoint_lists_enabled_active_tiers(auth_api):
         "title": "VIP",
         "priority": 1,
         "summary": "۴+ خرید · حداکثر ۴۵ روز از آخرین خرید · +۱۰ میلیون",
+        "customers": 0,
     }
 
 

@@ -163,5 +163,5 @@ def test_customer_api_populations_fallback_and_addresses(auth_api):
     assert detail.status_code == 200
     assert detail.data["addresses"][0]["city"] == "رشت"
     assert detail.data["is_purchasing"] is True
-    assert "rfm" not in detail.data
+    assert detail.data["rfm"] is None  # RFM layer exists (decision 0003); no row before the daily refresh
     assert "churn" not in detail.data

@@ -260,6 +260,12 @@ export type CustomerRow = {
   tier_label: string | null;
   is_operator: boolean;
   operator_label: string | null;
+  rfm_segment: string | null;
+  rfm_segment_label: string | null;
+  r_score: number | null;
+  f_score: number | null;
+  m_score: number | null;
+  high_value: boolean;
 };
 
 export type CustomerReports = {
@@ -328,6 +334,7 @@ export type CustomerProductHistory = {
 
 export type Customer360 = {
   id: number;
+  rfm: CustomerRfm | null;
   name: string;
   name_is_fallback: boolean;
   incomplete: boolean;
@@ -554,7 +561,7 @@ export type TierRule = {
 
 export type TierRules = { tiers: TierRule[] };
 
-export type PublicTier = { code: TierCode; title: string; priority: number; summary: string };
+export type PublicTier = { code: TierCode; title: string; priority: number; summary: string; customers: number };
 
 export type TierRuleSetPayload = {
   version: number;
@@ -617,4 +624,61 @@ export type TierRulesPreview = {
     count: number | null;
     message: string;
   }[];
+};
+
+export type RfmSegmentSummary = {
+  key: string;
+  label: string;
+  action: string;
+  cells: [number, number][];
+  count: number;
+  pct_customers: number;
+  lifetime_amount_sum: number;
+  pct_lifetime_amount: number;
+  amount_12m_sum: number;
+  avg_days_since_last: number | null;
+  avg_purchase_count: number | null;
+  high_value_count: number;
+};
+
+export type RfmSummary = {
+  kpis: {
+    active_customers_12m: number;
+    repeat_rate_12m: number;
+    avg_amount_12m_per_active: number;
+    value_at_risk: number;
+    purchasing_customers: number;
+    registered_without_purchase: number;
+  };
+  segments: RfmSegmentSummary[];
+  matrix: { r: number; f: number; count: number; segment: string }[];
+  movement: {
+    month: string;
+    previous_month: string;
+    moves: { from: string; from_label: string; to: string; to_label: string; count: number }[];
+    new_purchasers: number;
+  } | null;
+  thresholds: Record<string, unknown>;
+  computed_at: string | null;
+  amount_label: string;
+  notes: string[];
+};
+
+export type CustomerRfm = {
+  r_score: number;
+  f_score: number;
+  m_score: number;
+  high_value: boolean;
+  segment: { key: string; label: string; action: string } | null;
+  purchase_count: number;
+  days_since_last_purchase: number;
+  lifetime_amount: number;
+  purchase_count_12m: number;
+  amount_12m: number;
+  avg_order_amount: number | null;
+  avg_days_between_purchases: number | null;
+  overdue: boolean;
+  history: { month: string; segment: string; label: string; r_score: number; f_score: number; m_score: number }[];
+  computed_at: string;
+  amount_label: string;
 };

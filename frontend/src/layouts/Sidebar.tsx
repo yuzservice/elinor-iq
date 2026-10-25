@@ -7,6 +7,7 @@ import {
   IconCustomers,
   IconHome,
   IconLogout,
+  IconClub,
   IconProducts,
   IconSales,
   IconSettings,
@@ -17,6 +18,7 @@ const ICONS = {
   home: IconHome,
   sales: IconSales,
   customers: IconCustomers,
+  club: IconClub,
   products: IconProducts,
 };
 

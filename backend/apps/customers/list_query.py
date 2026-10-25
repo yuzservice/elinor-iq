@@ -1,8 +1,9 @@
 from django.db.models import Case, Count, Exists, F, IntegerField, Max, Min, OuterRef, Q, Value, When
 
-from apps.customers.models import Customer, CustomerAddress
+from apps.customers.models import Customer, CustomerAddress, CustomerRfm
 from apps.customers.operators import exclude_operator_accounts, is_operator_account, operator_mobile_variants
 from apps.customers.presentation import customer_status_label, list_payload
+from apps.customers.rfm import SEGMENT_ORDER, row_payload
 from apps.customers.purchases import (
     SALES_LINE_LABELS,
     channel_for,
@@ -46,6 +47,9 @@ def customer_list_queryset(params):
     city = (params.get("city") or "").strip()
     profile_state = (params.get("profile_state") or "").strip().lower()
     birth_month = _as_int(params.get("birth_month"))
+    rfm_segment = (params.get("rfm_segment") or "").strip().lower()
+    r_score = _as_int(params.get("r_score"))
+    f_score = _as_int(params.get("f_score"))
 
     if population == "purchasing":
         qs = qs.filter(qualifying_order_exists() | qualifying_pos_exists())
@@ -83,6 +87,14 @@ def customer_list_queryset(params):
 
     if tier and tier in enabled_tier_codes():
         qs = exclude_operator_accounts(qs.filter(tier_code=tier))
+
+    # RFM rows exist only for purchasing, non-operator customers.
+    if rfm_segment in SEGMENT_ORDER:
+        qs = qs.filter(rfm__segment=rfm_segment)
+    if r_score is not None and 1 <= r_score <= 5:
+        qs = qs.filter(rfm__r_score=r_score)
+    if f_score is not None and 1 <= f_score <= 5:
+        qs = qs.filter(rfm__f_score=f_score)
 
     min_count = _as_int(params.get("min_purchases"))
     max_count = _as_int(params.get("max_purchases"))
@@ -186,11 +198,14 @@ def _apply_payment_method_filter(qs, payment_method):
             Exists(pos_base.filter(digipay_cashier_amount__gt=0))
             | Exists(online_gw_base.filter(gateway__icontains="digi"))
         )
+    installment = Exists(pos_base.filter(Q(snappay_cashier_amount__gt=0) | Q(digipay_cashier_amount__gt=0))) | Exists(
+        online_gw_base.filter(Q(gateway__icontains="snapp") | Q(gateway__icontains="digi"))
+    )
     if payment_method == "installment":
-        return qs.filter(
-            Exists(pos_base.filter(Q(snappay_cashier_amount__gt=0) | Q(digipay_cashier_amount__gt=0)))
-            | Exists(online_gw_base.filter(Q(gateway__icontains="snapp") | Q(gateway__icontains="digi")))
-        )
+        return qs.filter(installment)
+    if payment_method == "other":
+        # Purchasers who never paid with SnappPay or DigiPay: the opposite of "installment".
+        return qs.filter(qualifying_order_exists() | qualifying_pos_exists()).filter(~installment)
     if payment_method == "wallet":
         return qs.filter(Exists(pos_base.filter(from_wallet_amount__gt=0)))
     if payment_method == "shopino":
@@ -386,6 +401,7 @@ def hydrate_customer_rows(customers):
         pos_lines[row["customer_id"]].add(row["sales_line"])
     titles = tier_title_map()
     tiers = metrics_for_customers(ids, titles=titles)
+    rfm_rows = {row.customer_id: row for row in CustomerRfm.objects.filter(customer_id__in=ids)}
 
     payloads = []
     for customer in customers:
@@ -417,6 +433,7 @@ def hydrate_customer_rows(customers):
                 "sales_line_labels": [SALES_LINE_LABELS.get(line, line) for line in lines],
                 "is_purchasing": online_count + pos_count > 0,
                 "status_label": customer_status_label(customer.status) or "—",
+                **row_payload(rfm_rows.get(customer.pk)),
             }
         )
         payloads.append(payload)
@@ -492,6 +509,18 @@ def _operator_rank():
 
 
 def _apply_sort(qs, sort):
+    if sort == "rfm":
+        segment_rank = Case(
+            *[When(rfm__segment=key, then=Value(index)) for index, key in enumerate(SEGMENT_ORDER)],
+            default=Value(len(SEGMENT_ORDER)),
+            output_field=IntegerField(),
+        )
+        return qs.annotate(rfm_rank=segment_rank).order_by(
+            "rfm_rank",
+            F("rfm__m_score").desc(nulls_last=True),
+            F("rfm__lifetime_amount").desc(nulls_last=True),
+            "-source_id",
+        )
     if sort == "purchase_count":
         if "purchase_count" not in qs.query.annotations:
             qs = qs.annotate(purchase_count=tier_purchase_count_expression())

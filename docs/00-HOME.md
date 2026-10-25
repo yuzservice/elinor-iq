@@ -15,10 +15,12 @@
 
 ## Business Rules
 - [[business-rules/customer-tiers|Customer Tiers]]
+- [[business-rules/customer-rfm|Customer RFM]]
 
 ## Decisions
 - [[decisions/0001-configurable-tier-rules|0001 Configurable tier rules]]
 - [[decisions/0002-dynamic-tiers-and-modal|0002 Dynamic tiers and modal]]
+- [[decisions/0003-rfm-report-and-club-menu|0003 RFM report and club menu]]
 
 ## Implementation Status
 - [[implementation-status/FEATURE_MATRIX|Feature Verification Matrix]]

@@ -1,4 +1,9 @@
-"""Customer 360 payload. Not a revenue, VIP, RFM, or CLV layer."""
+"""Customer 360 payload.
+
+Includes an RFM layer (apps.customers.rfm: scores, segment, customer net purchase).
+It is still not a sales-revenue or CLV layer: amounts here are customer net purchase,
+not the sales revenue of apps/sales/semantics.py.
+"""
 
 from collections import defaultdict
 
@@ -20,6 +25,7 @@ from apps.customers.purchases import (
     qualifying_orders,
     qualifying_pos,
 )
+from apps.customers.rfm import customer_rfm_payload
 from apps.customers.tiers import tier_label
 from apps.sales.models import OrderItem, PosSaleItem, SalesLine
 
@@ -66,6 +72,7 @@ def customer_360_payload(customer, history_page=1, history_per_page=HISTORY_PER_
         "purchase_behavior_label": behavior_label,
         "tier_code": None if desk else (customer.tier_code or None),
         "tier_label": None if desk else tier_label(customer.tier_code),
+        "rfm": None if desk else customer_rfm_payload(customer),
         **operator_payload(customer),
         "channel": channel_key,
         "channel_label": channel_label,

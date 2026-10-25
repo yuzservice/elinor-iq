@@ -37,7 +37,7 @@ def test_customer_list_is_paginated(auth_api):
     assert detail.data["id"] == 1000
     assert "purchases" in detail.data
     assert "discounts" in detail.data
-    assert "rfm" not in detail.data
+    assert detail.data["rfm"] is None  # RFM layer exists (decision 0003); no row before the daily refresh
     assert "churn" not in detail.data
 
 

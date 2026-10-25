@@ -128,7 +128,7 @@ def test_customer_360_unified_history_and_profile(auth_api):
     assert data["profile"]["gender_label"] == "زن"
     assert data["profile"]["club_level"] == "gold"
     assert data["status_label"] == "فعال"
-    assert "rfm" not in data
+    assert data["rfm"] is None  # RFM layer exists (decision 0003); no row before the daily refresh
     assert "churn" not in data
     assert "clv" not in data
     assert "vip" not in data

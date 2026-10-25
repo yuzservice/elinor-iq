@@ -4,6 +4,7 @@ import { useTheme } from "../theme/ThemeProvider";
 import {
   IconCustomers,
   IconHome,
+  IconClub,
   IconProducts,
   IconSales,
   IconSettings,
@@ -16,6 +17,7 @@ const ICONS = {
   home: IconHome,
   sales: IconSales,
   customers: IconCustomers,
+  club: IconClub,
   products: IconProducts,
 };
 

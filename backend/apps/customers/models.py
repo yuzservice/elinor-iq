@@ -255,3 +255,47 @@ class CustomerTierHistory(models.Model):
         indexes = [
             models.Index(fields=["customer", "changed_at"], name="tier_history_cust_at_idx"),
         ]
+
+
+class CustomerRfm(models.Model):
+    """Current RFM of a purchasing, non-operator customer. Refreshed daily by apps.customers.rfm."""
+
+    customer = models.OneToOneField(Customer, related_name="rfm", on_delete=models.CASCADE)
+    r_score = models.PositiveSmallIntegerField()
+    f_score = models.PositiveSmallIntegerField()
+    m_score = models.PositiveSmallIntegerField()
+    segment = models.CharField(max_length=16)
+    purchase_count = models.PositiveIntegerField()
+    days_since_last_purchase = models.IntegerField()
+    lifetime_amount = models.BigIntegerField()
+    purchase_count_12m = models.PositiveIntegerField(default=0)
+    amount_12m = models.BigIntegerField(default=0)
+    computed_at = models.DateTimeField()
+
+    class Meta:
+        db_table = "customer_rfm"
+        indexes = [
+            models.Index(fields=["segment"], name="customer_rfm_segment_idx"),
+            models.Index(fields=["r_score", "f_score"], name="customer_rfm_rf_idx"),
+        ]
+
+
+class CustomerRfmSnapshot(models.Model):
+    """RFM of a purchasing customer at the end of a Jalali month (month = "1405-08")."""
+
+    month = models.CharField(max_length=7)
+    customer = models.ForeignKey(Customer, related_name="rfm_snapshots", on_delete=models.CASCADE)
+    r_score = models.PositiveSmallIntegerField()
+    f_score = models.PositiveSmallIntegerField()
+    m_score = models.PositiveSmallIntegerField()
+    segment = models.CharField(max_length=16)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "customer_rfm_snapshots"
+        constraints = [
+            models.UniqueConstraint(fields=["month", "customer"], name="customer_rfm_snapshot_month_customer"),
+        ]
+        indexes = [
+            models.Index(fields=["month", "segment"], name="rfm_snapshot_month_seg_idx"),
+        ]

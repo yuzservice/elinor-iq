@@ -57,6 +57,10 @@ def start_full_tier_refresh():
 def _run_full_refresh(close_connection=False, reason="manual"):
     try:
         refresh_stored_tiers(reason=reason)
+        # RFM is independent of tiers; it shares the daily/manual path and logs its own failures.
+        from apps.customers.rfm import refresh_rfm_daily
+
+        refresh_rfm_daily()
         _finish(success=True)
         return True
     except Exception:

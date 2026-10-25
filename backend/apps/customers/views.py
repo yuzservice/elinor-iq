@@ -282,3 +282,11 @@ def customer_tiers(request):
     from .tier_rule_admin import public_tiers
 
     return Response({"results": public_tiers()})
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def rfm_summary(request):
+    from .rfm import rfm_summary as build_summary
+
+    return Response(build_summary(request.query_params))

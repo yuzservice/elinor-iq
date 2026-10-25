@@ -6,10 +6,11 @@ import { joinFacts, profileValue, salesLineTone } from "../features/customers/cu
 import { useApi } from "../hooks/useApi";
 import { useTiers } from "../hooks/useTiers";
 import { TierBadge } from "../features/customers/tierDisplay";
+import { rfmSegment } from "../features/customers/rfmDisplay";
 import { INCOMPLETE_LABEL, customerDisplayName } from "../lib/customerDisplay";
 import { formatDate, formatDateLong, formatMobile, formatNumber, formatToman } from "../lib/format";
 import { customersService } from "../services/customers";
-import type { Customer360, CustomerProductHistory, CustomerPurchase } from "../types";
+import type { Customer360, CustomerProductHistory, CustomerPurchase, CustomerRfm } from "../types";
 
 type TabKey = "purchases" | "products" | "profile" | "addresses" | "discounts";
 type PurchaseKindFilter = "all" | "online" | "pos" | "cancelled";
@@ -339,6 +340,8 @@ export function Customer360Page() {
           </div>
         </div>
       </section>
+
+      {data.rfm ? <RfmCard rfm={data.rfm} /> : null}
 
       {/* Subtle Contextual Note */}
       <p className="text-[11px] leading-5 text-muted px-1">
@@ -916,5 +919,86 @@ function DiscountTab({ discounts }: { discounts: Customer360["discounts"] }) {
         </table>
       </div>
     </div>
+  );
+}
+
+function RfmCard({ rfm }: { rfm: CustomerRfm }) {
+  const segment = rfmSegment(rfm.segment?.key);
+  const pills = [
+    { label: "تازگی (R)", score: rfm.r_score, value: `${formatNumber(rfm.days_since_last_purchase)} روز از آخرین خرید` },
+    { label: "تکرار (F)", score: rfm.f_score, value: `${formatNumber(rfm.purchase_count)} خرید` },
+    { label: "ارزش (M)", score: rfm.m_score, value: formatToman(rfm.lifetime_amount) },
+  ];
+  return (
+    <section className="bento-card p-5 sm:p-6 glass-rim shadow-soft space-y-4" aria-labelledby="rfm-card-title">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 id="rfm-card-title" className="text-sm font-black text-ink">ارزش مشتری (RFM)</h2>
+          {rfm.segment ? (
+            <p className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+              <span className={`h-2.5 w-2.5 rounded-full ${segment?.dot ?? "bg-line"}`} />
+              <span className="font-bold text-ink">{rfm.segment.label}</span>
+              <span className="text-muted">· {rfm.segment.action}</span>
+            </p>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {rfm.high_value ? <Badge tone="warning">پرارزش</Badge> : null}
+          {rfm.overdue ? <Badge tone="rose">دیرتر از معمول</Badge> : null}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+        {pills.map((pill) => (
+          <div key={pill.label} className="flex items-center gap-3 rounded-2xl border border-line bg-elevated p-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/15 text-base font-black text-accent tabular">
+              {formatNumber(pill.score)}
+            </span>
+            <div className="min-w-0">
+              <div className="text-[11px] text-muted">{pill.label}</div>
+              <div className="truncate text-xs font-bold text-ink">{pill.value}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <dl className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
+        <div>
+          <dt className="text-[11px] text-muted">خرید خالص کل</dt>
+          <dd className="font-bold text-ink tabular">{formatToman(rfm.lifetime_amount)}</dd>
+        </div>
+        <div>
+          <dt className="text-[11px] text-muted">خرید خالص ۱۲ ماه</dt>
+          <dd className="font-bold text-ink tabular">
+            {formatToman(rfm.amount_12m)} <span className="font-normal text-muted">({formatNumber(rfm.purchase_count_12m)} خرید)</span>
+          </dd>
+        </div>
+        <div>
+          <dt className="text-[11px] text-muted">میانگین هر خرید</dt>
+          <dd className="font-bold text-ink tabular">{formatToman(rfm.avg_order_amount)}</dd>
+        </div>
+        <div>
+          <dt className="text-[11px] text-muted">میانگین فاصله خریدها</dt>
+          <dd className="font-bold text-ink tabular">
+            {rfm.avg_days_between_purchases == null ? "—" : `${formatNumber(rfm.avg_days_between_purchases)} روز`}
+          </dd>
+        </div>
+      </dl>
+      <p className="text-[11px] text-faint">تعداد خرید (معیار RFM — خرید تعویضی شمرده نمی‌شود): {formatNumber(rfm.purchase_count)}</p>
+
+      {rfm.history.length ? (
+        <div>
+          <div className="mb-1.5 text-[11px] text-muted">سگمنت در ۱۲ ماه اخیر</div>
+          <div className="flex gap-1 overflow-x-auto no-scrollbar">
+            {rfm.history.map((item) => (
+              <div key={item.month} className="flex min-w-[3.5rem] flex-col items-center gap-1" title={`${item.month}: ${item.label}`}>
+                <span className={`h-2 w-full rounded-full ${rfmSegment(item.segment)?.dot ?? "bg-line"}`} />
+                <span className="text-[10px] text-faint tabular">{item.month.slice(2)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </section>
   );
 }
