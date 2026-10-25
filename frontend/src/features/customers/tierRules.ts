@@ -2,10 +2,28 @@ import type { TierCondition, TierConditionKey, TierRule, TierRules } from "../..
 
 export const MAX_TIERS = 12;
 export const MAX_TITLE_LENGTH = 40;
-export const CONDITION_KEYS: TierConditionKey[] = ["purchase_count", "days_since_last", "lifetime_amount"];
+export const CONDITION_KEYS: TierConditionKey[] = ["purchase_count", "days_since_last_min", "days_since_last", "lifetime_amount"];
 
-/** Days since last purchase has no operator: it is always «تا» (<=). */
-export const FIXED_OPERATOR_KEYS: TierConditionKey[] = ["days_since_last"];
+/** Day bounds have no operator: days_since_last_min is «از» (>=), days_since_last is «تا» (<=). */
+export const FIXED_OPERATOR_KEYS: TierConditionKey[] = ["days_since_last_min", "days_since_last"];
+
+const EMPTY_CONDITION: TierCondition = { enabled: false, value: null };
+
+/** Rules stored before a condition existed lack its key; fill it as disabled. */
+function withAllConditions(tier: TierRule): TierRule {
+  const conditions = { ...tier.conditions };
+  for (const key of CONDITION_KEYS) {
+    if (!conditions[key]) {
+      conditions[key] = FIXED_OPERATOR_KEYS.includes(key) ? { ...EMPTY_CONDITION } : { ...EMPTY_CONDITION, operator: "gte" };
+    }
+  }
+  return { ...tier, conditions };
+}
+
+/** Rules in the exact shape the server stores after validation. */
+export function normalizeRules(rules: TierRules | null | undefined): TierRules | null {
+  return rules ? fromEditable(toEditable(rules)) : null;
+}
 
 export type TierRuleErrors = {
   _?: string;
@@ -18,7 +36,7 @@ export type EditableTier = TierRule & { key: string };
 let nextKey = 0;
 
 export function toEditable(rules: TierRules): EditableTier[] {
-  return rules.tiers.map((tier) => ({ ...structuredClone(tier), key: tier.code ?? `new-${nextKey++}` }));
+  return rules.tiers.map((tier) => ({ ...withAllConditions(structuredClone(tier)), key: tier.code ?? `new-${nextKey++}` }));
 }
 
 export function fromEditable(tiers: EditableTier[]): TierRules {
@@ -46,6 +64,7 @@ export function newTier(title: string): EditableTier {
     enabled: true,
     conditions: {
       purchase_count: { enabled: true, operator: "gte", value: 1 },
+      days_since_last_min: { enabled: false, value: null },
       days_since_last: { enabled: false, value: null },
       lifetime_amount: { enabled: false, operator: "gte", value: null },
     },
@@ -90,6 +109,11 @@ export function validateTierRules(tiers: TierRule[]): TierRuleErrors {
         messages[key] = "عملگر باید «بیشتر یا مساوی» یا «کمتر یا مساوی» باشد.";
       }
     }
+    const low = tier.conditions.days_since_last_min;
+    const high = tier.conditions.days_since_last;
+    if (low?.enabled && high?.enabled && low.value != null && high.value != null && low.value > high.value && !messages.days_since_last) {
+      messages.days_since_last = "«تا» روز باید بزرگ‌تر یا مساوی «از» باشد.";
+    }
     if (tier.enabled && !CONDITION_KEYS.some((key) => tier.conditions[key]?.enabled)) {
       messages._ = "دست‌کم یک شرط باید فعال باشد؛ وگرنه همه خریداران در این سطح قرار می‌گیرند.";
     }
@@ -113,13 +137,19 @@ function amountText(value: number): string {
 /** Same text as the backend tier_summary, e.g. «۴+ خرید · حداکثر ۴۵ روز از آخرین خرید · +۱۰ میلیون». */
 export function tierSummary(tier: TierRule): string {
   const parts: string[] = [];
-  const { purchase_count: count, days_since_last: days, lifetime_amount: amount } = tier.conditions;
+  const { purchase_count: count, days_since_last_min: low, days_since_last: high, lifetime_amount: amount } = tier.conditions;
   if (count?.enabled && count.value != null) {
     const value = faNumber.format(count.value);
     parts.push(count.operator === "lte" ? `حداکثر ${value} خرید` : `${value}+ خرید`);
   }
-  if (days?.enabled && days.value != null) {
-    parts.push(`حداکثر ${faNumber.format(days.value)} روز از آخرین خرید`);
+  const lowOn = Boolean(low?.enabled && low.value != null);
+  const highOn = Boolean(high?.enabled && high.value != null);
+  if (lowOn && highOn) {
+    parts.push(`${faNumber.format(low!.value!)} تا ${faNumber.format(high!.value!)} روز از آخرین خرید`);
+  } else if (lowOn) {
+    parts.push(`حداقل ${faNumber.format(low!.value!)} روز از آخرین خرید`);
+  } else if (highOn) {
+    parts.push(`حداکثر ${faNumber.format(high!.value!)} روز از آخرین خرید`);
   }
   if (amount?.enabled && amount.value != null) {
     const value = amountText(amount.value);

@@ -169,7 +169,8 @@ def test_three_argument_call_without_database_uses_version_one():
 def test_migration_stores_version_one_as_active():
     active = TierRuleSet.objects.get(status=TierRuleSet.STATUS_ACTIVE)
     assert active.version == 1
-    assert active.rules == VERSION_1_RULES
+    # Stored before the «از» day bound existed; normalizing adds it disabled.
+    assert validate_rules(active.rules) == VERSION_1_RULES
     assert [tier["code"] for tier in active.rules["tiers"]][4:6] == ["BRONZE_1", "SILVER"]
 
 
@@ -659,3 +660,43 @@ def test_operator_accounts_stay_null_after_activation(super_admin):
     refresh_stored_tiers([desk.pk], reference_date=timezone.localdate())
     desk.refresh_from_db()
     assert desk.tier_code is None
+
+
+# --- Day range («از» / «تا») -----------------------------------------------------------------
+
+
+def _with_day_range(low, high):
+    rules = _rules()
+    conditions = _tier(rules, "SILVER")["conditions"]
+    conditions["days_since_last_min"] = {"enabled": low is not None, "value": low}
+    conditions["days_since_last"] = {"enabled": high is not None, "value": high}
+    return rules
+
+
+@pytest.mark.django_db
+def test_days_from_bound_filters_and_sql_matches_python():
+    rules = _with_day_range(60, 90)
+    assert evaluate_tier(rules, 1, 59, 0) == "BRONZE_2"
+    assert evaluate_tier(rules, 1, 60, 0) == "SILVER"
+    assert evaluate_tier(rules, 1, 90, 0) == "SILVER"
+    grid = GRID[::5]
+    assert _sql_tiers(rules, grid) == [evaluate_tier(rules, c, d, a) for c, d, a in grid]
+    assert tier_summary(_tier(rules, "SILVER")) == "۱+ خرید · ۶۰ تا ۹۰ روز از آخرین خرید"
+    only_low = _with_day_range(200, None)
+    assert tier_summary(_tier(only_low, "SILVER")) == "۱+ خرید · حداقل ۲۰۰ روز از آخرین خرید"
+
+
+def test_days_from_must_not_exceed_to():
+    errors = _errors(_with_day_range(100, 90))["tiers"]
+    silver_index = [tier["code"] for tier in VERSION_1_RULES["tiers"]].index("SILVER")
+    assert errors[silver_index]["days_since_last"]
+
+
+@pytest.mark.django_db
+def test_rules_stored_without_the_from_bound_still_evaluate():
+    legacy = _rules()
+    for tier in legacy["tiers"]:
+        tier["conditions"].pop("days_since_last_min")
+    assert evaluate_tier(legacy, 1, 30, 0) == "SILVER"
+    assert _sql_tiers(legacy, [(1, 30, 0), (4, 45, 10_000_000)]) == ["SILVER", "VIP"]
+    assert validate_rules(legacy) == VERSION_1_RULES

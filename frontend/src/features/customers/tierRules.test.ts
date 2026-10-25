@@ -7,6 +7,7 @@ import {
   hasTierRuleErrors,
   moveTier,
   newTier,
+  normalizeRules,
   parseIntegerInput,
   rulesEqual,
   tierSummary,
@@ -21,6 +22,7 @@ function tier(code: string, title: string, count: number | null, days: number | 
     enabled: true,
     conditions: {
       purchase_count: { enabled: count != null, operator: "gte", value: count },
+      days_since_last_min: { enabled: false, value: null },
       days_since_last: { enabled: days != null, value: days },
       lifetime_amount: { enabled: amount != null, operator: "gte", value: amount },
     },
@@ -137,5 +139,28 @@ describe("rulesEqual", () => {
     expect(rulesEqual(a, b)).toBe(true);
     b.tiers[0].title = "V";
     expect(rulesEqual(a, b)).toBe(false);
+  });
+});
+
+describe("day range («از» / «تا»)", () => {
+  it("summarises both bounds, either bound, and validates the order", () => {
+    const silver = versionOne()[5];
+    silver.conditions.days_since_last_min = { enabled: true, value: 60 };
+    expect(tierSummary(silver)).toBe("۱+ خرید · ۶۰ تا ۹۰ روز از آخرین خرید");
+    silver.conditions.days_since_last.enabled = false;
+    expect(tierSummary(silver)).toBe("۱+ خرید · حداقل ۶۰ روز از آخرین خرید");
+
+    const tiers = versionOne();
+    tiers[5].conditions.days_since_last_min = { enabled: true, value: 100 };
+    expect(validateTierRules(tiers).tiers[5]?.days_since_last).toBeTruthy();
+  });
+
+  it("fills the «از» bound for rules stored without it", () => {
+    const stored = versionOne().map((item) => {
+      const { days_since_last_min: _dropped, ...conditions } = item.conditions;
+      return { ...item, conditions } as unknown as TierRule;
+    });
+    const normalized = normalizeRules({ tiers: stored });
+    expect(normalized?.tiers[0].conditions.days_since_last_min).toEqual({ enabled: false, value: null });
   });
 });

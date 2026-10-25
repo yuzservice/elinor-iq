@@ -25,6 +25,7 @@ A rule version is an ordered list. Array order is evaluation priority; the **fir
   {"code": "VIP", "title": "VIP", "enabled": true,
    "conditions": {
      "purchase_count":  {"enabled": true, "operator": "gte", "value": 4},
+     "days_since_last_min": {"enabled": false, "value": null},
      "days_since_last": {"enabled": true, "value": 45},
      "lifetime_amount": {"enabled": true, "operator": "gte", "value": 10000000}
    }}
@@ -34,7 +35,8 @@ A rule version is an ordered list. Array order is evaluation priority; the **fir
 | Condition | Comparison |
 |---|---|
 | `purchase_count` | `gte` (≥) or `lte` (≤) the value |
-| `days_since_last` | **Upper bound only**: `days_since_last_purchase <= value`. No operator key; one sent is rejected. UI: «روز از آخرین خرید — تا … روز». |
+| `days_since_last_min` | «از»: `days_since_last_purchase >= value`. No operator key. Added 2026-10-25 at the owner's request. |
+| `days_since_last` | «تا»: `days_since_last_purchase <= value`. No operator key. With both enabled, «از» must be ≤ «تا». UI: «روز از آخرین خرید — از … روز» and «— تا … روز». |
 | `lifetime_amount` | `gte` (≥) or `lte` (≤) the value |
 
 All bounds are inclusive integers ≥ 0. A disabled condition is not evaluated and keeps its value.
@@ -71,7 +73,11 @@ Why this equals the old rules:
 
 ## 5. Summary text
 Generated from enabled conditions, same text in backend (`tier_summary`) and frontend (`tierSummary`):
-«۴+ خرید · حداکثر ۴۵ روز از آخرین خرید · +۱۰ میلیون». Days always read «حداکثر N روز از آخرین خرید».
+«۴+ خرید · حداکثر ۴۵ روز از آخرین خرید · +۱۰ میلیون». Days read «حداکثر N روز…» («تا» only), «حداقل N روز…» («از» only)
+or «N تا M روز از آخرین خرید» (both).
+
+Rule versions stored before «از» existed have no `days_since_last_min` key; evaluation skips a missing condition and
+validation adds it as disabled, so version 1 still reproduces the old tiers exactly.
 
 ## 6. Versions and activation
 - At most one `active` and one `draft` rule set. Earlier versions are `archived` and can be restored into the draft.

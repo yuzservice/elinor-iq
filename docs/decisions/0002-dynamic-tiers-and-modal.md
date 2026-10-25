@@ -16,6 +16,8 @@ The product owner wants super admins to shape the tier list itself and edit it w
    never choose codes, so history, filters and campaign codes stay stable.
 3. **Comparison per condition.** Purchase count and lifetime amount take `gte` or `lte`.
    **Days since last purchase is upper-bound only (`<=`), with no operator** (Correction to Amendment A).
+   *Update 2026-10-25 (owner request):* a separate «از» bound (`days_since_last_min`, `>=`) was added next to «تا»;
+   both have no operator key. Version 1 is unchanged.
    Version 1 therefore evaluates BRONZE_1 before SILVER and uses BRONZE_3 (`purchase_count >= 1`) as the catch-all;
    equivalence with the old rules is tested.
 4. **Titles from versions, not constants.** `TIER_LABELS` is now only the version-1 default. Labels for stored codes

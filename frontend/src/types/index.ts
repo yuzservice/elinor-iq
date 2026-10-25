@@ -541,7 +541,7 @@ export type TierCode = string;
 
 export type TierOperator = "gte" | "lte";
 
-export type TierConditionKey = "purchase_count" | "days_since_last" | "lifetime_amount";
+export type TierConditionKey = "purchase_count" | "days_since_last_min" | "days_since_last" | "lifetime_amount";
 
 export type TierCondition = { enabled: boolean; value: number | null; operator?: TierOperator };
 

@@ -17,17 +17,20 @@ GTE = "gte"
 LTE = "lte"
 OPERATOR_SQL = {GTE: ">=", LTE: "<="}
 
-# condition key -> (fact column, allowed operators). Days has no operator key: always "<=".
+# condition key -> (fact column, allowed operators). The two day bounds have no operator key:
+# days_since_last_min is always ">=" («از») and days_since_last is always "<=" («تا»).
 CONDITIONS = {
     "purchase_count": ("purchase_count", (GTE, LTE)),
+    "days_since_last_min": ("days_since_last_purchase", (GTE,)),
     "days_since_last": ("days_since_last_purchase", (LTE,)),
     "lifetime_amount": ("lifetime_purchase_amount", (GTE, LTE)),
 }
-FIXED_OPERATOR = {"days_since_last": LTE}
+FIXED_OPERATOR = {"days_since_last_min": GTE, "days_since_last": LTE}
 
 CONDITION_LABELS = {
     "purchase_count": "تعداد خرید",
-    "days_since_last": "روز از آخرین خرید",
+    "days_since_last_min": "روز از آخرین خرید — از",
+    "days_since_last": "روز از آخرین خرید — تا",
     "lifetime_amount": "مبلغ کل خرید (تومان)",
 }
 
@@ -49,6 +52,7 @@ def _tier(code, title, count=None, days=None, amount=None, count_op=GTE, amount_
         "enabled": True,
         "conditions": {
             "purchase_count": _condition(count_op, count),
+            "days_since_last_min": _condition(value=None, days=True),
             "days_since_last": _condition(value=days, days=True),
             "lifetime_amount": _condition(amount_op, amount),
         },
@@ -163,6 +167,9 @@ def _normalize_tier(tier, errors):
     conditions = {}
     for key in CONDITIONS:
         conditions[key] = _normalize_condition(key, raw_conditions.get(key), errors)
+    low, high = conditions["days_since_last_min"], conditions["days_since_last"]
+    if low["enabled"] and high["enabled"] and low["value"] > high["value"]:
+        errors["days_since_last"] = "«تا» روز باید بزرگ‌تر یا مساوی «از» باشد."
     if enabled and not any(condition["enabled"] for condition in conditions.values()):
         errors["_"] = "دست‌کم یک شرط باید فعال باشد؛ وگرنه همه خریداران در این سطح قرار می‌گیرند."
     return {"code": code, "title": title, "enabled": enabled, "conditions": conditions}
@@ -176,7 +183,8 @@ def _normalize_condition(key, raw, errors):
     allowed_keys = {"enabled", "value"} if days else {"enabled", "value", "operator"}
     if not isinstance(raw, dict) or set(raw) - allowed_keys:
         errors[key] = (
-            "برای روز از آخرین خرید فقط «تا» مجاز است؛ عملگر نفرستید." if days and isinstance(raw, dict) and "operator" in raw
+            "برای روز از آخرین خرید عملگر نفرستید؛ «از» و «تا» دو شرط جدا هستند."
+            if days and isinstance(raw, dict) and "operator" in raw
             else "ساختار شرط معتبر نیست."
         )
         return empty
@@ -210,8 +218,9 @@ def enabled_tiers(rules):
 
 def _enabled_conditions(tier):
     for key, (column, _operators) in CONDITIONS.items():
-        condition = tier["conditions"][key]
-        if condition["enabled"]:
+        # Versions stored before a condition existed simply lack its key.
+        condition = tier["conditions"].get(key)
+        if condition and condition["enabled"]:
             operator = FIXED_OPERATOR.get(key) or condition["operator"]
             yield key, column, OPERATOR_SQL[operator], int(condition["value"])
 
@@ -280,9 +289,14 @@ def tier_summary(tier):
     if count["enabled"]:
         value = _fa_number(count["value"])
         parts.append(f"{value}+ خرید" if count["operator"] == GTE else f"حداکثر {value} خرید")
-    days = conditions["days_since_last"]
-    if days["enabled"]:
-        parts.append(f"حداکثر {_fa_number(days['value'])} روز از آخرین خرید")
+    low = conditions.get("days_since_last_min") or {}
+    high = conditions.get("days_since_last") or {}
+    if low.get("enabled") and high.get("enabled"):
+        parts.append(f"{_fa_number(low['value'])} تا {_fa_number(high['value'])} روز از آخرین خرید")
+    elif low.get("enabled"):
+        parts.append(f"حداقل {_fa_number(low['value'])} روز از آخرین خرید")
+    elif high.get("enabled"):
+        parts.append(f"حداکثر {_fa_number(high['value'])} روز از آخرین خرید")
     amount = conditions["lifetime_amount"]
     if amount["enabled"]:
         value = _fa_amount(amount["value"])

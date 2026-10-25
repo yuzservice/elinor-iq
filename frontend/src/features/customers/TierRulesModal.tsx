@@ -15,6 +15,7 @@ import {
   fromEditable,
   hasTierRuleErrors,
   moveTier,
+  normalizeRules,
   newTier,
   parseIntegerInput,
   rulesEqual,
@@ -100,7 +101,7 @@ export function TierRulesModal({ onClose }: { onClose: () => void }) {
 
   const rules = useMemo(() => fromEditable(tiers), [tiers]);
   const base = state ? (state.draft ?? state.active) : null;
-  const dirty = Boolean(state) && !rulesEqual(rules, base?.rules);
+  const dirty = Boolean(state) && !rulesEqual(rules, normalizeRules(base?.rules));
   const errors = validateTierRules(rules.tiers);
   const invalid = hasTierRuleErrors(errors);
   const draft = state?.draft ?? null;
@@ -529,7 +530,7 @@ function TierCard({
       {errors?.title ? <p className="mt-1 text-[11px] text-rose-600 dark:text-rose-400">{errors.title}</p> : null}
       {errors?._ ? <p className="mt-1 text-[11px] text-rose-600 dark:text-rose-400">{errors._}</p> : null}
 
-      <div className="mt-3 grid grid-cols-1 gap-2 lg:grid-cols-3">
+      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <ConditionRow
           label="تعداد خرید"
           condition={tier.conditions.purchase_count}
@@ -538,7 +539,16 @@ function TierCard({
           onChange={(patch) => onCondition("purchase_count", patch)}
         />
         <ConditionRow
-          label="روز از آخرین خرید"
+          label="روز از آخرین خرید — از"
+          fixedPrefix="از"
+          suffix="روز"
+          condition={tier.conditions.days_since_last_min}
+          error={errors?.days_since_last_min}
+          disabled={disabled}
+          onChange={(patch) => onCondition("days_since_last_min", patch)}
+        />
+        <ConditionRow
+          label="روز از آخرین خرید — تا"
           fixedPrefix="تا"
           suffix="روز"
           condition={tier.conditions.days_since_last}
