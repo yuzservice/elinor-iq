@@ -1,13 +1,13 @@
-"""Desk accounts that register other people's orders under one login.
+"""Internal accounts: desk accounts and staff who place orders for other people under their own login.
 
-Sales totals still include those orders. Customer ranking does not treat the
-account as a buyer. Add a mobile here when another operator works the same way.
+Active rows of customers.InternalAccount are the source of truth (migration 0008 moved the former
+hard-coded desk mobile there). Sales totals still include these accounts' orders. Customer reports
+(tiers, RFM, ranking, buyer counts, campaign customer reports) do not treat them as buyers.
+Helpers query the table on each call; nothing is cached.
 """
 
 OPERATOR_LABEL = "اکانت دفتر"
-
-# Canonical Iranian mobiles, stored the way Elinor keeps them.
-OPERATOR_MOBILES = ("09362506974",)
+KIND_LABELS = {"desk": OPERATOR_LABEL, "staff": "کارمند"}
 
 _DIGIT_TRANSLATION = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
 
@@ -23,53 +23,25 @@ def canonical_mobile(value):
     return digits
 
 
-def operator_mobile_variants():
-    variants = set()
-    for mobile in OPERATOR_MOBILES:
-        canonical = canonical_mobile(mobile)
-        if not canonical:
-            continue
-        variants.add(canonical)
-        if canonical.startswith("0") and len(canonical) == 11:
-            national = canonical[1:]
-            variants.add(national)
-            variants.add(f"98{national}")
-            variants.add(f"+98{national}")
-    return variants
+def active_internal_accounts():
+    """customer_id -> kind for every active internal account (one query)."""
+    from apps.customers.models import InternalAccount
+
+    return dict(InternalAccount.objects.filter(is_active=True).values_list("customer_id", "kind"))
 
 
-def is_operator_account(customer):
-    if customer is None:
-        return False
-    return canonical_mobile(getattr(customer, "mobile", "")) in {canonical_mobile(mobile) for mobile in OPERATOR_MOBILES}
-
-
-def operator_payload(customer):
-    flagged = is_operator_account(customer)
-    return {
-        "is_operator": flagged,
-        "operator_label": OPERATOR_LABEL if flagged else None,
-    }
+def operator_customer_ids():
+    return set(active_internal_accounts())
 
 
 def operator_customers():
     from apps.customers.models import Customer
 
-    variants = operator_mobile_variants()
-    if not variants:
-        return Customer.objects.none()
-    return Customer.objects.filter(mobile__in=variants)
-
-
-def operator_customer_ids():
-    return set(operator_customers().values_list("pk", flat=True))
+    return Customer.objects.filter(internal_account__is_active=True)
 
 
 def exclude_operator_accounts(qs):
-    variants = operator_mobile_variants()
-    if not variants:
-        return qs
-    return qs.exclude(mobile__in=variants)
+    return qs.exclude(internal_account__is_active=True)
 
 
 def exclude_operator_sales(qs, field="customer_id"):
@@ -77,3 +49,29 @@ def exclude_operator_sales(qs, field="customer_id"):
     if not ids:
         return qs
     return qs.exclude(**{f"{field}__in": ids})
+
+
+def operator_kind(customer, accounts=None):
+    """Kind of an active internal account, or None. Pass `accounts` (active_internal_accounts()) for batches."""
+    if customer is None or not getattr(customer, "pk", None):
+        return None
+    if accounts is not None:
+        return accounts.get(customer.pk)
+    from apps.customers.models import InternalAccount
+
+    return (
+        InternalAccount.objects.filter(customer_id=customer.pk, is_active=True).values_list("kind", flat=True).first()
+    )
+
+
+def is_operator_account(customer, accounts=None):
+    return operator_kind(customer, accounts) is not None
+
+
+def operator_payload(customer, accounts=None):
+    kind = operator_kind(customer, accounts)
+    return {
+        "is_operator": kind is not None,
+        "operator_kind": kind,
+        "operator_label": KIND_LABELS.get(kind) if kind else None,
+    }

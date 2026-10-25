@@ -5,6 +5,8 @@ import { EmptyState, ErrorState, Skeleton } from "../components/Table";
 import { joinFacts, profileValue, salesLineTone } from "../features/customers/customer360Display";
 import { useApi } from "../hooks/useApi";
 import { useTiers } from "../hooks/useTiers";
+import { useAuth } from "../hooks/useAuth";
+import { InternalAccountBanner, InternalAccountMenu } from "../features/customers/InternalAccountPanel";
 import { TierBadge } from "../features/customers/tierDisplay";
 import { rfmSegment } from "../features/customers/rfmDisplay";
 import { INCOMPLETE_LABEL, customerDisplayName } from "../lib/customerDisplay";
@@ -58,7 +60,15 @@ export function Customer360Page() {
   const [productsLoading, setProductsLoading] = useState(false);
   const [productsError, setProductsError] = useState(false);
   const [productRetry, setProductRetry] = useState(0);
-  const { data, loading, error } = useApi(() => customersService.detail(Number(id)), [id]);
+  const { data, loading, error, setData } = useApi(() => customersService.detail(Number(id)), [id]);
+  const { user } = useAuth();
+  const canManage = Boolean(user?.can_manage_platform);
+  const reloadDetail = () => {
+    customersService
+      .detail(Number(id))
+      .then(setData)
+      .catch(() => undefined);
+  };
 
   useEffect(() => {
     setTab("purchases");
@@ -161,11 +171,14 @@ export function Customer360Page() {
           <span className="px-2.5 py-1 rounded-xl bg-elevated border border-line text-muted font-mono text-[11px] ltr-iso">
             #EL-{data.id}
           </span>
+          {canManage ? <InternalAccountMenu data={data} onChanged={reloadDetail} /> : null}
           <Badge tone={data.status_label === "فعال" ? "sage" : "neutral"}>
             {data.status_label || "وضعیت ثبت نشده"}
           </Badge>
         </div>
       </div>
+
+      {canManage ? <InternalAccountBanner data={data} onChanged={reloadDetail} /> : null}
 
       {/* ============================================================== */}
       {/* 2. HERO 360 IDENTITY & OMNICHANNEL BENTO CARD                  */}

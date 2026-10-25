@@ -5,7 +5,7 @@ from apps.customers.tiers import refresh_stored_tiers
 
 
 class Command(BaseCommand):
-    help = "Store customer tiers. Without --force, a finished run today is skipped."
+    help = "Store customer tiers and refresh RFM. Without --force, a finished run today is skipped."
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -22,10 +22,14 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         if options["force"]:
             updated = refresh_stored_tiers()
+            from apps.customers.rfm import refresh_rfm_daily
             from apps.customers.tier_refresh import _finish
 
+            # Same as the daily and manual paths: RFM (and internal-account signals) follow the tiers.
+            rfm_ok = refresh_rfm_daily()
             _finish(success=True)
             self.stdout.write(self.style.SUCCESS(f"Stored tiers updated for {updated} customers."))
+            self.stdout.write("RFM refreshed." if rfm_ok else "RFM refresh failed; see the customer_rfm status cursor.")
             return
         result = refresh_due_tiers()
         if result == "done":

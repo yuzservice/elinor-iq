@@ -311,7 +311,7 @@ def preview_draft(reference_date=None):
 
 
 def _scored_sql(rules, reference_date):
-    facts_sql, _mobiles = _facts_sql()
+    facts_sql, _exclusion = _facts_sql()
     case_sql, case_params = tier_case_sql(rules)
     sql = f"""
         {facts_sql},

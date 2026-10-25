@@ -88,6 +88,9 @@ export function RfmReportPanel() {
             {data.notes.map((note) => (
               <p key={note}>{note}</p>
             ))}
+            {data.kpis.internal_accounts_excluded ? (
+              <p>{formatNumber(data.kpis.internal_accounts_excluded)} حساب داخلی از این گزارش خارج شده است.</p>
+            ) : null}
             <p>آخرین محاسبه: {formatDateTime(data.computed_at)}</p>
           </footer>
         </div>

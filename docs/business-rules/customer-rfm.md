@@ -14,7 +14,8 @@ does not read or change tier logic, tier rules or `campaigns.py`.
 | M basis: `lifetime_purchase_amount` | Online `total_amount` + signed POS item lines (sell +, exchange sell +, exchange/refund refund −). Full history. |
 | `purchase_count_12m`, `amount_12m` | Same rules, purchases whose local date is in the 365 days up to the reference date. Context only; not used in scores. |
 
-- Operator desk accounts are excluded. Customers with no purchase get **no RFM** and are reported as «ثبت‌نام بدون خرید».
+- Internal accounts (desk and staff, [[business-rules/internal-accounts]]) are excluded by customer id. Customers with no purchase get **no RFM** and are reported as «ثبت‌نام بدون خرید». The report footer shows how many internal accounts are excluded.
+- The refresh also scores internal-account detection signals on each row (`internal_signal_score`, `internal_signals`); see the internal-accounts rules.
 - `rfm_facts_sql(as_of)` adds the 12-month columns and, with `as_of`, counts only purchases with local date ≤ as_of and
   measures days from as_of (used for monthly snapshots). With as_of = today it equals the tier facts (tested).
 - **Exchange counting:** POS exchanges (`both`) are not purchases in F; their sell and refund lines only change M.
@@ -51,7 +52,8 @@ M is not part of the segment. M ≥ 4 shows the «پرارزش» flag and is use
 ## 4. Storage and refresh
 - `customer_rfm`: one row per purchasing, non-operator customer. Rebuilt by a set-based upsert right after the tier
   refresh (daily and manual `POST /api/customers/refresh-tiers/`); rows of customers who no longer qualify are deleted.
-  Status in `SyncCursor` key `customer_rfm` (computed_at, error, last snapshot).
+  Status in `SyncCursor` key `customer_rfm` (computed_at, error, last snapshot). `manage.py refresh_customer_tiers --force`
+  also refreshes RFM (since 2026-10-25).
 - `customer_rfm_snapshots`: month key = Jalali year-month (e.g. "1405-07") = RFM at the **end** of that month
   (as_of = its last day). On the first refresh of a new Jalali month the month that just ended is written. Idempotent.
 - `manage.py backfill_rfm_snapshots --months 12` builds past months; existing months are skipped.

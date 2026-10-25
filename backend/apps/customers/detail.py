@@ -25,7 +25,8 @@ from apps.customers.purchases import (
     qualifying_orders,
     qualifying_pos,
 )
-from apps.customers.rfm import customer_rfm_payload
+from apps.customers.internal_accounts import internal_account_payload
+from apps.customers.rfm import customer_rfm_payload, internal_signals_payload
 from apps.customers.tiers import tier_label
 from apps.sales.models import OrderItem, PosSaleItem, SalesLine
 
@@ -37,7 +38,7 @@ POS_TYPE_LABELS = {
 HISTORY_PER_PAGE = 20
 
 
-def customer_360_payload(customer, history_page=1, history_per_page=HISTORY_PER_PAGE):
+def customer_360_payload(customer, history_page=1, history_per_page=HISTORY_PER_PAGE, include_internal=False):
     online_qs = qualifying_orders(customer.orders.all())
     pos_qs = qualifying_pos(customer.pos_sales.all())
     online_count = online_qs.count()
@@ -73,6 +74,9 @@ def customer_360_payload(customer, history_page=1, history_per_page=HISTORY_PER_
         "tier_code": None if desk else (customer.tier_code or None),
         "tier_label": None if desk else tier_label(customer.tier_code),
         "rfm": None if desk else customer_rfm_payload(customer),
+        # Super admins only: the confirmed internal account and the detection signals.
+        "internal_account": internal_account_payload(customer) if include_internal else None,
+        "internal_account_signals": (internal_signals_payload(customer) if include_internal and not desk else None),
         **operator_payload(customer),
         "channel": channel_key,
         "channel_label": channel_label,

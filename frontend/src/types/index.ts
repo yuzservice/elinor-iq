@@ -259,6 +259,7 @@ export type CustomerRow = {
   tier_code: string | null;
   tier_label: string | null;
   is_operator: boolean;
+  operator_kind?: "desk" | "staff" | null;
   operator_label: string | null;
   rfm_segment: string | null;
   rfm_segment_label: string | null;
@@ -266,6 +267,7 @@ export type CustomerRow = {
   f_score: number | null;
   m_score: number | null;
   high_value: boolean;
+  internal_suspected?: boolean;
 };
 
 export type CustomerReports = {
@@ -335,6 +337,8 @@ export type CustomerProductHistory = {
 export type Customer360 = {
   id: number;
   rfm: CustomerRfm | null;
+  internal_account: InternalAccountInfo | null;
+  internal_account_signals: InternalSignals | null;
   name: string;
   name_is_fallback: boolean;
   incomplete: boolean;
@@ -355,6 +359,7 @@ export type Customer360 = {
   tier_code: string | null;
   tier_label: string | null;
   is_operator: boolean;
+  operator_kind?: "desk" | "staff" | null;
   operator_label: string | null;
   channel: "online" | "physical" | "both" | "none";
   channel_label: string;
@@ -649,6 +654,7 @@ export type RfmSummary = {
     value_at_risk: number;
     purchasing_customers: number;
     registered_without_purchase: number;
+    internal_accounts_excluded: number;
   };
   segments: RfmSegmentSummary[];
   matrix: { r: number; f: number; count: number; segment: string }[];
@@ -681,4 +687,24 @@ export type CustomerRfm = {
   history: { month: string; segment: string; label: string; r_score: number; f_score: number; m_score: number }[];
   computed_at: string;
   amount_label: string;
+};
+
+export type InternalAccountKind = "desk" | "staff";
+
+export type InternalAccountInfo = {
+  id: number;
+  kind: InternalAccountKind;
+  kind_label: string;
+  note: string;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_by: string | null;
+  updated_at: string;
+};
+
+export type InternalSignals = {
+  score: number;
+  suspected: boolean;
+  signals: { key: string; value: number; text: string }[];
 };

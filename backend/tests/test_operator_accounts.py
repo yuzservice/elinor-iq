@@ -3,8 +3,8 @@ from datetime import timedelta
 import pytest
 from django.utils import timezone
 
-from apps.customers.models import Customer
-from apps.customers.operators import OPERATOR_LABEL, OPERATOR_MOBILES
+from apps.customers.models import Customer, InternalAccount
+from apps.customers.operators import OPERATOR_LABEL
 from apps.customers.tiers import metrics_for_customers, refresh_stored_tiers
 from apps.sales.analysis import core_metrics
 from apps.sales.models import Order
@@ -22,15 +22,18 @@ def _buyer():
 
 
 def _desk():
-    return Customer.objects.create(
+    desk = Customer.objects.create(
         source_id=2,
         first_name="خانم",
         last_name="زرگری",
-        mobile=OPERATOR_MOBILES[0],
+        mobile="09362506974",
         status="active",
         order_count=2,
         tier_code="VIP",
     )
+    # The desk account is an InternalAccount row (migration 0008 moved it from a hard-coded mobile).
+    InternalAccount.objects.create(customer=desk, kind="desk")
+    return desk
 
 
 def _order(customer, source_id, *, receiver="", amount=100_000):

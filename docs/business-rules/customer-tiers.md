@@ -15,7 +15,7 @@ These facts are tier-only. They do not change sales reports or the online/POS re
 
 ## 2. Global guard (not configurable)
 - `purchase_count <= 0` or no last purchase → no tier (NULL).
-- Operator desk accounts (`operators.py`, `OPERATOR_MOBILES`) → always NULL. They are excluded from the facts and cleared after every write.
+- Internal accounts (active `InternalAccount` rows: desk and staff; [[business-rules/internal-accounts]]) → always NULL. They are excluded from the facts by customer id and cleared after every write.
 
 ## 3. Rule shape
 A rule version is an ordered list. Array order is evaluation priority; the **first enabled tier whose enabled conditions all match wins**.

@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from django.db import connection
 from django.utils import timezone
 
-from apps.customers.models import Customer, CustomerTierHistory, TierRuleSet
+from apps.customers.models import Customer, CustomerTierHistory, InternalAccount, TierRuleSet
 from apps.customers.tier_refresh import _claim, tier_refresh_status
 from apps.customers.tier_rule_admin import preview_draft, run_activation, save_draft
 from apps.customers.tier_rules import (
@@ -638,6 +638,7 @@ def test_list_filter_accepts_only_enabled_active_codes(auth_api, super_admin):
 @pytest.mark.django_db
 def test_operator_accounts_stay_null_after_activation(super_admin):
     desk = _customer(1, mobile=OPERATOR_MOBILE)
+    InternalAccount.objects.create(customer=desk, kind="desk")  # as migration 0008 does
     _orders(desk, 100, count=5, days=5, amount=5_000_000)
     Customer.objects.filter(pk=desk.pk).update(tier_code="VIP")
 

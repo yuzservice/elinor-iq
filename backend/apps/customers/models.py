@@ -270,11 +270,14 @@ class CustomerRfm(models.Model):
     lifetime_amount = models.BigIntegerField()
     purchase_count_12m = models.PositiveIntegerField(default=0)
     amount_12m = models.BigIntegerField(default=0)
+    internal_signal_score = models.PositiveSmallIntegerField(default=0)
+    internal_signals = models.JSONField(default=list, blank=True)
     computed_at = models.DateTimeField()
 
     class Meta:
         db_table = "customer_rfm"
         indexes = [
+            models.Index(fields=["internal_signal_score"], name="customer_rfm_internal_idx"),
             models.Index(fields=["segment"], name="customer_rfm_segment_idx"),
             models.Index(fields=["r_score", "f_score"], name="customer_rfm_rf_idx"),
         ]
@@ -299,3 +302,31 @@ class CustomerRfmSnapshot(models.Model):
         indexes = [
             models.Index(fields=["month", "segment"], name="rfm_snapshot_month_seg_idx"),
         ]
+
+
+class InternalAccount(models.Model):
+    """A customer account used by staff or the desk. Excluded from customer reports; sales stay in totals."""
+
+    KIND_DESK = "desk"
+    KIND_STAFF = "staff"
+    KIND_CHOICES = [
+        (KIND_DESK, "اکانت دفتر"),
+        (KIND_STAFF, "کارمند"),
+    ]
+
+    customer = models.OneToOneField(Customer, related_name="internal_account", on_delete=models.CASCADE)
+    kind = models.CharField(max_length=16, choices=KIND_CHOICES)
+    note = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, related_name="+", on_delete=models.SET_NULL
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, related_name="+", on_delete=models.SET_NULL
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "customer_internal_accounts"
+        ordering = ["-updated_at"]

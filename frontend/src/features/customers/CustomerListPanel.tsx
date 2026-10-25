@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useApi } from "../../hooks/useApi";
+import { useAuth } from "../../hooks/useAuth";
 import { useTiers } from "../../hooks/useTiers";
 import { customerDisplayName } from "../../lib/customerDisplay";
 import { formatJalali, todayIso } from "../../lib/dates";
@@ -43,7 +44,7 @@ function getSegmentBadge(customer: CustomerRow) {
   if (customer.is_operator) {
     return (
       <span className="px-2.5 py-1 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold text-[11px] border border-amber-500/30">
-        اپراتور
+        {customer.operator_label || "حساب داخلی"}
       </span>
     );
   }
@@ -77,7 +78,16 @@ const AVATAR_GRADIENTS = [
   "from-emerald-500 to-teal-600",
 ];
 
+const INTERNAL_OPTIONS = [
+  { value: "", label: "همه مشتریان" },
+  { value: "suspected", label: "مشکوک" },
+  { value: "confirmed", label: "تأییدشده" },
+  { value: "all", label: "همه حساب‌های داخلی" },
+];
+
 export function CustomerListPanel({ initialFilters = EMPTY_CUSTOMER_FILTERS }: { initialFilters?: CustomerListFilters }) {
+  const { user } = useAuth();
+  const canManage = Boolean(user?.can_manage_platform);
   const [search, setSearch] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
   const [filters, setFilters] = useState<CustomerListFilters>(initialFilters);
@@ -209,7 +219,8 @@ export function CustomerListPanel({ initialFilters = EMPTY_CUSTOMER_FILTERS }: {
       (filters.size ? 1 : 0) +
       (filters.category ? 1 : 0) +
       (filters.orderBehavior ? 1 : 0) +
-      (filters.birthMonth ? 1 : 0);
+      (filters.birthMonth ? 1 : 0) +
+      (filters.internal ? 1 : 0);
     const segment = (filters.tier ? 1 : 0) + (filters.rfmSegment ? 1 : 0) + (filters.rScore || filters.fScore ? 1 : 0);
 
     return {
@@ -807,6 +818,30 @@ export function CustomerListPanel({ initialFilters = EMPTY_CUSTOMER_FILTERS }: {
             {/* پروفایل و جغرافیا: city, profile completeness */}
             {activeTab === "profile" && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                {canManage ? (
+                  <div className="space-y-1.5 md:col-span-2">
+                    <span className="text-[11px] font-bold text-muted block">حساب‌های داخلی</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {INTERNAL_OPTIONS.map((option) => {
+                        const active = filters.internal === option.value;
+                        return (
+                          <button
+                            key={option.value || "none"}
+                            type="button"
+                            aria-pressed={active}
+                            onClick={() => updateFilter("internal", option.value)}
+                            className={`px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
+                              active ? "bg-accent text-on-accent font-bold" : "bg-elevated text-muted hover:text-ink border border-line"
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+
                 {/* City / Province Filter */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -1057,6 +1092,15 @@ export function CustomerListPanel({ initialFilters = EMPTY_CUSTOMER_FILTERS }: {
                   {filters.fScore ? `تکرار ${formatNumber(Number(filters.fScore))}` : ""}
                 </span>
                 <button type="button" onClick={() => patchFilters({ rScore: "", fScore: "" })} className="hover:text-rose-500 mr-0.5">
+                  ✕
+                </button>
+              </span>
+            )}
+
+            {filters.internal && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-accent/15 text-accent font-bold text-[11px] border border-accent/25">
+                <span>حساب داخلی: {INTERNAL_OPTIONS.find((option) => option.value === filters.internal)?.label}</span>
+                <button type="button" onClick={() => updateFilter("internal", "")} className="hover:text-rose-500 mr-0.5">
                   ✕
                 </button>
               </span>
@@ -1344,7 +1388,17 @@ export function CustomerListPanel({ initialFilters = EMPTY_CUSTOMER_FILTERS }: {
                             {initials}
                           </div>
                           <div>
-                            <div className="font-bold text-ink">{display.name}</div>
+                            <div className="font-bold text-ink flex items-center gap-1.5">
+                              <span>{display.name}</span>
+                              {customer.internal_suspected ? (
+                                <span
+                                  className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-extrabold text-amber-700 dark:text-amber-400"
+                                  title="نشانه‌های حساب داخلی دارد"
+                                >
+                                  مشکوک
+                                </span>
+                              ) : null}
+                            </div>
                             <div className="text-[10px] text-faint font-mono mt-0.5 ltr-iso">
                               {customer.mobile ? formatMobile(customer.mobile) : `#EL-${customer.id}`}
                             </div>

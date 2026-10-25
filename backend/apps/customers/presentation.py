@@ -29,7 +29,7 @@ def gender_label(value):
     return GENDER_LABELS.get(str(value).strip().lower(), str(value))
 
 
-def list_payload(customer):
+def list_payload(customer, accounts=None):
     name = (customer.full_name or "").strip()
     return {
         "id": customer.source_id,
@@ -43,7 +43,7 @@ def list_payload(customer):
         "last_purchase_at": customer.last_order_at,
         "status": customer.status or "—",
         "is_purchasing": customer.order_count > 0,
-        **operator_payload(customer),
+        **operator_payload(customer, accounts),
     }
 
 

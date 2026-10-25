@@ -1,9 +1,9 @@
 from django.db.models import Case, Count, Exists, F, IntegerField, Max, Min, OuterRef, Q, Value, When
 
 from apps.customers.models import Customer, CustomerAddress, CustomerRfm
-from apps.customers.operators import exclude_operator_accounts, is_operator_account, operator_mobile_variants
+from apps.customers.operators import active_internal_accounts, exclude_operator_accounts, is_operator_account
 from apps.customers.presentation import customer_status_label, list_payload
-from apps.customers.rfm import SEGMENT_ORDER, row_payload
+from apps.customers.rfm import SEGMENT_ORDER, internal_suspected, row_payload
 from apps.customers.purchases import (
     SALES_LINE_LABELS,
     channel_for,
@@ -30,7 +30,8 @@ LIST_DEFER = ("source_payload", "addresses", "summary")
 VALID_SALES_LINES = {SalesLine.ONLINE, SalesLine.SARI, SalesLine.GORGAN, SalesLine.CAPRI}
 
 
-def customer_list_queryset(params):
+def customer_list_queryset(params, user=None):
+    """Filtered customers. The `internal` filter is honored only when `user` is a super admin."""
     qs = Customer.objects.defer(*LIST_DEFER)
     population = (params.get("population") or "all").strip()
     tier = (params.get("tier") or "").strip().upper()
@@ -95,6 +96,10 @@ def customer_list_queryset(params):
         qs = qs.filter(rfm__r_score=r_score)
     if f_score is not None and 1 <= f_score <= 5:
         qs = qs.filter(rfm__f_score=f_score)
+
+    internal = (params.get("internal") or "").strip().lower()
+    if internal and _is_super_admin(user):
+        qs = _apply_internal_filter(qs, internal)
 
     min_count = _as_int(params.get("min_purchases"))
     max_count = _as_int(params.get("max_purchases"))
@@ -370,14 +375,34 @@ def parse_sales_lines_filter(params):
     return lines
 
 
-def paginate_customers(qs, page, per_page):
+def _is_super_admin(user):
+    from apps.accounts.permissions import is_super_admin
+
+    return is_super_admin(user)
+
+
+def _apply_internal_filter(qs, internal):
+    from apps.customers.rfm import SUSPECTED_MIN_SCORE
+
+    if internal == "suspected":
+        return qs.filter(rfm__internal_signal_score__gte=SUSPECTED_MIN_SCORE).exclude(internal_account__is_active=True)
+    if internal == "confirmed":
+        return qs.filter(internal_account__is_active=True)
+    if internal == "all":
+        return qs.filter(
+            Q(internal_account__is_active=True) | Q(rfm__internal_signal_score__gte=SUSPECTED_MIN_SCORE)
+        ).distinct()
+    return qs
+
+
+def paginate_customers(qs, page, per_page, user=None):
     total = qs.count()
     start = (page - 1) * per_page
     rows = list(qs[start : start + per_page])
-    return total, hydrate_customer_rows(rows)
+    return total, hydrate_customer_rows(rows, include_internal=_is_super_admin(user))
 
 
-def hydrate_customer_rows(customers):
+def hydrate_customer_rows(customers, include_internal=False):
     ids = [customer.pk for customer in customers]
     if not ids:
         return []
@@ -402,6 +427,7 @@ def hydrate_customer_rows(customers):
     titles = tier_title_map()
     tiers = metrics_for_customers(ids, titles=titles)
     rfm_rows = {row.customer_id: row for row in CustomerRfm.objects.filter(customer_id__in=ids)}
+    accounts = active_internal_accounts()
 
     payloads = []
     for customer in customers:
@@ -415,7 +441,7 @@ def hydrate_customer_rows(customers):
             lines.append(SalesLine.ONLINE)
         lines.extend(sorted(line for line in pos_lines.get(customer.pk, set()) if line))
         channel_key, channel_label = channel_for(online_count, pos_count)
-        payload = list_payload(customer)
+        payload = list_payload(customer, accounts)
         payload.update(
             {
                 "order_count": int(tier.get("purchase_count") or 0),
@@ -425,8 +451,8 @@ def hydrate_customer_rows(customers):
                 "last_purchase_at": tier.get("last_purchase_at"),
                 "lifetime_purchase_amount": int(tier.get("lifetime_purchase_amount") or 0),
                 "days_since_last_purchase": tier.get("days_since_last_purchase"),
-                "tier_code": None if is_operator_account(customer) else (customer.tier_code or None),
-                "tier_label": None if is_operator_account(customer) else tier_label(customer.tier_code, titles),
+                "tier_code": None if is_operator_account(customer, accounts) else (customer.tier_code or None),
+                "tier_label": None if is_operator_account(customer, accounts) else tier_label(customer.tier_code, titles),
                 "channel": channel_key,
                 "channel_label": channel_label,
                 "sales_lines": lines,
@@ -436,6 +462,8 @@ def hydrate_customer_rows(customers):
                 **row_payload(rfm_rows.get(customer.pk)),
             }
         )
+        if include_internal:
+            payload["internal_suspected"] = internal_suspected(rfm_rows.get(customer.pk), customer.pk in accounts)
         payloads.append(payload)
     return payloads
 
@@ -498,11 +526,8 @@ def _buyer_analytics_filter(
 
 
 def _operator_rank():
-    mobiles = list(operator_mobile_variants())
-    if not mobiles:
-        return Value(0, output_field=IntegerField())
     return Case(
-        When(mobile__in=mobiles, then=Value(1)),
+        When(internal_account__is_active=True, then=Value(1)),
         default=Value(0),
         output_field=IntegerField(),
     )

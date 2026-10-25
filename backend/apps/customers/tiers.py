@@ -9,7 +9,7 @@ from django.db.models.expressions import RawSQL
 from django.db.models.functions import Coalesce, Greatest, Least
 from django.utils import timezone
 
-from apps.customers.operators import operator_customer_ids, operator_mobile_variants
+from apps.customers.operators import operator_customer_ids
 from apps.customers.tier_rules import (
     VERSION_1_RULES,
     active_rule_set,
@@ -156,19 +156,18 @@ def _reference(reference_date):
 
 
 def _facts_sql():
-    mobiles = tuple(sorted(operator_mobile_variants()))
-    slots = ", ".join(["%s"] * len(mobiles))
-    where = f"\n    WHERE COALESCE(c.mobile, '') NOT IN ({slots})" if slots else ""
+    """Facts CTE without active internal accounts. Returns (sql, exclusion params, bound last)."""
+    excluded = sorted(operator_customer_ids())
     sql = _FACTS_CTE.replace(
         "LEFT JOIN pos_amount p ON p.customer_id = c.id\n)",
-        f"LEFT JOIN pos_amount p ON p.customer_id = c.id{where}\n)",
+        "LEFT JOIN pos_amount p ON p.customer_id = c.id\n    WHERE c.id <> ALL(%s::bigint[])\n)",
     )
-    return sql, mobiles
+    return sql, [excluded]
 
 
 def _fact_params(reference_date):
-    _sql, mobiles = _facts_sql()
-    return [_reference(reference_date), timezone.get_current_timezone_name(), *mobiles]
+    _sql, exclusion = _facts_sql()
+    return [_reference(reference_date), timezone.get_current_timezone_name(), *exclusion]
 
 
 def refresh_stored_tiers(customer_ids=None, reference_date=None, reason=None):
@@ -199,7 +198,7 @@ def write_all_tiers(rules, rule_set_id, reason, reference_date=None):
     """Rewrite every changed tier_code and its history. Caller holds the write lock in a transaction."""
     from django.db import connection
 
-    facts_sql, _mobiles = _facts_sql()
+    facts_sql, _exclusion = _facts_sql()
     case_sql, case_params = tier_case_sql(rules)
     previous_titles = tier_title_map()
     new_titles = {**previous_titles, **{tier["code"]: tier["title"] for tier in rules["tiers"]}}
@@ -301,18 +300,18 @@ def _refresh_tier_ids(customer_ids, reference_date, reason):
 
 
 def clear_operator_tiers(reason=None, rule_set_id=None, titles=None):
-    """Desk accounts stay out of every tier, including after a later sync."""
+    """Internal accounts stay out of every tier, including after a later sync."""
     from django.db import transaction
 
     from apps.customers.models import Customer, CustomerTierHistory
 
-    variants = operator_mobile_variants()
-    if not variants:
+    ids = operator_customer_ids()
+    if not ids:
         return 0
     now = timezone.now()
     with transaction.atomic():
         tiered = list(
-            Customer.objects.filter(mobile__in=variants)
+            Customer.objects.filter(pk__in=ids)
             .exclude(tier_code__isnull=True)
             .select_for_update()
             .values_list("pk", "tier_code")
@@ -343,7 +342,7 @@ def filter_customers_by_tier(qs, tier_code, reference_date=None, rules=None):
     rules = rules or _rules_of(active_rule_set())
     if tier_code not in enabled_tier_codes(rules):
         return qs
-    facts_sql, _mobiles = _facts_sql()
+    facts_sql, _exclusion = _facts_sql()
     case_sql, case_params = tier_case_sql(rules)
     sql = f"""
         {facts_sql}
@@ -362,7 +361,7 @@ def tier_population_summary(reference_date=None, rules=None):
     """Server-side tier counts. One row per assigned tier, plus null."""
     from django.db import connection
 
-    facts_sql, _mobiles = _facts_sql()
+    facts_sql, _exclusion = _facts_sql()
     case_sql, case_params = tier_case_sql(rules or _rules_of(active_rule_set()))
     sql = f"""
         {facts_sql}

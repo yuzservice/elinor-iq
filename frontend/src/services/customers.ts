@@ -6,6 +6,8 @@ import type {
   CustomerRow,
   Paginated,
   CustomerProductHistory,
+  InternalAccountInfo,
+  InternalAccountKind,
   PublicTier,
   RfmSummary,
   TierRules,
@@ -42,6 +44,7 @@ export type CustomerListParams = {
   rfm_segment?: string;
   r_score?: string;
   f_score?: string;
+  internal?: string;
   page?: number;
   per_page?: number;
   sort?: string;
@@ -75,6 +78,7 @@ function serializeFilterParams(params: CustomerListParams) {
     rfm_segment: params.rfm_segment,
     r_score: params.r_score,
     f_score: params.f_score,
+    internal: params.internal,
     sort: params.sort,
   };
 }
@@ -139,6 +143,16 @@ export const customersService = {
     ),
   products: (id: number) =>
     api<{ id: number; total: number; results: CustomerProductHistory[] }>(`/customers/${id}/products/`),
+  markInternalAccount: (payload: { customer_source_id: number; kind: InternalAccountKind; note: string }) =>
+    api<InternalAccountInfo & { refresh_started: boolean }>("/customers/internal-accounts/", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  updateInternalAccount: (id: number, payload: { kind?: InternalAccountKind; note?: string; is_active?: boolean }) =>
+    api<InternalAccountInfo & { refresh_started: boolean }>(`/customers/internal-accounts/${id}/`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
   rfmSummary: (params: { sales_line?: string; payment_method?: string } = {}) =>
     api<RfmSummary>(queryPath("/customers/rfm/summary/", params)),
   tiers: () => api<{ results: PublicTier[] }>("/customers/tiers/"),

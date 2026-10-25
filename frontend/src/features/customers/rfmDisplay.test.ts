@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCustomerListParams, filtersFromSearch } from "./customerListFilters";
+import { EMPTY_CUSTOMER_FILTERS, buildCustomerListParams, filtersFromSearch } from "./customerListFilters";
 import { RFM_SEGMENTS, clubRedirect, rfmSegment, segmentForCell } from "./rfmDisplay";
 
 const EXPECTED: Record<number, Record<number, string>> = {
@@ -51,5 +51,12 @@ describe("customers page links", () => {
     expect(buildCustomerListParams(cell, "")).toMatchObject({ r_score: "2", f_score: "5", sort: "rfm" });
     expect(filtersFromSearch("?r_score=9").rScore).toBe("");
     expect(filtersFromSearch("?tier=gold_1").tier).toBe("GOLD_1");
+  });
+});
+
+describe("internal accounts filter", () => {
+  it("sends the internal filter only when chosen", () => {
+    expect(buildCustomerListParams({ ...EMPTY_CUSTOMER_FILTERS, internal: "suspected" }, "").internal).toBe("suspected");
+    expect(buildCustomerListParams(EMPTY_CUSTOMER_FILTERS, "").internal).toBeUndefined();
   });
 });

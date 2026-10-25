@@ -5,7 +5,7 @@ from django.db import connection
 from django.http import QueryDict
 from django.utils import timezone
 
-from apps.customers.models import Customer, CustomerRfm, CustomerRfmSnapshot
+from apps.customers.models import Customer, CustomerRfm, CustomerRfmSnapshot, InternalAccount
 from apps.customers.rfm import (
     F_SQL,
     M_SQL,
@@ -198,6 +198,7 @@ def test_refresh_excludes_operators_and_non_purchasers_and_is_idempotent():
     buyer = _buyer(1, count=2, days=10)
     _customer(2)
     desk = _customer(3, mobile=OPERATOR_MOBILE)
+    InternalAccount.objects.create(customer=desk, kind="desk")  # as migration 0008 does
     _order(desk, days=3, amount=50_000_000)
 
     assert refresh_rfm() == 1

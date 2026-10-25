@@ -50,6 +50,24 @@ COVERAGE_NOTE = (
 EXCHANGE_NOTE = "خرید تعویضی در تعداد خرید شمرده نمی‌شود؛ اثر مبلغی آن در خرید خالص لحاظ می‌شود."
 STATUS_CURSOR_KEY = "customer_rfm"
 
+# Internal-account detection (flags only; a super admin confirms from Customer 360). Each fired signal adds 1.
+INTERNAL_SIGNAL_THRESHOLDS = {
+    "high_frequency_percentile": 0.995,  # purchase_count_12m at or above this percentile of purchasers
+    "many_receivers": 5,  # distinct online receiver names other than the account holder
+    "many_cities": 3,  # distinct online receiver cities
+    "same_day_burst": 3,  # purchases on one local day (online + POS sell)
+    "many_branches": 3,  # distinct POS sales lines
+}
+SUSPECTED_MIN_SCORE = 3
+_FA_DIGITS = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
+SIGNAL_TEXTS = {
+    "high_frequency": "{value} خرید در ۱۲ ماه (بالاتر از ۹۹٫۵٪ مشتریان)",
+    "many_receivers": "{value} گیرنده‌ی مختلف",
+    "many_cities": "ارسال به {value} شهر",
+    "same_day_burst": "{value} خرید در یک روز",
+    "many_branches": "خرید از {value} شعبه",
+}
+
 
 # --- Scoring ---------------------------------------------------------------------------------
 
@@ -133,7 +151,7 @@ def rfm_facts_sql(as_of=None):
     With as_of, only purchases with local date <= as_of count and days are relative to as_of.
     Returns (sql, params).
     """
-    sql, mobiles = _facts_sql()
+    sql, exclusion = _facts_sql()
     reference = _reference(as_of)
     window_start = _local_midnight(reference - timedelta(days=WINDOW_DAYS - 1))
     bound = _local_midnight(reference + timedelta(days=1)) if as_of else None
@@ -193,7 +211,7 @@ def rfm_facts_sql(as_of=None):
         *bound_params,  # pos_amount
         reference,
         timezone.get_current_timezone_name(),
-        *mobiles,
+        *exclusion,
     ]
     return sql, params
 
@@ -226,10 +244,10 @@ def refresh_rfm():
             {scored_sql}
             INSERT INTO customer_rfm (
                 customer_id, r_score, f_score, m_score, segment, purchase_count, days_since_last_purchase,
-                lifetime_amount, purchase_count_12m, amount_12m, computed_at
+                lifetime_amount, purchase_count_12m, amount_12m, internal_signal_score, internal_signals, computed_at
             )
             SELECT customer_id, r, f, m, {SEGMENT_SQL}, purchase_count, days_since_last_purchase,
-                   lifetime_purchase_amount, purchase_count_12m, amount_12m, %s
+                   lifetime_purchase_amount, purchase_count_12m, amount_12m, 0, '[]'::jsonb, %s
             FROM scored
             ON CONFLICT (customer_id) DO UPDATE SET
                 r_score = EXCLUDED.r_score,
@@ -248,7 +266,127 @@ def refresh_rfm():
         written = cursor.rowcount
         # Rows not touched above (no longer purchasing, or now an operator account).
         cursor.execute("DELETE FROM customer_rfm WHERE computed_at < %s", [run_at])
+        _write_internal_signals(cursor)
     return written
+
+
+def _normalized(expression):
+    """SQL to compare names: trim, collapse spaces, Arabic ي/ك as Persian ی/ک, case-insensitive."""
+    return f"lower(regexp_replace(translate(btrim({expression}), 'يك', 'یک'), '\\s+', ' ', 'g'))"
+
+
+def _write_internal_signals(cursor):
+    """Score internal-account signals for every customer_rfm row (internal accounts have no row)."""
+    t = INTERNAL_SIGNAL_THRESHOLDS
+    receiver = _normalized(
+        "COALESCE(NULLIF(btrim(COALESCE(o.receiver_first_name, '') || ' ' || COALESCE(o.receiver_last_name, '')), ''), o.receiver, '')"
+    )
+    holder = _normalized("COALESCE(c.first_name, '') || ' ' || COALESCE(c.last_name, '')")
+    city = _normalized("COALESCE(o.receiver_city, '')")
+    cursor.execute(
+        f"""
+        WITH limits AS (
+            SELECT percentile_cont(%s) WITHIN GROUP (ORDER BY purchase_count_12m) AS p_count FROM customer_rfm
+        ),
+        online AS (
+            SELECT o.customer_id,
+                   COUNT(DISTINCT {receiver}) FILTER (WHERE {receiver} <> '' AND {receiver} <> {holder}) AS receivers,
+                   COUNT(DISTINCT {city}) FILTER (WHERE {city} <> '') AS cities
+            FROM orders o
+            JOIN customer_rfm r ON r.customer_id = o.customer_id
+            JOIN customers c ON c.id = o.customer_id
+            WHERE o.status NOT IN ('canceled', 'failed', 'wait_for_payment')
+            GROUP BY o.customer_id
+        ),
+        days AS (
+            SELECT customer_id, MAX(n) AS burst
+            FROM (
+                SELECT customer_id, (created_at AT TIME ZONE %s)::date AS day, COUNT(*) AS n
+                FROM (
+                    SELECT o.customer_id, o.created_at FROM orders o
+                    JOIN customer_rfm r ON r.customer_id = o.customer_id
+                    WHERE o.status NOT IN ('canceled', 'failed', 'wait_for_payment')
+                    UNION ALL
+                    SELECT s.customer_id, s.created_at FROM pos_sales s
+                    JOIN customer_rfm r ON r.customer_id = s.customer_id
+                    WHERE s.deleted_at IS NULL AND s.is_cancelled = FALSE AND s.type = 'sell'
+                ) purchases
+                GROUP BY 1, 2
+            ) per_day
+            GROUP BY customer_id
+        ),
+        branches AS (
+            SELECT s.customer_id, COUNT(DISTINCT s.sales_line) AS lines
+            FROM pos_sales s
+            JOIN customer_rfm r ON r.customer_id = s.customer_id
+            WHERE s.deleted_at IS NULL AND s.is_cancelled = FALSE AND s.type = 'sell' AND COALESCE(s.sales_line, '') <> ''
+            GROUP BY s.customer_id
+        ),
+        fired AS (
+            SELECT r.customer_id, v.key, v.value
+            FROM customer_rfm r
+            CROSS JOIN limits
+            LEFT JOIN online ON online.customer_id = r.customer_id
+            LEFT JOIN days ON days.customer_id = r.customer_id
+            LEFT JOIN branches ON branches.customer_id = r.customer_id
+            CROSS JOIN LATERAL (VALUES
+                ('high_frequency', r.purchase_count_12m, r.purchase_count_12m > 0 AND r.purchase_count_12m >= limits.p_count),
+                ('many_receivers', COALESCE(online.receivers, 0), COALESCE(online.receivers, 0) >= %s),
+                ('many_cities', COALESCE(online.cities, 0), COALESCE(online.cities, 0) >= %s),
+                ('same_day_burst', COALESCE(days.burst, 0), COALESCE(days.burst, 0) >= %s),
+                ('many_branches', COALESCE(branches.lines, 0), COALESCE(branches.lines, 0) >= %s)
+            ) AS v(key, value, hit)
+            WHERE v.hit
+        ),
+        scored AS (
+            SELECT customer_id, COUNT(*)::int AS score,
+                   jsonb_agg(jsonb_build_object('key', key, 'value', value) ORDER BY key) AS signals
+            FROM fired
+            GROUP BY customer_id
+        )
+        UPDATE customer_rfm r
+        SET internal_signal_score = COALESCE(scored.score, 0),
+            internal_signals = COALESCE(scored.signals, '[]'::jsonb)
+        FROM customer_rfm base
+        LEFT JOIN scored ON scored.customer_id = base.customer_id
+        WHERE base.customer_id = r.customer_id
+          AND (r.internal_signal_score IS DISTINCT FROM COALESCE(scored.score, 0)
+               OR r.internal_signals IS DISTINCT FROM COALESCE(scored.signals, '[]'::jsonb))
+        """,
+        [
+            t["high_frequency_percentile"],
+            timezone.get_current_timezone_name(),
+            t["many_receivers"],
+            t["many_cities"],
+            t["same_day_burst"],
+            t["many_branches"],
+        ],
+    )
+
+
+def signal_texts(signals):
+    return [
+        {**signal, "text": SIGNAL_TEXTS.get(signal.get("key"), "{value}").format(value=str(signal.get("value")).translate(_FA_DIGITS))}
+        for signal in signals or []
+    ]
+
+
+def internal_suspected(rfm, is_internal=False):
+    return bool(rfm is not None and not is_internal and rfm.internal_signal_score >= SUSPECTED_MIN_SCORE)
+
+
+def internal_signals_payload(customer):
+    """{score, signals[]} for Customer 360 (super admins), or None without an RFM row."""
+    from apps.customers.models import CustomerRfm
+
+    rfm = CustomerRfm.objects.filter(customer=customer).only("internal_signal_score", "internal_signals").first()
+    if rfm is None:
+        return None
+    return {
+        "score": rfm.internal_signal_score,
+        "suspected": rfm.internal_signal_score >= SUSPECTED_MIN_SCORE,
+        "signals": signal_texts(rfm.internal_signals),
+    }
 
 
 def jalali_month_key(day):
@@ -466,6 +604,7 @@ def rfm_summary(params):
             "value_at_risk": totals["at_risk_value"] or 0,
             "purchasing_customers": purchasing,
             "registered_without_purchase": max(registered - purchasing, 0),
+            "internal_accounts_excluded": _internal_accounts_count(),
         },
         "segments": segments,
         "matrix": matrix,
@@ -487,7 +626,8 @@ def movement_payload(customers=None):
     if len(months) < 2:
         return None
     latest, previous = months
-    current = CustomerRfmSnapshot.objects.filter(month=latest)
+    # Snapshots are history and are never deleted; active internal accounts are excluded when read.
+    current = CustomerRfmSnapshot.objects.filter(month=latest).exclude(customer__internal_account__is_active=True)
     if customers is not None:
         current = current.filter(customer_id__in=customers)
     with connection.cursor() as cursor:
@@ -523,3 +663,9 @@ def _pct(part, whole):
 
 def _round(value):
     return round(float(value), 1) if value is not None else None
+
+
+def _internal_accounts_count():
+    from apps.customers.models import InternalAccount
+
+    return InternalAccount.objects.filter(is_active=True).count()

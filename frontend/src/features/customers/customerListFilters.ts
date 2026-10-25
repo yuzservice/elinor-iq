@@ -101,6 +101,7 @@ export type CustomerListFilters = {
   rfmSegment: string;
   rScore: string;
   fScore: string;
+  internal: string;
   sort: string;
 };
 
@@ -129,6 +130,7 @@ export const EMPTY_CUSTOMER_FILTERS: CustomerListFilters = {
   rfmSegment: "",
   rScore: "",
   fScore: "",
+  internal: "",
   sort: "last_purchase",
 };
 
@@ -182,6 +184,7 @@ export function buildCustomerListParams(
     rfm_segment: filters.rfmSegment || undefined,
     r_score: filters.rScore || undefined,
     f_score: filters.fScore || undefined,
+    internal: filters.internal || undefined,
     sort: filters.sort && filters.sort !== "last_purchase" ? filters.sort : undefined,
     page: options.page,
     per_page: options.perPage,
