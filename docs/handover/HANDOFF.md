@@ -3,7 +3,7 @@
 Durable state for the next engineer or AI assistant. Do not rely on chat history; this file plus the repo is the source of truth.
 Update this file at the end of every implementation task (newest entry first in the Log).
 
-Last updated: 2026-10-25 · branch `main` at `f308fec` (pushed) + **uncommitted** RFM Stage 1 and internal-accounts work (see §3)
+Last updated: 2026-10-25 · branch `main` at `accb9d8`, pushed (`origin/main` ahead/behind 0/0)
 
 ## 1. Current priority
 
@@ -11,8 +11,8 @@ Last updated: 2026-10-25 · branch `main` at `f308fec` (pushed) + **uncommitted*
 The engineer implements only explicitly approved tasks.
 
 - Done and pushed: Customer Tier Rules (Phase 1 + Amendment A + Correction), plus the «از» day bound (`f308fec`).
-- Implemented, **uncommitted, waiting for owner review**: RFM report Stage 1 + «باشگاه مشتریان» menu, and the
-  internal (staff) accounts amendment. Stage 1b is cancelled for now.
+- Done and pushed: RFM report Stage 1 + «باشگاه مشتریان» menu (`a8198d2`), internal (staff/desk) accounts with the
+  15 confirmed accounts (`a76cdd8`), outdated UI prototypes removed (`accb9d8`). Not deployed yet. Stage 1b is cancelled for now.
 - Out of scope until approved: Smart Direct (retired in `3bc0a48`); changes to `campaigns.py`; club audiences,
   campaign runs and control groups (later stages).
 
@@ -33,8 +33,8 @@ The engineer implements only explicitly approved tasks.
 | Feature | Source | Tests | Status |
 |---|---|---|---|
 | Tier engine + tier rules admin/modal | `tiers.py`, `tier_rules.py`, `tier_rule_admin.py`, `TierRulesModal.tsx` | `test_customer_tiers.py`, `test_customer_tier_rules.py`, `tierRules.test.ts` | PASSING; committed (`cdddb45`, `f308fec`) |
-| RFM report Stage 1 + club menu | `rfm.py`, migration `0007_customer_rfm`, `RfmReportPanel.tsx`, `ClubPage.tsx`, `CustomerListPanel.tsx`, `Customer360Page.tsx` | `test_customer_rfm.py`, `rfmDisplay.test.ts` | PASSING; **uncommitted** |
-| Internal (staff/desk) accounts | `operators.py`, `internal_accounts.py`, `rfm.py` (signals), migrations `0008_internal_accounts`, `0009_seed_confirmed_internal_accounts`, `InternalAccountPanel.tsx` | `test_internal_accounts.py`, `test_internal_accounts_seed.py`, `test_operator_accounts.py` | PASSING; **uncommitted** |
+| RFM report Stage 1 + club menu | `rfm.py`, migration `0007_customer_rfm`, `RfmReportPanel.tsx`, `ClubPage.tsx`, `CustomerListPanel.tsx`, `Customer360Page.tsx` | `test_customer_rfm.py`, `rfmDisplay.test.ts` | PASSING; committed |
+| Internal (staff/desk) accounts | `operators.py`, `internal_accounts.py`, `rfm.py` (signals), migrations `0008_internal_accounts`, `0009_seed_confirmed_internal_accounts`, `InternalAccountPanel.tsx` | `test_internal_accounts.py`, `test_internal_accounts_seed.py`, `test_operator_accounts.py` | PASSING; committed |
 | Customer export | `export.py` | `test_customer_export.py` | FAILING before this work (3× `.content` on a streaming response, 1× missing fixture `api_client`) |
 | Campaign report | `campaigns.py` | `test_customer_campaigns.py` | FAILING before this work (`assert 0 >= 600000`) |
 
@@ -46,7 +46,7 @@ Rules and decisions: `docs/business-rules/customer-tiers.md`, `customer-rfm.md`,
 **Local database state (dev only):** 0006–0009 applied (15 active internal accounts: 6 staff, 9 desk). RFM refreshed; 12 monthly snapshots backfilled
 (1404-08 … 1405-07). The desk account was moved into `customer_internal_accounts` by 0008.
 
-**Production steps when the owner approves a deploy (in this order):**
+**Production steps (in this order; not run yet):**
 1. Update the server (`update.sh`); migrations 0007, 0008 and 0009 run when the backend starts
    (check: `docker compose exec backend python manage.py showmigrations customers`).
 2. Full tier refresh, which also refreshes RFM and internal signals:
@@ -69,7 +69,7 @@ Notes for the Product Architect / next task:
 | Module registry | `docs/modules/MODULE_REGISTRY.md` | Present |
 | Architecture / risks | `docs/architecture/SYSTEM_OVERVIEW.md` (section 8) | Present |
 | Feature verification | `docs/implementation-status/FEATURE_MATRIX.md` | Present; Customer Master rows re-run 2026-10-24, others `NOT_RUN` |
-| Graphify graph | `graphify-out/` (tracked since `b238c21`) | Built at `3bc0a488`; does **not** include the tier-rules modules. Run `graphify update .` when asked |
+| Graphify graph | `graphify-out/` (tracked since `b238c21`) | Rebuilt at `accb9d8` on 2026-10-25 (2,176 nodes, 6,566 edges, 125 communities); community labels not refreshed (`graphify label` needs an LLM key). Graph files are modified but not committed |
 
 ## 5. Shared workspace rules
 
@@ -82,8 +82,8 @@ Notes for the Product Architect / next task:
 ## 6. Git and backup state (checked 2026-10-25)
 
 - Remote `origin` → GitHub `yuzservice/elinor-iq`.
-- `main` = `origin/main` at `f308fec` (pushed 2026-10-25). RFM Stage 1 and internal-accounts work is uncommitted and not backed up.
-- 7 `*-prototype*.html` files at the repo root are deleted in the working tree (not by the engineer); left untouched.
+- `main` = `origin/main` at `accb9d8` (pushed 2026-10-25, ahead/behind 0/0). Commits: `a8198d2` Stage 1, `a76cdd8` internal accounts (0008, 0009), `accb9d8` prototypes removed.
+- Uncommitted: `graphify-out/` after `graphify update .` (and its backup folder `graphify-out/2026-10-25/`), and this file's latest edit.
 - Tracked docs: `CLAUDE.md`, `docs/`, `.claude/skills/`.
 - `b238c21` (owner) tracks Graphify artifacts, `.mcp.json`, `.graphifyignore` and the UI prototypes, and updates `.gitignore`.
 - Auth: git uses the GitHub CLI credential helper (`gh auth setup-git`, account `yuzservice`). The remote URL no longer embeds a token.
@@ -91,19 +91,30 @@ Notes for the Product Architect / next task:
 
 ## 7. Open gaps
 
-- Full backend suite not run (cancelled by owner); only targeted suites were run.
-- Pre-existing failures: `test_customer_export.py` (4) and `test_customer_campaigns.py` (1), unrelated to this work.
-- Owner review of the RFM report, club page and internal-account UI locally; then commit on approval.
-- Graphify graph predates the tier-rules, RFM and internal-accounts modules (`graphify update .` when asked).
-- README index pages listed as pending in `00-HOME.md` do not exist.
+- Pre-existing test failures, unrelated to this work: `test_customer_export.py` (3 failed: `.content` on a
+  `StreamingHttpResponse`; 1 error: missing fixture `api_client`) and `test_customer_campaigns.py`
+  (`test_customer_campaigns_api_and_redemptions`: `assert 0 >= 600000`).
+- `campaigns.py` imports `exclude_operator_accounts` but never calls it; internal accounts leave campaign reports only
+  through their NULL tier. Left unchanged by rule; needs an owner decision.
+- Full backend suite not run (owner rule); targeted suites only.
+- Deploy to production with the steps in §3.
+- Graphify community labels are stale (`graphify label`); README index pages listed in `00-HOME.md` do not exist.
 
 ## 8. Next step
 
-1. Owner checks the pages locally; commit and deploy on approval (production steps in §3).
-2. Review the RFM distribution and finalize thresholds; then Stage 2 club audiences.
-3. Decide on fixing the pre-existing export and campaign test failures.
+1. Deploy: `update.sh` → `refresh_customer_tiers --force` → `backfill_rfm_snapshots --months 12` (§3).
+2. Review the RFM distribution on production data and finalize thresholds; then Stage 2 club audiences.
+3. Decide on the pre-existing export/campaign test failures and the unused campaign exclusion.
 
 ## 9. Log
+
+### 2026-10-25 — Committed and pushed Stage 1 and internal accounts
+- Owner approved after local review. `SUSPECTED_MIN_SCORE` raised from 2 to 3 (`test_internal_accounts.py` +
+  `test_internal_accounts_seed.py`: 10 passed). Local suspected accounts at ≥ 3: 10 (score 3: 9, score ≥ 4: 1).
+- Commits: `a8198d2` (Stage 1, verified alone: 163 backend tests passed, `tsc -b` OK, Vitest 44/44, build OK),
+  `a76cdd8` (internal accounts, 0008, 0009), `accb9d8` (prototypes removed). Pushed; ahead/behind 0/0.
+- `graphify update .` run: graph built from `accb9d8`.
+
 
 ### 2026-10-25 — Confirmed internal accounts registered (uncommitted)
 - Migration 0009 seeds the 15 owner-confirmed accounts (6 staff, 9 desk; the desk row from 0008 kept as is).
