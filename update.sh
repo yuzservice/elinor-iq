@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Updated with:
-#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/yuzservice/elinor-iq/main/update.sh)"
+#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/yuzservice/elinor-iq/production/update.sh)"
+# Deploys only the `production` branch (what the server runs). `main` is development.
 set -euo pipefail
 
-RAW_URL="https://raw.githubusercontent.com/yuzservice/elinor-iq/main/update.sh"
+DEPLOY_BRANCH="production"
+RAW_URL="https://raw.githubusercontent.com/yuzservice/elinor-iq/${DEPLOY_BRANCH}/update.sh"
 TARGET="/opt/elinor-iq"
 
 if [[ "$(id -u)" -ne 0 ]]; then
@@ -17,8 +19,8 @@ fi
 cd "$TARGET"
 
 echo "در حال دریافت نسخه جدید..."
-git fetch origin main
-git reset --hard origin/main
+git fetch origin "$DEPLOY_BRANCH"
+git reset --hard "origin/$DEPLOY_BRANCH"
 
 # حذف index.html قبلی تا بیلد جدید فرانت‌اند حتماً جایگزین شود
 rm -f frontend/dist/index.html
