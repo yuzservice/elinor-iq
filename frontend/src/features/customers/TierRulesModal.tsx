@@ -6,13 +6,18 @@ import { invalidateTiers } from "../../hooks/useTiers";
 import { formatDateTime, formatNumber, formatToman } from "../../lib/format";
 import { ApiError } from "../../services/api";
 import { customersService } from "../../services/customers";
-import type { TierCode, TierConditionKey, TierOperator, TierRulesPreview, TierRulesState } from "../../types";
+import type { TierChannel, TierCode, TierConditionKey, TierOperator, TierRulesPreview, TierRulesState } from "../../types";
 import { tierStyle } from "./tierDisplay";
 import {
   MAX_TIERS,
   type EditableTier,
   formatAmountInput,
+  TIER_CHANNELS,
   fromEditable,
+  isChannelRules,
+  joinRules,
+  splitRules,
+  type ListKey,
   hasTierRuleErrors,
   moveTier,
   normalizeRules,
@@ -20,7 +25,6 @@ import {
   parseIntegerInput,
   rulesEqual,
   tierSummary,
-  toEditable,
   validateTierRules,
 } from "./tierRules";
 
@@ -42,7 +46,10 @@ function errorMessage(error: unknown, fallback: string) {
 export function TierRulesModal({ onClose }: { onClose: () => void }) {
   const [state, setState] = useState<TierRulesState | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [tiers, setTiers] = useState<EditableTier[]>([]);
+  const [mode, setMode] = useState<"channels" | "legacy">("legacy");
+  const [lists, setLists] = useState<Partial<Record<ListKey, EditableTier[]>>>({});
+  const [channelTab, setChannelTab] = useState<TierChannel>("online");
+  const [previewChannel, setPreviewChannel] = useState<TierChannel>("online");
   const [preview, setPreview] = useState<TierRulesPreview | null>(null);
   const [step, setStep] = useState<Step>("rules");
   const [busy, setBusy] = useState("");
@@ -53,7 +60,11 @@ export function TierRulesModal({ onClose }: { onClose: () => void }) {
   const applyState = useCallback((next: TierRulesState, resetRules = true) => {
     setState(next);
     const source = next.draft ?? next.active;
-    if (resetRules && source) setTiers(toEditable(source.rules));
+    if (resetRules && source) {
+      const split = splitRules(source.rules);
+      setMode(split.mode);
+      setLists(split.lists);
+    }
   }, []);
 
   const load = useCallback(() => {
@@ -62,7 +73,9 @@ export function TierRulesModal({ onClose }: { onClose: () => void }) {
       .tierRules()
       .then((next) => {
         const source = next.draft ?? next.active;
-        if (!Array.isArray(source?.rules?.tiers)) throw new Error("unexpected tier rules shape");
+        const rulesShape = source?.rules;
+        const valid = rulesShape && (isChannelRules(rulesShape) ? Boolean(rulesShape.channels?.online && rulesShape.channels?.pos) : Array.isArray(rulesShape.tiers));
+        if (!valid) throw new Error("unexpected tier rules shape");
         applyState(next);
       })
       .catch(() => setLoadFailed(true));
@@ -99,11 +112,21 @@ export function TierRulesModal({ onClose }: { onClose: () => void }) {
     return () => window.clearInterval(timer);
   }, [running, applyState]);
 
-  const rules = useMemo(() => fromEditable(tiers), [tiers]);
+  const listKey: ListKey = mode === "channels" ? channelTab : "_";
+  const tiers = lists[listKey] ?? [];
+  const setTiers = (update: (current: EditableTier[]) => EditableTier[]) =>
+    setLists((current) => ({ ...current, [listKey]: update(current[listKey] ?? []) }));
+  const rules = useMemo(() => joinRules(mode, lists), [mode, lists]);
   const base = state ? (state.draft ?? state.active) : null;
   const dirty = Boolean(state) && !rulesEqual(rules, normalizeRules(base?.rules));
-  const errors = validateTierRules(rules.tiers);
-  const invalid = hasTierRuleErrors(errors);
+  const listErrors = useMemo(() => {
+    const keys: ListKey[] = mode === "channels" ? ["online", "pos"] : ["_"];
+    return Object.fromEntries(keys.map((key) => [key, validateTierRules(fromEditable(lists[key] ?? []).tiers)])) as Partial<
+      Record<ListKey, ReturnType<typeof validateTierRules>>
+    >;
+  }, [mode, lists]);
+  const errors = listErrors[listKey] ?? { tiers: {} };
+  const invalid = Object.values(listErrors).some((item) => item && hasTierRuleErrors(item));
   const draft = state?.draft ?? null;
   const previewCurrent = Boolean(draft?.preview_current && !dirty && preview && preview.version === draft.version);
   const locked = running || Boolean(busy);
@@ -111,7 +134,9 @@ export function TierRulesModal({ onClose }: { onClose: () => void }) {
   const titles = useMemo(() => {
     const map = new Map<TierCode | null, string>([[null, NO_TIER]]);
     for (const version of [state?.active, state?.draft]) {
-      version?.rules.tiers.forEach((tier) => tier.code && map.set(tier.code, tier.title));
+      if (!version) continue;
+      const { lists: versionLists } = splitRules(version.rules);
+      Object.values(versionLists).forEach((items) => items?.forEach((tier) => tier.code && map.set(tier.code, tier.title)));
     }
     preview?.tiers.forEach((row) => row.tier_code && row.label && map.set(row.tier_code, row.label));
     return map;
@@ -317,6 +342,17 @@ export function TierRulesModal({ onClose }: { onClose: () => void }) {
                 </p>
               ) : null}
 
+              {step === "rules" && mode === "channels" ? (
+                <ChannelTabs
+                  value={channelTab}
+                  onChange={setChannelTab}
+                  counts={{ online: lists.online?.length ?? 0, pos: lists.pos?.length ?? 0 }}
+                  errors={{
+                    online: Boolean(listErrors.online && hasTierRuleErrors(listErrors.online)),
+                    pos: Boolean(listErrors.pos && hasTierRuleErrors(listErrors.pos)),
+                  }}
+                />
+              ) : null}
               {step === "rules" ? (
                 <RulesStep
                   tiers={tiers}
@@ -334,7 +370,7 @@ export function TierRulesModal({ onClose }: { onClose: () => void }) {
                 />
               ) : step === "preview" ? (
                 preview && previewCurrent ? (
-                  <PreviewStep preview={preview} tierTitle={tierTitle} />
+                  <PreviewStep preview={preview} tierTitle={tierTitle} channel={previewChannel} onChannel={setPreviewChannel} />
                 ) : (
                   <p className="py-10 text-center text-sm text-muted">
                     {dirty || !draft ? "ابتدا پیش‌نویس را ذخیره و پیش‌نمایش بگیرید." : "برای دیدن اثر پیش‌نویس، «پیش‌نمایش» را بزنید."}
@@ -668,8 +704,58 @@ function ConditionRow({
   );
 }
 
-function PreviewStep({ preview, tierTitle }: { preview: TierRulesPreview; tierTitle: (code: TierCode | null) => string }) {
-  const max = Math.max(1, ...preview.tiers.flatMap((row) => [row.current, row.draft]));
+const CHANNEL_NAMES: Record<TierChannel, string> = { online: "اینترنتی", pos: "حضوری" };
+
+function ChannelTabs({
+  value,
+  onChange,
+  counts,
+  errors,
+}: {
+  value: TierChannel;
+  onChange: (channel: TierChannel) => void;
+  counts?: Record<TierChannel, number>;
+  errors?: Record<TierChannel, boolean>;
+}) {
+  return (
+    <div className="mb-3 inline-flex rounded-2xl border border-line bg-elevated p-1 text-xs" role="tablist" aria-label="کانال">
+      {TIER_CHANNELS.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          role="tab"
+          aria-selected={value === item.id}
+          onClick={() => onChange(item.id)}
+          className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 font-bold transition-colors ${
+            value === item.id ? "bg-surface text-ink shadow-xs border border-line/60" : "text-muted hover:text-ink"
+          }`}
+        >
+          {item.label}
+          {counts ? <span className="text-[10px] text-faint tabular">{formatNumber(counts[item.id])}</span> : null}
+          {errors?.[item.id] ? <span className="h-1.5 w-1.5 rounded-full bg-rose-500" aria-label="خطا" /> : null}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function PreviewStep({
+  preview,
+  tierTitle,
+  channel,
+  onChannel,
+}: {
+  preview: TierRulesPreview;
+  tierTitle: (code: TierCode | null) => string;
+  channel: TierChannel;
+  onChannel: (channel: TierChannel) => void;
+}) {
+  const channelName = (value: TierChannel | null) => (value ? CHANNEL_NAMES[value] : "");
+  const rows = preview.channel_rules
+    ? preview.tiers.filter((row) => row.tier_code === null || row.channel === channel || (!row.in_draft && row.current > 0 && channel === "pos"))
+    : preview.tiers;
+  const max = Math.max(1, ...rows.flatMap((row) => [row.current, row.draft]));
+  const totalCustomers = preview.channels.reduce((sum, item) => sum + item.customers, 0);
   return (
     <div className="space-y-5">
       {preview.warnings.length ? (
@@ -683,8 +769,34 @@ function PreviewStep({ preview, tierTitle }: { preview: TierRulesPreview; tierTi
         </ul>
       ) : null}
 
+      {preview.channel_rules ? (
+        <div className="space-y-2 rounded-2xl border border-line bg-elevated p-3">
+          <h3 className="text-sm font-semibold text-ink">توزیع مشتریان بین کانال‌ها</h3>
+          <div className="flex h-3 overflow-hidden rounded-full bg-hover">
+            {preview.channels.map((item) => (
+              <div
+                key={item.channel ?? "none"}
+                className={item.channel === "online" ? "bg-sky-500" : "bg-amber-500"}
+                style={{ width: `${totalCustomers ? (item.customers / totalCustomers) * 100 : 0}%` }}
+                title={`${item.channel_label}: ${formatNumber(item.customers)}`}
+              />
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-4 text-xs text-muted">
+            {preview.channels.map((item) => (
+              <span key={item.channel ?? "none"}>
+                <span className={`ml-1 inline-block h-2 w-2 rounded-full ${item.channel === "online" ? "bg-sky-500" : "bg-amber-500"}`} />
+                {item.channel_label}: <b className="text-ink tabular">{formatNumber(item.customers)}</b> مشتری خریدار ·{" "}
+                {formatNumber(item.draft_tiered)} با سطح
+              </span>
+            ))}
+          </div>
+          <ChannelTabs value={channel} onChange={onChannel} />
+        </div>
+      ) : null}
+
       <div className="space-y-2">
-        {preview.tiers.map((row) => (
+        {rows.map((row) => (
           <div key={row.tier_code ?? "none"} className="grid grid-cols-[minmax(0,7rem)_1fr_auto] items-center gap-3 text-sm sm:grid-cols-[10rem_1fr_auto]">
             <span className={`truncate ${row.enabled || row.tier_code === null ? "text-ink" : "text-faint line-through"}`}>
               {row.tier_code ? row.label || tierTitle(row.tier_code) : NO_TIER}
@@ -710,7 +822,10 @@ function PreviewStep({ preview, tierTitle }: { preview: TierRulesPreview; tierTi
           <ul className="grid grid-cols-1 gap-1 text-sm sm:grid-cols-2">
             {preview.transitions.map((item) => (
               <li key={`${item.from}-${item.to}`} className="text-muted">
-                {tierTitle(item.from)} ← {tierTitle(item.to)} · <span className="tabular text-ink">{formatNumber(item.count)}</span>
+                {tierTitle(item.from)}
+                {item.channel_move && item.from_channel ? ` (${channelName(item.from_channel)})` : ""} ← {tierTitle(item.to)}
+                {item.channel_move && item.to_channel ? ` (${channelName(item.to_channel)})` : ""} ·{" "}
+                <span className="tabular text-ink">{formatNumber(item.count)}</span>
               </li>
             ))}
           </ul>

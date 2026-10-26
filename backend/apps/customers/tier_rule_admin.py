@@ -26,7 +26,15 @@ from apps.customers.tier_rules import (
     TierRulesError,
     default_rules,
     enabled_tiers,
+    CHANNEL_LABELS,
+    CHANNELS,
+    ONLINE_CODE_PREFIX,
+    all_tiers,
+    channel_case_sql,
+    channel_of_code,
+    is_channel_rules,
     tier_case_sql,
+    tier_lists,
     tier_summary,
     validate_rules,
 )
@@ -108,14 +116,28 @@ def rules_state():
 
 
 def public_tiers():
-    """Enabled tiers of the active version, for filters and badges (any signed-in user)."""
+    """Enabled tiers of the active version grouped by channel (any signed-in user).
+
+    [{channel, channel_label, tiers: [{code, title, priority, summary}]}]; a legacy version gives one group with
+    channel None.
+    """
     from apps.customers.tier_rules import active_rule_set
 
     rules = _rules_of(active_rule_set())
-    return [
-        {"code": tier["code"], "title": tier["title"], "priority": index, "summary": tier_summary(tier)}
-        for index, tier in enumerate(enabled_tiers(rules), start=1)
-    ]
+    groups = []
+    for channel, tiers in tier_lists(rules):
+        enabled = [tier for tier in tiers if tier.get("enabled")]
+        groups.append(
+            {
+                "channel": channel,
+                "channel_label": CHANNEL_LABELS.get(channel) if channel else None,
+                "tiers": [
+                    {"code": tier["code"], "title": tier["title"], "priority": index, "summary": tier_summary(tier)}
+                    for index, tier in enumerate(enabled, start=1)
+                ],
+            }
+        )
+    return groups
 
 
 def _activation_payload(draft, active):
@@ -181,12 +203,34 @@ def save_draft(user, rules=None, note=None):
 
 def _assign_codes(rules):
     """Give new tiers (no code) a fresh CUSTOM_<n> code; reject codes the server never issued."""
+    if is_channel_rules(rules):
+        channels = rules.get("channels")
+        if not isinstance(channels, dict):
+            return rules
+        issued = _issued_codes()
+        assigned, errors = {}, {}
+        for channel, block in channels.items():
+            if not isinstance(block, dict) or not isinstance(block.get("tiers"), list):
+                assigned[channel] = block
+                continue
+            tiers, tier_errors = _assign_list(block["tiers"], issued)
+            assigned[channel] = {**block, "tiers": tiers}
+            if tier_errors:
+                errors[channel] = {"tiers": tier_errors}
+        if errors:
+            raise TierRulesError({"channels": errors})
+        return {**rules, "channels": assigned}
     if not isinstance(rules, dict) or not isinstance(rules.get("tiers"), list):
         return rules
-    issued = _issued_codes()
-    tiers = []
-    errors = {}
-    for index, tier in enumerate(rules["tiers"]):
+    tiers, errors = _assign_list(rules["tiers"], _issued_codes())
+    if errors:
+        raise TierRulesError({"tiers": errors})
+    return {**rules, "tiers": tiers}
+
+
+def _assign_list(tiers_in, issued):
+    tiers, errors = [], {}
+    for index, tier in enumerate(tiers_in):
         if not isinstance(tier, dict):
             tiers.append(tier)
             continue
@@ -197,15 +241,17 @@ def _assign_codes(rules):
         elif code not in issued:
             errors[index] = {"code": "کد سطح را سرور تعیین می‌کند؛ این کد معتبر نیست."}
         tiers.append(tier)
-    if errors:
-        raise TierRulesError({"tiers": errors})
-    return {**rules, "tiers": tiers}
+    return tiers, errors
 
 
 def _issued_codes():
-    codes = set(BASE_TIER_CODES)
+    # Base codes and their online twins (ONLINE_VIP, …) are official; CUSTOM_<n> codes only once issued.
+    codes = set(BASE_TIER_CODES) | {f"{ONLINE_CODE_PREFIX}{code}" for code in BASE_TIER_CODES}
     for rules in TierRuleSet.objects.values_list("rules", flat=True):
-        codes.update(tier.get("code") for tier in (rules or {}).get("tiers", []) if isinstance(tier, dict))
+        try:
+            codes.update(tier.get("code") for _channel, tier in all_tiers(rules or {"tiers": []}) if isinstance(tier, dict))
+        except (KeyError, TypeError):
+            continue
     return codes
 
 
@@ -256,30 +302,40 @@ def preview_draft(reference_date=None):
         cursor.execute(
             f"""
             {scored_sql}
-            SELECT current_code,
-                   draft_code,
+            SELECT current_code, current_channel, draft_code, draft_channel,
                    COUNT(*)::int,
                    COUNT(*) FILTER (WHERE purchase_count > 0 AND days_since_last_purchase IS NOT NULL)::int
             FROM scored
-            GROUP BY 1, 2
+            GROUP BY 1, 2, 3, 4
             """,
             params,
         )
         pairs = cursor.fetchall()
         cursor.execute(
             f"""
+            {scored_sql}
+            SELECT channel, COUNT(*)::int FROM scored
+            WHERE purchase_count > 0 AND days_since_last_purchase IS NOT NULL
+            GROUP BY 1
+            """,
+            params,
+        )
+        by_channel = dict(cursor.fetchall())
+        cursor.execute(
+            f"""
             {scored_sql},
             ranked AS (
                 SELECT scored.*,
                        ROW_NUMBER() OVER (
-                           PARTITION BY current_code, draft_code
+                           PARTITION BY current_code, current_channel, draft_code, draft_channel
                            ORDER BY lifetime_purchase_amount DESC, customer_id
                        ) AS rn
                 FROM scored
-                WHERE current_code IS DISTINCT FROM draft_code
+                WHERE current_code IS DISTINCT FROM draft_code OR current_channel IS DISTINCT FROM draft_channel
             )
-            SELECT r.current_code, r.draft_code, c.source_id, c.first_name, c.last_name, c.mobile,
-                   r.purchase_count, r.days_since_last_purchase, r.lifetime_purchase_amount
+            SELECT r.current_code, r.current_channel, r.draft_code, r.draft_channel, c.source_id, c.first_name,
+                   c.last_name, c.mobile, r.purchase_count, r.days_since_last_purchase, r.lifetime_purchase_amount,
+                   r.online_count, r.pos_count
             FROM ranked r
             JOIN customers c ON c.id = r.customer_id
             WHERE r.rn <= %s
@@ -290,88 +346,136 @@ def preview_draft(reference_date=None):
         sample_rows = cursor.fetchall()
 
     TierRuleSet.objects.filter(pk=draft.pk).update(previewed_at=timezone.now())
-    return _preview_payload(draft, rules, pairs, sample_rows)
+    return _preview_payload(draft, rules, pairs, sample_rows, by_channel)
 
 
 def _scored_sql(rules, reference_date):
     facts_sql, _mobiles = _facts_sql()
     case_sql, case_params = tier_case_sql(rules)
+    channel_sql = channel_case_sql(rules)
     sql = f"""
         {facts_sql},
-        scored AS (
-            SELECT customer_id, current_code, purchase_count, days_since_last_purchase,
-                   lifetime_purchase_amount, {case_sql} AS draft_code
+        evaluated AS (
+            SELECT customer_id, current_code, current_channel, channel, online_count, pos_count, purchase_count,
+                   days_since_last_purchase, lifetime_purchase_amount, {case_sql} AS draft_code
             FROM (
-                SELECT f.*, cur.tier_code AS current_code
+                SELECT f.*, cur.tier_code AS current_code, cur.tier_channel AS current_channel
                 FROM facts f
                 JOIN customers cur ON cur.id = f.customer_id
             ) current_facts
+        ),
+        scored AS (
+            SELECT evaluated.*, CASE WHEN draft_code IS NULL THEN NULL ELSE {channel_sql} END AS draft_channel
+            FROM evaluated
         )
     """
     return sql, _fact_params(reference_date) + case_params
 
 
-def _preview_payload(draft, rules, pairs, sample_rows):
-    titles = {**tier_title_map(), **{tier["code"]: tier["title"] for tier in rules["tiers"]}}
-    draft_codes = [tier["code"] for tier in rules["tiers"]]
+def _channel_payload(channel):
+    return {"channel": channel, "channel_label": CHANNEL_LABELS.get(channel) if channel else None}
+
+
+def _preview_payload(draft, rules, pairs, sample_rows, by_channel):
+    titles = {**tier_title_map(), **{tier["code"]: tier["title"] for _channel, tier in all_tiers(rules)}}
+    draft_codes = [tier["code"] for _channel, tier in all_tiers(rules)]
     enabled_codes = {tier["code"] for tier in enabled_tiers(rules)}
-    current = {}
-    proposed = {}
+    current, proposed = {}, {}
+    current_channels, proposed_channels = {}, {}
     unmatched = 0
-    transitions = []
-    for from_code, to_code, count, purchasing in pairs:
+    campaign_moves = 0
+    transitions = {}
+    for from_code, from_channel, to_code, to_channel, count, purchasing in pairs:
         current[from_code] = current.get(from_code, 0) + count
         proposed[to_code] = proposed.get(to_code, 0) + count
+        if from_code:
+            current_channels[from_channel] = current_channels.get(from_channel, 0) + count
+        if to_code:
+            proposed_channels[to_channel] = proposed_channels.get(to_channel, 0) + count
         if to_code is None:
             unmatched += purchasing
-        if from_code != to_code:
-            transitions.append({"from": from_code, "to": to_code, "count": count})
+        if from_code in CAMPAIGN_TIER_CODES and to_code not in CAMPAIGN_TIER_CODES:
+            campaign_moves += count
+        if (from_code, from_channel) != (to_code, to_channel):
+            key = (from_code, from_channel, to_code, to_channel)
+            transitions[key] = transitions.get(key, 0) + count
     order = draft_codes + sorted(code for code in current if code and code not in draft_codes)
-    transitions.sort(key=lambda item: (-item["count"], _order(order, item["from"]), _order(order, item["to"])))
+    transition_rows = [
+        {
+            "from": from_code,
+            "from_channel": from_channel,
+            "to": to_code,
+            "to_channel": to_channel,
+            "channel_move": from_channel != to_channel,
+            "count": count,
+        }
+        for (from_code, from_channel, to_code, to_channel), count in transitions.items()
+    ]
+    transition_rows.sort(key=lambda item: (-item["count"], _order(order, item["from"]), _order(order, item["to"])))
 
     by_pair = {}
-    for from_code, to_code, source_id, first, last, mobile, count, days, amount in sample_rows:
-        by_pair.setdefault((from_code, to_code), []).append(
+    for row in sample_rows:
+        from_code, from_channel, to_code, to_channel, source_id, first, last, mobile, count, days, amount, online, pos = row
+        by_pair.setdefault((from_code, from_channel, to_code, to_channel), []).append(
             {
                 "source_id": source_id,
                 "full_name": f"{first or ''} {last or ''}".strip(),
                 "mobile": mobile,
                 "purchase_count": count,
+                "online_count": online,
+                "pos_count": pos,
                 "days_since_last_purchase": days,
                 "lifetime_purchase_amount": amount,
                 "from": from_code,
+                "from_channel": from_channel,
                 "to": to_code,
+                "to_channel": to_channel,
             }
         )
     samples = []
-    for item in transitions:
+    for item in transition_rows:
         room = SAMPLES_TOTAL - len(samples)
         if room <= 0:
             break
-        samples.extend(by_pair.get((item["from"], item["to"]), [])[: min(SAMPLES_PER_TRANSITION, room)])
+        key = (item["from"], item["from_channel"], item["to"], item["to_channel"])
+        samples.extend(by_pair.get(key, [])[: min(SAMPLES_PER_TRANSITION, room)])
 
+    channel_rules = is_channel_rules(rules)
+    tier_rows = [
+        {
+            "tier_code": code,
+            "channel": channel_of_code(rules, code) if code else None,
+            "label": tier_label(code, titles) if code else None,
+            "enabled": code in enabled_codes,
+            "in_draft": code in draft_codes,
+            "current": current.get(code, 0),
+            "draft": proposed.get(code, 0),
+            "delta": proposed.get(code, 0) - current.get(code, 0),
+        }
+        for code in [*order, None]
+    ]
+    channels = [
+        {
+            **_channel_payload(channel),
+            "customers": by_channel.get(channel, 0),
+            "current_tiered": current_channels.get(channel, 0),
+            "draft_tiered": proposed_channels.get(channel, 0),
+        }
+        for channel in (CHANNELS if channel_rules else (None,))
+    ]
     return {
         "version": draft.version,
-        "tiers": [
-            {
-                "tier_code": code,
-                "label": tier_label(code, titles) if code else None,
-                "enabled": code in enabled_codes,
-                "in_draft": code in draft_codes,
-                "current": current.get(code, 0),
-                "draft": proposed.get(code, 0),
-                "delta": proposed.get(code, 0) - current.get(code, 0),
-            }
-            for code in [*order, None]
-        ],
-        "transitions": transitions,
+        "channel_rules": channel_rules,
+        "channels": channels,
+        "tiers": tier_rows,
+        "transitions": transition_rows,
         "samples": samples,
-        "moved": sum(item["count"] for item in transitions),
-        "warnings": _preview_warnings(rules, titles, enabled_codes, current, proposed, unmatched),
+        "moved": sum(item["count"] for item in transition_rows),
+        "warnings": _preview_warnings(rules, titles, enabled_codes, current, proposed, unmatched, channels, campaign_moves),
     }
 
 
-def _preview_warnings(rules, titles, enabled_codes, current, proposed, unmatched):
+def _preview_warnings(rules, titles, enabled_codes, current, proposed, unmatched, channels=(), campaign_moves=0):
     warnings = []
     if unmatched:
         warnings.append(
@@ -383,10 +487,34 @@ def _preview_warnings(rules, titles, enabled_codes, current, proposed, unmatched
                 "message": f"{_fa_count(unmatched)} مشتری خریدار در هیچ سطحی قرار نمی‌گیرد",
             }
         )
-    draft_codes = {tier["code"] for tier in rules["tiers"]}
+    for channel in channels:
+        if channel["channel"] and not channel["draft_tiered"]:
+            warnings.append(
+                {
+                    "kind": "empty_channel",
+                    "tier_code": None,
+                    "label": channel["channel_label"],
+                    "count": 0,
+                    "message": "هیچ مشتری‌ای در سطح‌های این کانال قرار نمی‌گیرد",
+                }
+            )
+    if campaign_moves:
+        warnings.append(
+            {
+                "kind": "campaign_channel",
+                "tier_code": None,
+                "label": None,
+                "count": campaign_moves,
+                "message": (
+                    f"{_fa_count(campaign_moves)} مشتری از سطح‌های کمپین (VIP، الماس، طلایی سطح ۱، نقره‌ای) به کد دیگری می‌روند؛"
+                    " گزارش کمپین فقط کدهای حضوری را می‌بیند"
+                ),
+            }
+        )
+    draft_codes = {tier["code"] for _channel, tier in all_tiers(rules)}
     removed = [
         code
-        for code in dict.fromkeys([*(tier["code"] for tier in rules["tiers"]), *BASE_TIER_CODES, *current])
+        for code in dict.fromkeys([*draft_codes, *BASE_TIER_CODES, *current])
         if code and code not in enabled_codes
     ]
     for code in removed:

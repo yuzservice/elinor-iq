@@ -258,6 +258,8 @@ export type CustomerRow = {
   days_since_last_purchase: number | null;
   tier_code: string | null;
   tier_label: string | null;
+  tier_channel?: TierChannel | null;
+  tier_channel_label?: string | null;
   is_operator: boolean;
   operator_label: string | null;
 };
@@ -347,6 +349,8 @@ export type Customer360 = {
   purchase_behavior_label: string;
   tier_code: string | null;
   tier_label: string | null;
+  tier_channel?: TierChannel | null;
+  tier_channel_label?: string | null;
   is_operator: boolean;
   operator_label: string | null;
   channel: "online" | "physical" | "both" | "none";
@@ -552,9 +556,28 @@ export type TierRule = {
   conditions: Record<TierConditionKey, TierCondition>;
 };
 
-export type TierRules = { tiers: TierRule[] };
+export type TierChannel = "online" | "pos";
 
-export type PublicTier = { code: TierCode; title: string; priority: number; summary: string };
+export type LegacyTierRules = { tiers: TierRule[] };
+
+export type ChannelTierRules = { channels: Record<TierChannel, { tiers: TierRule[] }> };
+
+export type TierRules = LegacyTierRules | ChannelTierRules;
+
+export type PublicTier = {
+  code: TierCode;
+  title: string;
+  priority: number;
+  summary: string;
+  channel: TierChannel | null;
+  channel_label: string | null;
+};
+
+export type PublicTierGroup = {
+  channel: TierChannel | null;
+  channel_label: string | null;
+  tiers: Omit<PublicTier, "channel" | "channel_label">[];
+};
 
 export type TierRuleSetPayload = {
   version: number;
@@ -589,8 +612,17 @@ export type TierRulesState = {
 
 export type TierRulesPreview = {
   version: number;
+  channel_rules: boolean;
+  channels: {
+    channel: TierChannel | null;
+    channel_label: string | null;
+    customers: number;
+    current_tiered: number;
+    draft_tiered: number;
+  }[];
   tiers: {
     tier_code: TierCode | null;
+    channel: TierChannel | null;
     label: string | null;
     enabled: boolean;
     in_draft: boolean;
@@ -598,7 +630,14 @@ export type TierRulesPreview = {
     draft: number;
     delta: number;
   }[];
-  transitions: { from: TierCode | null; to: TierCode | null; count: number }[];
+  transitions: {
+    from: TierCode | null;
+    from_channel: TierChannel | null;
+    to: TierCode | null;
+    to_channel: TierChannel | null;
+    channel_move: boolean;
+    count: number;
+  }[];
   samples: {
     source_id: number;
     full_name: string;
@@ -607,11 +646,13 @@ export type TierRulesPreview = {
     days_since_last_purchase: number | null;
     lifetime_purchase_amount: number;
     from: TierCode | null;
+    from_channel: TierChannel | null;
     to: TierCode | null;
+    to_channel: TierChannel | null;
   }[];
   moved: number;
   warnings: {
-    kind: "unmatched" | "held" | "campaign" | "empty";
+    kind: "unmatched" | "held" | "campaign" | "empty" | "empty_channel" | "campaign_channel";
     tier_code: TierCode | null;
     label: string | null;
     count: number | null;

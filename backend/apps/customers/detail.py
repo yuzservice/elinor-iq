@@ -20,7 +20,7 @@ from apps.customers.purchases import (
     qualifying_orders,
     qualifying_pos,
 )
-from apps.customers.tiers import tier_label
+from apps.customers.tiers import tier_channel_label, tier_label
 from apps.sales.models import OrderItem, PosSaleItem, SalesLine
 
 POS_TYPE_LABELS = {
@@ -66,6 +66,8 @@ def customer_360_payload(customer, history_page=1, history_per_page=HISTORY_PER_
         "purchase_behavior_label": behavior_label,
         "tier_code": None if desk else (customer.tier_code or None),
         "tier_label": None if desk else tier_label(customer.tier_code),
+        "tier_channel": None if desk else (customer.tier_channel or None),
+        "tier_channel_label": None if desk else tier_channel_label(customer.tier_channel),
         **operator_payload(customer),
         "channel": channel_key,
         "channel_label": channel_label,

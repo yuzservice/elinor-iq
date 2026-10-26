@@ -18,6 +18,7 @@ EXPORT_HEADERS = [
     "خرید حضوری",
     "خطوط فروش استفاده‌شده",
     "وضعیت",
+    "کانال سطح",
 ]
 
 
@@ -55,6 +56,7 @@ def export_row_cells(row):
         int(row.get("pos_count") or 0),
         sales_lines,
         export_status_label(row),
+        row.get("tier_channel_label") or "—",
     ]
 
 

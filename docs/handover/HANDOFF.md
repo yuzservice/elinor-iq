@@ -3,7 +3,7 @@
 Durable state for the next engineer or AI assistant. Do not rely on chat history; this file plus the repo is the source of truth.
 Update this file at the end of every implementation task (newest entry first in the Log).
 
-Last updated: 2026-10-24 · branch `main`; tier-rules work committed and pushed (see §6)
+Last updated: 2026-10-26 · this file on `feature/tier-channels` (from `production`); see `main` for the full development handoff
 
 ## 1. Current priority
 
@@ -93,6 +93,26 @@ Notes for the Product Architect / next task:
 3. Later phase (needs a spec): campaigns on historical tiers.
 
 ## 9. Log
+
+### 2026-10-26 — Channel-based tiers (`feature/tier-channels`, from `production`)
+- Branches: `production` = what the server runs (`f308fec` + deploy change `b69af90`); `update.sh` deploys only
+  `production`. `main` = development (RFM, internal accounts). Features that ship alone branch from `production`.
+- Two tier lists «اینترنتی» / «حضوری» per version; channel = majority of invoices (tie → in-store); conditions use
+  all-channel facts. Migration `0007_tier_channels` adds `Customer.tier_channel`, history channel fields, and a
+  **draft** channel version (not activated). Modal tabs, preview per channel with «توزیع مشتریان بین کانال‌ها»,
+  grouped `/api/customers/tiers/`, `tier_channel` list filter, badges «… · حضوری».
+- Production steps (owner): run `update.sh` → migration creates the draft → preview and activate it in the tier
+  rules modal → the background refresh writes channels and history.
+- Release path: merge into `production` (owner approval) → owner runs `update.sh` → merge `production` into `main`
+  with a Django merge migration for the two 0007 leaves.
+- Local check on a temporary copy of the dev database (`elinor_iq_channels`, dropped afterwards; `elinor_iq` untouched):
+  purchasing customers by channel online 125,659 / in-store 73,621. Draft tiers: online ONLINE_BRONZE_3 98,655,
+  ONLINE_BRONZE_2 15,631, ONLINE_SILVER 5,123, ONLINE_GOLD_2 2,274, ONLINE_DIAMOND 2,013, ONLINE_GOLD_1 1,137,
+  ONLINE_VIP 442, ONLINE_BRONZE_1 384; in-store BRONZE_3 44,565, BRONZE_2 13,187, SILVER 5,500, GOLD_2 3,925,
+  DIAMOND 3,781, GOLD_1 1,359, VIP 883, BRONZE_1 421. **Level changes: 0**; prefix/channel mismatches: 0.
+  About 8,715 customers move from campaign codes (VIP, DIAMOND, GOLD_1, SILVER) to ONLINE_ codes on activation.
+- Tests: `test_tier_channels.py`, `test_customer_tier_rules.py`, `test_customer_tiers.py`, `test_operator_accounts.py`,
+  `test_customer_list.py`, `test_customer_360.py`, `test_customers.py`: 110 passed. Frontend: `tsc -b` OK, Vitest 43/43, build OK.
 
 ### 2026-10-24 — Tier rules: Phase 1, Amendment A and Correction
 - Phase 1: versioned tier thresholds, preview with samples, background activation in one transaction, advisory-locked writers, `customer_tier_history`. 79 backend tests passed; Vitest 34/34; build OK. Owner applied 0006 to the local DB; live counts under version 1 matched stored tiers exactly (199,280 tiered customers, 199,280 baseline rows).
