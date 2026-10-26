@@ -272,12 +272,17 @@ class CustomerRfm(models.Model):
     amount_12m = models.BigIntegerField(default=0)
     internal_signal_score = models.PositiveSmallIntegerField(default=0)
     internal_signals = models.JSONField(default=list, blank=True)
+    first_purchase_at = models.DateTimeField(null=True, blank=True)
+    second_purchase_at = models.DateTimeField(null=True, blank=True)
+    avg_interval_days = models.FloatField(null=True, blank=True)  # null when purchase_count < 2
+    is_overdue = models.BooleanField(default=False)
     computed_at = models.DateTimeField()
 
     class Meta:
         db_table = "customer_rfm"
         indexes = [
             models.Index(fields=["internal_signal_score"], name="customer_rfm_internal_idx"),
+            models.Index(fields=["is_overdue", "lifetime_amount"], name="customer_rfm_overdue_idx"),
             models.Index(fields=["segment"], name="customer_rfm_segment_idx"),
             models.Index(fields=["r_score", "f_score"], name="customer_rfm_rf_idx"),
         ]
@@ -292,6 +297,12 @@ class CustomerRfmSnapshot(models.Model):
     f_score = models.PositiveSmallIntegerField()
     m_score = models.PositiveSmallIntegerField()
     segment = models.CharField(max_length=16)
+    # Facts at the end of the month (filled since migration 0010; older rows via backfill --rebuild).
+    purchase_count = models.PositiveIntegerField(null=True, blank=True)
+    purchase_count_12m = models.PositiveIntegerField(null=True, blank=True)
+    amount_12m = models.BigIntegerField(null=True, blank=True)
+    lifetime_amount = models.BigIntegerField(null=True, blank=True)
+    days_since_last_purchase = models.IntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

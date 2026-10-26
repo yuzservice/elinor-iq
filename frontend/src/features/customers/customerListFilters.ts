@@ -144,6 +144,10 @@ export function filtersFromSearch(search: string): CustomerListFilters {
     rfmSegment: params.get("rfm_segment") || "",
     rScore: score(params.get("r_score")),
     fScore: score(params.get("f_score")),
+    salesLines: SALES_LINE_OPTIONS.some((option) => option.value === params.get("sales_line"))
+      ? [params.get("sales_line") as SalesLineValue]
+      : [],
+    paymentMethod: params.get("payment_method") || "",
     sort: params.get("rfm_segment") || params.get("r_score") ? "rfm" : EMPTY_CUSTOMER_FILTERS.sort,
   };
 }

@@ -2,9 +2,10 @@ import importlib
 
 import pytest
 from django.apps import apps as django_apps
+from django.http import QueryDict
 
 from apps.customers.models import Customer, CustomerRfmSnapshot, InternalAccount
-from apps.customers.rfm import movement_payload
+from apps.customers.rfm_reports import rfm_movement
 
 seed = importlib.import_module("apps.customers.migrations.0009_seed_confirmed_internal_accounts")
 
@@ -44,8 +45,8 @@ def test_movement_excludes_active_internal_accounts_at_read_time():
     for customer, before, after in ((buyer, "loyal", "at_risk"), (staff, "loyal", "at_risk")):
         CustomerRfmSnapshot.objects.create(month="1405-06", customer=customer, r_score=4, f_score=4, m_score=1, segment=before)
         CustomerRfmSnapshot.objects.create(month="1405-07", customer=customer, r_score=2, f_score=4, m_score=1, segment=after)
-    assert movement_payload()["moves"][0]["count"] == 2
+    assert rfm_movement(QueryDict(""), 1)["movement"]["moves"][0]["count"] == 2
 
     InternalAccount.objects.create(customer=staff, kind="staff")
-    assert movement_payload()["moves"][0]["count"] == 1
+    assert rfm_movement(QueryDict(""), 1)["movement"]["moves"][0]["count"] == 1
     assert CustomerRfmSnapshot.objects.filter(customer=staff).count() == 2  # history kept

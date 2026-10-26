@@ -631,10 +631,20 @@ export type TierRulesPreview = {
   }[];
 };
 
+export type RfmKpi = {
+  value: number;
+  unit: "count" | "percent" | "toman";
+  previous: number | null;
+  delta_pct: number | null;
+  trend: { month: string; label: string; value: number | null }[];
+  secondary: { label: string; value: number; unit?: "percent" } | null;
+};
+
 export type RfmSegmentSummary = {
   key: string;
   label: string;
   action: string;
+  priority_rank: number;
   cells: [number, number][];
   count: number;
   pct_customers: number;
@@ -644,30 +654,97 @@ export type RfmSegmentSummary = {
   avg_days_since_last: number | null;
   avg_purchase_count: number | null;
   high_value_count: number;
+  overdue_count: number;
+  delta_count_vs_previous_month: number | null;
+};
+
+export type RfmMatrixCell = {
+  r: number;
+  f: number;
+  segment: string;
+  segment_label: string;
+  r_label: string;
+  f_label: string;
+  count: number;
+  pct_customers: number;
+  lifetime_amount_sum: number;
+  pct_lifetime_amount: number;
+  amount_12m_sum: number;
+  high_value_count: number;
+  avg_days_since_last: number | null;
 };
 
 export type RfmSummary = {
   kpis: {
-    active_customers_12m: number;
-    repeat_rate_12m: number;
-    avg_amount_12m_per_active: number;
-    value_at_risk: number;
-    purchasing_customers: number;
-    registered_without_purchase: number;
-    internal_accounts_excluded: number;
+    buyers_30d: RfmKpi;
+    active_customers_12m: RfmKpi;
+    second_purchase_90d: RfmKpi;
+    value_at_risk: RfmKpi;
   };
+  counts: { purchasing_customers: number; registered_without_purchase: number; internal_accounts_excluded: number };
+  composition: { key: string; label: string; count: number; pct_customers: number; lifetime_amount_sum: number; pct_lifetime_amount: number }[];
   segments: RfmSegmentSummary[];
-  matrix: { r: number; f: number; count: number; segment: string }[];
-  movement: {
-    month: string;
-    previous_month: string;
-    moves: { from: string; from_label: string; to: string; to_label: string; count: number }[];
-    new_purchasers: number;
-  } | null;
+  matrix: RfmMatrixCell[];
+  axis_labels: { r: { score: number; label: string }[]; f: { score: number; label: string }[] };
+  second_purchase_funnel: {
+    cohort: number;
+    steps: { days: number; eligible: number; reached: number; pct: number }[];
+    median_days_to_second: number | null;
+    guidance: string | null;
+    note: string;
+  };
+  reactivated: {
+    count: number;
+    amount: number;
+    previous: { count: number; amount: number };
+    delta_count: number;
+    gap_days: number;
+  };
+  previous_month: { key: string; label: string };
   thresholds: Record<string, unknown>;
   computed_at: string | null;
   amount_label: string;
   notes: string[];
+};
+
+export type RfmMovement = {
+  months: number;
+  reason: string | null;
+  movement: {
+    month: string;
+    month_label: string;
+    start_month: string;
+    start_month_label: string;
+    moves: { from: string; from_label: string; to: string; to_label: string; count: number }[];
+    segments: {
+      key: string;
+      label: string;
+      start_count: number;
+      end_count: number;
+      stayed: number;
+      stayed_pct: number;
+      improved: number;
+      declined: number;
+      entered: number;
+      exited: number;
+      net: number;
+    }[];
+    new_purchasers: number;
+  } | null;
+};
+
+export type CallListRow = {
+  source_id: number;
+  name: string;
+  mobile: string;
+  segment: string;
+  segment_label: string;
+  days_since_last_purchase: number;
+  avg_interval_days: number | null;
+  days_late: number | null;
+  purchase_count: number;
+  lifetime_amount: number;
+  last_sales_line: string;
 };
 
 export type CustomerRfm = {
@@ -684,6 +761,9 @@ export type CustomerRfm = {
   avg_order_amount: number | null;
   avg_days_between_purchases: number | null;
   overdue: boolean;
+  days_late: number | null;
+  first_purchase_at: string | null;
+  second_purchase_at: string | null;
   history: { month: string; segment: string; label: string; r_score: number; f_score: number; m_score: number }[];
   computed_at: string;
   amount_label: string;

@@ -3,7 +3,7 @@
 Durable state for the next engineer or AI assistant. Do not rely on chat history; this file plus the repo is the source of truth.
 Update this file at the end of every implementation task (newest entry first in the Log).
 
-Last updated: 2026-10-25 · branch `main` at `accb9d8`, pushed (`origin/main` ahead/behind 0/0)
+Last updated: 2026-10-26 · branch `main` at `99d9efc`, pushed (0/0) + **uncommitted RFM Stage 1b** (see §3)
 
 ## 1. Current priority
 
@@ -11,8 +11,10 @@ Last updated: 2026-10-25 · branch `main` at `accb9d8`, pushed (`origin/main` ah
 The engineer implements only explicitly approved tasks.
 
 - Done and pushed: Customer Tier Rules (Phase 1 + Amendment A + Correction), plus the «از» day bound (`f308fec`).
+- Implemented, **uncommitted, waiting for owner review**: RFM report Stage 1b (KPI trends, «لیست تماس», movement
+  windows, second-purchase funnel, reactivated, export log; migration 0010).
 - Done and pushed: RFM report Stage 1 + «باشگاه مشتریان» menu (`a8198d2`), internal (staff/desk) accounts with the
-  15 confirmed accounts (`a76cdd8`), outdated UI prototypes removed (`accb9d8`). Not deployed yet. Stage 1b is cancelled for now.
+  15 confirmed accounts (`a76cdd8`), outdated UI prototypes removed (`accb9d8`). Not deployed yet.
 - Out of scope until approved: Smart Direct (retired in `3bc0a48`); changes to `campaigns.py`; club audiences,
   campaign runs and control groups (later stages).
 
@@ -34,6 +36,7 @@ The engineer implements only explicitly approved tasks.
 |---|---|---|---|
 | Tier engine + tier rules admin/modal | `tiers.py`, `tier_rules.py`, `tier_rule_admin.py`, `TierRulesModal.tsx` | `test_customer_tiers.py`, `test_customer_tier_rules.py`, `tierRules.test.ts` | PASSING; committed (`cdddb45`, `f308fec`) |
 | RFM report Stage 1 + club menu | `rfm.py`, migration `0007_customer_rfm`, `RfmReportPanel.tsx`, `ClubPage.tsx`, `CustomerListPanel.tsx`, `Customer360Page.tsx` | `test_customer_rfm.py`, `rfmDisplay.test.ts` | PASSING; committed |
+| RFM Stage 1b | `rfm_reports.py`, migration `0010_rfm_stage_1b`, `RfmReportPanel.tsx`, `CallListPanel.tsx`, `rfmFormat.ts` | `test_customer_rfm_stage1b.py`, `rfmFormat.test.ts` | PASSING; **uncommitted** |
 | Internal (staff/desk) accounts | `operators.py`, `internal_accounts.py`, `rfm.py` (signals), migrations `0008_internal_accounts`, `0009_seed_confirmed_internal_accounts`, `InternalAccountPanel.tsx` | `test_internal_accounts.py`, `test_internal_accounts_seed.py`, `test_operator_accounts.py` | PASSING; committed |
 | Customer export | `export.py` | `test_customer_export.py` | FAILING before this work (3× `.content` on a streaming response, 1× missing fixture `api_client`) |
 | Campaign report | `campaigns.py` | `test_customer_campaigns.py` | FAILING before this work (`assert 0 >= 600000`) |
@@ -43,15 +46,17 @@ The engineer implements only explicitly approved tasks.
 Rules and decisions: `docs/business-rules/customer-tiers.md`, `customer-rfm.md`, `internal-accounts.md`;
 `docs/decisions/0001`–`0004`.
 
-**Local database state (dev only):** 0006–0009 applied (15 active internal accounts: 6 staff, 9 desk). RFM refreshed; 12 monthly snapshots backfilled
+**Local database state (dev only):** 0006–0010 applied; snapshots rebuilt for 1404-08 … 1405-07 (15 active internal accounts: 6 staff, 9 desk). RFM refreshed; 12 monthly snapshots backfilled
 (1404-08 … 1405-07). The desk account was moved into `customer_internal_accounts` by 0008.
 
 **Production steps (in this order; not run yet):**
-1. Update the server (`update.sh`); migrations 0007, 0008 and 0009 run when the backend starts
+1. Update the server (`update.sh`); migrations 0007–0010 run when the backend starts
    (check: `docker compose exec backend python manage.py showmigrations customers`).
-2. Full tier refresh, which also refreshes RFM and internal signals:
+2. Full tier refresh, which also refreshes RFM, purchase rhythm and internal signals:
    `docker compose exec backend python manage.py refresh_customer_tiers --force`.
-3. `docker compose exec backend python manage.py backfill_rfm_snapshots --months 12`.
+3. `docker compose exec backend python manage.py backfill_rfm_snapshots --months 12 --rebuild`
+   (fills the new snapshot facts; without `--rebuild` existing months are skipped).
+4. Check the new shared memory: `docker compose exec postgres df -h /dev/shm` should show 256M.
 
 Notes for the Product Architect / next task:
 - RFM thresholds are provisional; review the distribution (Log) and adjust the constants in `rfm.py`.
@@ -91,22 +96,43 @@ Notes for the Product Architect / next task:
 
 ## 7. Open gaps
 
+- Owner review of RFM Stage 1b locally, then commit on approval.
+- Postgres `/dev/shm`: `shm_size: 256mb` added to the postgres service in `docker-compose.yml` (owner approved
+  2026-10-26; uncommitted). It was the 64 MB Docker default, and parallel plans in the RFM report stalled or failed with
+  «could not resize shared memory segment». Takes effect when the postgres container is recreated
+  (`docker compose up -d postgres`; `update.sh` does this with `--force-recreate`). The RFM report also keeps running its
+  queries without parallel workers.
 - Pre-existing test failures, unrelated to this work: `test_customer_export.py` (3 failed: `.content` on a
   `StreamingHttpResponse`; 1 error: missing fixture `api_client`) and `test_customer_campaigns.py`
   (`test_customer_campaigns_api_and_redemptions`: `assert 0 >= 600000`).
 - `campaigns.py` imports `exclude_operator_accounts` but never calls it; internal accounts leave campaign reports only
   through their NULL tier. Left unchanged by rule; needs an owner decision.
+- Export logging uses the application logger only (no table). A durable export-log table needs owner approval.
 - Full backend suite not run (owner rule); targeted suites only.
-- Deploy to production with the steps in §3.
 - Graphify community labels are stale (`graphify label`); README index pages listed in `00-HOME.md` do not exist.
 
 ## 8. Next step
 
-1. Deploy: `update.sh` → `refresh_customer_tiers --force` → `backfill_rfm_snapshots --months 12` (§3).
-2. Review the RFM distribution on production data and finalize thresholds; then Stage 2 club audiences.
-3. Decide on the pre-existing export/campaign test failures and the unused campaign exclusion.
+1. Owner reviews Stage 1b locally; commit on approval.
+2. Deploy with the production steps in §3.
+3. Review the RFM distribution on production data and finalize thresholds; then Stage 2 club audiences.
 
 ## 9. Log
+
+### 2026-10-26 — RFM Stage 1b (uncommitted)
+- Migration 0010: `customer_rfm` first/second purchase, avg interval, is_overdue (window functions in the refresh);
+  snapshot facts (counts, amounts, days). `backfill_rfm_snapshots --rebuild`.
+- `rfm_reports.py`: KPIs with previous/delta/12-month trend, composition, segments in action priority, enriched matrix
+  and axis labels, second-purchase funnel, reactivated, movement windows (1/3/6/12), call list + CSV, export logging.
+- Frontend: rebuilt «گزارش RFM», new «لیست تماس» tab, report links carry branch/payment filters into the list.
+- Performance: summary went from 154 s to 0.8–6.5 s locally (serial queries + temporary population table).
+- Local values (data synced to mid-Oct 2026): buyers_30d 2,107 (prev 2,845); active_12m 105,383 (prev 106,390, repeat
+  30.7%); second_purchase_90d 20.7% of 90,319 (prev 20.8%); value_at_risk 71.1 bn (18,397 customers, prev 69.2 bn).
+  Funnel (cohort 81,841): 30d 11.9%, 60d 15.5%, 90d 18.7%, 180d 26.0%, median 31 days. Reactivated: 325 (1.13 bn) vs
+  1,179 (3.45 bn) the previous 30 days. Call list: 20,221 customers.
+- Tests: `test_customer_rfm_stage1b.py`, `test_customer_rfm.py`, `test_internal_accounts*.py`, `test_customer_360.py`,
+  `test_customer_list.py`, `test_customers.py`: 91 passed. Frontend: `tsc -b` OK, Vitest 52/52, `npm run build` OK.
+
 
 ### 2026-10-25 — Committed and pushed Stage 1 and internal accounts
 - Owner approved after local review. `SUSPECTED_MIN_SCORE` raised from 2 to 3 (`test_internal_accounts.py` +

@@ -23,6 +23,7 @@
 - [[decisions/0002-dynamic-tiers-and-modal|0002 Dynamic tiers and modal]]
 - [[decisions/0003-rfm-report-and-club-menu|0003 RFM report and club menu]]
 - [[decisions/0004-internal-accounts|0004 Internal accounts]]
+- [[decisions/0005-rfm-stage-1b|0005 RFM Stage 1b]]
 
 ## Implementation Status
 - [[implementation-status/FEATURE_MATRIX|Feature Verification Matrix]]

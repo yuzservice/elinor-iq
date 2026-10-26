@@ -9,6 +9,8 @@ import type {
   InternalAccountInfo,
   InternalAccountKind,
   PublicTier,
+  CallListRow,
+  RfmMovement,
   RfmSummary,
   TierRules,
   TierRulesPreview,
@@ -16,6 +18,8 @@ import type {
 } from "../types";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
+
+export type RfmFilters = { sales_line?: string; payment_method?: string };
 
 export type CustomerListParams = {
   search?: string;
@@ -153,8 +157,13 @@ export const customersService = {
       method: "PATCH",
       body: JSON.stringify(payload),
     }),
-  rfmSummary: (params: { sales_line?: string; payment_method?: string } = {}) =>
-    api<RfmSummary>(queryPath("/customers/rfm/summary/", params)),
+  rfmSummary: (params: RfmFilters = {}) => api<RfmSummary>(queryPath("/customers/rfm/summary/", params)),
+  rfmMovement: (params: RfmFilters & { months: number }) =>
+    api<RfmMovement>(queryPath("/customers/rfm/movement/", params)),
+  callList: (params: RfmFilters & { segment?: string; page?: number; per_page?: number }) =>
+    api<Paginated<CallListRow>>(queryPath("/customers/rfm/call-list/", params)),
+  exportCallList: (params: RfmFilters & { segment?: string }) =>
+    downloadExport(queryPath("/customers/export/", { ...params, call_list: "1" }), `call-list-${new Date().toISOString().slice(0, 10)}.csv`),
   tiers: () => api<{ results: PublicTier[] }>("/customers/tiers/"),
   tierRules: () => api<TierRulesState>("/customers/tier-rules/"),
   saveTierRulesDraft: (payload: { rules?: TierRules; note?: string }) =>

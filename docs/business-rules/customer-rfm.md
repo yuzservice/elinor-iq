@@ -58,10 +58,58 @@ M is not part of the segment. M ≥ 4 shows the «پرارزش» flag and is use
   (as_of = its last day). On the first refresh of a new Jalali month the month that just ended is written. Idempotent.
 - `manage.py backfill_rfm_snapshots --months 12` builds past months; existing months are skipped.
 
-## 5. Report definitions (`GET /api/customers/rfm/summary/`)
-- Population filters reuse the customer list filters: `sales_line` (online, sari, gorgan, capri) and `payment_method`
-  (`snappay`, `digipay`, `other` = purchasers who never paid with SnappPay or DigiPay, i.e. not `installment`).
-- `active_customers_12m`: purchase_count_12m ≥ 1. `repeat_rate_12m`: purchase_count_12m ≥ 2 ÷ active.
-  `avg_amount_12m_per_active`: amount_12m of active ÷ active. `value_at_risk`: lifetime amount of `at_risk` + `cant_lose`.
-- Movement: latest snapshot month vs the previous one, top 10 segment changes, plus purchasers new in the latest month.
-  Null with fewer than 2 snapshots.
+## 5. Report definitions (Stage 1b, `apps/customers/rfm_reports.py`)
+Population filters reuse the customer list filters: `sales_line` (online, sari, gorgan, capri) and `payment_method`
+(`snappay`, `digipay`, `other` = purchasers who never paid with SnappPay or DigiPay, i.e. not `installment`).
+Active internal accounts are excluded everywhere, including when reading past snapshots.
+
+### Stored per customer (`customer_rfm`, migration 0010)
+- Purchase events = qualifying online orders + POS `sell` (the purchase_count basis).
+- `first_purchase_at`, `second_purchase_at`: first and second event (window functions in the refresh).
+- `avg_interval_days` = (local date of last − local date of first) ÷ (purchase_count − 1); NULL with one purchase.
+- `is_overdue` = purchase_count ≥ 2 **and** avg_interval_days > 0 **and** days_since_last_purchase > 1.5 × avg_interval_days.
+  Two or more purchases on one day only (interval 0) are never overdue. «روز تأخیر» = days since last − avg interval.
+
+### KPIs (`GET /api/customers/rfm/summary/`)
+Each KPI has `value`, `previous` (latest monthly snapshot), `delta_pct` and a 12-month `trend` (oldest first).
+| KPI | Definition | Secondary |
+|---|---|---|
+| buyers_30d | customers with a purchase in the last 30 days (days since last < 30) | purchases in those 30 days |
+| active_customers_12m | purchase_count_12m ≥ 1 | repeat rate (≥ 2 purchases in 12 months ÷ active) |
+| second_purchase_90d | of customers whose first purchase was 90–455 days ago, % with a second purchase ≤ 90 days after the first | cohort size |
+| value_at_risk | lifetime net purchase of `at_risk` + `cant_lose` | their customer count |
+
+Snapshot months written before migration 0010 have no facts until `backfill_rfm_snapshots --rebuild`; their trend
+points are empty.
+
+### Segments, composition, matrix
+- Segments are returned in fixed **action priority**: cant_lose, at_risk, new, potential, attention, champions, loyal,
+  hibernating, with `overdue_count` and the change in count vs the latest snapshot month.
+- Composition: share of customers and share of net purchase per segment (two stacked bars).
+- Matrix cells carry count, shares, net purchase, 12-month amount, high-value count, average days and Persian range
+  labels; axis labels are built from the threshold constants.
+
+### Second purchase and reactivation
+- Funnel: first-purchase cohort of the last 365 days; for 30/60/90/180 days, % reaching a second purchase, counted only
+  over customers whose first purchase is at least that old. Median days to second purchase among those with one.
+  POS history starts 1404/03/10, so in-store second purchases before that are not visible.
+- Reactivated: latest purchase in the last 30 days and the purchase day before it ≥ 180 days earlier (distinct days).
+  Reported with their net purchase in those 30 days, and the same figure for the previous 30 days.
+
+### Movement (`GET /api/customers/rfm/movement/?months=1|3|6|12`)
+Latest snapshot vs the snapshot k months earlier. Value rank (high → low): champions, loyal, potential, new, attention,
+cant_lose, at_risk, hibernating. Per segment: start count, stayed %, improved (moved to a higher rank), declined (lower
+rank), entered, exited, net; plus top 10 moves and new purchasers. Null with a Persian reason when a snapshot is missing.
+
+### Call list (`GET /api/customers/rfm/call-list/`)
+Customers with `is_overdue` and last purchase ≤ 365 days ago, ordered by lifetime net purchase. Filters: segment,
+sales_line, payment_method. CSV: `GET /api/customers/export/?call_list=1` (same filters).
+
+### Export log
+Every customer CSV export (list and call list) is logged by the `apps.customers.exports` logger: user, filters, row
+count and time (application log; no table). Export permission is unchanged (signed-in users).
+
+### Performance note
+The report queries run with `SET LOCAL max_parallel_workers_per_gather = 0` and a per-request temporary table for the
+filtered population. With parallel plans some queries stalled or failed with «could not resize shared memory segment»
+(Postgres container `/dev/shm` is the 64 MB Docker default).

@@ -1,21 +1,21 @@
 import { Navigate, useLocation, useSearchParams } from "react-router-dom";
 import { CustomerListPanel } from "../features/customers/CustomerListPanel";
+import { CallListPanel } from "../features/customers/CallListPanel";
 import { RfmReportPanel } from "../features/customers/RfmReportPanel";
 import { filtersFromSearch } from "../features/customers/customerListFilters";
 import { clubRedirect } from "../features/customers/rfmDisplay";
-
-type CustomersTab = "rfm" | "list";
+import { customersTab, type CustomersTab } from "../features/customers/rfmFormat";
 
 export function CustomersPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [, setSearchParams] = useSearchParams();
   const location = useLocation();
   const redirect = clubRedirect(location.search);
   if (redirect) return <Navigate to={redirect} replace />;
 
-  const currentTab: CustomersTab = searchParams.get("tab") === "list" ? "list" : "rfm";
+  const currentTab = customersTab(location.search);
 
   const handleTabChange = (tab: CustomersTab) => {
-    setSearchParams(tab === "list" ? { tab: "list" } : {}, { replace: true });
+    setSearchParams(tab === "rfm" ? {} : { tab }, { replace: true });
   };
 
   return (
@@ -25,6 +25,7 @@ export function CustomersPage() {
           {(
             [
               { id: "rfm", label: "گزارش RFM", icon: "🎯" },
+              { id: "calls", label: "لیست تماس", icon: "📞" },
               { id: "list", label: "لیست مشتریان", icon: "👥" },
             ] as const
           ).map((tab) => (
@@ -47,6 +48,8 @@ export function CustomersPage() {
 
       {currentTab === "list" ? (
         <CustomerListPanel key={location.search} initialFilters={filtersFromSearch(location.search)} />
+      ) : currentTab === "calls" ? (
+        <CallListPanel />
       ) : (
         <RfmReportPanel />
       )}

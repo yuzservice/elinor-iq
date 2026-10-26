@@ -17,17 +17,16 @@ from apps.customers.rfm import (
     jalali_month_end,
     jalali_month_key,
     m_score,
-    movement_payload,
     previous_month_keys,
     r_score,
     refresh_rfm,
     refresh_rfm_daily,
     rfm_facts_sql,
-    rfm_summary,
     segment_for,
     write_snapshot,
     backfill_snapshots,
 )
+from apps.customers.rfm_reports import PRIORITY_ORDER, rfm_movement, rfm_summary
 from apps.customers.tiers import _fact_params, _facts_sql
 from apps.sales.models import Order, PosSale, PosSaleItem, SalesLine
 
@@ -258,29 +257,30 @@ def test_summary_counts_filters_and_movement():
 
     summary = rfm_summary(QueryDict(""))
     kpis = summary["kpis"]
-    assert kpis["purchasing_customers"] == 2
-    assert kpis["registered_without_purchase"] == 1
-    assert kpis["active_customers_12m"] == 1
-    assert kpis["repeat_rate_12m"] == 100.0
+    assert summary["counts"]["purchasing_customers"] == 2
+    assert summary["counts"]["registered_without_purchase"] == 1
+    assert kpis["active_customers_12m"]["value"] == 1
+    assert kpis["active_customers_12m"]["secondary"]["value"] == 100.0
     assert sum(segment["count"] for segment in summary["segments"]) == 2
-    assert [segment["key"] for segment in summary["segments"]] == list(SEGMENT_ORDER)
+    assert [segment["key"] for segment in summary["segments"]] == list(PRIORITY_ORDER)
+    assert sorted(segment["key"] for segment in summary["segments"]) == sorted(SEGMENT_ORDER)
     assert len(summary["matrix"]) == 25
     by_key = {segment["key"]: segment for segment in summary["segments"]}
     assert by_key["champions"]["count"] == 1 and by_key["champions"]["high_value_count"] == 1
     assert by_key["hibernating"]["count"] == 1
-    assert summary["movement"] is None
+    assert rfm_movement(QueryDict(""), 1)["movement"] is None
 
     online_only = rfm_summary(QueryDict("sales_line=online"))
-    assert online_only["kpis"]["purchasing_customers"] == 1
+    assert online_only["counts"]["purchasing_customers"] == 1
     assert {s["key"]: s["count"] for s in online_only["segments"]}["champions"] == 1
     sari_only = rfm_summary(QueryDict("sales_line=sari"))
-    assert sari_only["kpis"]["purchasing_customers"] == 1
+    assert sari_only["counts"]["purchasing_customers"] == 1
 
     CustomerRfmSnapshot.objects.create(month="1405-06", customer=online, r_score=2, f_score=5, m_score=5, segment="cant_lose")
     CustomerRfmSnapshot.objects.create(month="1405-07", customer=online, r_score=5, f_score=5, m_score=5, segment="champions")
     CustomerRfmSnapshot.objects.create(month="1405-07", customer=store, r_score=1, f_score=1, m_score=1, segment="hibernating")
-    movement = movement_payload()
-    assert movement["month"] == "1405-07" and movement["previous_month"] == "1405-06"
+    movement = rfm_movement(QueryDict(""), 1)["movement"]
+    assert movement["month"] == "1405-07" and movement["start_month"] == "1405-06"
     assert movement["moves"] == [
         {"from": "cant_lose", "from_label": "نباید از دست برود", "to": "champions", "to_label": "قهرمانان", "count": 1}
     ]
@@ -298,8 +298,8 @@ def test_payment_other_means_purchasers_without_snappay_or_digipay(auth_api):
 
     ids = {row["id"] for row in auth_api.get("/api/customers/?payment_method=other").data["results"]}
     assert ids == {plain.source_id}
-    assert rfm_summary(QueryDict("payment_method=other"))["kpis"]["purchasing_customers"] == 1
-    assert rfm_summary(QueryDict("payment_method=snappay"))["kpis"]["purchasing_customers"] == 1
+    assert rfm_summary(QueryDict("payment_method=other"))["counts"]["purchasing_customers"] == 1
+    assert rfm_summary(QueryDict("payment_method=snappay"))["counts"]["purchasing_customers"] == 1
 
 
 # --- List, export, 360 -----------------------------------------------------------------------

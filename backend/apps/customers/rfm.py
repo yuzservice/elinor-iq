@@ -244,10 +244,12 @@ def refresh_rfm():
             {scored_sql}
             INSERT INTO customer_rfm (
                 customer_id, r_score, f_score, m_score, segment, purchase_count, days_since_last_purchase,
-                lifetime_amount, purchase_count_12m, amount_12m, internal_signal_score, internal_signals, computed_at
+                lifetime_amount, purchase_count_12m, amount_12m, internal_signal_score, internal_signals,
+                first_purchase_at, second_purchase_at, avg_interval_days, is_overdue, computed_at
             )
             SELECT customer_id, r, f, m, {SEGMENT_SQL}, purchase_count, days_since_last_purchase,
-                   lifetime_purchase_amount, purchase_count_12m, amount_12m, 0, '[]'::jsonb, %s
+                   lifetime_purchase_amount, purchase_count_12m, amount_12m, 0, '[]'::jsonb,
+                   NULL, NULL, NULL, FALSE, %s
             FROM scored
             ON CONFLICT (customer_id) DO UPDATE SET
                 r_score = EXCLUDED.r_score,
@@ -266,8 +268,62 @@ def refresh_rfm():
         written = cursor.rowcount
         # Rows not touched above (no longer purchasing, or now an operator account).
         cursor.execute("DELETE FROM customer_rfm WHERE computed_at < %s", [run_at])
+        _write_purchase_stats(cursor)
         _write_internal_signals(cursor)
     return written
+
+
+# Purchase events on the RFM basis: qualifying online orders + POS sells (same as purchase_count).
+_EVENTS_SQL = """
+    SELECT o.customer_id, o.created_at FROM orders o
+    WHERE o.customer_id IS NOT NULL AND o.status NOT IN ('canceled', 'failed', 'wait_for_payment')
+    UNION ALL
+    SELECT s.customer_id, s.created_at FROM pos_sales s
+    WHERE s.customer_id IS NOT NULL AND s.deleted_at IS NULL AND s.is_cancelled = FALSE AND s.type = 'sell'
+"""
+OVERDUE_FACTOR = 1.5
+
+
+def _write_purchase_stats(cursor):
+    """First/second purchase, average interval and overdue flag for every customer_rfm row (window functions)."""
+    cursor.execute(
+        f"""
+        WITH events AS (
+            SELECT e.customer_id, e.created_at,
+                   ROW_NUMBER() OVER (PARTITION BY e.customer_id ORDER BY e.created_at) AS n
+            FROM ({_EVENTS_SQL}) e
+            JOIN customer_rfm r ON r.customer_id = e.customer_id
+        ),
+        stats AS (
+            SELECT customer_id,
+                   MIN(created_at) AS first_at,
+                   MAX(created_at) FILTER (WHERE n = 2) AS second_at,
+                   MAX(created_at) AS last_at,
+                   COUNT(*) AS purchases
+            FROM events
+            GROUP BY customer_id
+        ),
+        computed AS (
+            SELECT customer_id, first_at, second_at,
+                   CASE WHEN purchases >= 2 THEN
+                       ((last_at AT TIME ZONE %s)::date - (first_at AT TIME ZONE %s)::date)::float / (purchases - 1)
+                   END AS interval_days
+            FROM stats
+        )
+        UPDATE customer_rfm r
+        SET first_purchase_at = computed.first_at,
+            second_purchase_at = computed.second_at,
+            avg_interval_days = computed.interval_days,
+            is_overdue = (
+                r.purchase_count >= 2
+                AND computed.interval_days > 0
+                AND r.days_since_last_purchase > %s * computed.interval_days
+            )
+        FROM computed
+        WHERE computed.customer_id = r.customer_id
+        """,
+        [timezone.get_current_timezone_name(), timezone.get_current_timezone_name(), OVERDUE_FACTOR],
+    )
 
 
 def _normalized(expression):
@@ -412,21 +468,36 @@ def previous_month_keys(today, months):
     return keys
 
 
-def write_snapshot(month_key):
-    """Write the snapshot of a Jalali month (as_of = its last day). Returns None for a month that exists."""
+def write_snapshot(month_key, rebuild=False):
+    """Write the snapshot of a Jalali month (as_of = its last day).
+
+    Returns None for a month that exists, unless `rebuild` refills it in place (idempotent upsert).
+    """
     from apps.customers.models import CustomerRfmSnapshot
 
-    if CustomerRfmSnapshot.objects.filter(month=month_key).exists():
+    if not rebuild and CustomerRfmSnapshot.objects.filter(month=month_key).exists():
         return None
     scored_sql, params = _scored_sql(as_of=jalali_month_end(month_key))
+    on_conflict = (
+        """DO UPDATE SET r_score = EXCLUDED.r_score, f_score = EXCLUDED.f_score, m_score = EXCLUDED.m_score,
+               segment = EXCLUDED.segment, purchase_count = EXCLUDED.purchase_count,
+               purchase_count_12m = EXCLUDED.purchase_count_12m, amount_12m = EXCLUDED.amount_12m,
+               lifetime_amount = EXCLUDED.lifetime_amount, days_since_last_purchase = EXCLUDED.days_since_last_purchase"""
+        if rebuild
+        else "DO NOTHING"
+    )
     with transaction.atomic(), connection.cursor() as cursor:
         cursor.execute(
             f"""
             {scored_sql}
-            INSERT INTO customer_rfm_snapshots (month, customer_id, r_score, f_score, m_score, segment, created_at)
-            SELECT %s, customer_id, r, f, m, {SEGMENT_SQL}, NOW()
+            INSERT INTO customer_rfm_snapshots (
+                month, customer_id, r_score, f_score, m_score, segment, purchase_count, purchase_count_12m,
+                amount_12m, lifetime_amount, days_since_last_purchase, created_at
+            )
+            SELECT %s, customer_id, r, f, m, {SEGMENT_SQL}, purchase_count, purchase_count_12m,
+                   amount_12m, lifetime_purchase_amount, days_since_last_purchase, NOW()
             FROM scored
-            ON CONFLICT (month, customer_id) DO NOTHING
+            ON CONFLICT (month, customer_id) {on_conflict}
             """,
             params + [month_key],
         )
@@ -459,10 +530,10 @@ def refresh_rfm_daily(today=None):
     return not status["error"]
 
 
-def backfill_snapshots(months=12, today=None):
-    """Snapshots for the last `months` complete Jalali months. Existing months are skipped."""
+def backfill_snapshots(months=12, today=None, rebuild=False):
+    """Snapshots for the last `months` complete Jalali months. Existing months are skipped unless `rebuild`."""
     today = today or timezone.localdate()
-    return {key: write_snapshot(key) for key in reversed(previous_month_keys(today, months))}
+    return {key: write_snapshot(key, rebuild=rebuild) for key in reversed(previous_month_keys(today, months))}
 
 
 # --- Read models -----------------------------------------------------------------------------
@@ -491,19 +562,12 @@ def row_payload(rfm):
 def customer_rfm_payload(customer):
     """RFM block for Customer 360, or None when the customer has no RFM row."""
     from apps.customers.models import CustomerRfm, CustomerRfmSnapshot
-    from apps.customers.tiers import metrics_for_customers
 
     rfm = CustomerRfm.objects.filter(customer=customer).first()
     if rfm is None:
         return None
     count = rfm.purchase_count
-    facts = metrics_for_customers([customer.pk]).get(customer.pk) or {}
-    first_at, last_at = facts.get("first_purchase_at"), facts.get("last_purchase_at")
-    interval = None
-    if count >= 2 and first_at and last_at:
-        span = (timezone.localtime(last_at).date() - timezone.localtime(first_at).date()).days
-        interval = round(span / (count - 1), 1)
-    overdue = bool(interval and count >= 2 and rfm.days_since_last_purchase > 1.5 * interval)
+    interval = round(rfm.avg_interval_days, 1) if rfm.avg_interval_days is not None else None
     history = [
         {"month": row.month, "segment": row.segment, "label": SEGMENT_LABELS.get(row.segment, row.segment), "r_score": row.r_score, "f_score": row.f_score, "m_score": row.m_score}
         for row in CustomerRfmSnapshot.objects.filter(customer=customer).order_by("-month")[:12]
@@ -521,7 +585,10 @@ def customer_rfm_payload(customer):
         "amount_12m": rfm.amount_12m,
         "avg_order_amount": round(rfm.lifetime_amount / count) if count else None,
         "avg_days_between_purchases": interval,
-        "overdue": overdue,
+        "overdue": rfm.is_overdue,
+        "days_late": _days_late(rfm),
+        "first_purchase_at": rfm.first_purchase_at,
+        "second_purchase_at": rfm.second_purchase_at,
         "history": list(reversed(history)),
         "computed_at": rfm.computed_at,
         "amount_label": AMOUNT_LABEL,
@@ -529,132 +596,17 @@ def customer_rfm_payload(customer):
 
 
 def rfm_summary(params):
-    """Aggregates over customer_rfm, restricted by the list's sales_line(s) and payment_method filters."""
-    from django.db.models import Avg, Count, Max, Q, Sum
+    """Kept for callers of Stage 1; the report lives in apps.customers.rfm_reports."""
+    from apps.customers.rfm_reports import rfm_summary as build
 
-    from apps.customers.list_query import customer_list_queryset
-    from apps.customers.models import CustomerRfm
-    from apps.customers.operators import exclude_operator_accounts
-
-    population = {key: params.get(key) for key in ("sales_line", "sales_lines", "sales_lines_mode", "payment_method") if params.get(key)}
-    if hasattr(params, "getlist") and params.getlist("sales_lines"):
-        population["sales_lines"] = ",".join(params.getlist("sales_lines"))
-    customers = exclude_operator_accounts(customer_list_queryset(population)).order_by().values("pk")
-    rows = CustomerRfm.objects.filter(customer_id__in=customers)
-
-    totals = rows.aggregate(
-        purchasing=Count("pk"),
-        lifetime=Sum("lifetime_amount"),
-        active_12m=Count("pk", filter=Q(purchase_count_12m__gt=0)),
-        repeat_12m=Count("pk", filter=Q(purchase_count_12m__gte=2)),
-        amount_12m=Sum("amount_12m", filter=Q(purchase_count_12m__gt=0)),
-        at_risk_value=Sum("lifetime_amount", filter=Q(segment__in=AT_RISK_SEGMENTS)),
-        computed_at=Max("computed_at"),
-    )
-    purchasing = totals["purchasing"] or 0
-    lifetime_total = totals["lifetime"] or 0
-    active = totals["active_12m"] or 0
-    registered = customers.count()
-
-    by_segment = {
-        row["segment"]: row
-        for row in rows.values("segment").annotate(
-            count=Count("pk"),
-            lifetime_amount_sum=Sum("lifetime_amount"),
-            amount_12m_sum=Sum("amount_12m"),
-            avg_days_since_last=Avg("days_since_last_purchase"),
-            avg_purchase_count=Avg("purchase_count"),
-            high_value_count=Count("pk", filter=Q(m_score__gte=HIGH_VALUE_MIN_M)),
-        )
-    }
-    segments = []
-    for key, label, cells, action in SEGMENTS:
-        row = by_segment.get(key) or {}
-        count = row.get("count") or 0
-        lifetime_sum = row.get("lifetime_amount_sum") or 0
-        segments.append(
-            {
-                "key": key,
-                "label": label,
-                "action": action,
-                "cells": [list(cell) for cell in cells],
-                "count": count,
-                "pct_customers": _pct(count, purchasing),
-                "lifetime_amount_sum": lifetime_sum,
-                "pct_lifetime_amount": _pct(lifetime_sum, lifetime_total),
-                "amount_12m_sum": row.get("amount_12m_sum") or 0,
-                "avg_days_since_last": _round(row.get("avg_days_since_last")),
-                "avg_purchase_count": _round(row.get("avg_purchase_count")),
-                "high_value_count": row.get("high_value_count") or 0,
-            }
-        )
-
-    cells = {(row["r_score"], row["f_score"]): row["count"] for row in rows.values("r_score", "f_score").annotate(count=Count("pk"))}
-    matrix = [
-        {"r": r, "f": f, "count": cells.get((r, f), 0), "segment": segment_for(r, f)}
-        for r in (5, 4, 3, 2, 1)
-        for f in (5, 4, 3, 2, 1)
-    ]
-
-    return {
-        "kpis": {
-            "active_customers_12m": active,
-            "repeat_rate_12m": _pct(totals["repeat_12m"] or 0, active),
-            "avg_amount_12m_per_active": round((totals["amount_12m"] or 0) / active) if active else 0,
-            "value_at_risk": totals["at_risk_value"] or 0,
-            "purchasing_customers": purchasing,
-            "registered_without_purchase": max(registered - purchasing, 0),
-            "internal_accounts_excluded": _internal_accounts_count(),
-        },
-        "segments": segments,
-        "matrix": matrix,
-        "movement": movement_payload(customers),
-        "thresholds": thresholds_payload(),
-        "computed_at": totals["computed_at"],
-        "amount_label": AMOUNT_LABEL,
-        "notes": [COVERAGE_NOTE, EXCHANGE_NOTE],
-    }
+    return build(params)
 
 
-def movement_payload(customers=None):
-    """Latest snapshot month vs the one before: top segment moves. None with fewer than 2 months."""
-    from django.db.models import Count
-
-    from apps.customers.models import CustomerRfmSnapshot
-
-    months = list(CustomerRfmSnapshot.objects.order_by("-month").values_list("month", flat=True).distinct()[:2])
-    if len(months) < 2:
+def _days_late(rfm):
+    """Days past the customer's usual interval («روز تأخیر»); None without an interval."""
+    if rfm.avg_interval_days is None:
         return None
-    latest, previous = months
-    # Snapshots are history and are never deleted; active internal accounts are excluded when read.
-    current = CustomerRfmSnapshot.objects.filter(month=latest).exclude(customer__internal_account__is_active=True)
-    if customers is not None:
-        current = current.filter(customer_id__in=customers)
-    with connection.cursor() as cursor:
-        ids_sql, ids_params = current.values("customer_id").query.sql_with_params()
-        cursor.execute(
-            f"""
-            SELECT prev.segment, cur.segment, COUNT(*)::int
-            FROM customer_rfm_snapshots cur
-            JOIN customer_rfm_snapshots prev ON prev.customer_id = cur.customer_id AND prev.month = %s
-            WHERE cur.month = %s AND cur.customer_id IN ({ids_sql}) AND prev.segment <> cur.segment
-            GROUP BY 1, 2
-            ORDER BY 3 DESC, 1, 2
-            LIMIT 10
-            """,
-            [previous, latest, *ids_params],
-        )
-        moves = cursor.fetchall()
-    new_purchasers = current.exclude(customer_id__in=CustomerRfmSnapshot.objects.filter(month=previous).values("customer_id")).aggregate(n=Count("pk"))["n"]
-    return {
-        "month": latest,
-        "previous_month": previous,
-        "moves": [
-            {"from": prev, "from_label": SEGMENT_LABELS.get(prev, prev), "to": cur, "to_label": SEGMENT_LABELS.get(cur, cur), "count": count}
-            for prev, cur, count in moves
-        ],
-        "new_purchasers": new_purchasers,
-    }
+    return round(rfm.days_since_last_purchase - rfm.avg_interval_days)
 
 
 def _pct(part, whole):

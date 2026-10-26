@@ -9,6 +9,8 @@ urlpatterns = [
     path("refresh-tiers/", views.refresh_tiers),
     path("tiers/", views.customer_tiers),
     path("rfm/summary/", views.rfm_summary),
+    path("rfm/movement/", views.rfm_movement),
+    path("rfm/call-list/", views.rfm_call_list),
     path("internal-accounts/", views.internal_accounts),
     path("internal-accounts/<int:account_id>/", views.internal_account_detail),
     path("tier-rules/", views.tier_rules),

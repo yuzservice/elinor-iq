@@ -1,6 +1,8 @@
 services:
   postgres:
     image: postgres:16-alpine
+    # Parallel queries need more than Docker's 64 MB default /dev/shm (see docs/handover/HANDOFF.md).
+    shm_size: 256mb
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-elinor_iq}
       POSTGRES_USER: ${POSTGRES_USER:-elinor}

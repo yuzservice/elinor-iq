@@ -60,3 +60,12 @@ describe("internal accounts filter", () => {
     expect(buildCustomerListParams(EMPTY_CUSTOMER_FILTERS, "").internal).toBeUndefined();
   });
 });
+
+describe("links from the RFM report", () => {
+  it("carry branch and payment filters into the list", () => {
+    const filters = filtersFromSearch("?tab=list&rfm_segment=new&sales_line=online&payment_method=snappay");
+    expect(filters.salesLines).toEqual(["online"]);
+    expect(filters.paymentMethod).toBe("snappay");
+    expect(filtersFromSearch("?sales_line=unknown").salesLines).toEqual([]);
+  });
+});
