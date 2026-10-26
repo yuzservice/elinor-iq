@@ -3,7 +3,7 @@
 Durable state for the next engineer or AI assistant. Do not rely on chat history; this file plus the repo is the source of truth.
 Update this file at the end of every implementation task (newest entry first in the Log).
 
-Last updated: 2026-10-25 · branch `main` at `accb9d8`, pushed (`origin/main` ahead/behind 0/0)
+Last updated: 2026-10-26 · **server runs `production` (= `f308fec` + deploy change `b69af90`)**; `main` is development (see §2 Branches)
 
 ## 1. Current priority
 
@@ -27,6 +27,15 @@ The engineer implements only explicitly approved tasks.
 7. Tests: run the module's test files while working and read only the summary
    (`pytest -q <files> 2>&1 | tail -30`). Run the full backend suite only when the owner asks for it
    (it is slow: the export tests alone take about 10 minutes).
+8. **Branches** (owner rule, 2026-10-26):
+   - `production` = what the server runs. `update.sh` deploys only `origin/production`
+     (`bash -c "$(curl -fsSL https://raw.githubusercontent.com/yuzservice/elinor-iq/production/update.sh)"`;
+     the old URL on `main` now deploys `production` too).
+   - `main` = development. Unreleased work (RFM Stage 1, internal accounts) lives here and is not on the server.
+   - A feature that should ship alone branches from `production`, merges into `production` for release, then
+     `production` is merged into `main`.
+   - Work in progress is parked on its own branch, e.g. `wip/rfm-stage-1b`.
+   - Never run anything on the server; the owner runs `update.sh`.
 
 ## 3. State of the RFM / Customer 360 area
 
@@ -79,10 +88,13 @@ Notes for the Product Architect / next task:
 - Commit and push to the approved remote only when explicitly authorized. Verify `git status` and ahead/behind counts; never assume work is backed up.
 - Never commit secrets, credentials, database dumps (`source/`, `backups/`) or customer records. `.env` is gitignored.
 
-## 6. Git and backup state (checked 2026-10-25)
+## 6. Git and backup state (checked 2026-10-26)
 
 - Remote `origin` → GitHub `yuzservice/elinor-iq`.
-- `main` = `origin/main` at `accb9d8` (pushed 2026-10-25, ahead/behind 0/0). Commits: `a8198d2` Stage 1, `a76cdd8` internal accounts (0008, 0009), `accb9d8` prototypes removed.
+- Server version: `f308fec` («از» day bound). `production` = `f308fec` + `b69af90` (deploy from production).
+- `main`: `a8198d2` Stage 1, `a76cdd8` internal accounts (0008, 0009), `accb9d8` prototypes removed, `99d9efc` graph +
+  handoff, `542c2c8` deploy from production — none of the RFM/internal-accounts work is on the server.
+- `wip/rfm-stage-1b` (`d7bb88f`, pushed): RFM Stage 1b + postgres `shm_size: 256mb`; to merge into `main` when RFM resumes.
 - Uncommitted: `graphify-out/` after `graphify update .` (and its backup folder `graphify-out/2026-10-25/`), and this file's latest edit.
 - Tracked docs: `CLAUDE.md`, `docs/`, `.claude/skills/`.
 - `b238c21` (owner) tracks Graphify artifacts, `.mcp.json`, `.graphifyignore` and the UI prototypes, and updates `.gitignore`.
