@@ -2,7 +2,10 @@ import { api, queryPath } from "./api";
 import type {
   Customer360,
   CustomerPurchase,
+  CustomerOverviewData,
   CustomerReports,
+  OverviewCompare,
+  OverviewPeriod,
   CustomerRow,
   Paginated,
   CustomerProductHistory,
@@ -120,6 +123,8 @@ async function downloadExport(path: string, fallbackFilename: string): Promise<v
 
 export const customersService = {
   reports: () => api<CustomerReports>("/customers/reports/"),
+  overview: (period: OverviewPeriod, compare: OverviewCompare) =>
+    api<CustomerOverviewData>(queryPath("/customers/overview/", { period, compare })),
   list: (params: CustomerListParams) => api<Paginated<CustomerRow>>(customerListQuery(params)),
   refreshTiers: () =>
     api<{ started: boolean; detail: string }>("/customers/refresh-tiers/", { method: "POST" }),

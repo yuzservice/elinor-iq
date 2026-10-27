@@ -265,6 +265,37 @@ export type CustomerRow = {
   operator_label: string | null;
 };
 
+export type OverviewPeriod = "30" | "month" | "90" | "365";
+export type OverviewCompare = "prev" | "yoy";
+export type OverviewLens = "total" | "site" | "sari" | "gorgan" | "capri" | "shopino" | "snappay" | "digipay";
+export type OverviewMetric = "customers" | "active" | "basket" | "repeat";
+export type OverviewWindow = { start: string; end: string; start_jalali: string; end_jalali: string };
+export type OverviewLensData = {
+  customers: { value: number | null; new: number | null };
+  active: { value: number | null; delta: number | null };
+  basket: { value: number | null; delta: number | null };
+  repeat: { value: number | null; delta: number | null };
+  spark: Record<OverviewMetric, Array<number | null>>;
+};
+export type OverviewTierPanel = {
+  channel: "pos" | "online" | null;
+  title: string;
+  tiers: Array<{ code: string; title: string; count: number; net: number }>;
+};
+export type CustomerOverviewData = {
+  period: OverviewPeriod;
+  compare: OverviewCompare;
+  window: OverviewWindow;
+  compare_window: OverviewWindow;
+  lenses: Record<OverviewLens, OverviewLensData>;
+  tiers: { panels: OverviewTierPanel[]; rules_changed: boolean };
+  insights: {
+    best_active: { lens: OverviewLens; delta: number } | null;
+    worst_active: { lens: OverviewLens; delta: number } | null;
+    top_tier: { code: string; title: string; net: number } | null;
+  };
+};
+
 export type CustomerReports = {
   window: WindowMeta;
   note: string;

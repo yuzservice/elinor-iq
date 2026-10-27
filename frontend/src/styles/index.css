@@ -34,6 +34,9 @@ html.dark {
   --ch-sari: #10b981;
   --ch-gorgan: #f59e0b;
   --ch-capri: #8b5cf6;
+  --ch-shopino: #06b6d4;
+  --ch-snappay: #f472b6;
+  --ch-digipay: #a3a3a3;
   --delta-up: #34d399;
   --delta-down: #f87171;
   --delta-up-bg: rgba(16, 185, 129, 0.18);
@@ -72,6 +75,9 @@ html:not(.dark) {
   --ch-sari: #059669;
   --ch-gorgan: #d97706;
   --ch-capri: #7c3aed;
+  --ch-shopino: #0891b2;
+  --ch-snappay: #db2777;
+  --ch-digipay: #737373;
   --delta-up: #059669;
   --delta-down: #e11d48;
   --delta-up-bg: rgba(5, 150, 105, 0.12);

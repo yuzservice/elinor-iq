@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { useApi } from "../../hooks/useApi";
 import { useTiers } from "../../hooks/useTiers";
 import { customerDisplayName } from "../../lib/customerDisplay";
@@ -30,6 +30,7 @@ import { JalaliRangeModal } from "../../components/JalaliDatePicker";
 import { EmptyState, ErrorState, Skeleton } from "../../components/Table";
 import type { CustomerRow } from "../../types";
 import { TierBadge, groupTierOptions, tierOptions } from "./tierDisplay";
+import { CustomerOverview } from "./CustomerOverview";
 
 type FilterDrawerTab = "loyalty" | "financial" | "product" | "behavior";
 
@@ -69,7 +70,9 @@ const AVATAR_GRADIENTS = [
   "from-emerald-500 to-teal-600",
 ];
 
-export function CustomerListPanel() {
+type Props = { canManage: boolean; onEditTierRules: () => void };
+
+export function CustomerListPanel({ canManage, onEditTierRules }: Props) {
   const [search, setSearch] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
   const [filters, setFilters] = useState<CustomerListFilters>(EMPTY_CUSTOMER_FILTERS);
@@ -96,6 +99,14 @@ export function CustomerListPanel() {
   const [tierMessage, setTierMessage] = useState<string | null>(null);
 
   const reports = useApi(() => customersService.reports(), []);
+
+  // Tier legend links in the overview open the list filtered by ?tier=CODE.
+  const tierParam = useSearchParams()[0].get("tier");
+  useEffect(() => {
+    if (!tierParam) return;
+    setFilters({ ...EMPTY_CUSTOMER_FILTERS, tier: tierParam });
+    setPage(1);
+  }, [tierParam]);
 
   function updateFilter<K extends keyof CustomerListFilters>(key: K, value: CustomerListFilters[K]) {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -309,51 +320,6 @@ export function CustomerListPanel() {
 
   return (
     <div className="space-y-5">
-      {/* ============================================================== */}
-      {/* 1. HEADER ROW & ACTIONS                                        */}
-      {/* ============================================================== */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-ink">
-              باشگاه مشتریان و شناسنامه ۳۶۰
-            </h1>
-            <span className="text-xs px-2.5 py-0.5 rounded-full bg-accent/15 text-accent font-bold border border-accent/25 tabular">
-              {formatNumber(totalCustomers)} پرونده
-            </span>
-          </div>
-          <p className="text-xs text-muted mt-1 leading-5">
-            فیلتر هوشمند بر اساس سطح وفاداری، ارزش خرید (LTV)، پرداخت اقساطی، سایز و شعب فروش
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleExport}
-            disabled={exporting}
-            className="glass-pill px-3.5 py-2 text-xs font-semibold text-muted hover:text-ink flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
-          >
-            <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            <span>{exporting ? "در حال استخراج..." : "خروجی اکسل"}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleRefreshTiers}
-            disabled={refreshingTiers}
-            className="px-3.5 py-2 rounded-2xl bg-accent hover:opacity-95 text-on-accent text-xs font-bold shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
-          >
-            <svg className={`w-4 h-4 ${refreshingTiers ? "animate-spin" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            <span>{refreshingTiers ? "در حال محاسبه..." : "به‌روزرسانی سطوح"}</span>
-          </button>
-        </div>
-      </div>
-
       {tierMessage && (
         <div className="p-3 rounded-2xl bg-accent/10 border border-accent/25 text-xs text-accent">
           ℹ️ {tierMessage}
@@ -365,75 +331,12 @@ export function CustomerListPanel() {
         </div>
       )}
 
-      {/* ============================================================== */}
-      {/* 2. TOP 4 KPI BENTO CARDS                                       */}
-      {/* ============================================================== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <div className="bento-card p-4 glass-rim shadow-soft">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted">کل مشتریان پایگاه داده</span>
-            <div className="h-7 w-7 rounded-xl bg-accent/15 text-accent flex items-center justify-center font-bold text-xs">
-              👥
-            </div>
-          </div>
-          <div className="mt-2.5">
-            <div className="text-2xl sm:text-3xl font-black text-ink tabular">{formatNumber(totalCustomers)}</div>
-            <div className="flex items-center gap-1.5 text-[11px] mt-1 text-emerald-600 dark:text-emerald-400 font-bold">
-              <span>↑ ۴.۸٪</span>
-              <span className="text-muted font-normal">عضویت جدید این ماه</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bento-card p-4 glass-rim shadow-soft">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted">مشتریان خریدار فعال</span>
-            <div className="h-7 w-7 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-xs">
-              🛍️
-            </div>
-          </div>
-          <div className="mt-2.5">
-            <div className="text-2xl sm:text-3xl font-black text-ink tabular">{formatNumber(purchasingCustomers)}</div>
-            <div className="flex items-center gap-1.5 text-[11px] mt-1 text-emerald-600 dark:text-emerald-400 font-bold">
-              <span>۶۷.۳٪</span>
-              <span className="text-muted font-normal">نرخ تبدیل به خرید</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bento-card p-4 glass-rim shadow-soft">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted">میانگین ارزش مشتری (LTV)</span>
-            <div className="h-7 w-7 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold text-xs">
-              💎
-            </div>
-          </div>
-          <div className="mt-2.5">
-            <div className="text-2xl sm:text-3xl font-black text-ink tabular">
-              ۶,۱۵۰,۰۰۰ <span className="text-xs font-normal text-muted">تومان</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-[11px] mt-1 text-muted">
-              <span>میانگین فاکتور: ۳.۴ خرید</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bento-card p-4 glass-rim shadow-soft">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted">کلوب وفاداری (VIP / طلایی)</span>
-            <div className="h-7 w-7 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold text-xs">
-              👑
-            </div>
-          </div>
-          <div className="mt-2.5">
-            <div className="text-2xl sm:text-3xl font-black text-ink tabular">۳۴۲</div>
-            <div className="flex items-center gap-1.5 text-[11px] mt-1 text-amber-600 dark:text-amber-400 font-bold">
-              <span>۴۲٪</span>
-              <span className="text-muted font-normal">سهم از کل فروش</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      <CustomerOverview
+        canManage={canManage}
+        onEditTierRules={onEditTierRules}
+        onRefreshTiers={handleRefreshTiers}
+        refreshingTiers={refreshingTiers}
+      />
 
       {/* ============================================================== */}
       {/* 3. MINIMAL, RESPONSIVE FILTER & SEGMENT BAR                    */}
@@ -561,6 +464,18 @@ export function CustomerListPanel() {
                 </span>
               )}
               <span className={`text-[9px] transition-transform ${showAdvanced ? "rotate-180" : ""}`}>▼</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleExport}
+              disabled={exporting}
+              className="px-3 py-1.5 rounded-xl border border-line bg-elevated text-xs font-bold text-muted hover:text-ink flex items-center gap-1.5 transition-all cursor-pointer"
+            >
+              <svg className="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              <span>{exporting ? "در حال استخراج..." : "خروجی اکسل"}</span>
             </button>
           </div>
         </div>
