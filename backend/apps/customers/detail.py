@@ -27,7 +27,7 @@ from apps.customers.purchases import (
 )
 from apps.customers.internal_accounts import internal_account_payload
 from apps.customers.rfm import customer_rfm_payload, internal_signals_payload
-from apps.customers.tiers import tier_label
+from apps.customers.tiers import tier_channel_label, tier_label
 from apps.sales.models import OrderItem, PosSaleItem, SalesLine
 
 POS_TYPE_LABELS = {
@@ -73,6 +73,8 @@ def customer_360_payload(customer, history_page=1, history_per_page=HISTORY_PER_
         "purchase_behavior_label": behavior_label,
         "tier_code": None if desk else (customer.tier_code or None),
         "tier_label": None if desk else tier_label(customer.tier_code),
+        "tier_channel": None if desk else (customer.tier_channel or None),
+        "tier_channel_label": None if desk else tier_channel_label(customer.tier_channel),
         "rfm": None if desk else customer_rfm_payload(customer),
         # Super admins only: the confirmed internal account and the detection signals.
         "internal_account": internal_account_payload(customer) if include_internal else None,

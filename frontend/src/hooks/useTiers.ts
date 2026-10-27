@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { customersService } from "../services/customers";
-import type { PublicTier } from "../types";
+import type { PublicTier, PublicTierGroup } from "../types";
 
-let cached: Promise<PublicTier[]> | null = null;
+let cached: Promise<PublicTierGroup[]> | null = null;
 
-function load(): Promise<PublicTier[]> {
+function load(): Promise<PublicTierGroup[]> {
   if (!cached) {
     cached = customersService
       .tiers()
@@ -25,9 +25,16 @@ export function invalidateTiers() {
 
 const listeners = new Set<() => void>();
 
-/** Active, enabled tiers in priority order. Fetched once and shared by every caller. */
-export function useTiers(): { tiers: PublicTier[]; loading: boolean } {
-  const [tiers, setTiers] = useState<PublicTier[]>([]);
+/** Flat list of tiers with their channel, in group order. */
+export function flattenTierGroups(groups: PublicTierGroup[]): PublicTier[] {
+  return groups.flatMap((group) =>
+    group.tiers.map((tier) => ({ ...tier, channel: group.channel, channel_label: group.channel_label })),
+  );
+}
+
+/** Active, enabled tiers grouped by channel (and flattened). Fetched once and shared by every caller. */
+export function useTiers(): { tiers: PublicTier[]; groups: PublicTierGroup[]; loading: boolean } {
+  const [groups, setGroups] = useState<PublicTierGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [generation, setGeneration] = useState(0);
 
@@ -43,13 +50,13 @@ export function useTiers(): { tiers: PublicTier[]; loading: boolean } {
     let alive = true;
     setLoading(true);
     load()
-      .then((next) => alive && setTiers(next))
-      .catch(() => alive && setTiers([]))
+      .then((next) => alive && setGroups(next))
+      .catch(() => alive && setGroups([]))
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
     };
   }, [generation]);
 
-  return { tiers, loading };
+  return { tiers: flattenTierGroups(groups), groups, loading };
 }

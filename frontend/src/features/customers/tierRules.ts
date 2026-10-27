@@ -1,4 +1,4 @@
-import type { TierCondition, TierConditionKey, TierRule, TierRules } from "../../types";
+import type { ChannelTierRules, TierChannel, TierCondition, TierConditionKey, TierRule, TierRules } from "../../types";
 
 export const MAX_TIERS = 12;
 export const MAX_TITLE_LENGTH = 40;
@@ -22,7 +22,47 @@ function withAllConditions(tier: TierRule): TierRule {
 
 /** Rules in the exact shape the server stores after validation. */
 export function normalizeRules(rules: TierRules | null | undefined): TierRules | null {
-  return rules ? fromEditable(toEditable(rules)) : null;
+  if (!rules) return null;
+  const { mode, lists } = splitRules(rules);
+  return joinRules(mode, lists);
+}
+
+export const TIER_CHANNELS: { id: TierChannel; label: string }[] = [
+  { id: "online", label: "اینترنتی" },
+  { id: "pos", label: "حضوری" },
+];
+
+/** Editing key of a list: a channel, or "_" for the legacy general list. */
+export type ListKey = TierChannel | "_";
+
+export function isChannelRules(rules: TierRules | null | undefined): rules is ChannelTierRules {
+  return Boolean(rules && "channels" in rules);
+}
+
+/** Editable lists per channel (or one "_" list for the legacy shape). */
+export function splitRules(rules: TierRules): { mode: "channels" | "legacy"; lists: Partial<Record<ListKey, EditableTier[]>> } {
+  if (isChannelRules(rules)) {
+    return {
+      mode: "channels",
+      lists: {
+        online: toEditable({ tiers: rules.channels.online?.tiers ?? [] }),
+        pos: toEditable({ tiers: rules.channels.pos?.tiers ?? [] }),
+      },
+    };
+  }
+  return { mode: "legacy", lists: { _: toEditable(rules) } };
+}
+
+export function joinRules(mode: "channels" | "legacy", lists: Partial<Record<ListKey, EditableTier[]>>): TierRules {
+  if (mode === "channels") {
+    return {
+      channels: {
+        online: fromEditable(lists.online ?? []) as { tiers: TierRule[] },
+        pos: fromEditable(lists.pos ?? []) as { tiers: TierRule[] },
+      },
+    };
+  }
+  return fromEditable(lists._ ?? []);
 }
 
 export type TierRuleErrors = {
@@ -35,11 +75,11 @@ export type EditableTier = TierRule & { key: string };
 
 let nextKey = 0;
 
-export function toEditable(rules: TierRules): EditableTier[] {
+export function toEditable(rules: { tiers: TierRule[] }): EditableTier[] {
   return rules.tiers.map((tier) => ({ ...withAllConditions(structuredClone(tier)), key: tier.code ?? `new-${nextKey++}` }));
 }
 
-export function fromEditable(tiers: EditableTier[]): TierRules {
+export function fromEditable(tiers: EditableTier[]): { tiers: TierRule[] } {
   return {
     tiers: tiers.map(({ key: _key, ...tier }) => {
       const conditions = Object.fromEntries(

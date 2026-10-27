@@ -17,6 +17,7 @@ from apps.customers.tiers import (
     enabled_tier_codes,
     metrics_for_customers,
     tier_first_purchase_expression,
+    tier_channel_label,
     tier_label,
     tier_title_map,
     tier_last_purchase_expression,
@@ -88,6 +89,10 @@ def customer_list_queryset(params, user=None):
 
     if tier and tier in enabled_tier_codes():
         qs = exclude_operator_accounts(qs.filter(tier_code=tier))
+
+    tier_channel = (params.get("tier_channel") or "").strip().lower()
+    if tier_channel in ("online", "pos"):
+        qs = exclude_operator_accounts(qs.filter(tier_channel=tier_channel))
 
     # RFM rows exist only for purchasing, non-operator customers.
     if rfm_segment in SEGMENT_ORDER:
@@ -453,6 +458,10 @@ def hydrate_customer_rows(customers, include_internal=False):
                 "days_since_last_purchase": tier.get("days_since_last_purchase"),
                 "tier_code": None if is_operator_account(customer, accounts) else (customer.tier_code or None),
                 "tier_label": None if is_operator_account(customer, accounts) else tier_label(customer.tier_code, titles),
+                "tier_channel": None if is_operator_account(customer, accounts) else (customer.tier_channel or None),
+                "tier_channel_label": (
+                    None if is_operator_account(customer, accounts) else tier_channel_label(customer.tier_channel)
+                ),
                 "channel": channel_key,
                 "channel_label": channel_label,
                 "sales_lines": lines,

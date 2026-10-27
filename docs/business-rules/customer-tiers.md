@@ -98,3 +98,33 @@ A row is written only when a customer's `tier_code` actually changes, in the sam
 
 Operator clears are recorded with the reason of the run that cleared them.
 Campaign reports (`campaigns.py`) still read the current `tier_code` with fixed codes; moving them to historical tiers is a later phase.
+
+## 8. Channel tiers (since migration `0007_tier_channels`, 2026-10-26)
+Two ordered tier lists replace the single general list: «اینترنتی» (`online`) and «حضوری» (`pos`).
+
+```json
+{"channels": {"online": {"tiers": [...]}, "pos": {"tiers": [...]}}}
+```
+
+- **Channel of a customer** = the channel with more invoices over each channel's full history:
+  online = qualifying online orders (the `orders` table, including Shopino and Digify);
+  in-store = POS `sell` invoices (Sari, Gorgan, Capri). **Tie → in-store.** No purchase → no channel, no tier.
+  The desk account is excluded as before (`OPERATOR_MOBILES`).
+- **Conditions still use all-channel facts** (purchase count, «از»/«تا» days, lifetime amount). The channel only
+  selects which ordered list is evaluated; first match wins.
+- **Re-evaluated on every refresh** (daily, sync-touched customers, manual, activation). When the other channel
+  overtakes, the customer moves to that channel's list and a history row is written. A change of channel alone counts.
+- **Codes:** in-store tiers keep today's codes (VIP, DIAMOND, GOLD_1, GOLD_2, SILVER, BRONZE_1..3), which campaign
+  reports use. Online tiers use `ONLINE_` + the base code (`ONLINE_VIP` …). New tiers get `CUSTOM_<n>`, unique across
+  both channels and never reused. A code belongs to one channel only.
+- **Validation per channel:** titles unique within the channel, at most 12 tiers, at least one enabled tier.
+- **Stored:** `Customer.tier_channel` («online» / «pos»; NULL under the legacy list) with `tier_code`;
+  `CustomerTierHistory.previous_channel` / `channel`. Labels: «اینترنتی» / «حضوری»; badges read «طلایی سطح ۱ · حضوری».
+- **Legacy shape** `{"tiers": [...]}` keeps evaluating exactly as before (one general list, no channel).
+- **Migration draft:** 0007 adds the columns and creates a **draft** channel version from the active one
+  (pos = the same tiers and codes, online = the same tiers with `ONLINE_` codes, custom codes → new `CUSTOM_<n>`),
+  only if no draft exists and the database has customers. It never activates anything. Because conditions use
+  all-channel facts, every customer keeps the same level; only the code prefix and channel change.
+- **Consequence for campaigns:** campaign reports filter by the base codes, so after activation they only see in-store
+  customers of those tiers. The preview warns with the number of customers moving off campaign codes.
+

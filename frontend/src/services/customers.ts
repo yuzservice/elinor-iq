@@ -8,7 +8,7 @@ import type {
   CustomerProductHistory,
   InternalAccountInfo,
   InternalAccountKind,
-  PublicTier,
+  PublicTierGroup,
   RfmSummary,
   TierRules,
   TierRulesPreview,
@@ -155,7 +155,7 @@ export const customersService = {
     }),
   rfmSummary: (params: { sales_line?: string; payment_method?: string } = {}) =>
     api<RfmSummary>(queryPath("/customers/rfm/summary/", params)),
-  tiers: () => api<{ results: PublicTier[] }>("/customers/tiers/"),
+  tiers: () => api<{ results: PublicTierGroup[] }>("/customers/tiers/"),
   tierRules: () => api<TierRulesState>("/customers/tier-rules/"),
   saveTierRulesDraft: (payload: { rules?: TierRules; note?: string }) =>
     api<TierRulesState>("/customers/tier-rules/draft/", { method: "PUT", body: JSON.stringify(payload) }),

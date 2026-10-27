@@ -35,7 +35,7 @@ function getTierPill(data: Customer360, summary?: string) {
   if (!data.tier_code) return null;
   return (
     <span title={summary}>
-      <TierBadge code={data.tier_code} label={data.tier_label} className="px-3 text-xs" />
+      <TierBadge code={data.tier_code} label={data.tier_label} channelLabel={data.tier_channel_label} className="px-3 text-xs" />
     </span>
   );
 }

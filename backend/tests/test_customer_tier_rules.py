@@ -312,7 +312,10 @@ def test_admin_role_gets_403_on_every_tier_rules_endpoint(auth_api, method, url)
 def test_public_tiers_endpoint_lists_enabled_active_tiers(auth_api):
     response = auth_api.get("/api/customers/tiers/")
     assert response.status_code == 200
-    results = response.data["results"]
+    # Grouped by channel since tier channels; a legacy (general) version is one group with channel None.
+    groups = response.data["results"]
+    assert [(group["channel"], group["channel_label"]) for group in groups] == [(None, None)]
+    results = groups[0]["tiers"]
     assert [row["code"] for row in results] == [tier["code"] for tier in VERSION_1_RULES["tiers"]]
     assert results[0] == {
         "code": "VIP",
@@ -443,7 +446,7 @@ def test_preview_reports_moves_and_writes_nothing(super_admin):
     assert by_code["GOLD_2"]["current"] == 1
     assert by_code["GOLD_2"]["draft"] == 0
     assert by_code["BRONZE_1"]["delta"] == 1
-    assert payload["transitions"] == [{"from": "GOLD_2", "to": "BRONZE_1", "count": 1}]
+    assert [(t["from"], t["to"], t["count"]) for t in payload["transitions"]] == [("GOLD_2", "BRONZE_1", 1)]
     assert payload["samples"][0]["source_id"] == loyal.source_id
     assert any(w["kind"] == "empty" and w["tier_code"] == "VIP" for w in payload["warnings"])
 

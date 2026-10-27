@@ -1,8 +1,11 @@
 """Configurable, ordered customer tiers.
 
-A rule version is {"tiers": [...]}: array order is evaluation priority and the
-first matching enabled tier wins. The purchase facts, the global guard (no
-purchase -> no tier) and operator-account exclusion stay fixed in tiers.py.
+A rule version is either the legacy general list {"tiers": [...]} or, per channel,
+{"channels": {"online": {"tiers": [...]}, "pos": {"tiers": [...]}}}. Each customer's
+channel (the one with more invoices; tie -> pos) selects which ordered list is evaluated;
+conditions always use the all-channel facts. Array order is priority; first match wins.
+The purchase facts, the global guard (no purchase -> no tier) and operator-account
+exclusion stay fixed in tiers.py.
 """
 
 import copy
@@ -36,6 +39,12 @@ CONDITION_LABELS = {
 
 # Campaign reports (campaigns.py) filter by these codes.
 CAMPAIGN_TIER_CODES = ("VIP", "DIAMOND", "GOLD_1", "SILVER")
+
+CHANNEL_ONLINE = "online"
+CHANNEL_POS = "pos"
+CHANNELS = (CHANNEL_ONLINE, CHANNEL_POS)
+CHANNEL_LABELS = {CHANNEL_ONLINE: "اینترنتی", CHANNEL_POS: "حضوری"}
+ONLINE_CODE_PREFIX = "ONLINE_"
 
 
 def _condition(operator=None, value=None, *, days=False):
@@ -90,14 +99,55 @@ def default_rules():
     return copy.deepcopy(VERSION_1_RULES)
 
 
+def is_channel_rules(rules):
+    return isinstance(rules, dict) and "channels" in rules
+
+
 def validate_rules(rules):
     """Return normalized rules or raise TierRulesError with Persian messages.
 
+    Legacy shape: {"tiers": [...]}; errors {"_", "tiers": {index: {field: message}}}.
+    Channel shape: {"channels": {...}}; errors {"_", "channels": {channel: {"_", "tiers": {...}}}}.
     Every tier must already carry a code; tier_rule_admin assigns codes to new tiers.
     """
+    if is_channel_rules(rules):
+        return _validate_channels(rules)
     if not isinstance(rules, dict) or set(rules) != {"tiers"} or not isinstance(rules.get("tiers"), list):
         raise TierRulesError({"_": "ساختار قوانین معتبر نیست؛ فهرست سطح‌ها لازم است."})
-    tiers = rules["tiers"]
+    normalized, errors = _validate_tier_list(rules["tiers"])
+    if errors:
+        raise TierRulesError(errors)
+    return {"tiers": normalized}
+
+
+def _validate_channels(rules):
+    channels = rules.get("channels")
+    if set(rules) != {"channels"} or not isinstance(channels, dict) or set(channels) != set(CHANNELS):
+        raise TierRulesError({"_": "ساختار قوانین معتبر نیست؛ برای هر دو کانال «اینترنتی» و «حضوری» فهرست سطح لازم است."})
+    normalized, errors = {}, {}
+    codes = {}
+    for channel in CHANNELS:
+        block = channels[channel]
+        if not isinstance(block, dict) or set(block) != {"tiers"} or not isinstance(block.get("tiers"), list):
+            errors[channel] = {"_": "ساختار سطح‌های این کانال معتبر نیست."}
+            continue
+        tiers, channel_errors = _validate_tier_list(block["tiers"])
+        for index, tier in enumerate(tiers):
+            code = tier.get("code")
+            if code and code in codes and codes[code] != channel:
+                channel_errors.setdefault("tiers", {}).setdefault(index, {})["code"] = "این کد در کانال دیگر هم هست؛ کد هر سطح فقط در یک کانال مجاز است."
+            if code:
+                codes[code] = channel
+        if channel_errors:
+            errors[channel] = channel_errors
+        normalized[channel] = {"tiers": tiers}
+    if errors:
+        raise TierRulesError({"channels": errors})
+    return {"channels": normalized}
+
+
+def _validate_tier_list(tiers):
+    """Validate one ordered list: max 12, ≥ 1 enabled, unique codes and titles (case-insensitive)."""
     errors = {}
     tier_errors = {}
     if not tiers:
@@ -129,9 +179,7 @@ def validate_rules(rules):
         errors["_"] = "دست‌کم یک سطح باید فعال باشد."
     if tier_errors:
         errors["tiers"] = tier_errors
-    if errors:
-        raise TierRulesError(errors)
-    return {"tiers": normalized}
+    return normalized, errors
 
 
 def _normalize_tier(tier, errors):
@@ -212,8 +260,34 @@ def _normalize_condition(key, raw, errors):
     return condition
 
 
-def enabled_tiers(rules):
-    return [tier for tier in rules["tiers"] if tier.get("enabled")]
+def tier_lists(rules):
+    """[(channel, tiers)] in evaluation order; channel is None for the legacy shape."""
+    if is_channel_rules(rules):
+        return [(channel, rules["channels"][channel]["tiers"]) for channel in CHANNELS]
+    return [(None, rules["tiers"])]
+
+
+def all_tiers(rules):
+    """Every tier with its channel, e.g. for titles and issued codes."""
+    return [(channel, tier) for channel, tiers in tier_lists(rules) for tier in tiers]
+
+
+def enabled_tiers(rules, channel=None):
+    """Enabled tiers in priority order: of one channel, or of every list when `channel` is None."""
+    return [
+        tier
+        for list_channel, tiers in tier_lists(rules)
+        if channel is None or list_channel == channel
+        for tier in tiers
+        if tier.get("enabled")
+    ]
+
+
+def channel_of_code(rules, code):
+    for channel, tier in all_tiers(rules):
+        if tier.get("code") == code:
+            return channel
+    return None
 
 
 def _enabled_conditions(tier):
@@ -225,13 +299,35 @@ def _enabled_conditions(tier):
             yield key, column, OPERATOR_SQL[operator], int(condition["value"])
 
 
-def tier_case_sql(rules):
-    """SQL CASE over the facts columns. Thresholds and codes are bound parameters.
+def _list_case(tiers, params):
+    whens = []
+    for tier in tiers:
+        if not tier.get("enabled"):
+            continue
+        conditions = []
+        for _key, column, operator, value in _enabled_conditions(tier):
+            conditions.append(f"{column} {operator} %s")
+            params.append(value)
+        whens.append(f"WHEN {' AND '.join(conditions)} THEN %s")
+        params.append(tier["code"])
+    return f"CASE {' '.join(whens)} ELSE NULL END" if whens else "NULL"
 
+
+def tier_case_sql(rules):
+    """SQL CASE over the facts columns. Thresholds, codes and channels are bound parameters.
+
+    Channel rules branch on the facts `channel` column, then evaluate that channel's list.
     Returns (sql, params). Operators come from the OPERATOR_SQL whitelist; titles never reach SQL.
     """
-    lines = ["CASE", "    WHEN purchase_count <= 0 OR days_since_last_purchase IS NULL THEN NULL"]
     params = []
+    lines = ["CASE", "    WHEN purchase_count <= 0 OR days_since_last_purchase IS NULL THEN NULL"]
+    if is_channel_rules(rules):
+        for channel in CHANNELS:
+            params.append(channel)
+            branch = _list_case(rules["channels"][channel]["tiers"], params)
+            lines.append(f"    WHEN channel = %s THEN ({branch})")
+        lines.extend(["    ELSE NULL", "END"])
+        return "\n".join(lines), params
     for tier in enabled_tiers(rules):
         conditions = []
         for _key, column, operator, value in _enabled_conditions(tier):
@@ -243,17 +339,35 @@ def tier_case_sql(rules):
     return "\n".join(lines), params
 
 
-def evaluate_tier(rules, purchase_count, days_since_last_purchase, lifetime_purchase_amount):
-    """Python twin of tier_case_sql. First matching enabled tier wins."""
+def channel_case_sql(rules):
+    """SQL for the stored tier_channel: the facts channel when channel rules assign a tier, else NULL."""
+    if not is_channel_rules(rules):
+        return "NULL::varchar"
+    return "channel"
+
+
+def customer_channel(online_count, pos_count):
+    """Channel with more invoices over each channel's full history; tie -> pos; no purchase -> None."""
+    online_count, pos_count = int(online_count or 0), int(pos_count or 0)
+    if online_count + pos_count <= 0:
+        return None
+    return CHANNEL_POS if pos_count >= online_count else CHANNEL_ONLINE
+
+
+def evaluate_tier(rules, purchase_count, days_since_last_purchase, lifetime_purchase_amount, channel=None):
+    """Python twin of tier_case_sql. First matching enabled tier (of the customer's channel) wins."""
     count = int(purchase_count or 0)
     if count <= 0 or days_since_last_purchase is None:
+        return None
+    if is_channel_rules(rules) and channel not in CHANNELS:
         return None
     facts = {
         "purchase_count": count,
         "days_since_last_purchase": int(days_since_last_purchase),
         "lifetime_purchase_amount": int(lifetime_purchase_amount or 0),
     }
-    for tier in enabled_tiers(rules):
+    candidates = enabled_tiers(rules, channel) if is_channel_rules(rules) else enabled_tiers(rules)
+    for tier in candidates:
         if all(_compare(facts[column], operator, value) for _key, column, operator, value in _enabled_conditions(tier)):
             return tier["code"]
     return None

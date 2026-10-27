@@ -3,7 +3,7 @@
 Durable state for the next engineer or AI assistant. Do not rely on chat history; this file plus the repo is the source of truth.
 Update this file at the end of every implementation task (newest entry first in the Log).
 
-Last updated: 2026-10-26 · **server runs `production` (= `f308fec` + deploy change `b69af90`)**; `main` is development (see §2 Branches)
+Last updated: 2026-10-27 · **`production` = `1400d6b` (tier rules + «از» + channel-based tiers), pushed; the server gets it when the owner runs `update.sh`**; `main` is development (see §2 Branches)
 
 ## 1. Current priority
 
@@ -88,13 +88,16 @@ Notes for the Product Architect / next task:
 - Commit and push to the approved remote only when explicitly authorized. Verify `git status` and ahead/behind counts; never assume work is backed up.
 - Never commit secrets, credentials, database dumps (`source/`, `backups/`) or customer records. `.env` is gitignored.
 
-## 6. Git and backup state (checked 2026-10-26)
+## 6. Git and backup state (checked 2026-10-27)
 
 - Remote `origin` → GitHub `yuzservice/elinor-iq`.
-- Server version: `f308fec` («از» day bound). `production` = `f308fec` + `b69af90` (deploy from production).
+- `production` = `1400d6b` (merge of `feature/tier-channels` `beef8ee`), pushed. Server: `f308fec` until the owner runs
+  `update.sh` (not verified from here).
+- `main` now includes `production` (merge commit with `0010_merge_tier_channels`).
 - `main`: `a8198d2` Stage 1, `a76cdd8` internal accounts (0008, 0009), `accb9d8` prototypes removed, `99d9efc` graph +
   handoff, `542c2c8` deploy from production — none of the RFM/internal-accounts work is on the server.
 - `wip/rfm-stage-1b` (`d7bb88f`, pushed): RFM Stage 1b + postgres `shm_size: 256mb`; to merge into `main` when RFM resumes.
+  Its `0010_rfm_stage_1b` and main's `0010_merge_tier_channels` will need one more customers merge migration then.
 - Uncommitted: `graphify-out/` after `graphify update .` (and its backup folder `graphify-out/2026-10-25/`), and this file's latest edit.
 - Tracked docs: `CLAUDE.md`, `docs/`, `.claude/skills/`.
 - `b238c21` (owner) tracks Graphify artifacts, `.mcp.json`, `.graphifyignore` and the UI prototypes, and updates `.gitignore`.
@@ -119,6 +122,41 @@ Notes for the Product Architect / next task:
 3. Decide on the pre-existing export/campaign test failures and the unused campaign exclusion.
 
 ## 9. Log
+
+### 2026-10-27 — Channel tiers released to `production` and merged into `main`
+- `production`: `git merge --no-ff feature/tier-channels` → `1400d6b`, pushed. Targeted tests on `production`:
+  110 passed; frontend `tsc -b` OK, Vitest 43/43, build OK.
+- `main`: merged `production`. Resolutions: internal accounts stay excluded by customer id (main) and
+  `clear_operator_tiers` also clears `tier_channel`; `/api/customers/tiers/` returns channel groups and each tier keeps
+  its `customers` count; list rows / 360 carry `tier_channel` next to RFM and internal-account fields; the list keeps
+  main's RFM column (no tier filter grid); the club page («باشگاه مشتریان») groups tier population by channel.
+  Merge migration `0010_merge_tier_channels` (0007_tier_channels + 0009_seed_confirmed_internal_accounts);
+  `makemigrations --check`: no changes. `test_tier_channels.py` desk setup now creates an `InternalAccount` row.
+- Tests on `main` (`test_tier_channels`, `test_customer_tier_rules`, `test_customer_tiers`, `test_operator_accounts`,
+  `test_customer_list`, `test_customer_360`, `test_customers`, `test_customer_rfm`, `test_internal_accounts`,
+  `test_internal_accounts_seed`): 183 passed. Frontend: `tsc -b` OK, Vitest 48/48, build OK. Full suite not run.
+- Local DB `elinor_iq` not migrated (needs owner approval).
+
+
+### 2026-10-26 — Channel-based tiers (`feature/tier-channels`, from `production`)
+- Branches: `production` = what the server runs (`f308fec` + deploy change `b69af90`); `update.sh` deploys only
+  `production`. `main` = development (RFM, internal accounts). Features that ship alone branch from `production`.
+- Two tier lists «اینترنتی» / «حضوری» per version; channel = majority of invoices (tie → in-store); conditions use
+  all-channel facts. Migration `0007_tier_channels` adds `Customer.tier_channel`, history channel fields, and a
+  **draft** channel version (not activated). Modal tabs, preview per channel with «توزیع مشتریان بین کانال‌ها»,
+  grouped `/api/customers/tiers/`, `tier_channel` list filter, badges «… · حضوری».
+- Production steps (owner): run `update.sh` → migration creates the draft → preview and activate it in the tier
+  rules modal → the background refresh writes channels and history.
+- Release path: merge into `production` (owner approval) → owner runs `update.sh` → merge `production` into `main`
+  with a Django merge migration for the two 0007 leaves.
+- Local check on a temporary copy of the dev database (`elinor_iq_channels`, dropped afterwards; `elinor_iq` untouched):
+  purchasing customers by channel online 125,659 / in-store 73,621. Draft tiers: online ONLINE_BRONZE_3 98,655,
+  ONLINE_BRONZE_2 15,631, ONLINE_SILVER 5,123, ONLINE_GOLD_2 2,274, ONLINE_DIAMOND 2,013, ONLINE_GOLD_1 1,137,
+  ONLINE_VIP 442, ONLINE_BRONZE_1 384; in-store BRONZE_3 44,565, BRONZE_2 13,187, SILVER 5,500, GOLD_2 3,925,
+  DIAMOND 3,781, GOLD_1 1,359, VIP 883, BRONZE_1 421. **Level changes: 0**; prefix/channel mismatches: 0.
+  About 8,715 customers move from campaign codes (VIP, DIAMOND, GOLD_1, SILVER) to ONLINE_ codes on activation.
+- Tests: `test_tier_channels.py`, `test_customer_tier_rules.py`, `test_customer_tiers.py`, `test_operator_accounts.py`,
+  `test_customer_list.py`, `test_customer_360.py`, `test_customers.py`: 110 passed. Frontend: `tsc -b` OK, Vitest 43/43, build OK.
 
 ### 2026-10-25 — Committed and pushed Stage 1 and internal accounts
 - Owner approved after local review. `SUSPECTED_MIN_SCORE` raised from 2 to 3 (`test_internal_accounts.py` +
