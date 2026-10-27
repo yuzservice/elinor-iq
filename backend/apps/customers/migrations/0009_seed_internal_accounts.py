@@ -1,5 +1,8 @@
 from django.db import migrations
 
+# Recreated on 2026-10-27 after the RFM/Club revert (decision 0005); same 15 accounts as the archived
+# 0009_seed_confirmed_internal_accounts.
+
 # Internal accounts confirmed by the owner on 1405/08/04 after reviewing the accounts with the most invoices.
 # Listed by Customer.source_id only.
 STAFF_SOURCE_IDS = (6672, 6752, 21299, 67479, 1010, 419)
@@ -25,7 +28,7 @@ def seed_confirmed_accounts(apps, schema_editor):
         if account is None:
             InternalAccount.objects.create(customer_id=customer_id, kind=kind, note=SEED_NOTE, is_active=True)
             continue
-        # Pre-existing row (e.g. the desk row from 0008): reactivate and set the kind; keep its note and history.
+        # Pre-existing row (e.g. the 0008 desk row): reactivate and set the kind; keep its note and history.
         if not account.is_active or account.kind != kind:
             account.is_active = True
             account.kind = kind
@@ -39,7 +42,7 @@ def remove_seeded_accounts(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("customers", "0008_internal_accounts"),
+        ("customers", "0008_internalaccount"),
     ]
 
     operations = [

@@ -1,8 +1,8 @@
 """Internal accounts: desk accounts and staff who place orders for other people under their own login.
 
-Active rows of customers.InternalAccount are the source of truth (migration 0008 moved the former
-hard-coded desk mobile there). Sales totals still include these accounts' orders. Customer reports
-(tiers, RFM, ranking, buyer counts, campaign customer reports) do not treat them as buyers.
+Active rows of customers.InternalAccount are the source of truth (migration 0008_internalaccount moved the
+former hard-coded desk mobile there). Sales totals still include these accounts' orders. Customer reports
+(tiers, ranking, buyer counts, campaign customer reports) do not treat them as buyers.
 Helpers query the table on each call; nothing is cached.
 """
 

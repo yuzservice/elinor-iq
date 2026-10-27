@@ -1,0 +1,88 @@
+import django.db.models.deletion
+from django.conf import settings
+from django.db import migrations, models
+
+# Recreated on 2026-10-27 after the RFM/Club revert (decision 0005). The archived 0008_internal_accounts
+# also added RFM signal fields; this one creates only the InternalAccount table and moves the desk account.
+
+# Frozen copy of the operator mobiles that were hard-coded in operators.py before this migration.
+LEGACY_OPERATOR_MOBILES = ("09362506974",)
+MIGRATION_NOTE = "منتقل‌شده از فهرست ثابت اکانت دفتر (migration 0008)"
+
+
+def _variants(mobile):
+    national = mobile[1:]
+    return {mobile, national, f"98{national}", f"+98{national}"}
+
+
+def move_desk_accounts(apps, schema_editor):
+    Customer = apps.get_model("customers", "Customer")
+    InternalAccount = apps.get_model("customers", "InternalAccount")
+    variants = set()
+    for mobile in LEGACY_OPERATOR_MOBILES:
+        variants |= _variants(mobile)
+    for customer_id in Customer.objects.filter(mobile__in=variants).values_list("pk", flat=True):
+        InternalAccount.objects.get_or_create(
+            customer_id=customer_id,
+            defaults={"kind": "desk", "note": MIGRATION_NOTE, "is_active": True},
+        )
+
+
+def remove_moved_accounts(apps, schema_editor):
+    InternalAccount = apps.get_model("customers", "InternalAccount")
+    InternalAccount.objects.filter(kind="desk", note=MIGRATION_NOTE, created_by__isnull=True).delete()
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ("customers", "0007_tier_channels"),
+        migrations.swappable_dependency(settings.AUTH_USER_MODEL),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name="InternalAccount",
+            fields=[
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("kind", models.CharField(choices=[("desk", "اکانت دفتر"), ("staff", "کارمند")], max_length=16)),
+                ("note", models.TextField(blank=True)),
+                ("is_active", models.BooleanField(db_index=True, default=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                (
+                    "created_by",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="+",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "customer",
+                    models.OneToOneField(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="internal_account",
+                        to="customers.customer",
+                    ),
+                ),
+                (
+                    "updated_by",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="+",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+            ],
+            options={
+                "db_table": "customer_internal_accounts",
+                "ordering": ["-updated_at"],
+            },
+        ),
+        migrations.RunPython(move_desk_accounts, remove_moved_accounts),
+    ]

@@ -1,7 +1,8 @@
 # 0004 — Internal (staff) accounts excluded from customer reports
 
 - **Date:** 2026-10-25
-- **Status:** Accepted (approved by product owner), implemented on `main`, uncommitted
+- **Status:** Accepted (approved by product owner), on `main`. Re-implemented without RFM on 2026-10-27
+  (decision 0005): new migrations `0008_internalaccount`, `0009_seed_internal_accounts`; decision 2 (signals) paused.
 - **Rules:** [[business-rules/internal-accounts]]
 
 ## Context

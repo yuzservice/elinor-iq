@@ -1,5 +1,8 @@
 # Customer RFM — Business Rules
 
+> **Reverted 2026-10-27 — see archive branch `archive/rfm-club-2026-10-27` (`4a69c5d`) and [[decisions/0005-revert-rfm-club]].**
+> Nothing below is in the code on `main` or `production`. Kept for reference only.
+
 Source of truth in code: `backend/apps/customers/rfm.py` (thresholds, segments, refresh, snapshots, summary),
 facts from `apps/customers/tiers.py` (`_facts_sql`). Decision: [[decisions/0003-rfm-report-and-club-menu]].
 

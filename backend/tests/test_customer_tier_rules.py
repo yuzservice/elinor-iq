@@ -322,7 +322,6 @@ def test_public_tiers_endpoint_lists_enabled_active_tiers(auth_api):
         "title": "VIP",
         "priority": 1,
         "summary": "۴+ خرید · حداکثر ۴۵ روز از آخرین خرید · +۱۰ میلیون",
-        "customers": 0,
     }
 
 
@@ -641,7 +640,7 @@ def test_list_filter_accepts_only_enabled_active_codes(auth_api, super_admin):
 @pytest.mark.django_db
 def test_operator_accounts_stay_null_after_activation(super_admin):
     desk = _customer(1, mobile=OPERATOR_MOBILE)
-    InternalAccount.objects.create(customer=desk, kind="desk")  # as migration 0008 does
+    InternalAccount.objects.create(customer=desk, kind="desk")  # as migration 0008_internalaccount does
     _orders(desk, 100, count=5, days=5, amount=5_000_000)
     Customer.objects.filter(pk=desk.pk).update(tier_code="VIP")
 

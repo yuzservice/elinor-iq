@@ -111,7 +111,7 @@ def test_channel_in_facts_and_metrics():
     _online(shopino, 20, shopino=True)
     _pos(shopino, 30)
     desk = _customer(6, mobile=DESK_MOBILE)
-    InternalAccount.objects.create(customer=desk, kind="desk")  # main excludes internal accounts by id
+    InternalAccount.objects.create(customer=desk, kind="desk")  # internal accounts are excluded by id
     _online(desk, 5)
     nobody = _customer(7)
 

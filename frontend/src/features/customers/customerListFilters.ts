@@ -18,7 +18,6 @@ export const CHANNEL_OPTIONS = [
 
 export const SORT_OPTIONS = [
   { value: "last_purchase", label: "تازه‌ترین خرید", icon: "⏱️" },
-  { value: "rfm", label: "اولویت RFM", icon: "🎯" },
   { value: "lifetime_amount", label: "بیشترین مبلغ خرید (LTV)", icon: "💎" },
   { value: "purchase_count", label: "بیشترین تعداد فاکتور", icon: "📈" },
   { value: "churn_risk", label: "بیشترین فاصله از آخرین خرید", icon: "⚠️" },
@@ -46,7 +45,6 @@ export const PAYMENT_METHOD_OPTIONS = [
   { value: "installment", label: "خرید اقساطی (اسنپ‌پی / دیجی‌پی)" },
   { value: "snappay", label: "فقط اسنپ‌پی" },
   { value: "digipay", label: "فقط دیجی‌پی" },
-  { value: "other", label: "سایر (بدون اسنپ‌پی و دیجی‌پی)" },
   { value: "wallet", label: "کیف پول" },
   { value: "shopino", label: "شاپینو" },
 ] as const;
@@ -76,6 +74,29 @@ export const CATEGORY_PRESETS = ["مانتو", "شومیز", "شلوار", "کت
 
 export const CITY_PRESETS = ["ساری", "گرگان", "تهران", "بابل", "آمل", "قائم‌شهر", "بجنورد"] as const;
 
+export type SmartSegmentId =
+  | "all"
+  | "vip"
+  | "at_risk_vip"
+  | "installment"
+  | "omnichannel"
+  | "discount_hunters"
+  | "incomplete_profile";
+
+export const SMART_SEGMENTS: ReadonlyArray<{
+  id: SmartSegmentId;
+  label: string;
+  desc: string;
+}> = [
+  { id: "all", label: "همه مشتریان", desc: "نمایش کل پایگاه داده بدون فیلتر" },
+  { id: "vip", label: "VIP پلاتینیوم", desc: "مشتریان تراز اول با خرید بالای ۱۰ میلیون" },
+  { id: "at_risk_vip", label: "طلایی در خطر ریزش", desc: "مشتریان ارزشمند با بیش از ۹۰ روز عدم خرید" },
+  { id: "installment", label: "خریداران اقساطی", desc: "پرداخت با اسنپ‌پی یا دیجی‌پی" },
+  { id: "omnichannel", label: "مشتریان چندکاناله", desc: "خرید هم‌زمان از وب‌سایت و شعب حضوری" },
+  { id: "discount_hunters", label: "حساس به تخفیف", desc: "مشتریانی که از کد یا جشنواره تخفیف استفاده کرده‌اند" },
+  { id: "incomplete_profile", label: "پرونده‌های ناقص", desc: "نیازمند تکمیل نام یا شماره موبایل در صندوق" },
+];
+
 export type CustomerListFilters = {
   population: string;
   tier: string;
@@ -97,11 +118,6 @@ export type CustomerListFilters = {
   category: string;
   city: string;
   profileState: string;
-  birthMonth: string;
-  rfmSegment: string;
-  rScore: string;
-  fScore: string;
-  internal: string;
   sort: string;
 };
 
@@ -126,27 +142,8 @@ export const EMPTY_CUSTOMER_FILTERS: CustomerListFilters = {
   category: "",
   city: "",
   profileState: "",
-  birthMonth: "",
-  rfmSegment: "",
-  rScore: "",
-  fScore: "",
-  internal: "",
   sort: "last_purchase",
 };
-
-/** Filters a link may carry into the list tab: ?tier=, ?rfm_segment=, ?r_score=&f_score=. */
-export function filtersFromSearch(search: string): CustomerListFilters {
-  const params = new URLSearchParams(search);
-  const score = (value: string | null) => (value && /^[1-5]$/.test(value) ? value : "");
-  return {
-    ...EMPTY_CUSTOMER_FILTERS,
-    tier: (params.get("tier") || "").toUpperCase(),
-    rfmSegment: params.get("rfm_segment") || "",
-    rScore: score(params.get("r_score")),
-    fScore: score(params.get("f_score")),
-    sort: params.get("rfm_segment") || params.get("r_score") ? "rfm" : EMPTY_CUSTOMER_FILTERS.sort,
-  };
-}
 
 export function salesLinesToParam(salesLines: SalesLineValue[]): string {
   return salesLines.join(",");
@@ -180,11 +177,6 @@ export function buildCustomerListParams(
     category: filters.category ? filters.category.trim() : undefined,
     city: filters.city ? filters.city.trim() : undefined,
     profile_state: filters.profileState || undefined,
-    birth_month: filters.birthMonth || undefined,
-    rfm_segment: filters.rfmSegment || undefined,
-    r_score: filters.rScore || undefined,
-    f_score: filters.fScore || undefined,
-    internal: filters.internal || undefined,
     sort: filters.sort && filters.sort !== "last_purchase" ? filters.sort : undefined,
     page: options.page,
     per_page: options.perPage,

@@ -9,7 +9,6 @@ import type {
   InternalAccountInfo,
   InternalAccountKind,
   PublicTierGroup,
-  RfmSummary,
   TierRules,
   TierRulesPreview,
   TierRulesState,
@@ -41,10 +40,6 @@ export type CustomerListParams = {
   city?: string;
   profile_state?: string;
   birth_month?: string;
-  rfm_segment?: string;
-  r_score?: string;
-  f_score?: string;
-  internal?: string;
   page?: number;
   per_page?: number;
   sort?: string;
@@ -75,10 +70,6 @@ function serializeFilterParams(params: CustomerListParams) {
     city: params.city,
     profile_state: params.profile_state,
     birth_month: params.birth_month,
-    rfm_segment: params.rfm_segment,
-    r_score: params.r_score,
-    f_score: params.f_score,
-    internal: params.internal,
     sort: params.sort,
   };
 }
@@ -153,8 +144,6 @@ export const customersService = {
       method: "PATCH",
       body: JSON.stringify(payload),
     }),
-  rfmSummary: (params: { sales_line?: string; payment_method?: string } = {}) =>
-    api<RfmSummary>(queryPath("/customers/rfm/summary/", params)),
   tiers: () => api<{ results: PublicTierGroup[] }>("/customers/tiers/"),
   tierRules: () => api<TierRulesState>("/customers/tier-rules/"),
   saveTierRulesDraft: (payload: { rules?: TierRules; note?: string }) =>

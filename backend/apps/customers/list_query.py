@@ -1,9 +1,8 @@
 from django.db.models import Case, Count, Exists, F, IntegerField, Max, Min, OuterRef, Q, Value, When
 
-from apps.customers.models import Customer, CustomerAddress, CustomerRfm
+from apps.customers.models import Customer, CustomerAddress
 from apps.customers.operators import active_internal_accounts, exclude_operator_accounts, is_operator_account
 from apps.customers.presentation import customer_status_label, list_payload
-from apps.customers.rfm import SEGMENT_ORDER, internal_suspected, row_payload
 from apps.customers.purchases import (
     SALES_LINE_LABELS,
     channel_for,
@@ -31,8 +30,7 @@ LIST_DEFER = ("source_payload", "addresses", "summary")
 VALID_SALES_LINES = {SalesLine.ONLINE, SalesLine.SARI, SalesLine.GORGAN, SalesLine.CAPRI}
 
 
-def customer_list_queryset(params, user=None):
-    """Filtered customers. The `internal` filter is honored only when `user` is a super admin."""
+def customer_list_queryset(params):
     qs = Customer.objects.defer(*LIST_DEFER)
     population = (params.get("population") or "all").strip()
     tier = (params.get("tier") or "").strip().upper()
@@ -49,9 +47,6 @@ def customer_list_queryset(params, user=None):
     city = (params.get("city") or "").strip()
     profile_state = (params.get("profile_state") or "").strip().lower()
     birth_month = _as_int(params.get("birth_month"))
-    rfm_segment = (params.get("rfm_segment") or "").strip().lower()
-    r_score = _as_int(params.get("r_score"))
-    f_score = _as_int(params.get("f_score"))
 
     if population == "purchasing":
         qs = qs.filter(qualifying_order_exists() | qualifying_pos_exists())
@@ -93,18 +88,6 @@ def customer_list_queryset(params, user=None):
     tier_channel = (params.get("tier_channel") or "").strip().lower()
     if tier_channel in ("online", "pos"):
         qs = exclude_operator_accounts(qs.filter(tier_channel=tier_channel))
-
-    # RFM rows exist only for purchasing, non-operator customers.
-    if rfm_segment in SEGMENT_ORDER:
-        qs = qs.filter(rfm__segment=rfm_segment)
-    if r_score is not None and 1 <= r_score <= 5:
-        qs = qs.filter(rfm__r_score=r_score)
-    if f_score is not None and 1 <= f_score <= 5:
-        qs = qs.filter(rfm__f_score=f_score)
-
-    internal = (params.get("internal") or "").strip().lower()
-    if internal and _is_super_admin(user):
-        qs = _apply_internal_filter(qs, internal)
 
     min_count = _as_int(params.get("min_purchases"))
     max_count = _as_int(params.get("max_purchases"))
@@ -208,14 +191,11 @@ def _apply_payment_method_filter(qs, payment_method):
             Exists(pos_base.filter(digipay_cashier_amount__gt=0))
             | Exists(online_gw_base.filter(gateway__icontains="digi"))
         )
-    installment = Exists(pos_base.filter(Q(snappay_cashier_amount__gt=0) | Q(digipay_cashier_amount__gt=0))) | Exists(
-        online_gw_base.filter(Q(gateway__icontains="snapp") | Q(gateway__icontains="digi"))
-    )
     if payment_method == "installment":
-        return qs.filter(installment)
-    if payment_method == "other":
-        # Purchasers who never paid with SnappPay or DigiPay: the opposite of "installment".
-        return qs.filter(qualifying_order_exists() | qualifying_pos_exists()).filter(~installment)
+        return qs.filter(
+            Exists(pos_base.filter(Q(snappay_cashier_amount__gt=0) | Q(digipay_cashier_amount__gt=0)))
+            | Exists(online_gw_base.filter(Q(gateway__icontains="snapp") | Q(gateway__icontains="digi")))
+        )
     if payment_method == "wallet":
         return qs.filter(Exists(pos_base.filter(from_wallet_amount__gt=0)))
     if payment_method == "shopino":
@@ -380,34 +360,14 @@ def parse_sales_lines_filter(params):
     return lines
 
 
-def _is_super_admin(user):
-    from apps.accounts.permissions import is_super_admin
-
-    return is_super_admin(user)
-
-
-def _apply_internal_filter(qs, internal):
-    from apps.customers.rfm import SUSPECTED_MIN_SCORE
-
-    if internal == "suspected":
-        return qs.filter(rfm__internal_signal_score__gte=SUSPECTED_MIN_SCORE).exclude(internal_account__is_active=True)
-    if internal == "confirmed":
-        return qs.filter(internal_account__is_active=True)
-    if internal == "all":
-        return qs.filter(
-            Q(internal_account__is_active=True) | Q(rfm__internal_signal_score__gte=SUSPECTED_MIN_SCORE)
-        ).distinct()
-    return qs
-
-
-def paginate_customers(qs, page, per_page, user=None):
+def paginate_customers(qs, page, per_page):
     total = qs.count()
     start = (page - 1) * per_page
     rows = list(qs[start : start + per_page])
-    return total, hydrate_customer_rows(rows, include_internal=_is_super_admin(user))
+    return total, hydrate_customer_rows(rows)
 
 
-def hydrate_customer_rows(customers, include_internal=False):
+def hydrate_customer_rows(customers):
     ids = [customer.pk for customer in customers]
     if not ids:
         return []
@@ -431,7 +391,6 @@ def hydrate_customer_rows(customers, include_internal=False):
         pos_lines[row["customer_id"]].add(row["sales_line"])
     titles = tier_title_map()
     tiers = metrics_for_customers(ids, titles=titles)
-    rfm_rows = {row.customer_id: row for row in CustomerRfm.objects.filter(customer_id__in=ids)}
     accounts = active_internal_accounts()
 
     payloads = []
@@ -468,11 +427,8 @@ def hydrate_customer_rows(customers, include_internal=False):
                 "sales_line_labels": [SALES_LINE_LABELS.get(line, line) for line in lines],
                 "is_purchasing": online_count + pos_count > 0,
                 "status_label": customer_status_label(customer.status) or "—",
-                **row_payload(rfm_rows.get(customer.pk)),
             }
         )
-        if include_internal:
-            payload["internal_suspected"] = internal_suspected(rfm_rows.get(customer.pk), customer.pk in accounts)
         payloads.append(payload)
     return payloads
 
@@ -543,18 +499,6 @@ def _operator_rank():
 
 
 def _apply_sort(qs, sort):
-    if sort == "rfm":
-        segment_rank = Case(
-            *[When(rfm__segment=key, then=Value(index)) for index, key in enumerate(SEGMENT_ORDER)],
-            default=Value(len(SEGMENT_ORDER)),
-            output_field=IntegerField(),
-        )
-        return qs.annotate(rfm_rank=segment_rank).order_by(
-            "rfm_rank",
-            F("rfm__m_score").desc(nulls_last=True),
-            F("rfm__lifetime_amount").desc(nulls_last=True),
-            "-source_id",
-        )
     if sort == "purchase_count":
         if "purchase_count" not in qs.query.annotations:
             qs = qs.annotate(purchase_count=tier_purchase_count_expression())

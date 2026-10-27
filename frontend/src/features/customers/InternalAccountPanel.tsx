@@ -12,13 +12,11 @@ const KIND_OPTIONS: { value: InternalAccountKind; label: string }[] = [
 
 type Props = { data: Customer360; onChanged: () => void };
 
-/** Super-admin banner for internal-account signals or a confirmed internal account. */
+/** Super-admin banner for a confirmed internal account. Signal scoring is paused with RFM (decision 0005). */
 export function InternalAccountBanner({ data, onChanged }: Props) {
-  const [dialogOpen, setDialogOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const account = data.internal_account;
-  const signals = data.internal_account_signals;
 
   const restore = async () => {
     if (!account || !window.confirm("این حساب به گزارش‌های مشتری برگردد؟")) return;
@@ -57,27 +55,7 @@ export function InternalAccountBanner({ data, onChanged }: Props) {
     );
   }
 
-  if (!signals?.suspected) return null;
-  return (
-    <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm" role="status">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="font-bold text-amber-800 dark:text-amber-300">این حساب نشانه‌های حساب داخلی دارد:</p>
-          <ul className="mt-1 flex flex-wrap gap-1.5 text-xs text-amber-800 dark:text-amber-300">
-            {signals.signals.map((signal) => (
-              <li key={signal.key} className="rounded-lg bg-amber-500/15 px-2 py-0.5">
-                {signal.text}
-              </li>
-            ))}
-          </ul>
-        </div>
-        <Button type="button" onClick={() => setDialogOpen(true)}>
-          علامت‌گذاری به‌عنوان حساب داخلی
-        </Button>
-      </div>
-      {dialogOpen ? <MarkInternalDialog data={data} onClose={() => setDialogOpen(false)} onDone={onChanged} /> : null}
-    </div>
-  );
+  return null;
 }
 
 /** Header menu with the internal-account action, available for every customer (super admin). */
@@ -165,7 +143,7 @@ function MarkInternalDialog({ data, onClose, onDone }: { data: Customer360; onCl
           علامت‌گذاری به‌عنوان حساب داخلی
         </h3>
         <p className="text-xs leading-6 text-muted">
-          این حساب از سطح‌بندی، RFM، رتبه‌بندی و شمارش مشتریان خارج می‌شود. سفارش‌هایش در فروش می‌ماند. هر زمان می‌توانید آن را
+          این حساب از سطح‌بندی، رتبه‌بندی و شمارش مشتریان خارج می‌شود. سفارش‌هایش در فروش می‌ماند. هر زمان می‌توانید آن را
           برگردانید.
         </p>
         <fieldset className="space-y-2">

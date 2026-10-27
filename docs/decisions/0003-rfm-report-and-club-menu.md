@@ -1,7 +1,10 @@
 # 0003 — RFM report and the «باشگاه مشتریان» menu (Stage 1)
 
+> **Reverted 2026-10-27 — see archive branch `archive/rfm-club-2026-10-27` (`4a69c5d`) and [[decisions/0005-revert-rfm-club]].**
+> Nothing below is in the code on `main` or `production`. Kept for reference only.
+
 - **Date:** 2026-10-25
-- **Status:** Accepted (approved by product owner), implemented on `main`, uncommitted
+- **Status:** Reverted 2026-10-27 (decision 0005); was implemented on `main` only, never released
 - **Rules:** [[business-rules/customer-rfm]]
 
 ## Context

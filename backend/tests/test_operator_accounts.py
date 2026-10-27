@@ -31,7 +31,7 @@ def _desk():
         order_count=2,
         tier_code="VIP",
     )
-    # The desk account is an InternalAccount row (migration 0008 moved it from a hard-coded mobile).
+    # The desk account is an InternalAccount row (migration 0008_internalaccount moved it from a hard-coded mobile).
     InternalAccount.objects.create(customer=desk, kind="desk")
     return desk
 

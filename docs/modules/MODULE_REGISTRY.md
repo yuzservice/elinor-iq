@@ -78,7 +78,7 @@ This registry catalogs the core architectural modules of ELINOR IQ V2. Each entr
 
 ## 3. Customer Master, RFM Tiers & 360 Profile (`apps.customers`)
 
-- **Responsibility:** Maintains the canonical customer registry, geographic hierarchy (provinces/cities), address records, exclusive loyalty tier classification, the RFM analytical layer (independent of tiers), marketing campaign targeting, and Customer 360 detail synthesis.
+- **Responsibility:** Maintains the canonical customer registry, geographic hierarchy (provinces/cities), address records, RFM-based exclusive customer tier classification, marketing campaign targeting, and Customer 360 detail synthesis.
 - **Traceability Status:** **Verified Implementation** (Confidence: HIGH).
 - **Key Source File Paths:**
   - `backend/apps/customers/models.py`
@@ -87,7 +87,6 @@ This registry catalogs the core architectural modules of ELINOR IQ V2. Each entr
   - `backend/apps/customers/tier_rules.py`
   - `backend/apps/customers/tier_rule_admin.py`
   - `backend/apps/customers/tier_refresh.py`
-  - `backend/apps/customers/rfm.py`
   - `backend/apps/customers/list_query.py`
   - `backend/apps/customers/detail.py`
   - `backend/apps/customers/campaigns.py`
@@ -101,9 +100,7 @@ This registry catalogs the core architectural modules of ELINOR IQ V2. Each entr
   - `CustomerLevel` (`customer_levels`), `CustomerRole` (`customer_roles`): Legacy club and role lookups.
   - `TierRuleSet` (`customer_tier_rule_sets`): Versioned, ordered tier list `{"tiers": [...]}` (`draft` / `active` / `archived`; at most one active and one draft). Version 1 = the former hard-coded rules (migration `0006_tier_rule_sets`).
   - `CustomerTierHistory` (`customer_tier_history`): One row per actual `tier_code` change, with reason (`baseline`, `daily`, `manual`, `sync`, `activation`), rule version and title snapshots (`previous_tier_title`, `tier_title`).
-  - `CustomerRfm` (`customer_rfm`): current R/F/M scores, segment, purchase count, days since last purchase, lifetime net purchase and 12-month figures per purchasing, non-operator customer (migration `0007_customer_rfm`).
-  - `CustomerRfmSnapshot` (`customer_rfm_snapshots`): RFM per customer at the end of each Jalali month (`month` = "1405-07"); unique (month, customer).
-  - `InternalAccount` (`customer_internal_accounts`): desk/staff accounts excluded from customer reports (kind, note, is_active, created/updated by). Source of truth for `operators.py`; migration `0008_internal_accounts` moved the former hard-coded desk mobile. `CustomerRfm` also stores `internal_signal_score` / `internal_signals`. Rules: `docs/business-rules/internal-accounts.md`.
+  - `InternalAccount` (`customer_internal_accounts`): desk/staff accounts excluded from customer reports (kind, note, is_active, created/updated by). Source of truth for `operators.py` (exclusion by customer id); migration `0008_internalaccount` moved the former hard-coded desk mobile, `0009_seed_internal_accounts` adds the 15 owner-confirmed accounts. Rules: `docs/business-rules/internal-accounts.md`.
 - **Important Services & APIs:**
   - `GET /api/customers/` (`customer_list`): Paginated customer list with rich multi-parameter filters (city, province, tier, channel, purchase frequency, registered-only, order behavior).
   - `GET /api/customers/<source_id>/` (`customer_detail`): Complete Customer 360 record combining online orders and POS sales.
@@ -113,14 +110,13 @@ This registry catalogs the core architectural modules of ELINOR IQ V2. Each entr
   - `GET /api/customers/export/` (`customer_export`): Streaming CSV exporter for filtered customer cohorts.
   - `POST /api/customers/refresh-tiers/` (`refresh_tiers`): Triggers full or incremental RFM tier calculation.
   - `tier_code_for()` & `refresh_stored_tiers()` (`apps.customers.tiers`): High-performance Common Table Expression (CTE) scoring customers into exclusive tiers: `VIP`, `DIAMOND`, `GOLD_1`, `GOLD_2`, `SILVER`, `BRONZE_1`, `BRONZE_2`, `BRONZE_3`. Excludes active internal accounts (by customer id). Tiers, order, titles and conditions come from the active `TierRuleSet` (one general list, or one list per channel «اینترنتی»/«حضوری» chosen by the customer's majority channel; `Customer.tier_channel`, migration `0007_tier_channels`) (`tier_rules.tier_case_sql` / `evaluate_tier`); labels via `tiers.tier_title_map()` / `tier_label()`; every write holds a Postgres advisory lock and records `CustomerTierHistory`. `TIER_LABELS` is only the version-1 default.
-  - `GET /api/customers/tiers/` (`customer_tiers`, any signed-in user): enabled tiers of the active version grouped by channel `[{channel, channel_label, tiers: [{code, title, priority, summary, customers}]}]` (a legacy version gives one group with `channel` null) for filters, badges and the club page.
-  - `GET /api/customers/rfm/summary/?sales_line=&payment_method=` (`rfm_summary`): KPIs, 8 segments, 5×5 R×F matrix, monthly movement. Customer list/export accept `rfm_segment`, `r_score`, `f_score`, `sort=rfm`, `payment_method=other`; rows carry `rfm_segment`, scores and `high_value`. Customer 360 has an `rfm` block. Refresh: `rfm.refresh_rfm_daily()` after the tier refresh; `manage.py backfill_rfm_snapshots --months N`. Rules: `docs/business-rules/customer-rfm.md`.
-  - Internal accounts API (`IsSuperAdmin`, `internal_accounts.py`): `GET|POST /api/customers/internal-accounts/`, `PATCH /api/customers/internal-accounts/<id>/`; changes start the background tier + RFM refresh. Customer 360 adds `internal_account` and `internal_account_signals`, and the list honors `internal=suspected|confirmed|all` with a row `internal_suspected` flag (super admins only).
+  - `GET /api/customers/tiers/` (`customer_tiers`, any signed-in user): enabled tiers of the active version `[{code, title, priority, summary}]` for filters and badges.
+  - Internal accounts API (`IsSuperAdmin`, `internal_accounts.py`): `GET|POST /api/customers/internal-accounts/`, `PATCH /api/customers/internal-accounts/<id>/`; changes start the background tier refresh. Customer 360 adds `internal_account` (super admins only); UI: `features/customers/InternalAccountPanel.tsx` (header menu + confirmed-account banner on `Customer360Page.tsx`).
   - Tier rules API (all `IsSuperAdmin`, `tier_rule_admin.py`): `GET /api/customers/tier-rules/`, `PUT|DELETE /api/customers/tier-rules/draft/`, `POST /api/customers/tier-rules/draft/preview/`, `POST /api/customers/tier-rules/draft/activate/` (202 / 409, background job under the `customer_tiers` lock), `POST /api/customers/tier-rules/<version>/restore/`. Rules: `docs/business-rules/customer-tiers.md`.
 - **Frontend Entrypoints & Components:**
-  - Pages: `frontend/src/pages/CustomersPage.tsx` (tabs «گزارش RFM» default, «لیست مشتریان» `?tab=list`), `frontend/src/pages/ClubPage.tsx` (`/club`: «سطح‌ها», «کمپین‌ها»), `frontend/src/pages/Customer360Page.tsx` (RFM card)
-  - Panels: `frontend/src/features/customers/RfmReportPanel.tsx`, `CustomerListPanel.tsx` (RFM chips, 2-tab filter drawer, URL filters via `filtersFromSearch`), `CustomerCampaignsPanel.tsx` (on the club page), `CustomerReportsPanel.tsx`; `rfmDisplay.ts` (segment colours, cell map, old-link redirects)
-  - Tier rules editor: `frontend/src/features/customers/TierRulesModal.tsx` (+ `tierRules.ts` validation/summary/reorder), opened from `pages/ClubPage.tsx` («قوانین سطح‌بندی», `/club?tierRules=1`) for super admins only
+  - Pages: `frontend/src/pages/CustomersPage.tsx`, `frontend/src/pages/Customer360Page.tsx`
+  - Panels: `frontend/src/features/customers/CustomerListPanel.tsx`, `frontend/src/features/customers/CustomerCampaignsPanel.tsx`, `frontend/src/features/customers/CustomerReportsPanel.tsx`
+  - Tier rules editor: `frontend/src/features/customers/TierRulesModal.tsx` (+ `tierRules.ts` validation/summary/reorder), opened from `pages/CustomersPage.tsx` («قوانین سطح‌بندی», `?tierRules=1`) for super admins only
   - Dynamic tiers: `frontend/src/hooks/useTiers.ts` (shared fetch of `/api/customers/tiers/`), `features/customers/tierDisplay.tsx` (`TierBadge`, per-code style)
   - Services: `frontend/src/services/customers.ts`, `frontend/src/services/campaigns.ts`
 - **Dependencies on Other Modules:**
@@ -283,7 +279,6 @@ This registry catalogs the core architectural modules of ELINOR IQ V2. Each entr
   - `frontend/src/lib/format.ts`
 - **Key Modules & Feature Structure:**
   - `layouts/AppShell.tsx`: Collapsible RTL sidebar navigation, active user status, and theme switching.
-  - `lib/nav.ts` + `app/App.tsx`: menu items and routes, including «باشگاه مشتریان» (`/club`, `ClubPage`) after «مشتریان». `/customers?tab=campaigns` and `?tierRules=1` redirect to `/club`.
   - `components/JalaliDatePicker.tsx`: Solar Hijri (Jalali) single date and date range picker using `jalaali-js`.
   - `components/dashboard/`: Reusable metric cards, comparison gauges, revenue breakdown charts, and progress bars.
   - `types/index.ts`: Strict TypeScript type definitions for API contracts, customer profiles, sales filters, and dashboard payloads.

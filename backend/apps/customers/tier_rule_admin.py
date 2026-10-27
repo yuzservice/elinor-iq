@@ -124,18 +124,7 @@ def public_tiers():
     """
     from apps.customers.tier_rules import active_rule_set
 
-    from django.db.models import Count
-
-    from apps.customers.models import Customer
-    from apps.customers.operators import exclude_operator_accounts
-
     rules = _rules_of(active_rule_set())
-    counts = dict(
-        exclude_operator_accounts(Customer.objects.exclude(tier_code__isnull=True))
-        .values_list("tier_code")
-        .annotate(n=Count("pk"))
-        .order_by()
-    )
     groups = []
     for channel, tiers in tier_lists(rules):
         enabled = [tier for tier in tiers if tier.get("enabled")]
@@ -144,13 +133,7 @@ def public_tiers():
                 "channel": channel,
                 "channel_label": CHANNEL_LABELS.get(channel) if channel else None,
                 "tiers": [
-                    {
-                        "code": tier["code"],
-                        "title": tier["title"],
-                        "priority": index,
-                        "summary": tier_summary(tier),
-                        "customers": counts.get(tier["code"], 0),
-                    }
+                    {"code": tier["code"], "title": tier["title"], "priority": index, "summary": tier_summary(tier)}
                     for index, tier in enumerate(enabled, start=1)
                 ],
             }
@@ -408,7 +391,7 @@ def preview_draft(reference_date=None):
 
 
 def _scored_sql(rules, reference_date):
-    facts_sql, _exclusion = _facts_sql()
+    facts_sql, _mobiles = _facts_sql()
     case_sql, case_params = tier_case_sql(rules)
     channel_sql = channel_case_sql(rules)
     sql = f"""

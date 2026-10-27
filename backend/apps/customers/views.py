@@ -64,7 +64,7 @@ def customer_export(request):
     from .export import iter_customer_export_csv, iter_export_row_batches
 
     try:
-        qs = customer_list_queryset(request.query_params, user=request.user)
+        qs = customer_list_queryset(request.query_params)
         batches = iter_export_row_batches(qs)
         first_batch = next(batches, None)
     except Exception:
@@ -108,8 +108,8 @@ def refresh_tiers(request):
 def customer_list(request):
     page = _positive_int(request.query_params.get("page"), default=1)
     per_page = _positive_int(request.query_params.get("per_page"), default=20, cap=50)
-    qs = customer_list_queryset(request.query_params, user=request.user)
-    total, results = paginate_customers(qs, page, per_page, user=request.user)
+    qs = customer_list_queryset(request.query_params)
+    total, results = paginate_customers(qs, page, per_page)
     return Response(
         {
             "page": page,
@@ -303,14 +303,6 @@ def customer_tiers(request):
     from .tier_rule_admin import public_tiers
 
     return Response({"results": public_tiers()})
-
-
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def rfm_summary(request):
-    from .rfm import rfm_summary as build_summary
-
-    return Response(build_summary(request.query_params))
 
 
 @api_view(["GET", "POST"])

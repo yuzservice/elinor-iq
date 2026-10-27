@@ -15,14 +15,15 @@
 
 ## Business Rules
 - [[business-rules/customer-tiers|Customer Tiers]]
-- [[business-rules/customer-rfm|Customer RFM]]
 - [[business-rules/internal-accounts|Internal Accounts]]
+- [[business-rules/customer-rfm|Customer RFM]] (reverted 2026-10-27, archive only)
 
 ## Decisions
 - [[decisions/0001-configurable-tier-rules|0001 Configurable tier rules]]
 - [[decisions/0002-dynamic-tiers-and-modal|0002 Dynamic tiers and modal]]
-- [[decisions/0003-rfm-report-and-club-menu|0003 RFM report and club menu]]
+- [[decisions/0003-rfm-report-and-club-menu|0003 RFM report and club menu]] (reverted)
 - [[decisions/0004-internal-accounts|0004 Internal accounts]]
+- [[decisions/0005-revert-rfm-club|0005 Revert RFM and club menu]]
 - [[decisions/0006-channel-based-tiers|0006 Channel-based tiers]]
 
 ## Implementation Status

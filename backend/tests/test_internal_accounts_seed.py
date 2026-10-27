@@ -3,10 +3,9 @@ import importlib
 import pytest
 from django.apps import apps as django_apps
 
-from apps.customers.models import Customer, CustomerRfmSnapshot, InternalAccount
-from apps.customers.rfm import movement_payload
+from apps.customers.models import Customer, InternalAccount
 
-seed = importlib.import_module("apps.customers.migrations.0009_seed_confirmed_internal_accounts")
+seed = importlib.import_module("apps.customers.migrations.0009_seed_internal_accounts")
 
 
 def _customer(source_id):
@@ -37,15 +36,8 @@ def test_seed_is_idempotent_skips_missing_and_keeps_existing_rows():
     assert remaining == {desk_836.pk, inactive_419.pk}
 
 
-@pytest.mark.django_db
-def test_movement_excludes_active_internal_accounts_at_read_time():
-    buyer = _customer(1)
-    staff = _customer(2)
-    for customer, before, after in ((buyer, "loyal", "at_risk"), (staff, "loyal", "at_risk")):
-        CustomerRfmSnapshot.objects.create(month="1405-06", customer=customer, r_score=4, f_score=4, m_score=1, segment=before)
-        CustomerRfmSnapshot.objects.create(month="1405-07", customer=customer, r_score=2, f_score=4, m_score=1, segment=after)
-    assert movement_payload()["moves"][0]["count"] == 2
 
-    InternalAccount.objects.create(customer=staff, kind="staff")
-    assert movement_payload()["moves"][0]["count"] == 1
-    assert CustomerRfmSnapshot.objects.filter(customer=staff).count() == 2  # history kept
+def test_seed_lists_the_15_confirmed_accounts():
+    kinds = [kind for _source_id, kind in seed._confirmed()]
+    assert len(set(source_id for source_id, _kind in seed._confirmed())) == 15
+    assert (kinds.count("staff"), kinds.count("desk")) == (6, 9)

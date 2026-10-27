@@ -1,9 +1,4 @@
-"""Customer 360 payload.
-
-Includes an RFM layer (apps.customers.rfm: scores, segment, customer net purchase).
-It is still not a sales-revenue or CLV layer: amounts here are customer net purchase,
-not the sales revenue of apps/sales/semantics.py.
-"""
+"""Customer 360 payload. Not a revenue, VIP, RFM, or CLV layer."""
 
 from collections import defaultdict
 
@@ -26,7 +21,6 @@ from apps.customers.purchases import (
     qualifying_pos,
 )
 from apps.customers.internal_accounts import internal_account_payload
-from apps.customers.rfm import customer_rfm_payload, internal_signals_payload
 from apps.customers.tiers import tier_channel_label, tier_label
 from apps.sales.models import OrderItem, PosSaleItem, SalesLine
 
@@ -75,10 +69,8 @@ def customer_360_payload(customer, history_page=1, history_per_page=HISTORY_PER_
         "tier_label": None if desk else tier_label(customer.tier_code),
         "tier_channel": None if desk else (customer.tier_channel or None),
         "tier_channel_label": None if desk else tier_channel_label(customer.tier_channel),
-        "rfm": None if desk else customer_rfm_payload(customer),
-        # Super admins only: the confirmed internal account and the detection signals.
+        # Super admins only: the internal-account row (active or not).
         "internal_account": internal_account_payload(customer) if include_internal else None,
-        "internal_account_signals": (internal_signals_payload(customer) if include_internal and not desk else None),
         **operator_payload(customer),
         "channel": channel_key,
         "channel_label": channel_label,

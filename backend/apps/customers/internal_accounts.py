@@ -1,7 +1,7 @@
 """Management of internal (staff / desk) accounts. Super admins confirm or restore them.
 
-Any change starts the background tier refresh, which also refreshes RFM, so exclusion
-and restoration reach tiers, tier history and RFM without waiting for the daily run.
+Any change starts the background tier refresh, so exclusion and restoration reach tiers
+and tier history without waiting for the daily run.
 """
 
 from django.db import transaction
@@ -139,7 +139,7 @@ def update_account(user, account_id, data):
 
 
 def _refresh_after_change():
-    """Start the background tier + RFM refresh. False when one is already running."""
+    """Start the background tier refresh. False when one is already running."""
     from apps.customers.tier_refresh import start_full_tier_refresh
 
     return start_full_tier_refresh()

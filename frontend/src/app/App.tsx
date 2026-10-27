@@ -6,7 +6,6 @@ import { LoginPage } from "../pages/LoginPage";
 import { HomePage } from "../pages/HomePage";
 import { SalesPage } from "../pages/SalesPage";
 import { CustomersPage } from "../pages/CustomersPage";
-import { ClubPage } from "../pages/ClubPage";
 import { Customer360Page } from "../pages/Customer360Page";
 import { ProductsPage } from "../pages/ProductsPage";
 import { SettingsPage } from "../pages/SettingsPage";
@@ -72,7 +71,6 @@ export function App() {
             <Route path="/sales" element={<SalesPage />} />
             <Route path="/customers" element={<CustomersPage />} />
             <Route path="/customers/:id" element={<Customer360Page />} />
-            <Route path="/club" element={<ClubPage />} />
             <Route path="/products" element={<ProductsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
