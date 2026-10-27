@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { LegacyTierRules, TierRule } from "../../types";
+import type { LegacyTierRules, TierRule, TierRulesState } from "../../types";
 import {
   MAX_TIERS,
   formatAmountInput,
@@ -8,6 +8,8 @@ import {
   moveTier,
   newTier,
   isChannelRules,
+  channelDraftConfirmText,
+  channelDraftPrompt,
   joinRules,
   normalizeRules,
   splitRules,
@@ -179,5 +181,27 @@ describe("channel rules", () => {
     expect(rulesEqual(joinRules(mode, lists), rules)).toBe(true);
     expect(isChannelRules(rules)).toBe(true);
     expect(splitRules({ tiers: pos }).mode).toBe("legacy");
+  });
+});
+
+describe("channel draft banner", () => {
+  const set = (rules: object, version: number) => ({ version, rules }) as unknown as TierRulesState["active"];
+  const channels = { channels: { online: { tiers: [] }, pos: { tiers: [] } } };
+  const state = (active: object, draft: object | null, draftVersion = 3) =>
+    ({ active: set(active, 2), draft: draft ? set(draft, draftVersion) : null }) as unknown as TierRulesState;
+
+  it("is shown for legacy rules without a channel draft, and asks to confirm only over a legacy draft", () => {
+    expect(channelDraftPrompt(state({ tiers: [] }, null))).toEqual({ replaceVersion: null });
+    expect(channelDraftPrompt(state({ tiers: [] }, { tiers: [] }))).toEqual({ replaceVersion: 3 });
+  });
+
+  it("is hidden once channels are active or a channel draft exists", () => {
+    expect(channelDraftPrompt(state(channels, null))).toBeNull();
+    expect(channelDraftPrompt(state({ tiers: [] }, channels))).toBeNull();
+    expect(channelDraftPrompt(null)).toBeNull();
+  });
+
+  it("words the confirm with the draft version", () => {
+    expect(channelDraftConfirmText(3)).toBe("پیش‌نویس فعلی (نسخه ۳) بایگانی می‌شود و در تاریخچه می‌ماند.");
   });
 });

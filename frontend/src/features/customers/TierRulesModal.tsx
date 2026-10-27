@@ -13,6 +13,8 @@ import {
   type EditableTier,
   formatAmountInput,
   TIER_CHANNELS,
+  channelDraftConfirmText,
+  channelDraftPrompt,
   fromEditable,
   isChannelRules,
   joinRules,
@@ -243,6 +245,22 @@ export function TierRulesModal({ onClose }: { onClose: () => void }) {
     );
   };
 
+  const prompt = channelDraftPrompt(state);
+  const startChannelDraft = () => {
+    if (prompt?.replaceVersion != null && !window.confirm(channelDraftConfirmText(prompt.replaceVersion))) return;
+    void run(
+      "channel-draft",
+      async () => {
+        applyState(await customersService.createChannelDraft(prompt?.replaceVersion != null));
+        setChannelTab("online");
+        setPreview(null);
+        setStep("rules");
+        setMessage("پیش‌نویس اینترنتی / حضوری ساخته شد. پیش‌نمایش را بررسی کنید.");
+      },
+      "ساخت پیش‌نویس کانالی انجام نشد.",
+    );
+  };
+
   const restore = (version: number) => {
     if ((draft || dirty) && !window.confirm("پیش‌نویس فعلی با قوانین این نسخه جایگزین شود؟")) return;
     void run(
@@ -330,6 +348,19 @@ export function TierRulesModal({ onClose }: { onClose: () => void }) {
             <Skeleton className="h-64" />
           ) : (
             <>
+              {prompt ? (
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-elevated px-4 py-3 text-sm">
+                  <span className="text-ink">قوانین فعلی عمومی است.</span>
+                  <button
+                    type="button"
+                    onClick={startChannelDraft}
+                    disabled={locked}
+                    className="rounded-xl bg-accent px-3.5 py-1.5 text-xs font-bold text-on-accent disabled:opacity-50"
+                  >
+                    ساخت پیش‌نویس اینترنتی / حضوری
+                  </button>
+                </div>
+              ) : null}
               {state.activation.status === "failed" && !running ? (
                 <p className="mb-4 rounded-2xl bg-rose-500/10 px-4 py-3 text-sm text-rose-600 dark:text-rose-400">
                   فعال‌سازی ناموفق بود؛ قوانین قبلی همچنان فعال است.

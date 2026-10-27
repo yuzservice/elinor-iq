@@ -261,6 +261,22 @@ def tier_rules_activate(request):
 
 @api_view(["POST"])
 @permission_classes([IsSuperAdmin])
+def tier_rules_channel_draft(request):
+    from .tier_rule_admin import ChannelDraftExists, ChannelRulesActive, TierRuleConflict, create_channel_draft, rules_state
+
+    try:
+        create_channel_draft(request.user, replace_draft=bool(request.data.get("replace_draft")))
+    except ChannelDraftExists as exc:
+        return Response({"detail": str(exc), "draft_version": exc.draft_version}, status=status.HTTP_409_CONFLICT)
+    except TierRuleConflict as exc:
+        return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
+    except ChannelRulesActive as exc:
+        return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+    return Response(rules_state())
+
+
+@api_view(["POST"])
+@permission_classes([IsSuperAdmin])
 def tier_rules_restore(request, version):
     from .tier_rule_admin import TierRuleConflict, restore_version, rules_state
     from .tier_rules import TierRulesError

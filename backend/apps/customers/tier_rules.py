@@ -103,6 +103,24 @@ def is_channel_rules(rules):
     return isinstance(rules, dict) and "channels" in rules
 
 
+def build_channel_rules_from(legacy_rules, new_custom_code):
+    """Channel rules from a general list, with the same result as migration 0007_tier_channels.
+
+    pos keeps the tiers, codes, titles, order and conditions; online gets ONLINE_<base code>, and every
+    CUSTOM_<n> (or non-base) tier gets a fresh code from new_custom_code().
+    """
+    pos = copy.deepcopy(legacy_rules["tiers"])
+    online = []
+    for tier in copy.deepcopy(legacy_rules["tiers"]):
+        code = tier["code"]
+        if code.startswith(CUSTOM_CODE_PREFIX) or code not in BASE_TIER_CODES:
+            tier["code"] = new_custom_code()
+        else:
+            tier["code"] = f"{ONLINE_CODE_PREFIX}{code}"
+        online.append(tier)
+    return {"channels": {"online": {"tiers": online}, "pos": {"tiers": pos}}}
+
+
 def validate_rules(rules):
     """Return normalized rules or raise TierRulesError with Persian messages.
 
