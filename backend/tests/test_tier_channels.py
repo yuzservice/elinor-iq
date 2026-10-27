@@ -349,3 +349,66 @@ def test_list_payload_and_channel_filter(auth_api):
     assert [row["id"] for row in filtered] == [2]
     detail = auth_api.get("/api/customers/1/").data
     assert (detail["tier_code"], detail["tier_channel"]) == ("ONLINE_BRONZE_1", "online")
+
+
+# --- Channel draft button (legacy active version) ----------------------------------------------
+
+
+def _legacy_with_custom():
+    rules = copy.deepcopy(VERSION_1_RULES)
+    rules["tiers"].append({**copy.deepcopy(rules["tiers"][-1]), "code": "CUSTOM_4", "title": "سطح ویژه"})
+    TierRuleSet.objects.filter(version=1).update(rules=rules)
+    return rules
+
+
+@pytest.mark.django_db
+def test_build_channel_rules_matches_migration(super_admin):
+    from apps.customers.tier_rule_admin import _next_custom_code
+    from apps.customers.tier_rules import build_channel_rules_from
+
+    _customer(1)
+    legacy = _legacy_with_custom()
+    migration.create_channel_draft(django_apps, None)
+    from_migration = TierRuleSet.objects.get(status=TierRuleSet.STATUS_DRAFT)
+    expected = from_migration.rules
+    from_migration.delete()
+    from apps.integrations.elinor.models import SyncCursor
+
+    SyncCursor.objects.filter(key="customer_tier_custom_code").update(value={"last": 4})
+    assert build_channel_rules_from(legacy, _next_custom_code) == expected
+
+
+@pytest.mark.django_db
+def test_channel_draft_endpoint(api, auth_api, super_admin):
+    url = "/api/customers/tier-rules/channel-draft/"
+    assert auth_api.post(url, {}, format="json").status_code == 403
+
+    api.force_login(super_admin)
+    created = api.post(url, {}, format="json")  # legacy active, no draft
+    assert created.status_code == 200
+    draft = created.data["draft"]
+    assert draft["note"] == "پیش‌نویس کانالی از نسخه 1" and "channels" in draft["rules"]
+    assert TierRuleSet.objects.get(version=1).status == TierRuleSet.STATUS_ACTIVE  # nothing recalculated or activated
+
+    refused = api.post(url, {}, format="json")  # a draft exists, replace not confirmed
+    assert refused.status_code == 409
+    assert refused.data["draft_version"] == draft["version"]
+    assert refused.data["detail"] == "یک پیش‌نویس موجود است؛ برای جایگزینی تأیید کنید."
+
+    api.put("/api/customers/tier-rules/draft/", {"rules": VERSION_1_RULES}, format="json")  # becomes legacy draft
+    legacy_draft = TierRuleSet.objects.get(status=TierRuleSet.STATUS_DRAFT)
+    assert "tiers" in legacy_draft.rules
+    replaced = api.post(url, {"replace_draft": True}, format="json")
+    assert replaced.status_code == 200
+    legacy_draft.refresh_from_db()
+    assert legacy_draft.status == TierRuleSet.STATUS_ARCHIVED
+    assert legacy_draft.note.endswith(" — جایگزین‌شده با پیش‌نویس کانالی")
+    assert TierRuleSet.objects.filter(status=TierRuleSet.STATUS_DRAFT).count() == 1
+
+    restored = api.post(f"/api/customers/tier-rules/{legacy_draft.version}/restore/")
+    assert restored.status_code == 200  # the archived draft stays restorable
+
+    _activate_channels()
+    blocked = api.post(url, {"replace_draft": True}, format="json")
+    assert blocked.status_code == 400
+    assert blocked.data["detail"] == "قوانین فعال از قبل کانالی است."

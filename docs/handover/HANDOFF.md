@@ -3,7 +3,7 @@
 Durable state for the next engineer or AI assistant. Do not rely on chat history; this file plus the repo is the source of truth.
 Update this file at the end of every implementation task (newest entry first in the Log).
 
-Last updated: 2026-10-27 · **`production` = `1400d6b` (tier rules + «از» + channel-based tiers), pushed; the server gets it when the owner runs `update.sh`**; `main` is development (see §2 Branches)
+Last updated: 2026-10-27 · **`production` = `3f5de33` (tier rules + «از» + channel-based tiers + channel-draft button), pushed; the server gets it when the owner runs `update.sh`**; `main` is development (see §2 Branches)
 
 ## 1. Current priority
 
@@ -91,8 +91,8 @@ Notes for the Product Architect / next task:
 ## 6. Git and backup state (checked 2026-10-27)
 
 - Remote `origin` → GitHub `yuzservice/elinor-iq`.
-- `production` = `1400d6b` (merge of `feature/tier-channels` `beef8ee`), pushed. Server: `f308fec` until the owner runs
-  `update.sh` (not verified from here).
+- `production` = `3f5de33` (channel-draft button on top of `1400d6b` channel tiers), pushed. Server: `1400d6b` per the owner (0007 applied;
+  v2 active general, v3 draft general); gets `3f5de33` on the next `update.sh`.
 - `main` now includes `production` (merge commit with `0010_merge_tier_channels`).
 - `main`: `a8198d2` Stage 1, `a76cdd8` internal accounts (0008, 0009), `accb9d8` prototypes removed, `99d9efc` graph +
   handoff, `542c2c8` deploy from production — none of the RFM/internal-accounts work is on the server.
@@ -122,6 +122,17 @@ Notes for the Product Architect / next task:
 3. Decide on the pre-existing export/campaign test failures and the unused campaign exclusion.
 
 ## 9. Log
+
+### 2026-10-27 — «ساخت پیش‌نویس اینترنتی / حضوری» button (`fix/channel-draft-button`, from `production`)
+- Server state (owner, read-only): migration 0007 applied; v1 archived, **v2 active (general), v3 draft (general)**.
+  The migration skipped its draft because v3 existed, so the modal had no way to reach channel mode.
+- Added `build_channel_rules_from()` (tier_rules.py; migration file untouched), `create_channel_draft()` and
+  `POST /api/customers/tier-rules/channel-draft/` (super admin; 400 channel active, 409 draft exists without `replace_draft`,
+  otherwise old draft archived + channel draft from the active version). Modal banner with confirm over a general draft.
+- Tests: `test_tier_channels.py`, `test_customer_tier_rules.py`, `test_customer_tiers.py`, `test_operator_accounts.py`,
+  `test_customer_list.py`, `test_customer_360.py`, `test_customers.py`: 112 passed. Frontend: `tsc -b` OK, Vitest 46/46, build OK.
+- Released: merged into `production` as `3f5de33` (pushed; 112 passed, `tsc -b` OK, Vitest 46/46, build OK) and then into `main`.
+- Next (owner): run `update.sh` → open the modal, press the banner button (confirm archiving v3), preview, activate.
 
 ### 2026-10-27 — Channel tiers released to `production` and merged into `main`
 - `production`: `git merge --no-ff feature/tier-channels` → `1400d6b`, pushed. Targeted tests on `production`:

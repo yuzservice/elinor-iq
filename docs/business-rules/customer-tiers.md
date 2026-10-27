@@ -128,3 +128,12 @@ Two ordered tier lists replace the single general list: «اینترنتی» (`o
 - **Consequence for campaigns:** campaign reports filter by the base codes, so after activation they only see in-store
   customers of those tiers. The preview warns with the number of customers moving off campaign codes.
 
+### Starting channel rules when a draft already exists
+Migration 0007 creates the channel draft only if no draft exists. When one did (server: v2 active general, v3 general draft),
+a super admin starts channel rules from the modal banner «قوانین فعلی عمومی است» → «ساخت پیش‌نویس اینترنتی / حضوری»
+(`POST /api/customers/tier-rules/channel-draft/`, body `{replace_draft}`):
+- Built from the **active** version with `build_channel_rules_from()` (same logic as 0007: pos = same tiers and codes,
+  online = `ONLINE_` codes, custom tiers → new `CUSTOM_<n>`).
+- Active already channel-shaped → 400. A draft exists and `replace_draft` is false → 409 with `draft_version`.
+  With `replace_draft` the old draft is **archived** (note « — جایگزین‌شده با پیش‌نویس کانالی»), so it stays in the history and can be restored.
+- Nothing is recalculated; preview and activation are the existing flow.
