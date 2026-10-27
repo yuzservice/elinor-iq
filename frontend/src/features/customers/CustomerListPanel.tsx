@@ -29,7 +29,7 @@ import {
 import { JalaliRangeModal } from "../../components/JalaliDatePicker";
 import { EmptyState, ErrorState, Skeleton } from "../../components/Table";
 import type { CustomerRow } from "../../types";
-import { TierBadge, tierOptions } from "./tierDisplay";
+import { TierBadge, groupTierOptions, tierOptions } from "./tierDisplay";
 
 type FilterDrawerTab = "loyalty" | "financial" | "product" | "behavior";
 
@@ -51,7 +51,7 @@ function getTierBadge(customer: CustomerRow) {
   if (!customer.tier_code) {
     return <span className="text-muted text-xs">—</span>;
   }
-  return <TierBadge code={customer.tier_code} label={customer.tier_label} />;
+  return <TierBadge code={customer.tier_code} label={customer.tier_label} channelLabel={customer.tier_channel_label} />;
 }
 
 function getInitials(name: string) {
@@ -726,8 +726,11 @@ export function CustomerListPanel() {
                       </button>
                     )}
                   </div>
+                  {groupTierOptions(tierChoices).map((group) => (
+                  <div key={group.channel ?? "general"} className="space-y-1">
+                  {group.channelLabel ? <div className="text-[10px] font-bold text-faint">{group.channelLabel}</div> : null}
                   <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-1.5">
-                    {tierChoices.map((opt) => {
+                    {group.options.map((opt) => {
                       const active = filters.tier === opt.value;
                       return (
                         <button
@@ -751,6 +754,8 @@ export function CustomerListPanel() {
                       );
                     })}
                   </div>
+                  </div>
+                  ))}
                 </div>
               </div>
             )}

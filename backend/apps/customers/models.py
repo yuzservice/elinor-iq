@@ -96,6 +96,8 @@ class Customer(models.Model):
     last_order_at = models.DateTimeField(null=True, blank=True)
     order_count = models.PositiveIntegerField(default=0, db_index=True)
     tier_code = models.CharField(max_length=16, blank=True, null=True, db_index=True)
+    # «online» / «pos» when channel tier rules assigned the tier; NULL for the legacy general list.
+    tier_channel = models.CharField(max_length=8, blank=True, null=True, db_index=True)
     tier_refreshed_at = models.DateTimeField(null=True, blank=True)
     created_at_source = models.DateTimeField(null=True, blank=True)
     updated_at_source = models.DateTimeField(null=True, blank=True)
@@ -239,6 +241,8 @@ class CustomerTierHistory(models.Model):
     previous_tier_title = models.CharField(max_length=40, blank=True)
     tier_code = models.CharField(max_length=16, null=True, blank=True)
     tier_title = models.CharField(max_length=40, blank=True)
+    previous_channel = models.CharField(max_length=8, null=True, blank=True)
+    channel = models.CharField(max_length=8, null=True, blank=True)
     rule_set = models.ForeignKey(
         TierRuleSet,
         null=True,

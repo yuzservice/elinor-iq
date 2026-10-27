@@ -6,7 +6,7 @@ import type {
   CustomerRow,
   Paginated,
   CustomerProductHistory,
-  PublicTier,
+  PublicTierGroup,
   TierRules,
   TierRulesPreview,
   TierRulesState,
@@ -132,7 +132,7 @@ export const customersService = {
     ),
   products: (id: number) =>
     api<{ id: number; total: number; results: CustomerProductHistory[] }>(`/customers/${id}/products/`),
-  tiers: () => api<{ results: PublicTier[] }>("/customers/tiers/"),
+  tiers: () => api<{ results: PublicTierGroup[] }>("/customers/tiers/"),
   tierRules: () => api<TierRulesState>("/customers/tier-rules/"),
   saveTierRulesDraft: (payload: { rules?: TierRules; note?: string }) =>
     api<TierRulesState>("/customers/tier-rules/draft/", { method: "PUT", body: JSON.stringify(payload) }),

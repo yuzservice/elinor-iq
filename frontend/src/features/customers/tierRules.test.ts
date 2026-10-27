@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { TierRule } from "../../types";
+import type { LegacyTierRules, TierRule } from "../../types";
 import {
   MAX_TIERS,
   formatAmountInput,
@@ -7,7 +7,10 @@ import {
   hasTierRuleErrors,
   moveTier,
   newTier,
+  isChannelRules,
+  joinRules,
   normalizeRules,
+  splitRules,
   parseIntegerInput,
   rulesEqual,
   tierSummary,
@@ -160,7 +163,21 @@ describe("day range («از» / «تا»)", () => {
       const { days_since_last_min: _dropped, ...conditions } = item.conditions;
       return { ...item, conditions } as unknown as TierRule;
     });
-    const normalized = normalizeRules({ tiers: stored });
+    const normalized = normalizeRules({ tiers: stored }) as LegacyTierRules | null;
     expect(normalized?.tiers[0].conditions.days_since_last_min).toEqual({ enabled: false, value: null });
+  });
+});
+
+describe("channel rules", () => {
+  it("splits and joins channel lists without losing tiers", () => {
+    const pos = versionOne();
+    const online = versionOne().map((item) => ({ ...item, code: `ONLINE_${item.code}` }));
+    const rules = { channels: { online: { tiers: online }, pos: { tiers: pos } } };
+    const { mode, lists } = splitRules(rules);
+    expect(mode).toBe("channels");
+    expect(lists.online?.[0].code).toBe("ONLINE_VIP");
+    expect(rulesEqual(joinRules(mode, lists), rules)).toBe(true);
+    expect(isChannelRules(rules)).toBe(true);
+    expect(splitRules({ tiers: pos }).mode).toBe("legacy");
   });
 });

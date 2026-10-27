@@ -19,6 +19,7 @@
 ## Decisions
 - [[decisions/0001-configurable-tier-rules|0001 Configurable tier rules]]
 - [[decisions/0002-dynamic-tiers-and-modal|0002 Dynamic tiers and modal]]
+- [[decisions/0006-channel-based-tiers|0006 Channel-based tiers]]
 
 ## Implementation Status
 - [[implementation-status/FEATURE_MATRIX|Feature Verification Matrix]]
