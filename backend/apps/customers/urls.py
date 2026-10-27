@@ -10,6 +10,7 @@ urlpatterns = [
     path("tiers/", views.customer_tiers),
     path("tier-rules/", views.tier_rules),
     path("tier-rules/draft/", views.tier_rules_draft),
+    path("tier-rules/channel-draft/", views.tier_rules_channel_draft),
     path("tier-rules/draft/preview/", views.tier_rules_preview),
     path("tier-rules/draft/activate/", views.tier_rules_activate),
     path("tier-rules/<int:version>/restore/", views.tier_rules_restore),

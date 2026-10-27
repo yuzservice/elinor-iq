@@ -1,4 +1,4 @@
-import type { ChannelTierRules, TierChannel, TierCondition, TierConditionKey, TierRule, TierRules } from "../../types";
+import type { ChannelTierRules, TierChannel, TierCondition, TierConditionKey, TierRule, TierRules, TierRulesState } from "../../types";
 
 export const MAX_TIERS = 12;
 export const MAX_TITLE_LENGTH = 40;
@@ -240,4 +240,18 @@ function canonical(value: unknown): unknown {
 /** Key-order independent: rules come back from a jsonb column with reordered keys. */
 export function rulesEqual(a: TierRules | null | undefined, b: TierRules | null | undefined): boolean {
   return JSON.stringify(canonical(a ?? null)) === JSON.stringify(canonical(b ?? null));
+}
+
+/**
+ * The «ساخت پیش‌نویس اینترنتی / حضوری» banner: shown while the active rules are the general list and there is no
+ * channel draft. `replaceVersion` is the legacy draft that would be archived (needs a confirm), or null.
+ */
+export function channelDraftPrompt(state: TierRulesState | null): { replaceVersion: number | null } | null {
+  if (!state?.active || isChannelRules(state.active.rules)) return null;
+  if (state.draft && isChannelRules(state.draft.rules)) return null;
+  return { replaceVersion: state.draft?.version ?? null };
+}
+
+export function channelDraftConfirmText(version: number): string {
+  return `پیش‌نویس فعلی (نسخه ${faNumber.format(version)}) بایگانی می‌شود و در تاریخچه می‌ماند.`;
 }

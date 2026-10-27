@@ -30,6 +30,7 @@ from apps.customers.tier_rules import (
     CHANNELS,
     ONLINE_CODE_PREFIX,
     all_tiers,
+    build_channel_rules_from,
     channel_case_sql,
     channel_of_code,
     is_channel_rules,
@@ -281,6 +282,46 @@ def delete_draft():
             raise TierRuleConflict("فعال‌سازی در حال انجام است؛ پیش‌نویس قابل حذف نیست.")
         draft.delete()
     return True
+
+
+class ChannelRulesActive(ValueError):
+    """The active version is already channel-shaped (or missing), so there is nothing to convert."""
+
+
+class ChannelDraftExists(TierRuleConflict):
+    """A draft exists and replacing it was not confirmed."""
+
+    def __init__(self, draft_version_number):
+        super().__init__("یک پیش‌نویس موجود است؛ برای جایگزینی تأیید کنید.")
+        self.draft_version = draft_version_number
+
+
+def create_channel_draft(user, replace_draft=False):
+    """A channel draft built from the ACTIVE version. An existing draft is archived, never deleted.
+
+    No tier is recalculated; activation stays the existing flow.
+    """
+    with transaction.atomic():
+        active = TierRuleSet.objects.select_for_update().filter(status=TierRuleSet.STATUS_ACTIVE).first()
+        if active is None or is_channel_rules(active.rules):
+            raise ChannelRulesActive("قوانین فعال از قبل کانالی است.")
+        draft = TierRuleSet.objects.select_for_update().filter(status=TierRuleSet.STATUS_DRAFT).first()
+        if draft is not None:
+            if not replace_draft:
+                raise ChannelDraftExists(draft.version)
+            if activation_running(draft):
+                raise TierRuleConflict("فعال‌سازی در حال انجام است؛ پیش‌نویس قابل جایگزینی نیست.")
+            draft.status = TierRuleSet.STATUS_ARCHIVED
+            draft.note = f"{draft.note or ''} — جایگزین‌شده با پیش‌نویس کانالی".strip()
+            draft.save(update_fields=["status", "note", "updated_at"])
+        latest = TierRuleSet.objects.aggregate(top=Max("version"))["top"] or 0
+        return TierRuleSet.objects.create(
+            version=latest + 1,
+            status=TierRuleSet.STATUS_DRAFT,
+            rules=validate_rules(build_channel_rules_from(active.rules, _next_custom_code)),
+            note=f"پیش‌نویس کانالی از نسخه {active.version}",
+            created_by=user,
+        )
 
 
 def restore_version(user, version):

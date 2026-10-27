@@ -94,6 +94,17 @@ Notes for the Product Architect / next task:
 
 ## 9. Log
 
+### 2026-10-27 — «ساخت پیش‌نویس اینترنتی / حضوری» button (`fix/channel-draft-button`, from `production`)
+- Server state (owner, read-only): migration 0007 applied; v1 archived, **v2 active (general), v3 draft (general)**.
+  The migration skipped its draft because v3 existed, so the modal had no way to reach channel mode.
+- Added `build_channel_rules_from()` (tier_rules.py; migration file untouched), `create_channel_draft()` and
+  `POST /api/customers/tier-rules/channel-draft/` (super admin; 400 channel active, 409 draft exists without `replace_draft`,
+  otherwise old draft archived + channel draft from the active version). Modal banner with confirm over a general draft.
+- Tests: `test_tier_channels.py`, `test_customer_tier_rules.py`, `test_customer_tiers.py`, `test_operator_accounts.py`,
+  `test_customer_list.py`, `test_customer_360.py`, `test_customers.py`: 112 passed. Frontend: `tsc -b` OK, Vitest 46/46, build OK.
+- Next: owner reviews locally → merge into `production` → owner runs `update.sh` → open the modal, press the banner button
+  (confirm archiving v3), preview, activate → then merge `production` into `main`.
+
 ### 2026-10-26 — Channel-based tiers (`feature/tier-channels`, from `production`)
 - Branches: `production` = what the server runs (`f308fec` + deploy change `b69af90`); `update.sh` deploys only
   `production`. `main` = development (RFM, internal accounts). Features that ship alone branch from `production`.

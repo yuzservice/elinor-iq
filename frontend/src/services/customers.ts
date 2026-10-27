@@ -142,6 +142,11 @@ export const customersService = {
     api<{ started: boolean; detail: string; version?: number }>("/customers/tier-rules/draft/activate/", {
       method: "POST",
     }),
+  createChannelDraft: (replaceDraft: boolean) =>
+    api<TierRulesState>("/customers/tier-rules/channel-draft/", {
+      method: "POST",
+      body: JSON.stringify({ replace_draft: replaceDraft }),
+    }),
   restoreTierRules: (version: number) =>
     api<TierRulesState>(`/customers/tier-rules/${version}/restore/`, { method: "POST" }),
 };
