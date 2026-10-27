@@ -3,16 +3,22 @@
 Durable state for the next engineer or AI assistant. Do not rely on chat history; this file plus the repo is the source of truth.
 Update this file at the end of every implementation task (newest entry first in the Log).
 
-Last updated: 2026-10-26 · this file on `feature/tier-channels` (from `production`); see `main` for the full development handoff
+Last updated: 2026-10-28 · **Customers overview v3 on `feature/customers-overview` (uncommitted, awaiting owner review)** · **`production` = `3f5de33` (tier rules + «از» + channel-based tiers + channel-draft button), pushed; the server gets it when the owner runs `update.sh`**; `main` is development (see §2 Branches); **RFM/Club reverted on `main` 2026-10-27 (decision 0005)**
 
 ## 1. Current priority
 
-**Customer RFM and Customer 360.** Requirements and specs come from the Product Architect session.
+**Customers area = production + internal accounts.** Requirements and specs come from the Product Architect session.
 The engineer implements only explicitly approved tasks.
 
-Done: **Customer Tier Rules** (Phase 1 + Amendment A + Correction), committed and pushed; owner checked the UI locally.
-Out of scope until approved: Smart Direct (retired in `3bc0a48`; do not rebuild); changes to `campaigns.py`;
-Customer 360 content changes.
+- Done and released: Customer Tier Rules (Phase 1 + Amendment A + Correction), «از» day bound, channel-based tiers,
+  channel-draft button (`production` = `3f5de33`).
+- 2026-10-27: **RFM Stage 1 and the «باشگاه مشتریان» menu were reverted on `main`** (decision 0005; archived on
+  `archive/rfm-club-2026-10-27`). Internal (staff/desk) accounts are kept on `main` with new migrations
+  `0008_internalaccount` / `0009_seed_internal_accounts` (15 confirmed accounts). Not on `production` yet.
+- 2026-10-28: **Customers overview (prototype v3)** implemented on `feature/customers-overview` (from `main`
+  `f6cebb2`), uncommitted until the owner reviews it locally. Rules: `docs/business-rules/customer-overview-metrics.md`.
+- Out of scope until approved: RFM (reintroduce only with new migrations, decision 0005); internal-account signal
+  scoring (paused with RFM); Smart Direct (retired in `3bc0a48`); changes to `campaigns.py`.
 
 ## 2. Workflow
 
@@ -22,33 +28,47 @@ Customer 360 content changes.
 4. Present a plan and wait for explicit authorization before editing.
 5. Run the module's tests (backend tests need PostgreSQL via Docker Compose).
 6. Update module docs and this file. No commit/push unless asked.
+7. Tests: run the module's test files while working and read only the summary
+   (`pytest -q <files> 2>&1 | tail -30`). Run the full backend suite only when the owner asks for it
+   (it is slow: the export tests alone take about 10 minutes).
+8. **Branches** (owner rule, 2026-10-26):
+   - `production` = what the server runs. `update.sh` deploys only `origin/production`
+     (`bash -c "$(curl -fsSL https://raw.githubusercontent.com/yuzservice/elinor-iq/production/update.sh)"`;
+     the old URL on `main` now deploys `production` too).
+   - `main` = development. Unreleased work (internal accounts) lives here and is not on the server.
+   - A feature that should ship alone branches from `production`, merges into `production` for release, then
+     `production` is merged into `main`.
+   - Work in progress is parked on its own branch, e.g. `wip/rfm-stage-1b`.
+   - Never run anything on the server; the owner runs `update.sh`.
 
-## 3. State of the RFM / Customer 360 area
+## 3. State of the Customers area
 
-| Feature | Source | Tests (run 2026-10-24 in Docker) | Status |
+| Feature | Source | Tests | Status |
 |---|---|---|---|
-| Tier engine (rule-driven, ordered, first match) | `backend/apps/customers/tiers.py`, `tier_rules.py` | `test_customer_tiers.py`, `test_customer_tier_rules.py` | PASSING |
-| Tier rules admin (draft, preview, activation, history) | `tier_rule_admin.py`, views/urls `tier-rules/…`, `tiers/` | `test_customer_tier_rules.py`, `tierRules.test.ts` | PASSING |
-| Tier rules modal (Customers page) | `frontend/src/features/customers/TierRulesModal.tsx`, `tierRules.ts`, `tierDisplay.tsx`, `hooks/useTiers.ts` | `tsc -b`, Vitest, `npm run build` | Passing; owner checked it locally, no bugs found |
-| Customer 360 | `backend/apps/customers/detail.py`, `frontend/src/pages/Customer360Page.tsx` | `test_customer_360.py`, `customer360Display.test.ts` | PASSING (tier pill now dynamic) |
-| Customer export | `export.py` | `test_customer_export.py` | FAILING before this work (3× `.content` on streaming response, 1× missing fixture `api_client`) |
-| Campaign report | `campaigns.py` | `test_customer_campaigns.py` | FAILING before this work (`test_customer_campaigns_api_and_redemptions`: `assert 0 >= 600000`) |
+| Tier engine + tier rules admin/modal + channel tiers | `tiers.py`, `tier_rules.py`, `tier_rule_admin.py`, `TierRulesModal.tsx` | `test_customer_tiers.py`, `test_customer_tier_rules.py`, `test_tier_channels.py`, `tierRules.test.ts` | PASSING; on `production` |
+| Internal (staff/desk) accounts | `operators.py`, `internal_accounts.py`, migrations `0008_internalaccount`, `0009_seed_internal_accounts`, `InternalAccountPanel.tsx` | `test_internal_accounts.py`, `test_internal_accounts_seed.py`, `test_operator_accounts.py` | PASSING; `main` only |
+| Customers overview (cards, lenses, compare, tier panel) | `overview.py`, `CustomerOverview.tsx`, `overviewDisplay.ts` | `test_customer_overview.py`, `overviewDisplay.test.ts` | PASSING; `feature/customers-overview`, uncommitted |
+| RFM report + club menu | archive branch only | — | REVERTED 2026-10-27 (decision 0005) |
+| Customer export | `export.py` | `test_customer_export.py` | FAILING before this work (3× `.content` on a streaming response, 1× missing fixture `api_client`) |
+| Campaign report | `campaigns.py` | `test_customer_campaigns.py` | FAILING before this work (`assert 0 >= 600000`) |
 
-Rules and decisions: `docs/business-rules/customer-tiers.md`, `docs/decisions/0001-…`, `0002-…`.
+**Full backend suite not run (owner rule); targeted suites only.** Latest targeted run: see the Log.
 
-Files of the tier-rules work: backend `tier_rules.py`, `tier_rule_admin.py`, migration `0006_tier_rule_sets.py`,
-`tests/test_customer_tier_rules.py`, edits to `tiers.py`, `tier_refresh.py`, `models.py`, `views.py`, `urls.py`, `list_query.py`;
-frontend `TierRulesModal.tsx`, `tierRules.ts`, `tierDisplay.tsx`, `hooks/useTiers.ts`, edits to `CustomersPage.tsx`,
-`Customer360Page.tsx`, `CustomerListPanel.tsx`, `customerListFilters.ts`, `services/customers.ts`, `types/index.ts`.
+Rules and decisions: `docs/business-rules/customer-tiers.md`, `internal-accounts.md` (`customer-rfm.md` = reverted);
+`docs/decisions/0001`–`0006`.
 
-**Local database state:** rewritten 0006 is applied to the local dev DB (rolled back and re-applied 2026-10-24 with owner
-approval). Version 1 reproduces every stored tier count exactly (199,280 tiered customers, 199,280 baseline rows with titles).
-The 0006 reverse step runs `SET CONSTRAINTS ALL IMMEDIATE` so rollback can drop its tables.
+**Local database state (dev only):** customers `0001`–`0006`, `0007_tier_channels`, `0008_internalaccount`,
+`0009_seed_internal_accounts` applied; 15 active internal accounts (6 staff, 9 desk), none with a tier. No RFM tables.
+Tier rule sets: v1 active (general), v2 draft (channel, recreated by `0007_tier_channels`).
+
+**Production steps when internal accounts are released (not run; needs owner approval to merge into `production`):**
+1. `update.sh`; migrations `0008_internalaccount` and `0009_seed_internal_accounts` run when the backend starts.
+2. `docker compose exec backend python manage.py refresh_customer_tiers --force` (clears the accounts' tiers).
 
 Notes for the Product Architect / next task:
-- `detail.py` module docstring states Customer 360 is "Not a revenue, VIP, RFM, or CLV layer." Adding RFM to 360 changes that contract; the spec should say so explicitly.
-- Operator desk accounts are excluded from tiering.
-- Revenue figures must use `apps/sales/semantics.py` qualifiers; never mix online `Order.total_amount` with POS tenders.
+- `campaigns.py` imports `exclude_operator_accounts` but never calls it; internal accounts drop out of campaign
+  reports only through their NULL tier. Left unchanged by rule.
+- Reintroducing RFM: new migrations after production's latest, and signal scoring rebuilt on them (decision 0005).
 
 ## 4. Knowledge infrastructure
 
@@ -60,7 +80,7 @@ Notes for the Product Architect / next task:
 | Module registry | `docs/modules/MODULE_REGISTRY.md` | Present |
 | Architecture / risks | `docs/architecture/SYSTEM_OVERVIEW.md` (section 8) | Present |
 | Feature verification | `docs/implementation-status/FEATURE_MATRIX.md` | Present; Customer Master rows re-run 2026-10-24, others `NOT_RUN` |
-| Graphify graph | `graphify-out/` (tracked since `b238c21`) | Built at `3bc0a488`; does **not** include the tier-rules modules. Run `graphify update .` when asked |
+| Graphify graph | `graphify-out/` (tracked since `b238c21`) | Rebuilt at `accb9d8` on 2026-10-25 (2,176 nodes, 6,566 edges, 125 communities); community labels not refreshed (`graphify label` needs an LLM key). Graph files are modified but not committed |
 
 ## 5. Shared workspace rules
 
@@ -70,10 +90,18 @@ Notes for the Product Architect / next task:
 - Commit and push to the approved remote only when explicitly authorized. Verify `git status` and ahead/behind counts; never assume work is backed up.
 - Never commit secrets, credentials, database dumps (`source/`, `backups/`) or customer records. `.env` is gitignored.
 
-## 6. Git and backup state (checked 2026-10-24)
+## 6. Git and backup state (checked 2026-10-27)
 
 - Remote `origin` → GitHub `yuzservice/elinor-iq`.
-- `main` = `origin/main` after the tier-rules commit (pushed 2026-10-24); verify with `git status -sb`.
+- `production` = `3f5de33` (channel-draft button on top of `1400d6b` channel tiers), pushed. Server: `1400d6b` per the owner (0007 applied;
+  v2 active general, v3 draft general); gets `3f5de33` on the next `update.sh`.
+- `main`: production (`3f5de33`) + internal accounts, after the RFM/Club revert commit of 2026-10-27 (see Log).
+- `feature/customers-overview` (local, from `main` `f6cebb2`): Customers overview v3, uncommitted (2026-10-28).
+- `archive/rfm-club-2026-10-27` (= old `main` `4a69c5d`, pushed): RFM Stage 1, club menu, internal accounts with the
+  old migrations `0007_customer_rfm` … `0010_merge_tier_channels`. Reference only.
+- `wip/rfm-stage-1b` (`d7bb88f`, pushed, untouched): built on the archived migration graph; needs rebasing onto new
+  RFM migrations if RFM resumes.
+- Uncommitted: `graphify-out/.graphify_labels.pending.json`, `graphify-out/2026-10-25/` (never commit).
 - Tracked docs: `CLAUDE.md`, `docs/`, `.claude/skills/`.
 - `b238c21` (owner) tracks Graphify artifacts, `.mcp.json`, `.graphifyignore` and the UI prototypes, and updates `.gitignore`.
 - Auth: git uses the GitHub CLI credential helper (`gh auth setup-git`, account `yuzservice`). The remote URL no longer embeds a token.
@@ -81,18 +109,56 @@ Notes for the Product Architect / next task:
 
 ## 7. Open gaps
 
-- Full backend suite has not completed in a recorded session (two background runs were stopped; the export tests are slow). Run it once with no time limit.
-- Pre-existing failures: `test_customer_export.py` (4) and `test_customer_campaigns.py` (1), unrelated to tiers.
-- Graphify graph predates the tier-rules modules (`graphify update .` when asked).
-- README index pages listed as pending in `00-HOME.md` (architecture, modules, implementation-status) do not exist.
+- Pre-existing test failures, unrelated to this work: `test_customer_export.py` (3 failed: `.content` on a
+  `StreamingHttpResponse`; 1 error: missing fixture `api_client`) and `test_customer_campaigns.py`
+  (`test_customer_campaigns_api_and_redemptions`: `assert 0 >= 600000`).
+- `campaigns.py` imports `exclude_operator_accounts` but never calls it; internal accounts leave campaign reports only
+  through their NULL tier. Left unchanged by rule; needs an owner decision.
+- Full backend suite not run (owner rule); targeted suites only.
+- Internal accounts are on `main` only; releasing them needs owner approval (steps in §3).
+- Graphify community labels are stale (`graphify label`); README index pages listed in `00-HOME.md` do not exist.
 
 ## 8. Next step
 
-1. Run the full backend suite once to completion and record the result.
-2. Decide on fixing the pre-existing export and campaign test failures.
-3. Later phase (needs a spec): campaigns on historical tiers.
+0. Owner: review the Customers overview locally (`feature/customers-overview`), then approve the commit/push.
+1. Owner: decide whether to release internal accounts to `production` (§3 steps).
+2. Decide on the pre-existing export/campaign test failures and the unused campaign exclusion.
+3. Paused: faster server updates (`chore/faster-deploy`, no changes yet).
 
 ## 9. Log
+
+### 2026-10-28 — Customers overview, prototype v3 (`feature/customers-overview`, uncommitted)
+
+- Reference copied to `docs/design/customers-overview-v3.html` (sample numbers).
+- Backend: `apps/customers/overview.py` + `GET /api/customers/overview/?period=&compare=` (`IsAuthenticated`, like
+  `reports`). One SQL query: events from `semantics.py` querysets (compiled with `sql_with_params`), per-lens firsts,
+  per-(window, customer) aggregation, `width_bucket` for the 12 sparkline buckets, daily first-purchase histogram;
+  JIT off for that statement. Tier counts/net deltas from `Customer` + `CustomerTierHistory`. 15-minute cache.
+- Deviation from the spec: no `lens`/`focus` query params. The response holds all 8 lenses (sparklines included), so
+  lens and card focus switch on the client without a request; cache key = (period, compare, today).
+- Frontend: `CustomerOverview.tsx`, `overviewDisplay.ts`; `CustomerListPanel` lost the old title and 4 hard-coded
+  KPI cards, «خروجی اکسل» moved into the filter row, «به‌روزرسانی سطوح» + «ویرایش قوانین» into the tier panel (super
+  admins only; the refresh button was visible to every role before). `?tier=CODE` filters the list. New tokens
+  `--ch-shopino`, `--ch-snappay`, `--ch-digipay` (dark + light).
+- Local timings (cold, 2026-10-28): 30 ≈ 2.1 s, month ≈ 2.0 s, 90/365 ≈ 2.7 s; cached ≈ instant. Target 2 s missed
+  for 90/365.
+- Gap: total customers 199,732 vs `purchasing_customers` 204,266 (local data; not investigated).
+- Tests: `test_customer_overview.py` + `test_customers.py`, `test_operator_accounts.py`, `test_customer_tier_rules.py`,
+  `test_tier_channels.py` → 74 passed; `tsc -b` OK; Vitest `src/features/customers` 31 passed.
+
+### 2026-10-27 — Revert RFM/Club on `main`, keep internal accounts (decision 0005)
+- Archived old `main` (`4a69c5d`) as `archive/rfm-club-2026-10-27` (pushed).
+- Local DB (owner-approved): `migrate customers 0006_tier_rule_sets` (unapplied 0009, 0008, `0007_customer_rfm`,
+  `0007_tier_channels`; `migrate customers 0007_tier_channels` planned nothing because `0007_customer_rfm` is its
+  sibling). Then applied `0007_tier_channels`, `0008_internalaccount`, `0009_seed_internal_accounts`;
+  `clear_operator_tiers()` cleared 14 stale tiers of the internal accounts.
+- Code: `backend` and `frontend` from `origin/production`, plus internal accounts only (`InternalAccount`, exclusion by
+  id in `operators.py`/`tiers.py`/list ranking, API, Customer 360 menu + confirmed banner). Removed `rfm.py`,
+  `ClubPage`, `RfmReportPanel`, `rfmDisplay`, `backfill_rfm_snapshots`, RFM list filters, suspected-signals banner.
+- Checks: `makemigrations --check` no changes; 15 internal accounts (6 staff, 9 desk), 0 with a tier.
+- Tests: `test_internal_accounts.py`, `test_internal_accounts_seed.py`, `test_operator_accounts.py`,
+  `test_customer_tier_rules.py`, `test_tier_channels.py`, `test_customers.py`, `test_customer_360.py`: 71 passed.
+  Frontend: `tsc -b` OK; Vitest `src/features/customers` 26/26.
 
 ### 2026-10-27 — «ساخت پیش‌نویس اینترنتی / حضوری» button (`fix/channel-draft-button`, from `production`)
 - Server state (owner, read-only): migration 0007 applied; v1 archived, **v2 active (general), v3 draft (general)**.
@@ -102,8 +168,23 @@ Notes for the Product Architect / next task:
   otherwise old draft archived + channel draft from the active version). Modal banner with confirm over a general draft.
 - Tests: `test_tier_channels.py`, `test_customer_tier_rules.py`, `test_customer_tiers.py`, `test_operator_accounts.py`,
   `test_customer_list.py`, `test_customer_360.py`, `test_customers.py`: 112 passed. Frontend: `tsc -b` OK, Vitest 46/46, build OK.
-- Next: owner reviews locally → merge into `production` → owner runs `update.sh` → open the modal, press the banner button
-  (confirm archiving v3), preview, activate → then merge `production` into `main`.
+- Released: merged into `production` as `3f5de33` (pushed; 112 passed, `tsc -b` OK, Vitest 46/46, build OK) and then into `main`.
+- Next (owner): run `update.sh` → open the modal, press the banner button (confirm archiving v3), preview, activate.
+
+### 2026-10-27 — Channel tiers released to `production` and merged into `main`
+- `production`: `git merge --no-ff feature/tier-channels` → `1400d6b`, pushed. Targeted tests on `production`:
+  110 passed; frontend `tsc -b` OK, Vitest 43/43, build OK.
+- `main`: merged `production`. Resolutions: internal accounts stay excluded by customer id (main) and
+  `clear_operator_tiers` also clears `tier_channel`; `/api/customers/tiers/` returns channel groups and each tier keeps
+  its `customers` count; list rows / 360 carry `tier_channel` next to RFM and internal-account fields; the list keeps
+  main's RFM column (no tier filter grid); the club page («باشگاه مشتریان») groups tier population by channel.
+  Merge migration `0010_merge_tier_channels` (0007_tier_channels + 0009_seed_confirmed_internal_accounts);
+  `makemigrations --check`: no changes. `test_tier_channels.py` desk setup now creates an `InternalAccount` row.
+- Tests on `main` (`test_tier_channels`, `test_customer_tier_rules`, `test_customer_tiers`, `test_operator_accounts`,
+  `test_customer_list`, `test_customer_360`, `test_customers`, `test_customer_rfm`, `test_internal_accounts`,
+  `test_internal_accounts_seed`): 183 passed. Frontend: `tsc -b` OK, Vitest 48/48, build OK. Full suite not run.
+- Local DB `elinor_iq` not migrated (needs owner approval).
+
 
 ### 2026-10-26 — Channel-based tiers (`feature/tier-channels`, from `production`)
 - Branches: `production` = what the server runs (`f308fec` + deploy change `b69af90`); `update.sh` deploys only
@@ -124,6 +205,45 @@ Notes for the Product Architect / next task:
   About 8,715 customers move from campaign codes (VIP, DIAMOND, GOLD_1, SILVER) to ONLINE_ codes on activation.
 - Tests: `test_tier_channels.py`, `test_customer_tier_rules.py`, `test_customer_tiers.py`, `test_operator_accounts.py`,
   `test_customer_list.py`, `test_customer_360.py`, `test_customers.py`: 110 passed. Frontend: `tsc -b` OK, Vitest 43/43, build OK.
+
+### 2026-10-25 — Committed and pushed Stage 1 and internal accounts
+- Owner approved after local review. `SUSPECTED_MIN_SCORE` raised from 2 to 3 (`test_internal_accounts.py` +
+  `test_internal_accounts_seed.py`: 10 passed). Local suspected accounts at ≥ 3: 10 (score 3: 9, score ≥ 4: 1).
+- Commits: `a8198d2` (Stage 1, verified alone: 163 backend tests passed, `tsc -b` OK, Vitest 44/44, build OK),
+  `a76cdd8` (internal accounts, 0008, 0009), `accb9d8` (prototypes removed). Pushed; ahead/behind 0/0.
+- `graphify update .` run: graph built from `accb9d8`.
+
+
+### 2026-10-25 — Confirmed internal accounts registered (uncommitted)
+- Migration 0009 seeds the 15 owner-confirmed accounts (6 staff, 9 desk; the desk row from 0008 kept as is).
+  Movement reads exclude active internal accounts; snapshot history is kept. `refresh_customer_tiers --force` now also refreshes RFM.
+- Local before → after: active internal accounts 1 → 15; RFM purchasing 199,280 → 199,266; tiered customers
+  199,280 → 199,266 (VIP 1,402 → 1,397, DIAMOND 5,807 → 5,805, GOLD_1 2,463 → 2,460, BRONZE_3 142,855 → 142,851, others unchanged);
+  segments champions 4,129 → 4,122, loyal 7,555 → 7,553, cant_lose 3,950 → 3,945, others unchanged; suspected 213 → 200.
+  Sales for 2025-09-23..2025-10-23 unchanged (online 5,018 orders / 6,761,406,550; POS 13,138 sales; purchase_count 18,156);
+  buyer count 12,727 → 12,717.
+- Tests: `test_internal_accounts_seed.py`, `test_internal_accounts.py`, `test_operator_accounts.py`, `test_customer_tiers.py`,
+  `test_customer_rfm.py`: 121 passed. Full backend suite not run (owner rule).
+
+
+### 2026-10-25 — RFM Stage 1, club menu and internal accounts (uncommitted)
+- RFM Stage 1: `rfm.py` (facts from the tier CTE with as_of and 12-month columns, fixed thresholds, 8 segments),
+  `customer_rfm` + `customer_rfm_snapshots` (migration 0007), daily refresh after tiers, monthly Jalali snapshots,
+  `backfill_rfm_snapshots`, `GET /api/customers/rfm/summary/`, list/export filters and `sort=rfm`, Customer 360 RFM block;
+  frontend «گزارش RFM» tab, «لیست مشتریان» rework, `/club` page (tiers + campaigns), RFM card in 360.
+- Step-0 distribution (local data, purchasing non-internal customers = 199,280; registered without purchase = 74,022):
+  R5..R1 = 2,121 / 23,035 / 30,990 / 49,658 / 93,476; F5..F1 = 10,263 / 11,364 / 13,725 / 32,252 / 131,676;
+  M5..M1 = 1,870 / 6,069 / 16,524 / 40,449 / 134,368. R×F rows (F5..F1): R5 507/266/221/318/809, R4 3,356/2,526/2,307/4,000/10,846,
+  R3 2,450/2,579/2,816/5,733/17,412, R2 1,671/2,638/3,462/8,421/33,466, R1 2,279/3,355/4,919/13,780/69,143.
+- Payment filter «سایر» = purchasers who never paid with SnappPay or DigiPay (owner decision).
+- Internal accounts: `InternalAccount` (migration 0008 moved the desk mobile), `operators.py` reads the table and
+  excludes by customer id, signals scored in the RFM refresh, management API, 360 banners/menu/dialog, list filter.
+  Local suspected counts: score 2 = 194, 3 = 13, 4 = 6 (213 total); score 1 = 1,854. Fired signals among suspected:
+  high_frequency 195, same_day_burst 202, many_cities 34, many_receivers 20, many_branches 0. p99.5 of 12-month purchases = 9.
+- Tests (targeted: `test_customer*.py`, `test_customers.py`, `test_operator_accounts.py`, `test_internal_accounts.py`, `test_sales_*.py`, `test_api.py`): 199 passed, 5 failed, 1 error in 9m47s. Failures: the 4 pre-existing export failures + 1 error and the pre-existing campaign failure, plus `test_api.py::test_customer_list_is_paginated` (old `"rfm" not in` 360 assertion) which was then updated: `test_api.py` 2 passed. Frontend: `tsc -b` OK, Vitest 45/45, `npm run build` OK.
+  **Full backend suite not run (cancelled by owner); targeted suites only.**
+- Older tests that asserted "no RFM in 360" and that created the desk account by mobile were updated (decisions 0003, 0004).
+
 
 ### 2026-10-24 — Tier rules: Phase 1, Amendment A and Correction
 - Phase 1: versioned tier thresholds, preview with samples, background activation in one transaction, advisory-locked writers, `customer_tier_history`. 79 backend tests passed; Vitest 34/34; build OK. Owner applied 0006 to the local DB; live counts under version 1 matched stored tiers exactly (199,280 tiered customers, 199,280 baseline rows).

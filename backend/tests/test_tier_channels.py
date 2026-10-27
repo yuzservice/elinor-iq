@@ -8,7 +8,7 @@ from django.apps import apps as django_apps
 from django.contrib.auth import get_user_model
 from django.db import connection
 
-from apps.customers.models import Customer, CustomerTierHistory, TierRuleSet
+from apps.customers.models import Customer, CustomerTierHistory, InternalAccount, TierRuleSet
 from apps.customers.tier_rule_admin import preview_draft, save_draft
 from apps.customers.tier_rules import (
     VERSION_1_RULES,
@@ -111,6 +111,7 @@ def test_channel_in_facts_and_metrics():
     _online(shopino, 20, shopino=True)
     _pos(shopino, 30)
     desk = _customer(6, mobile=DESK_MOBILE)
+    InternalAccount.objects.create(customer=desk, kind="desk")  # internal accounts are excluded by id
     _online(desk, 5)
     nobody = _customer(7)
 

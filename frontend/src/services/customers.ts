@@ -2,10 +2,15 @@ import { api, queryPath } from "./api";
 import type {
   Customer360,
   CustomerPurchase,
+  CustomerOverviewData,
   CustomerReports,
+  OverviewCompare,
+  OverviewPeriod,
   CustomerRow,
   Paginated,
   CustomerProductHistory,
+  InternalAccountInfo,
+  InternalAccountKind,
   PublicTierGroup,
   TierRules,
   TierRulesPreview,
@@ -118,6 +123,8 @@ async function downloadExport(path: string, fallbackFilename: string): Promise<v
 
 export const customersService = {
   reports: () => api<CustomerReports>("/customers/reports/"),
+  overview: (period: OverviewPeriod, compare: OverviewCompare) =>
+    api<CustomerOverviewData>(queryPath("/customers/overview/", { period, compare })),
   list: (params: CustomerListParams) => api<Paginated<CustomerRow>>(customerListQuery(params)),
   refreshTiers: () =>
     api<{ started: boolean; detail: string }>("/customers/refresh-tiers/", { method: "POST" }),
@@ -132,6 +139,16 @@ export const customersService = {
     ),
   products: (id: number) =>
     api<{ id: number; total: number; results: CustomerProductHistory[] }>(`/customers/${id}/products/`),
+  markInternalAccount: (payload: { customer_source_id: number; kind: InternalAccountKind; note: string }) =>
+    api<InternalAccountInfo & { refresh_started: boolean }>("/customers/internal-accounts/", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  updateInternalAccount: (id: number, payload: { kind?: InternalAccountKind; note?: string; is_active?: boolean }) =>
+    api<InternalAccountInfo & { refresh_started: boolean }>(`/customers/internal-accounts/${id}/`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
   tiers: () => api<{ results: PublicTierGroup[] }>("/customers/tiers/"),
   tierRules: () => api<TierRulesState>("/customers/tier-rules/"),
   saveTierRulesDraft: (payload: { rules?: TierRules; note?: string }) =>

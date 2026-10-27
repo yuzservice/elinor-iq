@@ -261,7 +261,39 @@ export type CustomerRow = {
   tier_channel?: TierChannel | null;
   tier_channel_label?: string | null;
   is_operator: boolean;
+  operator_kind?: "desk" | "staff" | null;
   operator_label: string | null;
+};
+
+export type OverviewPeriod = "30" | "month" | "90" | "365";
+export type OverviewCompare = "prev" | "yoy";
+export type OverviewLens = "total" | "site" | "sari" | "gorgan" | "capri" | "shopino" | "snappay" | "digipay";
+export type OverviewMetric = "customers" | "active" | "basket" | "repeat";
+export type OverviewWindow = { start: string; end: string; start_jalali: string; end_jalali: string };
+export type OverviewLensData = {
+  customers: { value: number | null; new: number | null };
+  active: { value: number | null; delta: number | null };
+  basket: { value: number | null; delta: number | null };
+  repeat: { value: number | null; delta: number | null };
+  spark: Record<OverviewMetric, Array<number | null>>;
+};
+export type OverviewTierPanel = {
+  channel: "pos" | "online" | null;
+  title: string;
+  tiers: Array<{ code: string; title: string; count: number; net: number }>;
+};
+export type CustomerOverviewData = {
+  period: OverviewPeriod;
+  compare: OverviewCompare;
+  window: OverviewWindow;
+  compare_window: OverviewWindow;
+  lenses: Record<OverviewLens, OverviewLensData>;
+  tiers: { panels: OverviewTierPanel[]; rules_changed: boolean };
+  insights: {
+    best_active: { lens: OverviewLens; delta: number } | null;
+    worst_active: { lens: OverviewLens; delta: number } | null;
+    top_tier: { code: string; title: string; net: number } | null;
+  };
 };
 
 export type CustomerReports = {
@@ -330,6 +362,7 @@ export type CustomerProductHistory = {
 
 export type Customer360 = {
   id: number;
+  internal_account: InternalAccountInfo | null;
   name: string;
   name_is_fallback: boolean;
   incomplete: boolean;
@@ -352,6 +385,7 @@ export type Customer360 = {
   tier_channel?: TierChannel | null;
   tier_channel_label?: string | null;
   is_operator: boolean;
+  operator_kind?: "desk" | "staff" | null;
   operator_label: string | null;
   channel: "online" | "physical" | "both" | "none";
   channel_label: string;
@@ -658,4 +692,18 @@ export type TierRulesPreview = {
     count: number | null;
     message: string;
   }[];
+};
+
+export type InternalAccountKind = "desk" | "staff";
+
+export type InternalAccountInfo = {
+  id: number;
+  kind: InternalAccountKind;
+  kind_label: string;
+  note: string;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_by: string | null;
+  updated_at: string;
 };

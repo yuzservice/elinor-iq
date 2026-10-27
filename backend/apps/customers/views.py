@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 
-from apps.accounts.permissions import IsSuperAdmin
+from apps.accounts.permissions import IsSuperAdmin, is_super_admin
 from apps.core.coverage import coverage_payload
 from apps.sales.services import parse_range, window_meta
 
@@ -13,6 +13,17 @@ from .detail import HISTORY_PER_PAGE, customer_360_payload, product_history, pur
 from .list_query import customer_list_queryset, paginate_customers
 from .models import Customer
 from .operators import exclude_operator_accounts
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def overview(request):
+    from .overview import overview_payload, parse_overview_params
+
+    parsed = parse_overview_params(request.query_params)
+    if parsed is None:
+        return Response({"detail": "بازه یا مقایسه نامعتبر است."}, status=status.HTTP_400_BAD_REQUEST)
+    return Response(overview_payload(*parsed))
 
 
 @api_view(["GET"])
@@ -145,7 +156,12 @@ def customer_detail(request, source_id):
 
     page = _positive_int(request.query_params.get("history_page"), default=1)
     per_page = _positive_int(request.query_params.get("history_per_page"), default=HISTORY_PER_PAGE, cap=50)
-    payload = customer_360_payload(customer, history_page=page, history_per_page=per_page)
+    payload = customer_360_payload(
+        customer,
+        history_page=page,
+        history_per_page=per_page,
+        include_internal=is_super_admin(request.user),
+    )
     payload["data_coverage"] = coverage_payload()
     return Response(payload)
 
@@ -298,3 +314,34 @@ def customer_tiers(request):
     from .tier_rule_admin import public_tiers
 
     return Response({"results": public_tiers()})
+
+
+@api_view(["GET", "POST"])
+@permission_classes([IsSuperAdmin])
+def internal_accounts(request):
+    from .internal_accounts import InternalAccountError, account_payload, create_or_reactivate, list_accounts
+
+    if request.method == "GET":
+        return Response({"results": list_accounts()})
+    try:
+        account, created, refresh_started = create_or_reactivate(request.user, request.data)
+    except InternalAccountError as exc:
+        return Response({"detail": str(exc), "errors": exc.errors}, status=status.HTTP_400_BAD_REQUEST)
+    return Response(
+        {**account_payload(account), "refresh_started": refresh_started},
+        status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+    )
+
+
+@api_view(["PATCH"])
+@permission_classes([IsSuperAdmin])
+def internal_account_detail(request, account_id):
+    from .internal_accounts import InternalAccountError, account_payload, update_account
+
+    try:
+        account, refresh_started = update_account(request.user, account_id, request.data)
+    except InternalAccountError as exc:
+        return Response({"detail": str(exc), "errors": exc.errors}, status=status.HTTP_400_BAD_REQUEST)
+    if account is None:
+        return Response({"detail": "حساب داخلی پیدا نشد."}, status=status.HTTP_404_NOT_FOUND)
+    return Response({**account_payload(account), "refresh_started": refresh_started})

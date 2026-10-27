@@ -20,6 +20,7 @@ from apps.customers.purchases import (
     qualifying_orders,
     qualifying_pos,
 )
+from apps.customers.internal_accounts import internal_account_payload
 from apps.customers.tiers import tier_channel_label, tier_label
 from apps.sales.models import OrderItem, PosSaleItem, SalesLine
 
@@ -31,7 +32,7 @@ POS_TYPE_LABELS = {
 HISTORY_PER_PAGE = 20
 
 
-def customer_360_payload(customer, history_page=1, history_per_page=HISTORY_PER_PAGE):
+def customer_360_payload(customer, history_page=1, history_per_page=HISTORY_PER_PAGE, include_internal=False):
     online_qs = qualifying_orders(customer.orders.all())
     pos_qs = qualifying_pos(customer.pos_sales.all())
     online_count = online_qs.count()
@@ -68,6 +69,8 @@ def customer_360_payload(customer, history_page=1, history_per_page=HISTORY_PER_
         "tier_label": None if desk else tier_label(customer.tier_code),
         "tier_channel": None if desk else (customer.tier_channel or None),
         "tier_channel_label": None if desk else tier_channel_label(customer.tier_channel),
+        # Super admins only: the internal-account row (active or not).
+        "internal_account": internal_account_payload(customer) if include_internal else None,
         **operator_payload(customer),
         "channel": channel_key,
         "channel_label": channel_label,

@@ -16,7 +16,7 @@ Map the request to one row. Pick a second row only if the change crosses modules
 |---|---|---|---|---|---|
 | Sales & Payments | revenue, KPI, order, POS, tender, gateway, channel | `## 4.` | `apps/sales` | `pages/SalesPage.tsx` | `test_sales_*`, `test_gateway_payments.py` |
 | Data Sync / Integrations | sync, import, ETL, Elinor API, dump, hourly | `## 7.` | `apps/integrations/elinor` | `pages/SettingsPage.tsx` | `test_sync.py`, `test_pos_sync*.py`, `test_details_sync.py`, `test_import_core.py`, `test_elinor_client.py`, `test_customer_sync.py` |
-| Customers & Loyalty | customer, tier, RFM, 360, campaign, gift, wallet, export | `## 3.` | `apps/customers` | `pages/CustomersPage.tsx`, `pages/Customer360Page.tsx` | `test_customer*.py`, `test_customers.py` |
+| Customers & Loyalty | customer, tier, RFM, 360, club, campaign, gift, wallet, export | `## 3.` | `apps/customers` | `pages/CustomersPage.tsx`, `pages/ClubPage.tsx`, `pages/Customer360Page.tsx` | `test_customer*.py`, `test_customers.py` |
 | Products & Merchandising | product, variant, category, color, size, bundle | `## 5.` | `apps/products` | `pages/ProductsPage.tsx` | `test_product_intelligence.py`, `test_products_and_coverage.py` |
 | Accounts & Auth | login, role, permission, user, super admin | `## 1.` | `apps/accounts` | `pages/LoginPage.tsx`, `services/auth.ts` | `test_auth.py`, `test_operator_accounts.py`, `test_platform_access.py` |
 | Core & Executive Dashboard | home, overview, health, coverage notice | `## 2.` | `apps/core` (`home_metrics.py`, `metrics.py`) | `pages/HomePage.tsx` | `test_health.py`, `test_sales_overview.py`, `test_api.py` |
@@ -29,7 +29,7 @@ Smart Direct is retired (commit 3bc0a48). If a request touches it, stop and ask 
 ## 2. Read module docs only
 
 1. Read only the matching section of `docs/modules/MODULE_REGISTRY.md`: grep for its `## N.` heading, then read that range.
-2. Read business rules for the module if they exist in `docs/business-rules/` (customer tiers: `customer-tiers.md`) and related records in `docs/decisions/`.
+2. Read business rules for the module if they exist in `docs/business-rules/` (customer tiers: `customer-tiers.md`, RFM: `customer-rfm.md`) and related records in `docs/decisions/`.
 3. For money, dates or sync, also read `docs/architecture/SYSTEM_OVERVIEW.md` section 8 (known risks).
 
 ## 3. Trace dependencies only when useful

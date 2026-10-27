@@ -1,7 +1,7 @@
 from django.db.models import Case, Count, Exists, F, IntegerField, Max, Min, OuterRef, Q, Value, When
 
 from apps.customers.models import Customer, CustomerAddress
-from apps.customers.operators import exclude_operator_accounts, is_operator_account, operator_mobile_variants
+from apps.customers.operators import active_internal_accounts, exclude_operator_accounts, is_operator_account
 from apps.customers.presentation import customer_status_label, list_payload
 from apps.customers.purchases import (
     SALES_LINE_LABELS,
@@ -391,6 +391,7 @@ def hydrate_customer_rows(customers):
         pos_lines[row["customer_id"]].add(row["sales_line"])
     titles = tier_title_map()
     tiers = metrics_for_customers(ids, titles=titles)
+    accounts = active_internal_accounts()
 
     payloads = []
     for customer in customers:
@@ -404,7 +405,7 @@ def hydrate_customer_rows(customers):
             lines.append(SalesLine.ONLINE)
         lines.extend(sorted(line for line in pos_lines.get(customer.pk, set()) if line))
         channel_key, channel_label = channel_for(online_count, pos_count)
-        payload = list_payload(customer)
+        payload = list_payload(customer, accounts)
         payload.update(
             {
                 "order_count": int(tier.get("purchase_count") or 0),
@@ -414,10 +415,12 @@ def hydrate_customer_rows(customers):
                 "last_purchase_at": tier.get("last_purchase_at"),
                 "lifetime_purchase_amount": int(tier.get("lifetime_purchase_amount") or 0),
                 "days_since_last_purchase": tier.get("days_since_last_purchase"),
-                "tier_code": None if is_operator_account(customer) else (customer.tier_code or None),
-                "tier_label": None if is_operator_account(customer) else tier_label(customer.tier_code, titles),
-                "tier_channel": None if is_operator_account(customer) else (customer.tier_channel or None),
-                "tier_channel_label": None if is_operator_account(customer) else tier_channel_label(customer.tier_channel),
+                "tier_code": None if is_operator_account(customer, accounts) else (customer.tier_code or None),
+                "tier_label": None if is_operator_account(customer, accounts) else tier_label(customer.tier_code, titles),
+                "tier_channel": None if is_operator_account(customer, accounts) else (customer.tier_channel or None),
+                "tier_channel_label": (
+                    None if is_operator_account(customer, accounts) else tier_channel_label(customer.tier_channel)
+                ),
                 "channel": channel_key,
                 "channel_label": channel_label,
                 "sales_lines": lines,
@@ -488,11 +491,8 @@ def _buyer_analytics_filter(
 
 
 def _operator_rank():
-    mobiles = list(operator_mobile_variants())
-    if not mobiles:
-        return Value(0, output_field=IntegerField())
     return Case(
-        When(mobile__in=mobiles, then=Value(1)),
+        When(internal_account__is_active=True, then=Value(1)),
         default=Value(0),
         output_field=IntegerField(),
     )
