@@ -3,7 +3,7 @@
 Durable state for the next engineer or AI assistant. Do not rely on chat history; this file plus the repo is the source of truth.
 Update this file at the end of every implementation task (newest entry first in the Log).
 
-Last updated: 2026-10-27 · **`production` = `3f5de33` (tier rules + «از» + channel-based tiers + channel-draft button), pushed; the server gets it when the owner runs `update.sh`**; `main` is development (see §2 Branches); **RFM/Club reverted on `main` 2026-10-27 (decision 0005)**
+Last updated: 2026-10-28 · **Customers overview v3 on `feature/customers-overview` (uncommitted, awaiting owner review)** · **`production` = `3f5de33` (tier rules + «از» + channel-based tiers + channel-draft button), pushed; the server gets it when the owner runs `update.sh`**; `main` is development (see §2 Branches); **RFM/Club reverted on `main` 2026-10-27 (decision 0005)**
 
 ## 1. Current priority
 
@@ -15,6 +15,8 @@ The engineer implements only explicitly approved tasks.
 - 2026-10-27: **RFM Stage 1 and the «باشگاه مشتریان» menu were reverted on `main`** (decision 0005; archived on
   `archive/rfm-club-2026-10-27`). Internal (staff/desk) accounts are kept on `main` with new migrations
   `0008_internalaccount` / `0009_seed_internal_accounts` (15 confirmed accounts). Not on `production` yet.
+- 2026-10-28: **Customers overview (prototype v3)** implemented on `feature/customers-overview` (from `main`
+  `f6cebb2`), uncommitted until the owner reviews it locally. Rules: `docs/business-rules/customer-overview-metrics.md`.
 - Out of scope until approved: RFM (reintroduce only with new migrations, decision 0005); internal-account signal
   scoring (paused with RFM); Smart Direct (retired in `3bc0a48`); changes to `campaigns.py`.
 
@@ -45,6 +47,7 @@ The engineer implements only explicitly approved tasks.
 |---|---|---|---|
 | Tier engine + tier rules admin/modal + channel tiers | `tiers.py`, `tier_rules.py`, `tier_rule_admin.py`, `TierRulesModal.tsx` | `test_customer_tiers.py`, `test_customer_tier_rules.py`, `test_tier_channels.py`, `tierRules.test.ts` | PASSING; on `production` |
 | Internal (staff/desk) accounts | `operators.py`, `internal_accounts.py`, migrations `0008_internalaccount`, `0009_seed_internal_accounts`, `InternalAccountPanel.tsx` | `test_internal_accounts.py`, `test_internal_accounts_seed.py`, `test_operator_accounts.py` | PASSING; `main` only |
+| Customers overview (cards, lenses, compare, tier panel) | `overview.py`, `CustomerOverview.tsx`, `overviewDisplay.ts` | `test_customer_overview.py`, `overviewDisplay.test.ts` | PASSING; `feature/customers-overview`, uncommitted |
 | RFM report + club menu | archive branch only | — | REVERTED 2026-10-27 (decision 0005) |
 | Customer export | `export.py` | `test_customer_export.py` | FAILING before this work (3× `.content` on a streaming response, 1× missing fixture `api_client`) |
 | Campaign report | `campaigns.py` | `test_customer_campaigns.py` | FAILING before this work (`assert 0 >= 600000`) |
@@ -93,6 +96,7 @@ Notes for the Product Architect / next task:
 - `production` = `3f5de33` (channel-draft button on top of `1400d6b` channel tiers), pushed. Server: `1400d6b` per the owner (0007 applied;
   v2 active general, v3 draft general); gets `3f5de33` on the next `update.sh`.
 - `main`: production (`3f5de33`) + internal accounts, after the RFM/Club revert commit of 2026-10-27 (see Log).
+- `feature/customers-overview` (local, from `main` `f6cebb2`): Customers overview v3, uncommitted (2026-10-28).
 - `archive/rfm-club-2026-10-27` (= old `main` `4a69c5d`, pushed): RFM Stage 1, club menu, internal accounts with the
   old migrations `0007_customer_rfm` … `0010_merge_tier_channels`. Reference only.
 - `wip/rfm-stage-1b` (`d7bb88f`, pushed, untouched): built on the archived migration graph; needs rebasing onto new
@@ -116,11 +120,31 @@ Notes for the Product Architect / next task:
 
 ## 8. Next step
 
+0. Owner: review the Customers overview locally (`feature/customers-overview`), then approve the commit/push.
 1. Owner: decide whether to release internal accounts to `production` (§3 steps).
 2. Decide on the pre-existing export/campaign test failures and the unused campaign exclusion.
 3. Paused: faster server updates (`chore/faster-deploy`, no changes yet).
 
 ## 9. Log
+
+### 2026-10-28 — Customers overview, prototype v3 (`feature/customers-overview`, uncommitted)
+
+- Reference copied to `docs/design/customers-overview-v3.html` (sample numbers).
+- Backend: `apps/customers/overview.py` + `GET /api/customers/overview/?period=&compare=` (`IsAuthenticated`, like
+  `reports`). One SQL query: events from `semantics.py` querysets (compiled with `sql_with_params`), per-lens firsts,
+  per-(window, customer) aggregation, `width_bucket` for the 12 sparkline buckets, daily first-purchase histogram;
+  JIT off for that statement. Tier counts/net deltas from `Customer` + `CustomerTierHistory`. 15-minute cache.
+- Deviation from the spec: no `lens`/`focus` query params. The response holds all 8 lenses (sparklines included), so
+  lens and card focus switch on the client without a request; cache key = (period, compare, today).
+- Frontend: `CustomerOverview.tsx`, `overviewDisplay.ts`; `CustomerListPanel` lost the old title and 4 hard-coded
+  KPI cards, «خروجی اکسل» moved into the filter row, «به‌روزرسانی سطوح» + «ویرایش قوانین» into the tier panel (super
+  admins only; the refresh button was visible to every role before). `?tier=CODE` filters the list. New tokens
+  `--ch-shopino`, `--ch-snappay`, `--ch-digipay` (dark + light).
+- Local timings (cold, 2026-10-28): 30 ≈ 2.1 s, month ≈ 2.0 s, 90/365 ≈ 2.7 s; cached ≈ instant. Target 2 s missed
+  for 90/365.
+- Gap: total customers 199,732 vs `purchasing_customers` 204,266 (local data; not investigated).
+- Tests: `test_customer_overview.py` + `test_customers.py`, `test_operator_accounts.py`, `test_customer_tier_rules.py`,
+  `test_tier_channels.py` → 74 passed; `tsc -b` OK; Vitest `src/features/customers` 31 passed.
 
 ### 2026-10-27 — Revert RFM/Club on `main`, keep internal accounts (decision 0005)
 - Archived old `main` (`4a69c5d`) as `archive/rfm-club-2026-10-27` (pushed).

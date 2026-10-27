@@ -17,6 +17,17 @@ from .operators import exclude_operator_accounts
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
+def overview(request):
+    from .overview import overview_payload, parse_overview_params
+
+    parsed = parse_overview_params(request.query_params)
+    if parsed is None:
+        return Response({"detail": "بازه یا مقایسه نامعتبر است."}, status=status.HTTP_400_BAD_REQUEST)
+    return Response(overview_payload(*parsed))
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def reports(request):
     start, end = parse_range(request)
     all_customers = exclude_operator_accounts(Customer.objects.all())

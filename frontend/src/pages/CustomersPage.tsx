@@ -84,7 +84,11 @@ export function CustomersPage() {
       {tierRulesOpen ? <TierRulesModal onClose={() => setTierRulesOpen(false)} /> : null}
 
       {/* Render Active Panel */}
-      {currentTab === "campaigns" ? <CustomerCampaignsPanel /> : <CustomerListPanel />}
+      {currentTab === "campaigns" ? (
+        <CustomerCampaignsPanel />
+      ) : (
+        <CustomerListPanel canManage={canManage} onEditTierRules={() => setTierRulesOpen(true)} />
+      )}
     </div>
   );
 }
