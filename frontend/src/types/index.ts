@@ -3,6 +3,7 @@ export type User = {
   username: string;
   role: string;
   can_manage_platform?: boolean;
+  can_manage_calls?: boolean;
 };
 
 export type WindowMeta = {

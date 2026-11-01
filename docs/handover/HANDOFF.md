@@ -3,7 +3,7 @@
 Durable state for the next engineer or AI assistant. Do not rely on chat history; this file plus the repo is the source of truth.
 Update this file at the end of every implementation task (newest entry first in the Log).
 
-Last updated: 2026-10-28 · **Customers overview v3 on `feature/customers-overview` (uncommitted, awaiting owner review)** · **`production` = `3f5de33` (tier rules + «از» + channel-based tiers + channel-draft button), pushed; the server gets it when the owner runs `update.sh`**; `main` is development (see §2 Branches); **RFM/Club reverted on `main` 2026-10-27 (decision 0005)**
+Last updated: 2026-11-02 · **Call Center merged into `production` and `main`; reaches the server on the next `update.sh`** · **Customers overview v3 on `feature/customers-overview` (uncommitted, awaiting owner review)** · **`production` = `3f5de33` (tier rules + «از» + channel-based tiers + channel-draft button), pushed; the server gets it when the owner runs `update.sh`**; `main` is development (see §2 Branches); **RFM/Club reverted on `main` 2026-10-27 (decision 0005)**
 
 ## 1. Current priority
 
@@ -120,12 +120,30 @@ Notes for the Product Architect / next task:
 
 ## 8. Next step
 
+- Owner: run `update.sh` to deploy the Call Center, then create agents in Settings.
 0. Owner: review the Customers overview locally (`feature/customers-overview`), then approve the commit/push.
 1. Owner: decide whether to release internal accounts to `production` (§3 steps).
 2. Decide on the pre-existing export/campaign test failures and the unused campaign exclusion.
 3. Paused: faster server updates (`chore/faster-deploy`, no changes yet).
 
 ## 9. Log
+
+### 2026-11-02 — Call Center (`feature/call-center`, from `production`), checkpoints
+- Review fix 1: «ذخیره و ساخت برنامه تماس» (list + draft program in one transaction), section/program/tab in the URL, step strip. Next: list edits; dnc; nightly timing; label; browser checks.
+- Review fix 2: PATCH/DELETE `lists/<id>/`, rename and delete in the list row, «ویرایش فیلترها» on the customers page (`?edit_list=`). Fixed list used by a non-draft program refuses filter edits. Next: dnc safety.
+- Review fix 3: dnc outcomes confirm before saving; managers clear dnc on Customer 360 with reason and audit fields (`calls.0004`). Cancelled tasks stay cancelled; dynamic programs pick the customer up on the next daily run, fixed lists do not. Next: nightly job timing on real data.
+- Review fix 4: `attribute_purchases` on local real rows (272,209 online, 175,237 POS) with 50,000 synthetic logs in a rolled-back transaction: 1.6-1.7 s, so no narrowing needed. `attribution_sql()` split out for EXPLAIN.
+- Review fix 5: UI label «کارمند فروش»; stored value stays `sales_agent`. Next: browser checks, docs, report.
+- Review fixes 6-8: tests, docs, full browser run on a scratch DB (dropped). Browser run found and fixed: new program opened «پیدا نشد» before the list refreshed; edit banner moved to the top; preview refreshes after activation. Owner approved.
+- Released: merged into `production`, then into `main`. The server gets it on the next `update.sh` (migrations and the scheduler's `calls_daily` come with the rebuilt image). Create agents in Settings.
+- Checkpoint 1: `apps/calls` models + migrations (`calls.0001`, `0002_seed_tags`, `accounts.0003`), role `sales_agent`, `SalesAgentScopeMiddleware`. Next: lists and tasks. No API yet.
+- Checkpoint 2: lists (filters/manual/excel), programs, forms (draft/publish), settings, tags, activation in background (`lists.py`, `tasks.py`, `forms.py`, `views.py`); `test_call_center.py` 8 passed. Next: saving logs. Daily dynamic-list job not yet.
+- Checkpoint 3: saving logs (`logs.py`: retry/unreachable, dnc, no-call, followup, escalation, facts, 24h edit), agent list API (`agent.py`), customer calls endpoint; 18 tests passed. Next: agent UI; then builder, reports + nightly job, performance.
+- Checkpoint 4: agent UI (`/calls` lazy route, `AgentPanel`, form renderer, 360 «تماس‌ها» tab + badges, sidebar/role redirect, Settings can create `sales_agent`). Manager sections are empty until the next steps. Next: form builder + programs UI.
+- Checkpoint 5: form builder (autosave draft, publish, copy), programs + audience UI, settings/tags UI, «ساخت لیست تماس» on the customers page. Next: nightly job + reports.
+- Checkpoint 6: nightly `calls_daily` (attribution, tag resolve, dynamic lists; hooked into `scheduler-entrypoint.sh`), reports API + UI (`reports.py`, `ReportsPanel`). Next: performance (load seed, EXPLAIN, timings), docs, screenshots.
+- Checkpoint 7: `call_center_load` (dev-only, refuses a DB without "load" in its name), reports split into small GROUP BYs. All targets met on 300k logs / 1M facts / 505k tasks. Next: docs, screenshots, final report.
+- Checkpoint 8 (feature complete, awaiting owner review): docs, screenshots done on a scratch DB (dropped afterwards), agent-only sidebar fixes. Not done: nothing merged; on deploy run nothing extra (migrations + scheduler pick it up). Create agents in Settings. Local dev DB has `calls` migrations applied, no call data.
 
 ### 2026-10-28 — Customers overview, prototype v3 (`feature/customers-overview`, uncommitted)
 

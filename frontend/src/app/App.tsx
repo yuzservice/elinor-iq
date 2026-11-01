@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AuthContext } from "../hooks/useAuth";
 import { AppShell } from "../layouts/AppShell";
 import { LoginPage } from "../pages/LoginPage";
@@ -11,7 +11,17 @@ import { ProductsPage } from "../pages/ProductsPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { authService } from "../services/auth";
 import { ThemeProvider } from "../theme/ThemeProvider";
+import { SALES_AGENT_ROLE } from "../lib/nav";
 import type { User } from "../types";
+
+const CallCenterPage = lazy(() => import("../pages/CallCenterPage").then((module) => ({ default: module.CallCenterPage })));
+
+/** Agents only reach /calls and Customer 360; the API enforces the same rule. */
+function AgentRedirect({ user }: { user: User }) {
+  const { pathname } = useLocation();
+  if (user.role === SALES_AGENT_ROLE && !/^\/(calls|customers\/\d+)/.test(pathname)) return <Navigate to="/calls" replace />;
+  return <AppShell />;
+}
 
 export function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -61,7 +71,7 @@ export function App() {
           <Route
             element={
               user ? (
-                <AppShell />
+                <AgentRedirect user={user} />
               ) : (
                 <Navigate to="/login" replace />
               )
@@ -73,6 +83,14 @@ export function App() {
             <Route path="/customers/:id" element={<Customer360Page />} />
             <Route path="/products" element={<ProductsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route
+              path="/calls"
+              element={
+                <Suspense fallback={<div className="p-8 text-sm text-muted">در حال دریافت اطلاعات...</div>}>
+                  <CallCenterPage />
+                </Suspense>
+              }
+            />
           </Route>
           <Route path="*" element={<Navigate to={user ? "/" : "/login"} replace />} />
         </Routes>

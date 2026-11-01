@@ -183,6 +183,39 @@ export function buildCustomerListParams(
   };
 }
 
+/** Inverse of buildCustomerListParams: saved call-list filters back into the filter form. */
+export function filtersFromParams(params: Record<string, unknown>): { filters: CustomerListFilters; search: string } {
+  const text = (key: string) => (params[key] == null ? "" : String(params[key]));
+  const lines = text("sales_lines");
+  return {
+    search: text("search"),
+    filters: {
+      ...EMPTY_CUSTOMER_FILTERS,
+      population: text("population") || EMPTY_CUSTOMER_FILTERS.population,
+      tier: text("tier"),
+      channel: text("channel"),
+      salesLines: (lines ? lines.split(",") : []) as SalesLineValue[],
+      salesLinesMode: text("sales_lines_mode") === "any" || text("sales_lines_mode") === "all" ? (text("sales_lines_mode") as "any" | "all") : EMPTY_CUSTOMER_FILTERS.salesLinesMode,
+      minPurchases: text("min_purchases"),
+      maxPurchases: text("max_purchases"),
+      minAmount: text("min_amount"),
+      maxAmount: text("max_amount"),
+      lastFrom: text("last_from"),
+      lastTo: text("last_to"),
+      firstFrom: text("first_from"),
+      firstTo: text("first_to"),
+      paymentMethod: text("payment_method"),
+      hasDiscount: text("has_discount"),
+      orderBehavior: text("order_behavior"),
+      size: text("size"),
+      category: text("category"),
+      city: text("city"),
+      profileState: text("profile_state"),
+      sort: text("sort") || EMPTY_CUSTOMER_FILTERS.sort,
+    },
+  };
+}
+
 export function describeCustomerFilters(
   filters: Partial<CustomerListFilters> & Pick<CustomerListFilters, "population" | "tier" | "channel" | "salesLines" | "minPurchases" | "maxPurchases" | "lastFrom" | "lastTo" | "sort">,
   search = "",

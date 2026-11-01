@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "apps.sales.apps.SalesConfig",
     "apps.products.apps.ProductsConfig",
     "apps.system.apps.SystemConfig",
+    "apps.calls.apps.CallsConfig",
 ]
 
 MIDDLEWARE = [
@@ -56,6 +57,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "apps.accounts.middleware.SalesAgentScopeMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
