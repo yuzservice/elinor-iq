@@ -36,7 +36,7 @@ export function ProgramsPanel() {
   const rows = programs.data?.results ?? [];
   const current = rows.find((row) => row.id === editing);
   if (editing != null && !current) {
-    return programs.data ? <p className={MUTED}>این برنامه پیدا نشد.</p> : <p className={MUTED}>در حال دریافت اطلاعات...</p>;
+    return programs.data && !programs.loading ? <p className={MUTED}>این برنامه پیدا نشد.</p> : <p className={MUTED}>در حال دریافت اطلاعات...</p>;
   }
   if (current) {
     return (
@@ -55,6 +55,7 @@ export function ProgramsPanel() {
     try {
       const row = await callsService.createProgram(name.trim());
       setName("");
+      refresh();
       navigate(programUrl(row.id, "list"));
     } catch (error) {
       setMessage(error instanceof ApiError ? error.message : "ساخت برنامه انجام نشد.");
@@ -226,7 +227,7 @@ function ProgramEditor({ program, programs, lists, tab, onBack, onChanged }: {
 
 function Audience({ program, lists, step, onChanged }: { program: ProgramRow; lists: CallListRow[]; step: ProgramStep; onChanged: () => void }) {
   const agents = useApi(() => callsService.agents(), []);
-  const preview = useApi(() => callsService.preview(program.id), [program.id, program.list?.id], Boolean(program.list));
+  const preview = useApi(() => callsService.preview(program.id), [program.id, program.list?.id, program.job.status], Boolean(program.list));
   const [message, setMessage] = useState("");
   const [upload, setUpload] = useState<{ file: File; matched: number; unknown: number } | null>(null);
   const [uploadName, setUploadName] = useState("");

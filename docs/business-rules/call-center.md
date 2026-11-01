@@ -4,16 +4,23 @@ Status: implemented on `feature/call-center`, not released (2026-11-02). Prototy
 
 Nothing writes to the Elinor API. Sync-owned `Customer` fields are not changed; call state lives in `CustomerCallStatus`.
 
+## Navigation
+Manager section, program and step are in the URL: `/calls?section=report|programs|settings&program=<id>&tab=list|form|agents|activate`. The step strip «لیست ← فرم تماس ← کارمندان ← فعال‌سازی» marks steps done from existing data.
+
 ## Access
 - Role `sales_agent`: `SalesAgentScopeMiddleware` blocks every `/api/` and `/admin/` path except `/api/auth/`, `/api/calls/`, `/api/health/`, `GET /api/customers/tiers/`, and `GET /api/customers/<source_id>/` (+ `purchases/`, `products/`) when a task of that customer is assigned to them (any task status).
 - Managers = `super_admin`, `admin`, `manager`. Other roles have no Call Center. Everyone who can see Customer 360 sees its «تماس‌ها» tab.
 - Tasks API always filters `assignee = request.user`, for managers too.
-- Accounts are created in Settings (role select: ادمین, مدیر, کارمند فروش).
+- Accounts are created in Settings (role select: ادمین, مدیر, کارمند فروش; stored value `sales_agent`).
 
 ## Lists
 - `fixed`: members stored in `CallListMember`. `dynamic`: filters only, re-evaluated with `customer_list_queryset`.
 - Sources: filters (customers page), checked rows (fixed manual), Excel/CSV (mobile numbers; the count of unknown numbers is shown before saving; `.xlsx` is read with the standard library).
 - Filling runs in a background thread with `job_status`.
+
+- «ذخیره و ساخت برنامه تماس» saves the list and a draft program with its name in one transaction (no tasks), then opens the program's form step. «فقط ذخیره لیست» saves only.
+- Editing (managers): every list can be renamed. Lists built from filters can change filters on the customers page (`?edit_list=<id>`). A fixed list rebuilds its members only when no non-draft program uses it; otherwise 409. A dynamic list in an active program may change: existing tasks stay, new matches get tasks. Manual and Excel lists: rename only.
+- Delete only when no program uses the list (409 names the programs). While a build job runs, edits and delete return 409.
 
 ## Activation and eligibility
 Excluded, each customer in the first that applies: internal account, `do_not_call`, future `next_call_allowed_at`, customer with any open task. Also excluded: no mobile, and customers who already had a task in this program (keeps runs idempotent). Preview uses counts only. Split: equal, or by `share_percent` (must total 100), giving each next customer to the agent furthest behind their share. Runs in the background in batches of 1000; a row lock and `job_status` prevent double runs; a dead run expires after 2 hours. Paused programs hide their tasks from agents (tasks stay open and still hold the customer's single open task). Ending a program cancels its open tasks.
@@ -27,6 +34,8 @@ Excluded, each customer in the first that applies: internal account, `do_not_cal
 - Date field with `creates_followup`: a new followup task on that date at 10:00, same agent. If the task stays open (retry), that task moves to the date instead, because one open task per customer is the rule. `dnc` creates no followup.
 - `escalate`: `CallEscalation`. Tags = outcome tags + selected option tags; `CustomerCallTag` holds the current open state per (customer, tag).
 - `CallAnswerFact` is written for single, multi, toggle (1/0), rating, number. Text, date and time stay in the JSON snapshot.
+- Every `dnc` outcome asks «این مشتری از همه برنامه‌های تماس خارج می‌شود.» before saving, even one-click. The confirmation is in the agent UI; the API saves what it receives.
+- Clearing «تماس نگیرید»: managers only, on Customer 360, with a reason; who, when and reason are stored on `CustomerCallStatus`. Cancelled tasks are not restored. A dynamic program picks the customer up on the next daily run (its eligibility ignores cancelled tasks); a fixed list does not.
 - Edit: the author only, within 24 hours, answers and note only. The effects above are not re-run. UI edits the note.
 
 ## Forms
@@ -38,6 +47,8 @@ One draft, one published per program; publishing archives the previous version; 
 - `CallLogPurchase` is one row per log: first purchase date, total amount, purchase count. Only logs younger than window + 2 days are recomputed (idempotent); older rows are final. A changed `buy_window_days` applies only to logs still open.
 - A purchase after a tag with `open_until_purchase` resolves the tag (removes the customer from the card).
 - Label in the UI: خرید بعد از تماس لزوماً نتیجه تماس نیست.
+
+Measured on local real rows (272,209 qualifying online, 175,237 qualifying POS) with 50,000 synthetic logs in a rolled-back transaction: 1.6-1.7 s, 2026-11-02.
 
 ## Reports
 No request-time joins to sales. Sales, answers and team are aggregates cached 15 minutes per (filters, day); escalations and the per-customer list are live and paginated. Text answers are read from the newest 100 logs of the program, for display only.

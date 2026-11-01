@@ -353,6 +353,19 @@ export function CustomerListPanel({ canManage, onEditTierRules }: Props) {
 
   return (
     <div className="space-y-5">
+      {editListId != null ? (
+        <div role="status" className="flex flex-wrap items-center gap-2 rounded-xl border border-accent bg-blue-500/10 px-3.5 py-2.5 text-[13px] text-ink">
+          <span className="me-auto font-semibold">در حال ویرایش لیست {editingList.data?.name ?? "..."}</span>
+          {listEditError ? <span className="text-rose-600 dark:text-rose-400">{listEditError}</span> : null}
+          <button type="button" onClick={saveListFilters} disabled={!editingList.data} className="min-h-9 cursor-pointer rounded-xl bg-accent px-4 text-xs font-bold text-on-accent disabled:opacity-50">
+            ذخیره تغییرات
+          </button>
+          <button type="button" onClick={() => navigate("/calls?section=programs")} className="min-h-9 cursor-pointer rounded-xl border border-line px-4 text-xs font-bold text-muted">
+            انصراف
+          </button>
+        </div>
+      ) : null}
+
       {tierMessage && (
         <div className="p-3 rounded-2xl bg-accent/10 border border-accent/25 text-xs text-accent">
           ℹ️ {tierMessage}
@@ -370,19 +383,6 @@ export function CustomerListPanel({ canManage, onEditTierRules }: Props) {
         onRefreshTiers={handleRefreshTiers}
         refreshingTiers={refreshingTiers}
       />
-
-      {editListId != null ? (
-        <div role="status" className="flex flex-wrap items-center gap-2 rounded-xl border border-accent bg-blue-500/10 px-3.5 py-2.5 text-[13px] text-ink">
-          <span className="me-auto font-semibold">در حال ویرایش لیست {editingList.data?.name ?? "..."}</span>
-          {listEditError ? <span className="text-rose-600 dark:text-rose-400">{listEditError}</span> : null}
-          <button type="button" onClick={saveListFilters} disabled={!editingList.data} className="min-h-9 cursor-pointer rounded-xl bg-accent px-4 text-xs font-bold text-on-accent disabled:opacity-50">
-            ذخیره تغییرات
-          </button>
-          <button type="button" onClick={() => navigate("/calls?section=programs")} className="min-h-9 cursor-pointer rounded-xl border border-line px-4 text-xs font-bold text-muted">
-            انصراف
-          </button>
-        </div>
-      ) : null}
 
       {callListOpen && data ? (
         <CreateCallList
