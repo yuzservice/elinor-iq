@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useApi } from "../../hooks/useApi";
 import { useTiers } from "../../hooks/useTiers";
 import { customerDisplayName } from "../../lib/customerDisplay";
@@ -22,6 +22,7 @@ import {
   SMART_SEGMENTS,
   SORT_OPTIONS,
   buildCustomerListParams,
+  filtersFromParams,
   type CustomerListFilters,
   type SalesLineValue,
   type SmartSegmentId,
@@ -32,6 +33,7 @@ import type { CustomerRow } from "../../types";
 import { TierBadge, groupTierOptions, tierOptions } from "./tierDisplay";
 import { CustomerOverview } from "./CustomerOverview";
 import { CreateCallList } from "../calls/CreateCallList";
+import { callsService } from "../../services/calls";
 import { useAuth } from "../../hooks/useAuth";
 
 type FilterDrawerTab = "loyalty" | "financial" | "product" | "behavior";
@@ -75,6 +77,8 @@ const AVATAR_GRADIENTS = [
 type Props = { canManage: boolean; onEditTierRules: () => void };
 
 export function CustomerListPanel({ canManage, onEditTierRules }: Props) {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
   const [filters, setFilters] = useState<CustomerListFilters>(EMPTY_CUSTOMER_FILTERS);
@@ -103,13 +107,34 @@ export function CustomerListPanel({ canManage, onEditTierRules }: Props) {
   const canManageCalls = Boolean(user?.can_manage_calls);
   const [callListOpen, setCallListOpen] = useState(false);
   const [callSelection, setCallSelection] = useState<number[]>([]);
+  const editListId = canManageCalls ? Number(searchParams.get("edit_list")) || null : null;
+  const editingList = useApi(() => callsService.list(editListId as number), [editListId], editListId != null);
+  useEffect(() => {
+    if (!editingList.data) return;
+    const restored = filtersFromParams(editingList.data.filter_params);
+    setFilters(restored.filters);
+    setSearch(restored.search);
+    setAppliedSearch(restored.search);
+    setPage(1);
+  }, [editingList.data]);
+  const [listEditError, setListEditError] = useState("");
+  const saveListFilters = async () => {
+    if (!editListId) return;
+    setListEditError("");
+    try {
+      await callsService.updateList(editListId, { filter_params: buildCustomerListParams(filters, appliedSearch) });
+      navigate("/calls?section=programs", { state: { message: "تغییرات لیست ذخیره شد" } });
+    } catch (err) {
+      setListEditError(err instanceof Error ? err.message : "ذخیره تغییرات انجام نشد.");
+    }
+  };
   const toggleCallSelection = (id: number) =>
     setCallSelection((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
 
   const reports = useApi(() => customersService.reports(), []);
 
   // Tier legend links in the overview open the list filtered by ?tier=CODE.
-  const tierParam = useSearchParams()[0].get("tier");
+  const tierParam = searchParams.get("tier");
   useEffect(() => {
     if (!tierParam) return;
     setFilters({ ...EMPTY_CUSTOMER_FILTERS, tier: tierParam });
@@ -346,6 +371,19 @@ export function CustomerListPanel({ canManage, onEditTierRules }: Props) {
         refreshingTiers={refreshingTiers}
       />
 
+      {editListId != null ? (
+        <div role="status" className="flex flex-wrap items-center gap-2 rounded-xl border border-accent bg-blue-500/10 px-3.5 py-2.5 text-[13px] text-ink">
+          <span className="me-auto font-semibold">در حال ویرایش لیست {editingList.data?.name ?? "..."}</span>
+          {listEditError ? <span className="text-rose-600 dark:text-rose-400">{listEditError}</span> : null}
+          <button type="button" onClick={saveListFilters} disabled={!editingList.data} className="min-h-9 cursor-pointer rounded-xl bg-accent px-4 text-xs font-bold text-on-accent disabled:opacity-50">
+            ذخیره تغییرات
+          </button>
+          <button type="button" onClick={() => navigate("/calls?section=programs")} className="min-h-9 cursor-pointer rounded-xl border border-line px-4 text-xs font-bold text-muted">
+            انصراف
+          </button>
+        </div>
+      ) : null}
+
       {callListOpen && data ? (
         <CreateCallList
           selectedIds={callSelection}
@@ -495,7 +533,7 @@ export function CustomerListPanel({ canManage, onEditTierRules }: Props) {
               <span>{exporting ? "در حال استخراج..." : "خروجی اکسل"}</span>
             </button>
 
-            {canManageCalls ? (
+            {canManageCalls && editListId == null ? (
               <button
                 type="button"
                 onClick={() => setCallListOpen(true)}

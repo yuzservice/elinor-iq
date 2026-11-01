@@ -41,6 +41,8 @@ export const callsService = {
   list: (id: number) => api<CallListRow>(`/calls/lists/${id}/`),
   createList: (body: { name: string; kind?: string; filter_params?: unknown; customer_ids?: number[]; create_program?: boolean }) =>
     api<CallListRow & { program_id: number | null }>("/calls/lists/", json("POST", body)),
+  updateList: (id: number, body: { name?: string; filter_params?: unknown }) => api<CallListRow>(`/calls/lists/${id}/`, json("PATCH", body)),
+  deleteList: (id: number) => api(`/calls/lists/${id}/`, { method: "DELETE" }),
   excelDryRun: (file: File) => {
     const data = new FormData();
     data.append("file", file);

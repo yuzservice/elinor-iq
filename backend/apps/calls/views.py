@@ -162,10 +162,52 @@ def lists_view(request):
     return Response({**_list_payload(row), "program_id": program.pk if program else None}, status=status.HTTP_201_CREATED)
 
 
-@api_view(["GET"])
+def _edit_list(request, list_id):
+    """Returns (response, start_rebuild). All rules are checked on the locked row."""
+    data = request.data
+    with transaction.atomic():
+        row = get_object_or_404(CallList.objects.select_for_update(), pk=list_id)
+        if row.job_status == JOB_RUNNING:
+            return _bad("لیست در حال ساخت است؛ کمی بعد دوباره تلاش کنید.", status.HTTP_409_CONFLICT), False
+        if request.method == "DELETE":
+            names = list(row.programs.values_list("name", flat=True))
+            if names:
+                message = f"این لیست در برنامه‌های {'، '.join(names)} استفاده شده و حذف نمی‌شود."
+                return Response({"detail": message, "programs": names}, status=status.HTTP_409_CONFLICT), False
+            row.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT), False
+        if "name" in data:
+            name = (data.get("name") or "").strip()
+            if not name:
+                return _bad("نام لیست لازم است."), False
+            row.name = name
+        rebuild = False
+        if "filter_params" in data:
+            if row.source != CallList.SOURCE_FILTERS:
+                return _bad("فیلتر فقط برای لیست‌های ساخته‌شده از فیلتر قابل ویرایش است."), False
+            if not isinstance(data["filter_params"], dict):
+                return _bad("فیلترها نامعتبر است."), False
+            if row.kind == CallList.KIND_FIXED:
+                used = list(row.programs.exclude(status=CallProgram.STATUS_DRAFT).values_list("name", flat=True))
+                if used:
+                    message = f"این لیست ثابت در برنامه {'، '.join(used)} استفاده شده و فیلترهایش قابل تغییر نیست."
+                    return _bad(message, status.HTTP_409_CONFLICT), False
+            row.filter_params = data["filter_params"]
+            row.job_status = JOB_RUNNING
+            rebuild = True
+        row.save()
+    return Response(_list_payload(row)), rebuild
+
+
+@api_view(["GET", "PATCH", "DELETE"])
 @permission_classes([IsCallManager])
 def list_detail(request, list_id):
-    return Response(_list_payload(get_object_or_404(CallList, pk=list_id)))
+    if request.method == "GET":
+        return Response(_list_payload(get_object_or_404(CallList, pk=list_id)))
+    response, rebuild = _edit_list(request, list_id)
+    if rebuild:
+        lists.start_fill(CallList.objects.get(pk=list_id), rebuild=True)
+    return response
 
 
 @api_view(["POST"])

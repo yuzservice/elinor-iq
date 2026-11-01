@@ -25,6 +25,14 @@ export function ProgramsPanel() {
   const lists = useApi(() => callsService.lists(), [reload]);
   const refresh = () => setReload((value) => value + 1);
 
+  // List builds run in the background; poll so the row unlocks when they finish.
+  const listRunning = (lists.data?.results ?? []).some((row) => row.job_status === "running");
+  useEffect(() => {
+    if (!listRunning) return;
+    const timer = window.setInterval(() => setReload((value) => value + 1), 3000);
+    return () => window.clearInterval(timer);
+  }, [listRunning]);
+
   const rows = programs.data?.results ?? [];
   const current = rows.find((row) => row.id === editing);
   if (editing != null && !current) {
@@ -88,14 +96,61 @@ export function ProgramsPanel() {
           </Link>
         </div>
         {(lists.data?.results ?? []).map((row) => (
-          <div key={row.id} className={`${CARD} flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 px-3.5 py-2.5`}>
-            <span className="text-[13.5px] font-semibold text-ink">{row.name}</span>
-            <span className={`${MUTED} flex-[1_1_200px]`}>{row.source === "excel" ? "فایل اکسل" : row.source === "manual" ? "انتخاب دستی" : "فیلترهای مشتریان"}</span>
-            <span className={MUTED}>{KIND_LABEL[row.kind]}</span>
-            <span className="text-[13px] font-semibold text-ink">{row.job_status === "running" ? "در حال ساخت..." : formatNumber(row.customer_count)}</span>
-          </div>
+          <ListRow key={row.id} row={row} onChanged={refresh} onMessage={setMessage} />
         ))}
       </section>
+    </div>
+  );
+}
+
+function ListRow({ row, onChanged, onMessage }: { row: CallListRow; onChanged: () => void; onMessage: (message: string) => void }) {
+  const [renaming, setRenaming] = useState(false);
+  const [name, setName] = useState(row.name);
+  const running = row.job_status === "running";
+
+  const failed = (error: unknown) => onMessage(error instanceof ApiError && error.message ? error.message : "انجام نشد.");
+  const rename = async () => {
+    try {
+      await callsService.updateList(row.id, { name: name.trim() });
+      setRenaming(false);
+      onMessage("");
+      onChanged();
+    } catch (error) {
+      failed(error);
+    }
+  };
+  const remove = async () => {
+    if (!window.confirm(`لیست «${row.name}» حذف شود؟`)) return;
+    try {
+      await callsService.deleteList(row.id);
+      onMessage("");
+      onChanged();
+    } catch (error) {
+      failed(error);
+    }
+  };
+
+  return (
+    <div className={`${CARD} flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 px-3.5 py-2.5`}>
+      {renaming ? (
+        <span className="flex flex-wrap items-center gap-1.5">
+          <input className={`${INPUT} w-[220px] max-w-full`} aria-label="نام لیست" value={name} onChange={(event) => setName(event.target.value)} />
+          <Ghost disabled={!name.trim()} onClick={rename}>ذخیره</Ghost>
+          <Ghost onClick={() => setRenaming(false)}>انصراف</Ghost>
+        </span>
+      ) : (
+        <span className="text-[13.5px] font-semibold text-ink">{row.name}</span>
+      )}
+      <span className={`${MUTED} flex-[1_1_160px]`}>{row.source === "excel" ? "فایل اکسل" : row.source === "manual" ? "انتخاب دستی" : "فیلترهای مشتریان"}</span>
+      <span className={MUTED}>{KIND_LABEL[row.kind]}</span>
+      <span className="text-[13px] font-semibold text-ink">{running ? "در حال ساخت..." : formatNumber(row.customer_count)}</span>
+      {renaming ? null : <Ghost disabled={running} onClick={() => setRenaming(true)}>تغییر نام</Ghost>}
+      {row.source === "filters" && !running ? (
+        <Link to={`/customers?edit_list=${row.id}`} className={`inline-flex min-h-[38px] items-center rounded-[10px] border border-slate-300 px-[13px] text-[12.5px] dark:border-white/[0.16] ${SOFT}`}>
+          ویرایش فیلترها
+        </Link>
+      ) : null}
+      <Ghost disabled={running} onClick={remove}>حذف</Ghost>
     </div>
   );
 }

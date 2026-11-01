@@ -575,3 +575,69 @@ def test_list_and_draft_program_are_atomic(manager, sync_threads):
         response = client.post("/api/calls/lists/", {"name": "کمپین", "kind": "fixed", "filter_params": {}, "create_program": True}, format="json")
     assert response.status_code == 500
     assert CallList.objects.count() == 0
+
+
+def _filter_list(kind=CallList.KIND_FIXED, params=None, **extra):
+    return CallList.objects.create(name="فیلتری", kind=kind, source=CallList.SOURCE_FILTERS, filter_params=params or {}, job_status="done", **extra)
+
+
+@pytest.mark.django_db
+def test_rename_and_source_rules(manager, agent):
+    client = _client(manager)
+    manual = CallList.objects.create(name="دستی", kind="fixed", source="manual", job_status="done")
+    assert client.patch(f"/api/calls/lists/{manual.pk}/", {"name": "نو"}, format="json").data["name"] == "نو"
+    assert client.patch(f"/api/calls/lists/{manual.pk}/", {"name": " "}, format="json").status_code == 400
+    assert client.patch(f"/api/calls/lists/{manual.pk}/", {"filter_params": {}}, format="json").status_code == 400
+    assert _client(agent).patch(f"/api/calls/lists/{manual.pk}/", {"name": "x"}, format="json").status_code == 403
+    assert _client(agent).delete(f"/api/calls/lists/{manual.pk}/").status_code == 403
+
+
+@pytest.mark.django_db
+def test_fixed_filter_edit_rebuilds_only_when_unused(manager, sync_threads):
+    a, b = _customer(1), _customer(2)
+    _order(a, timezone.now() - timedelta(days=1), 100)
+    Customer.objects.filter(pk=a.pk).update(order_count=1)
+    row = _filter_list()
+    CallListMember.objects.create(list=row, customer=b)
+    program = CallProgram.objects.create(name="پیش‌نویس", list=row)  # draft does not block
+    client = _client(manager)
+    response = client.patch(f"/api/calls/lists/{row.pk}/", {"filter_params": {"population": "purchasing"}}, format="json")
+    assert response.status_code == 200
+    row.refresh_from_db()
+    assert (row.filter_params, row.customer_count, row.job_status) == ({"population": "purchasing"}, 1, "done")
+    assert list(row.members.values_list("customer_id", flat=True)) == [a.pk]
+
+    CallProgram.objects.filter(pk=program.pk).update(status="active")
+    refused = client.patch(f"/api/calls/lists/{row.pk}/", {"filter_params": {}}, format="json")
+    assert refused.status_code == 409 and "پیش‌نویس" in refused.data["detail"]
+    row.refresh_from_db()
+    assert row.filter_params == {"population": "purchasing"}
+
+
+@pytest.mark.django_db
+def test_dynamic_filter_edit_keeps_tasks_and_adds_new_matches(agent, manager, sync_threads):
+    old, new = _customer(1), _customer(2)
+    _order(new, timezone.now() - timedelta(days=1), 100)
+    Customer.objects.filter(pk=new.pk).update(order_count=1)
+    program = _program(agents=[agent], kind=CallList.KIND_DYNAMIC, filter_params={"population": "registered"})
+    task = _task(program, old, agent)
+    CallList.objects.filter(pk=program.list_id).update(source="filters", job_status="done")
+    assert _client(manager).patch(f"/api/calls/lists/{program.list_id}/", {"filter_params": {"population": "purchasing"}}, format="json").status_code == 200
+    task.refresh_from_db()
+    assert task.status == "open"
+    jobs.run_daily()
+    assert set(CallTask.objects.filter(program=program).values_list("customer_id", flat=True)) == {old.pk, new.pk}
+
+
+@pytest.mark.django_db
+def test_delete_and_running_job_rules(manager):
+    client = _client(manager)
+    free = _filter_list()
+    assert client.delete(f"/api/calls/lists/{free.pk}/").status_code == 204
+    used = _filter_list()
+    CallProgram.objects.create(name="الف", list=used)
+    refused = client.delete(f"/api/calls/lists/{used.pk}/")
+    assert refused.status_code == 409 and refused.data["programs"] == ["الف"]
+    running = CallList.objects.create(name="در حال ساخت", kind="fixed", source="filters", job_status="running")
+    assert client.patch(f"/api/calls/lists/{running.pk}/", {"name": "نو"}, format="json").status_code == 409
+    assert client.delete(f"/api/calls/lists/{running.pk}/").status_code == 409

@@ -3,9 +3,11 @@ import {
   buildCustomerListParams,
   describeCustomerFilters,
   EMPTY_CUSTOMER_FILTERS,
+  filtersFromParams,
   hasActiveCustomerFilters,
   salesLinesToParam,
 } from "./customerListFilters";
+import type { SalesLineValue } from "./customerListFilters";
 
 describe("customerListFilters", () => {
   it("serializes selected sales lines for the API", () => {
@@ -74,5 +76,19 @@ describe("customerListFilters", () => {
     expect(hasActiveCustomerFilters({ ...EMPTY_CUSTOMER_FILTERS, paymentMethod: "snappay" })).toBe(true);
     expect(hasActiveCustomerFilters({ ...EMPTY_CUSTOMER_FILTERS, size: "M" })).toBe(true);
     expect(hasActiveCustomerFilters({ ...EMPTY_CUSTOMER_FILTERS, minAmount: "2000000" })).toBe(true);
+  });
+});
+
+describe("filtersFromParams", () => {
+  it("restores what buildCustomerListParams saved", () => {
+    const filters = { ...EMPTY_CUSTOMER_FILTERS, tier: "VIP", population: "purchasing", salesLines: ["sari", "online"] as SalesLineValue[], salesLinesMode: "any" as const, minAmount: "100", lastFrom: "2026-01-01", sort: "lifetime_amount" };
+    const saved = JSON.parse(JSON.stringify(buildCustomerListParams(filters, " سارا ", { page: 3, perPage: 20 })));
+    const restored = filtersFromParams(saved);
+    expect(restored.filters).toEqual(filters);
+    expect(restored.search).toBe("سارا");
+  });
+
+  it("gives the empty filters for empty params", () => {
+    expect(filtersFromParams({})).toEqual({ filters: EMPTY_CUSTOMER_FILTERS, search: "" });
   });
 });

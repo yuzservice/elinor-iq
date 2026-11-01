@@ -7,7 +7,7 @@ import threading
 import xml.etree.ElementTree as ET
 import zipfile
 
-from django.db import connection
+from django.db import connection, transaction
 from django.db.models import Count, Exists, OuterRef, Q
 from django.http import QueryDict
 from django.utils import timezone
@@ -94,9 +94,11 @@ def new_list(user, name, kind, source, filter_params=None):
     )
 
 
-def start_fill(call_list, customer_ids=None):
+def start_fill(call_list, customer_ids=None, rebuild=False):
     """Call after the creating transaction commits: the thread uses its own connection."""
-    threading.Thread(target=_fill_list, args=(call_list.pk, customer_ids), name="call-list-fill", daemon=True).start()
+    threading.Thread(
+        target=_fill_list, args=(call_list.pk, customer_ids), kwargs={"rebuild": rebuild}, name="call-list-fill", daemon=True
+    ).start()
 
 
 def create_list(user, name, kind, source, filter_params=None, customer_ids=None):
@@ -105,14 +107,17 @@ def create_list(user, name, kind, source, filter_params=None, customer_ids=None)
     return call_list
 
 
-def _fill_list(list_id, customer_ids=None, close_connection=True):
+def _fill_list(list_id, customer_ids=None, close_connection=True, rebuild=False):
     call_list = CallList.objects.get(pk=list_id)
     try:
         if call_list.kind == CallList.KIND_DYNAMIC:
             call_list.customer_count = list_customers(call_list).count()
         else:
             ids = customer_ids if customer_ids is not None else filtered_customer_ids(call_list.filter_params).values_list("pk", flat=True).iterator(chunk_size=BATCH)
-            call_list.customer_count = _insert_members(call_list, ids)
+            with transaction.atomic():
+                if rebuild:
+                    call_list.members.all().delete()
+                call_list.customer_count = _insert_members(call_list, ids)
         call_list.job_status = JOB_DONE
     except Exception:
         logger.exception("Call list fill failed")
