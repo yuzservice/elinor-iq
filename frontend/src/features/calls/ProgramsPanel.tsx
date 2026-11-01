@@ -328,7 +328,7 @@ function Audience({ program, lists, step, onChanged }: { program: ProgramRow; li
           {(agents.data?.results ?? []).map((row) => (
             <Chip key={row.id} on={selectedIds.includes(row.id)} onClick={() => toggleAgent(row.id)}>{row.username}</Chip>
           ))}
-          {agents.data && !agents.data.results.length ? <span className={MUTED}>کارمند تماسی ساخته نشده است (تنظیمات پلتفرم).</span> : null}
+          {agents.data && !agents.data.results.length ? <span className={MUTED}>کارمند فروشی ساخته نشده است (تنظیمات پلتفرم).</span> : null}
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           <span className={MUTED}>تقسیم</span>

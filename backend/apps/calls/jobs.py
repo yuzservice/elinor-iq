@@ -19,12 +19,8 @@ CURSOR_KEY = "calls_daily"
 MARGIN_DAYS = 2  # a log re-enters the job this long after its window closes, in case a night was missed
 
 
-def attribute_purchases(now=None):
-    """Idempotent. Only logs inside the open window are recomputed; older rows are final.
-
-    Each purchase goes to the latest connected call before it: a log's range ends at the customer's next connected call.
-    """
-    now = now or timezone.now()
+def attribution_sql(now):
+    """(sql, params) of the upsert; separate so its plan can be inspected."""
     window = CallSettings.load().buy_window_days
     cutoff = now - timedelta(days=window + MARGIN_DAYS)
     events_sql, params = _events_sql()
@@ -54,8 +50,17 @@ def attribute_purchases(now=None):
         ON CONFLICT (log_id) DO UPDATE
         SET purchased_at = EXCLUDED.purchased_at, amount = EXCLUDED.amount, purchase_count = EXCLUDED.purchase_count
     """
+    return sql, list(params) + [cutoff, window, now]
+
+
+def attribute_purchases(now=None):
+    """Idempotent. Only logs inside the open window are recomputed; older rows are final.
+
+    Each purchase goes to the latest connected call before it: a log's range ends at the customer's next connected call.
+    """
+    sql, params = attribution_sql(now or timezone.now())
     with connection.cursor() as cursor:
-        cursor.execute(sql, list(params) + [cutoff, window, now])
+        cursor.execute(sql, params)
         cursor.execute(
             """
             UPDATE customer_call_tags t SET resolved_at = p.purchased_at

@@ -8,7 +8,7 @@ Nothing writes to the Elinor API. Sync-owned `Customer` fields are not changed; 
 - Role `sales_agent`: `SalesAgentScopeMiddleware` blocks every `/api/` and `/admin/` path except `/api/auth/`, `/api/calls/`, `/api/health/`, `GET /api/customers/tiers/`, and `GET /api/customers/<source_id>/` (+ `purchases/`, `products/`) when a task of that customer is assigned to them (any task status).
 - Managers = `super_admin`, `admin`, `manager`. Other roles have no Call Center. Everyone who can see Customer 360 sees its «تماس‌ها» tab.
 - Tasks API always filters `assignee = request.user`, for managers too.
-- Accounts are created in Settings (role select: ادمین, مدیر, کارمند تماس).
+- Accounts are created in Settings (role select: ادمین, مدیر, کارمند فروش).
 
 ## Lists
 - `fixed`: members stored in `CallListMember`. `dynamic`: filters only, re-evaluated with `customer_list_queryset`.

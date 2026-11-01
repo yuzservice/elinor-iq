@@ -132,6 +132,8 @@ Notes for the Product Architect / next task:
 - Review fix 1: «ذخیره و ساخت برنامه تماس» (list + draft program in one transaction), section/program/tab in the URL, step strip. Next: list edits; dnc; nightly timing; label; browser checks.
 - Review fix 2: PATCH/DELETE `lists/<id>/`, rename and delete in the list row, «ویرایش فیلترها» on the customers page (`?edit_list=`). Fixed list used by a non-draft program refuses filter edits. Next: dnc safety.
 - Review fix 3: dnc outcomes confirm before saving; managers clear dnc on Customer 360 with reason and audit fields (`calls.0004`). Cancelled tasks stay cancelled; dynamic programs pick the customer up on the next daily run, fixed lists do not. Next: nightly job timing on real data.
+- Review fix 4: `attribute_purchases` on local real rows (272,209 online, 175,237 POS) with 50,000 synthetic logs in a rolled-back transaction: 1.6-1.7 s, so no narrowing needed. `attribution_sql()` split out for EXPLAIN.
+- Review fix 5: UI label «کارمند فروش»; stored value stays `sales_agent`. Next: browser checks, docs, report.
 - Checkpoint 1: `apps/calls` models + migrations (`calls.0001`, `0002_seed_tags`, `accounts.0003`), role `sales_agent`, `SalesAgentScopeMiddleware`. Next: lists and tasks. No API yet.
 - Checkpoint 2: lists (filters/manual/excel), programs, forms (draft/publish), settings, tags, activation in background (`lists.py`, `tasks.py`, `forms.py`, `views.py`); `test_call_center.py` 8 passed. Next: saving logs. Daily dynamic-list job not yet.
 - Checkpoint 3: saving logs (`logs.py`: retry/unreachable, dnc, no-call, followup, escalation, facts, 24h edit), agent list API (`agent.py`), customer calls endpoint; 18 tests passed. Next: agent UI; then builder, reports + nightly job, performance.

@@ -27,7 +27,7 @@ function accountRoleLabel(role?: string) {
   if (role === "super_admin") return "سوپر ادمین";
   if (role === "admin") return "ادمین";
   if (role === "manager") return "مدیر";
-  if (role === "sales_agent") return "کارمند تماس";
+  if (role === "sales_agent") return "کارمند فروش";
   return role || "—";
 }
 
@@ -270,7 +270,7 @@ export function SettingsPage() {
             >
               <option value="admin">ادمین</option>
               <option value="manager">مدیر</option>
-              <option value="sales_agent">کارمند تماس</option>
+              <option value="sales_agent">کارمند فروش</option>
             </select>
             <Input
               type="password"
