@@ -5,19 +5,22 @@ from unittest.mock import patch
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.calls import forms, lists
+from apps.calls import forms, jobs, lists
 from apps.calls.models import (
     CallEscalation,
     CallFormVersion,
     CallList,
     CallListMember,
     CallLog,
+    CallLogPurchase,
     CallProgram,
     CallProgramAgent,
+    CallSettings,
     CallTag,
     CallTask,
     CustomerCallStatus,
@@ -57,6 +60,13 @@ def _program(name="برنامه", customers=(), agents=(), schema=None, kind=Cal
     forms.save_draft(program, schema or _schema())
     forms.publish(program)
     return program
+
+
+@pytest.fixture(autouse=True)
+def _clear_cache():
+    cache.clear()
+    yield
+    cache.clear()
 
 
 @pytest.fixture
@@ -422,3 +432,120 @@ def test_customer_calls_endpoint_scope(agent, manager):
     data = _client(manager).get(f"/api/calls/customers/{customer.source_id}/").data
     assert data["status"]["do_not_call"] is True and data["total"] == 1
     assert _client(agent).get(f"/api/calls/customers/{other.source_id}/").status_code == 403
+
+
+# --- Attribution, dynamic lists, reports ---------------------------------------------------------
+
+
+def _connected_log(client, program, customer, agent_user, when):
+    task = _task(program, customer, agent_user)
+    response = _save(client, task, note=LONG_NOTE)
+    assert response.status_code == 201
+    CallLog.objects.filter(pk=response.data["log_id"]).update(created_at=when)
+    return CallLog.objects.get(pk=response.data["log_id"])
+
+
+def _order(customer, when, amount, status="delivered"):
+    return Order.objects.create(source_id=next(_ids), customer=customer, status=status, total_amount=amount, created_at=when)
+
+
+@pytest.mark.django_db
+def test_attribution_once_to_latest_connected_call_and_idempotent(agent):
+    customer = _customer(1)
+    program = _program(agents=[agent], schema=_schema(connected=True))
+    client = _client(agent)
+    now = timezone.now()
+    first = _connected_log(client, program, customer, agent, now - timedelta(days=10))
+    second = _connected_log(client, program, customer, agent, now - timedelta(days=5))
+    _order(customer, now - timedelta(days=7), 100)  # after first, before second -> first
+    _order(customer, now - timedelta(days=2), 250)  # after both -> second only
+    _order(customer, now - timedelta(days=3), 50)  # also second
+    _order(customer, now - timedelta(days=1), 9999, status="canceled")  # not qualifying
+    jobs.attribute_purchases(now)
+    jobs.attribute_purchases(now)
+    assert CallLogPurchase.objects.get(log=first).amount == 100
+    row = CallLogPurchase.objects.get(log=second)
+    assert (row.amount, row.purchase_count) == (300, 2)
+    assert CallLogPurchase.objects.count() == 2
+
+
+@pytest.mark.django_db
+def test_attribution_window_excludes_late_and_internal(agent):
+    late, staff = _customer(1), _customer(2)
+    program = _program(agents=[agent], schema=_schema(connected=True))
+    client = _client(agent)
+    now = timezone.now()
+    _connected_log(client, program, late, agent, now - timedelta(days=20))
+    log = _connected_log(client, program, staff, agent, now - timedelta(days=5))
+    CallSettings.objects.filter(pk=1).update(buy_window_days=10)
+    _order(late, now - timedelta(days=2), 100)  # 18 days after the call, window is 10
+    _order(staff, now - timedelta(days=1), 100)
+    InternalAccount.objects.create(customer=staff, kind="staff")
+    jobs.attribute_purchases(now)
+    assert not CallLogPurchase.objects.exists()
+    assert log.pk
+
+
+@pytest.mark.django_db
+def test_purchase_closes_open_until_purchase_tag_only(agent, manager):
+    customer = _customer(1)
+    sale_tag, unhappy = CallTag.objects.get(title="فرصت فروش"), CallTag.objects.get(title="نارضایتی")
+    program = _program(agents=[agent], schema=_schema(connected=True, tag_ids=[sale_tag.pk, unhappy.pk]))
+    client = _client(agent)
+    _save(client, _task(program, customer, agent), note=LONG_NOTE)
+    report = _client(manager).get("/api/calls/reports/sales/").data
+    assert {card["title"]: card["count"] for card in report["cards"]}["فرصت فروش"] == 1
+    _order(customer, timezone.now() + timedelta(seconds=1), 500)
+    jobs.attribute_purchases(timezone.now() + timedelta(seconds=2))
+    assert CustomerCallTag.objects.get(tag=sale_tag).resolved_at is not None
+    assert CustomerCallTag.objects.get(tag=unhappy).resolved_at is None
+
+
+@pytest.mark.django_db
+def test_dynamic_list_daily_adds_only_new_matches(agent, sync_threads):
+    a = _customer(1)
+    _order(a, timezone.now() - timedelta(days=1), 100)
+    Customer.objects.filter(pk=a.pk).update(order_count=1)
+    program = _program(agents=[agent], kind=CallList.KIND_DYNAMIC, filter_params={"population": "purchasing"})
+    jobs.run_daily()
+    assert CallTask.objects.filter(program=program).count() == 1
+    task = CallTask.objects.get(program=program)
+    CallTask.objects.filter(pk=task.pk).update(status="done", closed_at=timezone.now())
+    b = _customer(2)
+    _order(b, timezone.now() - timedelta(days=1), 100)
+    Customer.objects.filter(pk=b.pk).update(order_count=1)
+    assert jobs.run_daily(if_due=True) == "skipped"
+    jobs.run_daily()
+    assert set(CallTask.objects.filter(program=program).values_list("customer_id", flat=True)) == {a.pk, b.pk}
+    assert CallTask.objects.filter(program=program).count() == 2  # the finished customer is not added again
+    assert CallListMember.objects.filter(list=program.list).count() == 0
+
+
+@pytest.mark.django_db
+def test_reports_answers_team_and_escalation_close(agent, manager):
+    customer = _customer(1)
+    schema = _schema(connected=True, escalate=True, fields=[
+        {"id": "cat", "type": "single", "title": "دسته", "options": [{"id": "x", "title": "مانتو", "is_active": True}]},
+        {"id": "rate", "type": "rating", "title": "امتیاز"},
+        {"id": "ok", "type": "toggle", "title": "معرفی"},
+        {"id": "free", "type": "text", "title": "نظر"},
+    ])
+    program = _program(agents=[agent], schema=schema)
+    log = _save(_client(agent), _task(program, customer, agent), note=LONG_NOTE, answers={"cat": "x", "rate": 4, "ok": True, "free": "عالی"})
+    CallLogPurchase.objects.create(log_id=log.data["log_id"], purchased_at=timezone.now(), amount=700)
+    boss = _client(manager)
+    assert boss.get("/api/calls/reports/answers/").status_code == 400
+    widgets = {row["id"]: row for row in boss.get(f"/api/calls/reports/answers/?program={program.pk}").data["widgets"]}
+    assert widgets["cat"]["bars"] == [{"label": "مانتو", "value": 1}]
+    assert widgets["rate"]["avg"] == 4.0 and widgets["ok"]["yes"] == 1 and widgets["free"]["texts"] == ["عالی"]
+    team = boss.get(f"/api/calls/reports/team/?program={program.pk}").data["results"][0]
+    assert (team["agent"], team["calls"], team["reached"], team["buyers"], team["sales"]) == ("agent1", 1, 1, 1, 700)
+    sales = boss.get(f"/api/calls/reports/sales/?program={program.pk}").data
+    assert (sales["kpis"]["sales"], sales["kpis"]["buyers"]) == (700, 1)
+    assert sales["outcomes"][0]["buyers"] == 1
+    rows = boss.get(f"/api/calls/reports/customers/?program={program.pk}").data
+    assert rows["results"][0]["agent"] == "agent1" and rows["total"] == 1
+    open_rows = boss.get("/api/calls/reports/escalations/").data["results"]
+    assert boss.post(f"/api/calls/escalations/{open_rows[0]['id']}/close/").status_code == 200
+    assert boss.post(f"/api/calls/escalations/{open_rows[0]['id']}/close/").status_code == 409
+    assert _client(agent).get("/api/calls/reports/sales/").status_code == 403

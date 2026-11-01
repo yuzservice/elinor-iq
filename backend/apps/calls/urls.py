@@ -3,6 +3,12 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    path("reports/sales/", views.report_sales),
+    path("reports/escalations/", views.report_escalations),
+    path("reports/customers/", views.report_customers),
+    path("reports/answers/", views.report_answers),
+    path("reports/team/", views.report_team),
+    path("escalations/<int:escalation_id>/close/", views.escalation_close),
     path("tasks/", views.task_list),
     path("tasks/counts/", views.task_counts),
     path("tasks/bulk/", views.task_bulk),

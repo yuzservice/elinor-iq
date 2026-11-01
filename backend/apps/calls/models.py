@@ -247,6 +247,7 @@ class CustomerCallStatus(models.Model):
 
     class Meta:
         db_table = "customer_call_status"
+        indexes = [models.Index(fields=["-last_call_at"], name="call_status_last_call")]
 
 
 class CustomerCallTag(models.Model):

@@ -13,9 +13,10 @@ from rest_framework.response import Response
 from apps.accounts.models import User
 from apps.customers.models import Customer
 
-from . import agent, forms, lists, logs, tasks
+from . import agent, forms, lists, logs, reports, tasks
 from .models import (
     JOB_RUNNING,
+    CallEscalation,
     CallList,
     CallProgram,
     CallProgramAgent,
@@ -464,3 +465,59 @@ def customer_calls(request, source_id):
             "per_page": per_page,
         }
     )
+
+
+# --- Reports -----------------------------------------------------------------------------------
+
+
+def _program_param(request):
+    raw = request.query_params.get("program")
+    if not raw:
+        return None
+    return int(raw) if str(raw).isdigit() else -1
+
+
+@api_view(["GET"])
+@permission_classes([IsCallManager])
+def report_sales(request):
+    return Response(reports.sales_report(_program_param(request)))
+
+
+@api_view(["GET"])
+@permission_classes([IsCallManager])
+def report_escalations(request):
+    return Response({"results": reports.escalations(_program_param(request))})
+
+
+@api_view(["GET"])
+@permission_classes([IsCallManager])
+def report_customers(request):
+    page = _positive(request.query_params.get("page"), 1)
+    per_page = _positive(request.query_params.get("per_page"), 20, cap=50)
+    return Response(reports.customer_results(_program_param(request), page, per_page))
+
+
+@api_view(["GET"])
+@permission_classes([IsCallManager])
+def report_answers(request):
+    program_id = _program_param(request)
+    if not program_id:
+        return _bad("یک برنامه انتخاب کنید.")
+    return Response(reports.answers_report(program_id))
+
+
+@api_view(["GET"])
+@permission_classes([IsCallManager])
+def report_team(request):
+    return Response(reports.team_report(_program_param(request)))
+
+
+@api_view(["POST"])
+@permission_classes([IsCallManager])
+def escalation_close(request, escalation_id):
+    updated = CallEscalation.objects.filter(pk=escalation_id, status=CallEscalation.STATUS_OPEN).update(
+        status=CallEscalation.STATUS_CLOSED, closed_by=request.user, closed_at=timezone.now()
+    )
+    if not updated:
+        return _bad("این مورد باز نیست.", status.HTTP_409_CONFLICT)
+    return Response({"ok": True})

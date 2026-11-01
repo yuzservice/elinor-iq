@@ -133,6 +133,7 @@ Notes for the Product Architect / next task:
 - Checkpoint 3: saving logs (`logs.py`: retry/unreachable, dnc, no-call, followup, escalation, facts, 24h edit), agent list API (`agent.py`), customer calls endpoint; 18 tests passed. Next: agent UI; then builder, reports + nightly job, performance.
 - Checkpoint 4: agent UI (`/calls` lazy route, `AgentPanel`, form renderer, 360 «تماس‌ها» tab + badges, sidebar/role redirect, Settings can create `sales_agent`). Manager sections are empty until the next steps. Next: form builder + programs UI.
 - Checkpoint 5: form builder (autosave draft, publish, copy), programs + audience UI, settings/tags UI, «ساخت لیست تماس» on the customers page. Next: nightly job + reports.
+- Checkpoint 6: nightly `calls_daily` (attribution, tag resolve, dynamic lists; hooked into `scheduler-entrypoint.sh`), reports API + UI (`reports.py`, `ReportsPanel`). Next: performance (load seed, EXPLAIN, timings), docs, screenshots.
 
 ### 2026-10-28 — Customers overview, prototype v3 (`feature/customers-overview`, uncommitted)
 
