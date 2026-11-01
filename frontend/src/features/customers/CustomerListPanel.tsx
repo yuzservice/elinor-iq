@@ -31,6 +31,8 @@ import { EmptyState, ErrorState, Skeleton } from "../../components/Table";
 import type { CustomerRow } from "../../types";
 import { TierBadge, groupTierOptions, tierOptions } from "./tierDisplay";
 import { CustomerOverview } from "./CustomerOverview";
+import { CreateCallList } from "../calls/CreateCallList";
+import { useAuth } from "../../hooks/useAuth";
 
 type FilterDrawerTab = "loyalty" | "financial" | "product" | "behavior";
 
@@ -97,6 +99,12 @@ export function CustomerListPanel({ canManage, onEditTierRules }: Props) {
   const [exportError, setExportError] = useState<string | null>(null);
   const [refreshingTiers, setRefreshingTiers] = useState(false);
   const [tierMessage, setTierMessage] = useState<string | null>(null);
+  const { user } = useAuth();
+  const canManageCalls = Boolean(user?.can_manage_calls);
+  const [callListOpen, setCallListOpen] = useState(false);
+  const [callSelection, setCallSelection] = useState<number[]>([]);
+  const toggleCallSelection = (id: number) =>
+    setCallSelection((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
 
   const reports = useApi(() => customersService.reports(), []);
 
@@ -338,6 +346,15 @@ export function CustomerListPanel({ canManage, onEditTierRules }: Props) {
         refreshingTiers={refreshingTiers}
       />
 
+      {callListOpen && data ? (
+        <CreateCallList
+          selectedIds={callSelection}
+          filterParams={listParams as Record<string, unknown>}
+          total={data.total}
+          onClose={() => setCallListOpen(false)}
+        />
+      ) : null}
+
       {/* ============================================================== */}
       {/* 3. MINIMAL, RESPONSIVE FILTER & SEGMENT BAR                    */}
       {/* ============================================================== */}
@@ -477,6 +494,16 @@ export function CustomerListPanel({ canManage, onEditTierRules }: Props) {
               </svg>
               <span>{exporting ? "در حال استخراج..." : "خروجی اکسل"}</span>
             </button>
+
+            {canManageCalls ? (
+              <button
+                type="button"
+                onClick={() => setCallListOpen(true)}
+                className="px-3 py-1.5 rounded-xl bg-accent text-on-accent text-xs font-bold cursor-pointer"
+              >
+                ساخت لیست تماس
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -1358,6 +1385,7 @@ export function CustomerListPanel({ canManage, onEditTierRules }: Props) {
             <table className="w-full text-right text-xs">
               <thead>
                 <tr className="text-muted border-b border-line pb-3 font-semibold">
+                  {canManageCalls ? <th className="py-3 px-2"><span className="sr-only">انتخاب</span></th> : null}
                   <th className="py-3 px-3">نام و مشخصات مشتری</th>
                   <th className="py-3 px-3">شماره تماس</th>
                   <th className="py-3 px-3">رتبه وفاداری</th>
@@ -1377,6 +1405,16 @@ export function CustomerListPanel({ canManage, onEditTierRules }: Props) {
 
                   return (
                     <tr key={customer.id} className="hover:bg-hover transition-colors">
+                      {canManageCalls ? (
+                        <td className="py-3.5 px-2">
+                          <input
+                            type="checkbox"
+                            aria-label={`انتخاب ${display.name}`}
+                            checked={callSelection.includes(customer.id)}
+                            onChange={() => toggleCallSelection(customer.id)}
+                          />
+                        </td>
+                      ) : null}
                       {/* Name & Avatar */}
                       <td className="py-3.5 px-3">
                         <div className="flex items-center gap-3">
@@ -1514,6 +1552,14 @@ export function CustomerListPanel({ canManage, onEditTierRules }: Props) {
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2.5">
+                      {canManageCalls ? (
+                        <input
+                          type="checkbox"
+                          aria-label={`انتخاب ${display.name}`}
+                          checked={callSelection.includes(customer.id)}
+                          onChange={() => toggleCallSelection(customer.id)}
+                        />
+                      ) : null}
                       <div className={`h-9 w-9 rounded-xl bg-gradient-to-tr ${gradient} flex items-center justify-center font-bold text-white text-xs shrink-0`}>
                         {initials}
                       </div>

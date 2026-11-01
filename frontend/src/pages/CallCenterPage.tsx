@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { AgentPanel } from "../features/calls/AgentPanel";
+import { ProgramsPanel } from "../features/calls/ProgramsPanel";
+import { SettingsPanel } from "../features/calls/SettingsPanel";
 import { UnderlineTab } from "../features/calls/ui";
 import { useAuth } from "../hooks/useAuth";
 
@@ -22,6 +24,8 @@ export function CallCenterPage() {
           </UnderlineTab>
         ))}
       </nav>
+      {section === "programs" ? <ProgramsPanel /> : null}
+      {section === "settings" ? <SettingsPanel /> : null}
     </div>
   );
 }

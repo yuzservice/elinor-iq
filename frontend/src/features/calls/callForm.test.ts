@@ -54,3 +54,15 @@ describe("call form", () => {
     expect(rawAnswers(stored)).toEqual({ a: "x", b: true, c: 4 });
   });
 });
+
+describe("form builder helpers", () => {
+  it("moves items within bounds and adds options only to choice fields", async () => {
+    const { move, newField, newOutcome, outcomeSubtitle } = await import("./builderOps");
+    expect(move([1, 2, 3], 0, 1)).toEqual([2, 1, 3]);
+    expect(move([1, 2], 1, 1)).toEqual([1, 2]);
+    expect(newField("single").options).toHaveLength(1);
+    expect(newField("rating").options).toHaveLength(0);
+    expect(outcomeSubtitle(newOutcome())).toBe("یک کلیکی");
+    expect(outcomeSubtitle({ ...newOutcome(), connected: true, after_save: "retry", retry_times: 3 })).toBe("فقط یادداشت، 3 تلاش مجدد");
+  });
+});
