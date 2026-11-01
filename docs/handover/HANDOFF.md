@@ -127,6 +127,9 @@ Notes for the Product Architect / next task:
 
 ## 9. Log
 
+### 2026-11-02 — Call Center (`feature/call-center`, from `production`), checkpoints
+- Checkpoint 1: `apps/calls` models + migrations (`calls.0001`, `0002_seed_tags`, `accounts.0003`), role `sales_agent`, `SalesAgentScopeMiddleware`. Next: lists and tasks. No API yet.
+
 ### 2026-10-28 — Customers overview, prototype v3 (`feature/customers-overview`, uncommitted)
 
 - Reference copied to `docs/design/customers-overview-v3.html` (sample numbers).

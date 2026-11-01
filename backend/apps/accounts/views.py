@@ -48,6 +48,8 @@ def me(request):
 
 
 def _user_payload(user):
+    from apps.calls.permissions import is_call_manager
+
     from .permissions import is_super_admin
 
     return {
@@ -55,4 +57,5 @@ def _user_payload(user):
         "username": user.username,
         "role": user.role,
         "can_manage_platform": is_super_admin(user),
+        "can_manage_calls": is_call_manager(user),
     }

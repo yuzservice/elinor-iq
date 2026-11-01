@@ -1,0 +1,927 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>ثبت تماس تیم فروش</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#06080d}
+button,textarea,input{font-family:inherit}
+button:focus-visible,textarea:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid #60a5fa;outline-offset:2px}
+.card{background:#0c1017;border:1px solid rgba(255,255,255,.08);border-radius:16px}
+.inp{box-sizing:border-box;min-height:42px;padding:0 12px;border-radius:11px;background:#131924;color:#f8fafc;border:1px solid rgba(255,255,255,.12);font-size:13.5px;width:100%}
+.lbl{display:flex;flex-direction:column;gap:6px;font-size:13px;color:#cbd5e1}
+.h{margin:0;font-size:14px;font-weight:600;color:#e2e8f0}
+.mut{font-size:12.5px;color:#94a3b8}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.col{display:flex;flex-direction:column}
+.ghost{min-height:38px;padding:0 13px;border-radius:10px;background:transparent;border:1px solid rgba(255,255,255,.16);color:#cbd5e1;font-size:12.5px;cursor:pointer}
+.add{min-height:40px;padding:0 14px;border-radius:11px;background:transparent;border:1px dashed rgba(147,197,253,.45);color:#93c5fd;font-size:13px;cursor:pointer}
+.chk{display:inline-flex;align-items:center;gap:8px;min-height:36px;font-size:13px;color:#cbd5e1}
+th{font-weight:500;text-align:right;padding:9px 8px;color:#94a3b8;white-space:nowrap}
+td{padding:9px 8px;white-space:nowrap}
+tbody tr{border-top:1px solid rgba(255,255,255,.06)}
+</style>
+</helmet>
+<div dir="rtl" style="min-height: 100vh; box-sizing: border-box; background: #06080d; color: #f8fafc; font-family: Vazirmatn, system-ui, sans-serif; padding: 22px 16px 56px;">
+<div style="max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px;">
+
+  <div class="row" style="justify-content: space-between; gap: 12px;">
+    <div class="card row" role="group" aria-label="نمای پروتوتایپ" style="gap: 4px; padding: 4px; border-radius: 14px;">
+      <sc-for list="{{roles}}" as="v" hint-placeholder-count="2"><button type="button" onClick="{{v.pick}}" aria-pressed="{{v.pressed}}" style="{{v.style}}">{{v.label}}</button></sc-for>
+    </div>
+    <span class="mut">داده‌ها نمونه است. فرمی که مدیر می‌سازد همین‌جا برای کارمند و در گزارش اجرا می‌شود.</span>
+  </div>
+
+  <nav aria-label="منوی اصلی" class="row" style="gap: 2px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,.08);">
+    <sc-for list="{{mainNav}}" as="n" hint-placeholder-count="5"><button type="button" onClick="{{n.pick}}" disabled="{{n.disabled}}" aria-pressed="{{n.pressed}}" style="{{n.style}}">{{n.label}}</button></sc-for>
+  </nav>
+
+  <sc-if value="{{isAgent}}" hint-placeholder-val="{{ true }}">
+    <div class="col" style="gap: 14px;">
+      <div class="row" style="justify-content: space-between; gap: 10px 24px;">
+        <h1 style="margin: 0; font-size: 22px; font-weight: 800;">کارهای من</h1>
+        <div class="row" style="gap: 8px 24px;">
+          <sc-for list="{{myStats}}" as="s" hint-placeholder-count="3">
+            <span class="mut">{{s.label}}: <b style="color: #f8fafc; font-size: 14px;">{{s.value}}</b></span>
+          </sc-for>
+        </div>
+      </div>
+
+      <div class="row" style="gap: 20px; border-bottom: 1px solid rgba(255,255,255,.08);">
+        <sc-for list="{{taskTabs}}" as="t" hint-placeholder-count="5"><button type="button" onClick="{{t.pick}}" aria-pressed="{{t.pressed}}" style="{{t.style}}">{{t.label}}</button></sc-for>
+      </div>
+
+      <div class="row" style="gap: 8px 12px;">
+        <input class="inp" type="search" aria-label="جستجوی مشتری" placeholder="جستجوی نام یا شماره" value="{{q}}" onChange="{{setQ}}" style="max-width: 260px;" />
+        <span class="mut">برنامه</span>
+        <sc-for list="{{fCamps}}" as="f" hint-placeholder-count="3"><button type="button" onClick="{{f.pick}}" aria-pressed="{{f.pressed}}" style="{{f.style}}">{{f.label}}</button></sc-for>
+        <span class="mut" style="margin-inline-start: 8px;">مرتب‌سازی</span>
+        <sc-for list="{{sorts}}" as="f" hint-placeholder-count="3"><button type="button" onClick="{{f.pick}}" aria-pressed="{{f.pressed}}" style="{{f.style}}">{{f.label}}</button></sc-for>
+      </div>
+      <div class="row" style="gap: 8px 12px;">
+        <span class="mut">آخرین نتیجه</span>
+        <sc-for list="{{fResults}}" as="f" hint-placeholder-count="3"><button type="button" onClick="{{f.pick}}" aria-pressed="{{f.pressed}}" style="{{f.style}}">{{f.label}}</button></sc-for>
+        <span class="mut" style="margin-inline-start: 8px;">برچسب</span>
+        <sc-for list="{{fTags}}" as="f" hint-placeholder-count="3"><button type="button" onClick="{{f.pick}}" aria-pressed="{{f.pressed}}" style="{{f.style}}">{{f.label}}</button></sc-for>
+      </div>
+
+      <sc-if value="{{hasSel}}" hint-placeholder-val="{{ false }}">
+        <div class="row" style="padding: 8px 14px; border-radius: 12px; background: rgba(59,130,246,.14); gap: 8px;">
+          <span style="font-size: 13px; font-weight: 600;">{{selText}}</span>
+          <button type="button" class="ghost" onClick="{{bulkTomorrow}}">موکول به فردا</button>
+          <button type="button" class="ghost" onClick="{{bulkWeek}}">موکول به هفته بعد</button>
+          <button type="button" class="ghost" onClick="{{bulkStar}}">اولویت بالا</button>
+          <button type="button" class="ghost" onClick="{{bulkClear}}">لغو انتخاب</button>
+        </div>
+      </sc-if>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start;">
+        <section class="card" style="flex: 3 1 560px; min-width: 0; overflow-x: auto; padding: 4px 8px;">
+          <table style="width: 100%; min-width: 660px; border-collapse: collapse; font-size: 13px;">
+            <thead><tr><th scope="col"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden;">انتخاب</span></th><th scope="col">مشتری</th><th scope="col">سطح</th><th scope="col">برنامه</th><th scope="col">موعد</th><th scope="col">تلاش</th><th scope="col">آخرین نتیجه</th><th scope="col">ارزش</th><th scope="col"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden;">اولویت</span></th></tr></thead>
+            <tbody>
+              <sc-for list="{{rows}}" as="r" hint-placeholder-count="6">
+                <tr style="{{r.trStyle}}">
+                  <td><input type="checkbox" aria-label="{{r.selLabel}}" checked="{{r.sel}}" onChange="{{r.toggleSel}}" /></td>
+                  <td><button type="button" onClick="{{r.open}}" style="min-height: 34px; background: transparent; border: 0; padding: 0; color: #93c5fd; font-size: 13.5px; font-weight: 600; cursor: pointer;">{{r.name}}</button></td>
+                  <td class="mut">{{r.tier}}</td>
+                  <td class="mut">{{r.camp}}</td>
+                  <td style="{{r.dueStyle}}">{{r.due}}</td>
+                  <td class="mut">{{r.attempt}}</td>
+                  <td class="mut">{{r.last}}</td>
+                  <td>{{r.value}}</td>
+                  <td><button type="button" onClick="{{r.star}}" aria-label="{{r.starLabel}}" aria-pressed="{{r.starred}}" style="{{r.starStyle}}">★</button></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+          <sc-if value="{{noRows}}" hint-placeholder-val="{{ false }}"><p class="mut" style="margin: 0; padding: 28px; text-align: center;">موردی با این فیلترها نیست.</p></sc-if>
+        </section>
+
+        <section class="card col" style="flex: 2 1 400px; min-width: 0; padding: 18px; gap: 16px;">
+          <sc-if value="{{noCur}}" hint-placeholder-val="{{ false }}">
+            <div class="col" style="gap: 12px; align-items: flex-start; padding: 24px 0;">
+              <h2 class="h">مشتری را از فهرست انتخاب کنید</h2>
+            </div>
+          </sc-if>
+          <sc-if value="{{hasCur}}" hint-placeholder-val="{{ true }}">
+            <div class="col" style="gap: 16px;">
+              <div class="row" style="justify-content: space-between; gap: 8px 16px;">
+                <div class="col" style="gap: 3px;">
+                  <h2 style="margin: 0; font-size: 17px; font-weight: 700;">{{cur.name}}</h2>
+                  <span class="mut">{{cur.tier}}، {{cur.info}}</span>
+                  <span style="font-size: 12.5px; color: #93c5fd;">{{curCamp}}</span>
+                </div>
+                <a href="tel:00000000000" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 12px; background: #3b82f6; color: #fff; font-size: 14.5px; font-weight: 600; direction: ltr; text-decoration: none;">{{cur.phone}}</a>
+              </div>
+              <div class="col" style="gap: 8px;">
+                <h3 class="h">نتیجه تماس</h3>
+                <sc-if value="{{noOutcomes}}" hint-placeholder-val="{{ false }}"><p class="mut" style="margin: 0;">مدیر هنوز فرم این برنامه را نساخته است.</p></sc-if>
+                <div class="row"><sc-for list="{{outBtns}}" as="o" hint-placeholder-count="4"><button type="button" onClick="{{o.pick}}" aria-pressed="{{o.pressed}}" style="{{o.style}}">{{o.label}}</button></sc-for></div>
+              </div>
+              <sc-for list="{{formFields}}" as="f" hint-placeholder-count="3">
+                <div class="col" style="gap: 7px;">
+                  <sc-if value="{{f.isToggle}}" hint-placeholder-val="{{ false }}"><label class="chk"><input type="checkbox" checked="{{f.checked}}" onChange="{{f.setCheck}}" />{{f.title}}</label></sc-if>
+                  <sc-if value="{{f.notToggle}}" hint-placeholder-val="{{ true }}"><h3 class="h">{{f.title}}</h3></sc-if>
+                  <sc-if value="{{f.isInput}}" hint-placeholder-val="{{ false }}"><input class="inp" type="{{f.inputType}}" aria-label="{{f.title}}" placeholder="{{f.ph}}" value="{{f.val}}" onChange="{{f.setVal}}" /></sc-if>
+                  <sc-if value="{{f.isLong}}" hint-placeholder-val="{{ false }}"><textarea class="inp" rows="2" aria-label="{{f.title}}" value="{{f.val}}" onChange="{{f.setVal}}" style="padding-top: 8px;"></textarea></sc-if>
+                  <div class="row"><sc-for list="{{f.opts}}" as="p" hint-placeholder-count="3"><button type="button" onClick="{{p.pick}}" aria-pressed="{{p.pressed}}" style="{{p.style}}">{{p.label}}</button></sc-for></div>
+                </div>
+              </sc-for>
+              <sc-if value="{{showNote}}" hint-placeholder-val="{{ true }}">
+                <div class="col" style="gap: 12px;">
+                  <label class="lbl">{{noteLabel}}<textarea class="inp" rows="3" value="{{note}}" onChange="{{setNote}}" placeholder="خلاصه گفتگو" style="padding-top: 8px;"></textarea></label>
+                  <div class="row" style="gap: 10px;">
+                    <button type="button" onClick="{{saveCall}}" disabled="{{cannotSave}}" style="{{saveStyle}}">ثبت تماس</button>
+                    <span class="mut">{{saveHint}}</span>
+                  </div>
+                </div>
+              </sc-if>
+              <div class="row" style="justify-content: space-between; gap: 8px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.07);">
+                <div class="row">
+                  <span class="mut">موکول کردن:</span>
+                  <button type="button" class="ghost" onClick="{{snooze1}}">فردا</button>
+                  <button type="button" class="ghost" onClick="{{snooze7}}">هفته بعد</button>
+                </div>
+              </div>
+              <div class="col" style="gap: 6px;">
+                <h3 class="h">تماس‌های قبلی</h3>
+                <sc-if value="{{noHistory}}" hint-placeholder-val="{{ false }}"><span class="mut">تماسی ثبت نشده است.</span></sc-if>
+                <sc-for list="{{history}}" as="h" hint-placeholder-count="1"><div class="col" style="font-size: 12.5px; line-height: 1.8;"><span style="color: #e2e8f0;">{{h.head}}</span><span class="mut">{{h.detail}}</span></div></sc-for>
+              </div>
+            </div>
+          </sc-if>
+        </section>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}">
+    <div role="status" class="row" style="justify-content: space-between; gap: 10px; padding: 9px 14px; border-radius: 12px; background: #131924; border: 1px solid rgba(255,255,255,.12); font-size: 13px;">
+      <span>{{toast}}</span><button type="button" class="ghost" onClick="{{undo}}">برگرداندن</button>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{isCustomers}}" hint-placeholder-val="{{ false }}">
+    <div class="col" style="gap: 14px;">
+      <div class="row" style="justify-content: space-between; gap: 10px;">
+        <div class="col" style="gap: 3px;"><h1 style="margin: 0; font-size: 22px; font-weight: 800;">مشتریان</h1><span class="mut">همان فیلترهای صفحه مشتریان، نسخه ساده‌شده برای پروتوتایپ</span></div>
+        <button type="button" onClick="{{openList}}" style="min-height: 44px; padding: 0 18px; border-radius: 12px; border: 0; background: #3b82f6; color: #fff; font-size: 13.5px; font-weight: 600; cursor: pointer;">ساخت لیست تماس</button>
+      </div>
+      <section class="card col" style="padding: 14px 16px; gap: 10px;">
+        <div class="row"><span class="mut" style="min-width: 90px;">سطح</span><sc-for list="{{cfTiers}}" as="f" hint-placeholder-count="5"><button type="button" onClick="{{f.pick}}" aria-pressed="{{f.pressed}}" style="{{f.style}}">{{f.label}}</button></sc-for></div>
+        <div class="row"><span class="mut" style="min-width: 90px;">مبلغ خرید</span><sc-for list="{{cfMins}}" as="f" hint-placeholder-count="3"><button type="button" onClick="{{f.pick}}" aria-pressed="{{f.pressed}}" style="{{f.style}}">{{f.label}}</button></sc-for></div>
+        <div class="row"><span class="mut" style="min-width: 90px;">شعبه</span><sc-for list="{{cfBranches}}" as="f" hint-placeholder-count="5"><button type="button" onClick="{{f.pick}}" aria-pressed="{{f.pressed}}" style="{{f.style}}">{{f.label}}</button></sc-for></div>
+        <div class="row"><span class="mut" style="min-width: 90px;">روش پرداخت</span><sc-for list="{{cfPays}}" as="f" hint-placeholder-count="4"><button type="button" onClick="{{f.pick}}" aria-pressed="{{f.pressed}}" style="{{f.style}}">{{f.label}}</button></sc-for></div>
+      </section>
+      <sc-if value="{{listOpen}}" hint-placeholder-val="{{ false }}">
+        <section class="card col" style="padding: 16px; gap: 12px; border-color: #60a5fa;">
+          <h2 class="h" style="font-size: 15px;">ساخت لیست تماس</h2>
+          <span style="font-size: 13px; color: #cbd5e1;">{{listSummary}}</span>
+          <label class="lbl">نام لیست<input class="inp" type="text" value="{{listName}}" onChange="{{setListName}}" style="max-width: 360px;" /></label>
+          <sc-if value="{{listCanChoose}}" hint-placeholder-val="{{ true }}">
+            <div class="col" style="gap: 6px;">
+              <div class="row"><sc-for list="{{listTypes}}" as="f" hint-placeholder-count="2"><button type="button" onClick="{{f.pick}}" aria-pressed="{{f.pressed}}" style="{{f.style}}">{{f.label}}</button></sc-for></div>
+              <span class="mut">{{listTypeHelp}}</span>
+            </div>
+          </sc-if>
+          <div class="row">
+            <button type="button" onClick="{{saveList}}" disabled="{{cantSaveList}}" style="{{saveListStyle}}">ذخیره لیست و رفتن به برنامه‌های تماس</button>
+            <button type="button" class="ghost" onClick="{{closeList}}">انصراف</button>
+          </div>
+        </section>
+      </sc-if>
+      <div class="card" style="overflow-x: auto; padding: 4px 8px;">
+        <table style="width: 100%; min-width: 560px; border-collapse: collapse; font-size: 13px;">
+          <thead><tr><th scope="col"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden;">انتخاب</span></th><th scope="col">مشتری</th><th scope="col">سطح</th><th scope="col">شعبه</th><th scope="col">پرداخت</th><th scope="col">مبلغ خرید</th></tr></thead>
+          <tbody><sc-for list="{{cRows}}" as="r" hint-placeholder-count="5"><tr><td><input type="checkbox" aria-label="{{r.selLabel}}" checked="{{r.sel}}" onChange="{{r.toggle}}" /></td><td style="font-weight: 600;">{{r.name}}</td><td class="mut">{{r.tier}}</td><td class="mut">{{r.branch}}</td><td class="mut">{{r.pay}}</td><td>{{r.value}}</td></tr></sc-for></tbody>
+        </table>
+      </div>
+      <span class="mut">{{cCountText}}</span>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{isManager}}" hint-placeholder-val="{{ false }}">
+    <div class="col" style="gap: 18px;">
+      <nav aria-label="بخش‌های مدیر" class="row" style="gap: 22px; border-bottom: 1px solid rgba(255,255,255,.08);">
+        <sc-for list="{{mNav}}" as="m" hint-placeholder-count="3"><button type="button" onClick="{{m.pick}}" aria-pressed="{{m.pressed}}" style="{{m.style}}">{{m.label}}</button></sc-for>
+      </nav>
+
+      <sc-if value="{{isReport}}" hint-placeholder-val="{{ true }}">
+        <div class="col" style="gap: 18px;">
+          <div class="row" style="justify-content: space-between; gap: 10px;">
+            <div class="row"><sc-for list="{{rTabs}}" as="r" hint-placeholder-count="3"><button type="button" onClick="{{r.pick}}" aria-pressed="{{r.pressed}}" style="{{r.style}}">{{r.label}}</button></sc-for></div>
+            <div class="row"><span class="mut">برنامه</span><sc-for list="{{rCamps}}" as="r" hint-placeholder-count="3"><button type="button" onClick="{{r.pick}}" aria-pressed="{{r.pressed}}" style="{{r.style}}">{{r.label}}</button></sc-for></div>
+          </div>
+
+          <sc-if value="{{isSales}}" hint-placeholder-val="{{ true }}">
+            <div class="col" style="gap: 20px;">
+              <section class="card" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px; padding: 18px;">
+                <sc-for list="{{kpis}}" as="k" hint-placeholder-count="4"><div class="col" style="gap: 4px;"><span style="font-size: 13px; color: #cbd5e1;">{{k.label}}</span><span style="font-size: 25px; font-weight: 800;">{{k.value}}</span><span class="mut">{{k.note}}</span></div></sc-for>
+              </section>
+              <section class="col" style="gap: 10px;">
+                <h2 class="h" style="font-size: 15px;">فرصت‌هایی که منتظر اقدام‌اند</h2>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 12px;">
+                  <sc-for list="{{opps}}" as="o" hint-placeholder-count="3">
+                    <div class="card col" style="padding: 14px 16px; gap: 7px;">
+                      <div class="row" style="justify-content: space-between; font-size: 13.5px;"><span style="font-weight: 600;">{{o.title}}</span><span style="color: #fbbf24; font-weight: 600;">{{o.count}}</span></div>
+                      <sc-for list="{{o.rows}}" as="x" hint-placeholder-count="2"><div class="row mut" style="justify-content: space-between;"><span style="color: #e2e8f0;">{{x.n}}</span><span>{{x.d}}</span></div></sc-for>
+                    </div>
+                  </sc-for>
+                </div>
+              </section>
+              <section class="col" style="gap: 8px;">
+                <h2 class="h" style="font-size: 15px;">ارجاع‌شده به مدیر</h2>
+                <sc-if value="{{noEsc}}" hint-placeholder-val="{{ false }}"><p class="mut" style="margin: 0;">موردی باز نیست.</p></sc-if>
+                <sc-for list="{{escRows}}" as="x" hint-placeholder-count="1">
+                  <div class="card row" style="justify-content: space-between; padding: 8px 14px; gap: 8px;"><span style="font-size: 13.5px; font-weight: 600;">{{x.n}}</span><span class="mut" style="margin-inline-end: auto;">{{x.d}}</span><button type="button" class="ghost" onClick="{{x.close}}">بستن</button></div>
+                </sc-for>
+              </section>
+              <section class="col" style="gap: 8px;">
+                <h2 class="h" style="font-size: 15px;">هر نتیجه چقدر به خرید رسید؟</h2>
+                <div class="card" style="overflow-x: auto; padding: 4px 12px;">
+                  <table style="width: 100%; min-width: 480px; border-collapse: collapse; font-size: 13px;">
+                    <thead><tr><th scope="col">نتیجه</th><th scope="col">برنامه</th><th scope="col">تماس</th><th scope="col">خریدار</th><th scope="col">نرخ خرید</th></tr></thead>
+                    <tbody><sc-for list="{{outcomeBuy}}" as="b" hint-placeholder-count="3"><tr><td style="font-weight: 600;">{{b.title}}</td><td class="mut">{{b.camp}}</td><td>{{b.calls}}</td><td>{{b.buy}}</td><td>{{b.rate}}</td></tr></sc-for></tbody>
+                  </table>
+                </div>
+              </section>
+              <section class="col" style="gap: 2px;">
+                <h2 class="h" style="font-size: 15px; margin-bottom: 8px;">نتیجه تماس با هر مشتری</h2>
+                <sc-for list="{{custRows}}" as="c" hint-placeholder-count="3">
+                  <div style="border-top: 1px solid rgba(255,255,255,.07);">
+                    <button type="button" onClick="{{c.pick}}" aria-expanded="{{c.open}}" style="width: 100%; min-height: 46px; display: grid; grid-template-columns: minmax(110px, 1fr) minmax(70px, .6fr) minmax(130px, 1.2fr) minmax(90px, .8fr); align-items: center; gap: 10px; padding: 6px 4px; background: transparent; border: 0; color: inherit; cursor: pointer; font-size: 13px; text-align: right;">
+                      <span style="font-weight: 600;">{{c.name}}</span><span class="mut">{{c.tier}}</span><span style="{{c.resStyle}}">{{c.res}}</span><span class="mut">{{c.who}}</span>
+                    </button>
+                    <sc-if value="{{c.open}}" hint-placeholder-val="{{ false }}"><div class="col" style="gap: 8px; padding: 2px 4px 14px;"><sc-for list="{{c.logs}}" as="l" hint-placeholder-count="1"><div class="col" style="font-size: 13px; line-height: 1.8;"><span style="color: #e2e8f0;">{{l.head}}</span><span class="mut">{{l.detail}}</span></div></sc-for></div></sc-if>
+                  </div>
+                </sc-for>
+              </section>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{isVoice}}" hint-placeholder-val="{{ false }}">
+            <div class="col" style="gap: 12px;">
+              <sc-if value="{{voiceNeedsCamp}}" hint-placeholder-val="{{ false }}"><p class="mut" style="margin: 0;">هر برنامه فرم خودش را دارد. برای دیدن پاسخ‌ها یک برنامه را انتخاب کنید.</p></sc-if>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px;">
+                <sc-for list="{{widgets}}" as="v" hint-placeholder-count="3">
+                  <section class="card col" style="padding: 16px; gap: 9px;">
+                    <div class="row" style="justify-content: space-between; gap: 8px;"><h2 class="h">{{v.title}}</h2><span class="mut">{{v.summary}}</span></div>
+                    <sc-for list="{{v.bars}}" as="b" hint-placeholder-count="3">
+                      <div style="display: grid; grid-template-columns: minmax(80px, 130px) minmax(0, 1fr) 34px; align-items: center; gap: 10px; font-size: 12.5px;"><span>{{b.label}}</span><div style="height: 8px; border-radius: 4px; background: rgba(255,255,255,.06);"><div style="{{b.bar}}"></div></div><span style="text-align: left; font-weight: 600;">{{b.value}}</span></div>
+                    </sc-for>
+                    <sc-for list="{{v.texts}}" as="t" hint-placeholder-count="2"><p class="mut" style="margin: 0; line-height: 1.8;">{{t}}</p></sc-for>
+                  </section>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{isTeam}}" hint-placeholder-val="{{ false }}">
+            <div class="card" style="overflow-x: auto; padding: 4px 12px;">
+              <table style="width: 100%; min-width: 560px; border-collapse: collapse; font-size: 13px;">
+                <thead><tr><th scope="col">کارمند</th><th scope="col">تماس</th><th scope="col">پاسخ‌داده</th><th scope="col">خریدار</th><th scope="col">فروش</th><th scope="col">کار عقب‌افتاده</th></tr></thead>
+                <tbody><sc-for list="{{teamRows}}" as="t" hint-placeholder-count="3"><tr><td style="font-weight: 600;">{{t.a}}</td><td>{{t.b}}</td><td>{{t.c}}</td><td>{{t.d}}</td><td>{{t.e}}</td><td style="color: #fbbf24;">{{t.f}}</td></tr></sc-for></tbody>
+              </table>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{isCampList}}" hint-placeholder-val="{{ false }}">
+        <div class="col" style="gap: 12px;">
+          <sc-for list="{{campRows}}" as="c" hint-placeholder-count="2">
+            <section class="card row" style="justify-content: space-between; padding: 14px 18px; gap: 10px 22px;">
+              <div class="col" style="gap: 3px; flex: 1 1 280px;"><h2 class="h">{{c.name}}</h2><span class="mut">{{c.info}}</span></div>
+              <span class="mut">{{c.form}}</span>
+              <span class="mut">{{c.state}}</span>
+              <button type="button" class="ghost" onClick="{{c.edit}}">ویرایش برنامه و فرم</button>
+              <button type="button" class="ghost" onClick="{{c.toggle}}">{{c.toggleLabel}}</button>
+            </section>
+          </sc-for>
+          <sc-if value="{{hasListMsg}}" hint-placeholder-val="{{ false }}"><p style="margin: 0; padding: 10px 14px; border-radius: 12px; background: rgba(59,130,246,.14); font-size: 13px;">{{listMsg}}</p></sc-if>
+          <section class="row" style="gap: 8px;">
+            <input class="inp" type="text" aria-label="نام برنامه جدید" placeholder="نام برنامه جدید" value="{{newCamp}}" onChange="{{setNewCamp}}" style="max-width: 320px;" />
+            <button type="button" onClick="{{createCamp}}" disabled="{{cantCreate}}" style="{{createStyle}}">ساخت برنامه تماس</button>
+          </section>
+          <section class="col" style="gap: 8px; margin-top: 8px;">
+            <div class="row" style="justify-content: space-between;"><h2 class="h" style="font-size: 15px;">لیست‌های مشتری</h2><button type="button" class="ghost" onClick="{{goCustomers}}">ساخت لیست از صفحه مشتریان</button></div>
+            <sc-for list="{{listRows}}" as="l" hint-placeholder-count="2">
+              <div class="card row" style="justify-content: space-between; padding: 10px 14px; gap: 6px 16px;"><span style="font-size: 13.5px; font-weight: 600;">{{l.name}}</span><span class="mut" style="flex: 1 1 200px;">{{l.rule}}</span><span class="mut">{{l.type}}</span><span style="font-size: 13px; font-weight: 600;">{{l.count}}</span></div>
+            </sc-for>
+          </section>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{isCampEdit}}" hint-placeholder-val="{{ false }}">
+        <div class="col" style="gap: 14px;">
+          <div class="row" style="justify-content: space-between; gap: 10px;">
+            <div class="row" style="gap: 12px;">
+              <button type="button" class="ghost" onClick="{{backCamps}}">بازگشت به برنامه‌ها</button>
+              <input class="inp" type="text" aria-label="نام برنامه" value="{{ec.name}}" onChange="{{setEcName}}" style="width: 280px; font-weight: 600;" />
+            </div>
+            <span class="mut">هر تغییر برای تماس‌های بعدی اعمال می‌شود. تماس‌های قبلی با فرم زمان خودشان می‌مانند.</span>
+          </div>
+          <div class="row" style="gap: 22px; border-bottom: 1px solid rgba(255,255,255,.08);"><sc-for list="{{ecTabs}}" as="t" hint-placeholder-count="2"><button type="button" onClick="{{t.pick}}" aria-pressed="{{t.pressed}}" style="{{t.style}}">{{t.label}}</button></sc-for></div>
+          <sc-if value="{{isAud}}" hint-placeholder-val="{{ true }}">
+            <div class="col" style="gap: 14px;">
+              <section class="card col" style="padding: 18px; gap: 12px;">
+                <h2 class="h" style="font-size: 15px;">لیست مشتریان</h2>
+                <div class="row"><sc-for list="{{ecLists}}" as="t" hint-placeholder-count="2"><button type="button" onClick="{{t.pick}}" aria-pressed="{{t.pressed}}" style="{{t.style}}">{{t.label}}</button></sc-for></div>
+                <div class="row"><button type="button" class="ghost" onClick="{{goCustomers}}">ساخت لیست از صفحه مشتریان</button><button type="button" class="ghost" onClick="{{uploadExcel}}">بارگذاری فایل اکسل شماره‌ها</button></div>
+                <p style="margin: 0; font-size: 13.5px; line-height: 1.8; color: #cbd5e1;">{{previewText}}</p>
+              </section>
+              <section class="card col" style="padding: 18px; gap: 12px;">
+                <h2 class="h" style="font-size: 15px;">کارمندان و تقسیم مشتریان</h2>
+                <div class="row"><sc-for list="{{ecAgents}}" as="t" hint-placeholder-count="3"><button type="button" onClick="{{t.pick}}" aria-pressed="{{t.pressed}}" style="{{t.style}}">{{t.label}}</button></sc-for></div>
+                <div class="row"><span class="mut">تقسیم</span><sc-for list="{{shareModes}}" as="t" hint-placeholder-count="2"><button type="button" onClick="{{t.pick}}" aria-pressed="{{t.pressed}}" style="{{t.style}}">{{t.label}}</button></sc-for></div>
+                <sc-for list="{{agentRows}}" as="a" hint-placeholder-count="2">
+                  <div class="row" style="gap: 12px;"><span style="font-size: 13.5px; min-width: 60px;">{{a.name}}</span>
+                    <sc-if value="{{a.custom}}" hint-placeholder-val="{{ false }}"><label class="row mut"><input class="inp" type="number" min="0" max="100" aria-label="{{a.aria}}" value="{{a.share}}" onChange="{{a.setShare}}" style="width: 84px;" />درصد</label></sc-if>
+                    <span class="mut">{{a.count}}</span></div>
+                </sc-for>
+              </section>
+            </div>
+          </sc-if>
+          <sc-if value="{{isFormTab}}" hint-placeholder-val="{{ false }}">
+          <div class="col" style="gap: 14px;">
+          <sc-if value="{{showCopy}}" hint-placeholder-val="{{ false }}">
+            <div class="row card" style="padding: 12px 16px;"><span class="mut">فرم خالی است. از صفر بسازید یا کپی کنید از:</span><sc-for list="{{copyFrom}}" as="t" hint-placeholder-count="2"><button type="button" class="ghost" onClick="{{t.pick}}">{{t.label}}</button></sc-for></div>
+          </sc-if>
+
+          <div style="display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start;">
+            <aside class="col" style="flex: 1 1 220px; min-width: 0; gap: 6px;">
+              <h2 class="h" style="margin-bottom: 4px;">نتیجه‌های تماس</h2>
+              <sc-for list="{{outList}}" as="o" hint-placeholder-count="4"><div style="display: flex; gap: 4px;"><button type="button" onClick="{{o.pick}}" aria-pressed="{{o.pressed}}" style="{{o.style}}"><span style="font-size: 13.5px; font-weight: 600;">{{o.title}}</span><span class="mut">{{o.sub}}</span></button><span class="col" style="gap: 2px;"><button type="button" class="ghost" onClick="{{o.up}}" aria-label="بالاتر" style="flex: 1; min-height: 26px; padding: 0 8px;">▲</button><button type="button" class="ghost" onClick="{{o.down}}" aria-label="پایین‌تر" style="flex: 1; min-height: 26px; padding: 0 8px;">▼</button></span></div></sc-for>
+              <button type="button" class="add" onClick="{{addOutcome}}">افزودن نتیجه</button>
+            </aside>
+
+            <main class="col" style="flex: 3 1 460px; min-width: 0; gap: 12px;">
+              <sc-if value="{{noOut}}" hint-placeholder-val="{{ false }}"><section class="card" style="padding: 36px; text-align: center;"><p class="mut" style="margin: 0;">اولین نتیجه تماس را اضافه کنید، مثلاً «پاسخ نداد» یا «علاقه‌مند است».</p></section></sc-if>
+              <sc-if value="{{hasOut}}" hint-placeholder-val="{{ true }}">
+                <div class="col" style="gap: 12px;">
+                  <section class="card col" style="padding: 18px; gap: 14px;">
+                    <h2 class="h" style="font-size: 15px;">تنظیمات نتیجه</h2>
+                    <div class="row" style="justify-content: space-between;">
+                      <label class="lbl" style="flex: 1 1 260px;">عنوان نتیجه<input class="inp" type="text" value="{{eo.title}}" onChange="{{eoTitle}}" style="max-width: 360px;" /></label>
+                      <sc-if value="{{eoCanDelete}}" hint-placeholder-val="{{ true }}"><button type="button" class="ghost" onClick="{{eoRemove}}">حذف این نتیجه</button></sc-if>
+                    </div>
+                    <label class="chk"><input type="checkbox" checked="{{eo.connected}}" onChange="{{eoConnected}}" />با مشتری صحبت شده (یادداشت اجباری می‌شود)</label>
+                    <div class="col" style="gap: 8px;"><span style="font-size: 13px; color: #cbd5e1;">بعد از ثبت چه شود؟</span><div class="row"><sc-for list="{{eoActions}}" as="k" hint-placeholder-count="3"><button type="button" onClick="{{k.pick}}" aria-pressed="{{k.pressed}}" style="{{k.style}}">{{k.label}}</button></sc-for></div></div>
+                    <sc-if value="{{eoRetry}}" hint-placeholder-val="{{ false }}">
+                      <div class="row" style="align-items: flex-end; gap: 10px;">
+                        <label class="lbl">چند بار<input class="inp" type="number" min="1" value="{{eo.times}}" onChange="{{eoTimes}}" style="width: 96px;" /></label>
+                        <label class="lbl">با فاصله<input class="inp" type="number" min="1" value="{{eo.gap}}" onChange="{{eoGap}}" style="width: 96px;" /></label>
+                        <sc-for list="{{eoUnits}}" as="k" hint-placeholder-count="2"><button type="button" onClick="{{k.pick}}" aria-pressed="{{k.pressed}}" style="{{k.style}}">{{k.label}}</button></sc-for>
+                      </div>
+                    </sc-if>
+                    <div class="col" style="gap: 8px;"><span style="font-size: 13px; color: #cbd5e1;">در گزارش به‌عنوان</span><div class="row"><sc-for list="{{eoTags}}" as="k" hint-placeholder-count="3"><button type="button" onClick="{{k.pick}}" aria-pressed="{{k.pressed}}" style="{{k.style}}">{{k.label}}</button></sc-for></div></div>
+                    <label class="lbl">تا چند روز تماس نگیرید (خالی یعنی {{gapDefault}} روز، از تنظیمات عمومی)<input class="inp" type="number" min="0" value="{{eoNoCall}}" onChange="{{eoSetNoCall}}" style="width: 110px;" /></label>
+                    <div class="row" style="gap: 4px 20px;"><label class="chk"><input type="checkbox" checked="{{eoEscalate}}" onChange="{{eoSetEscalate}}" />ارجاع به مدیر</label><label class="chk"><input type="checkbox" checked="{{eoActive}}" onChange="{{eoSetActive}}" />فعال</label></div>
+                  </section>
+
+                  <div class="col" style="gap: 3px; margin-top: 12px;"><h2 class="h" style="font-size: 15px;">فرم نتیجه</h2><span class="mut">چیزهایی که کارمند بعد از انتخاب این نتیجه پر می‌کند.</span></div>
+                  <sc-for list="{{fieldRows}}" as="f" hint-placeholder-count="2">
+                    <section class="card">
+                      <div class="row" style="padding-inline-end: 8px; gap: 4px;">
+                        <button type="button" onClick="{{f.toggle}}" aria-expanded="{{f.open}}" style="flex: 1 1 200px; min-width: 0; min-height: 50px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 10px; padding: 6px 14px; background: transparent; border: 0; color: inherit; cursor: pointer; text-align: right;"><span style="font-size: 13.5px; font-weight: 600;">{{f.label}}</span><span class="mut">{{f.sub}}</span></button>
+                        <button type="button" class="ghost" onClick="{{f.up}}" aria-label="بالاتر">▲</button>
+                        <button type="button" class="ghost" onClick="{{f.down}}" aria-label="پایین‌تر">▼</button>
+                        <button type="button" class="ghost" onClick="{{f.remove}}">حذف</button>
+                      </div>
+                      <sc-if value="{{f.open}}" hint-placeholder-val="{{ false }}">
+                        <div class="col" style="gap: 12px; padding: 4px 14px 16px;">
+                          <label class="lbl">عنوان فیلد<input class="inp" type="text" value="{{f.title}}" onChange="{{f.setTitle}}" style="max-width: 420px;" /></label>
+                          <sc-if value="{{f.hasOptions}}" hint-placeholder-val="{{ true }}">
+                            <div class="col" style="gap: 8px;">
+                              <span style="font-size: 13px; color: #cbd5e1;">گزینه‌ها و برچسب گزارش</span>
+                              <sc-for list="{{f.optRows}}" as="p" hint-placeholder-count="2">
+                                <div class="row">
+                                  <input class="inp" type="text" aria-label="عنوان گزینه" value="{{p.t}}" onChange="{{p.setT}}" style="flex: 1 1 180px; width: auto;" />
+                                  <sc-for list="{{p.tags}}" as="k" hint-placeholder-count="3"><button type="button" onClick="{{k.pick}}" aria-pressed="{{k.pressed}}" style="{{k.style}}">{{k.label}}</button></sc-for>
+                                  <button type="button" class="ghost" onClick="{{p.remove}}" aria-label="حذف گزینه">حذف</button>
+                                </div>
+                              </sc-for>
+                              <button type="button" class="add" onClick="{{f.addOpt}}" style="align-self: flex-start;">افزودن گزینه</button>
+                            </div>
+                          </sc-if>
+                          <div class="row" style="gap: 4px 20px;">
+                            <label class="chk"><input type="checkbox" checked="{{f.required}}" onChange="{{f.setRequired}}" />اجباری</label>
+                            <sc-if value="{{f.isDate}}" hint-placeholder-val="{{ false }}"><label class="chk"><input type="checkbox" checked="{{f.followup}}" onChange="{{f.setFollowup}}" />این تاریخ کار پیگیری بسازد</label></sc-if>
+                          </div>
+                        </div>
+                      </sc-if>
+                    </section>
+                  </sc-for>
+                  <div class="col" style="gap: 7px;">
+                    <span class="mut">افزودن فیلد</span>
+                    <div class="row"><sc-for list="{{palette}}" as="t" hint-placeholder-count="9"><button type="button" class="add" onClick="{{t.pick}}">{{t.label}}</button></sc-for></div>
+                  </div>
+                </div>
+              </sc-if>
+            </main>
+
+            <aside class="card col" style="flex: 2 1 260px; min-width: 0; padding: 16px; gap: 12px;">
+              <h2 class="h">پیش‌نمایش برای کارمند</h2>
+              <sc-if value="{{noPreview}}" hint-placeholder-val="{{ false }}"><span class="mut">این نتیجه فیلدی ندارد و با یک کلیک ثبت می‌شود.</span></sc-if>
+              <sc-for list="{{preview}}" as="q" hint-placeholder-count="3">
+                <div class="col" style="gap: 6px;"><span style="font-size: 13px; color: #cbd5e1;">{{q.title}}</span><div class="row"><sc-for list="{{q.bits}}" as="p" hint-placeholder-count="2"><span style="padding: 5px 10px; border-radius: 9px; background: #131924; border: 1px solid rgba(255,255,255,.1); font-size: 12px; color: #cbd5e1;">{{p}}</span></sc-for></div></div>
+              </sc-for>
+            </aside>
+          </div>
+          </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{isSettings}}" hint-placeholder-val="{{ false }}">
+        <div class="col" style="gap: 16px;">
+        <section class="card" style="padding: 6px 18px;">
+          <sc-for list="{{ruleRows}}" as="r" hint-placeholder-count="3">
+            <label class="row" style="justify-content: space-between; gap: 8px 20px; min-height: 64px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,.06);">
+              <span class="col" style="gap: 2px; flex: 1 1 280px;"><span style="font-size: 13.5px;">{{r.title}}</span><span class="mut">{{r.help}}</span></span>
+              <span class="row mut"><input class="inp" type="number" min="0" value="{{r.value}}" onChange="{{r.set}}" style="width: 90px;" />{{r.unit}}</span>
+            </label>
+          </sc-for>
+        </section>
+        <section class="col" style="gap: 8px;">
+          <div class="col" style="gap: 3px;"><h2 class="h" style="font-size: 15px;">برچسب‌ها</h2><span class="mut">در همه برنامه‌ها مشترک است. برچسب «نیاز به اقدام» خودکار یک کارت در گزارش می‌سازد.</span></div>
+          <sc-for list="{{tagLib}}" as="t" hint-placeholder-count="2">
+            <div class="card row" style="padding: 10px 14px; gap: 8px 18px;">
+              <input class="inp" type="text" aria-label="عنوان برچسب" value="{{t.title}}" onChange="{{t.setTitle}}" style="flex: 1 1 180px; width: auto; max-width: 260px;" />
+              <span class="row"><sc-for list="{{t.colors}}" as="c" hint-placeholder-count="6"><button type="button" aria-label="{{c.aria}}" aria-pressed="{{c.pressed}}" onClick="{{c.pick}}" style="{{c.style}}"></button></sc-for></span>
+              <label class="chk"><input type="checkbox" checked="{{t.action}}" onChange="{{t.setAction}}" />نیاز به اقدام</label>
+              <label class="chk"><input type="checkbox" checked="{{t.untilBuy}}" onChange="{{t.setUntil}}" />تا خرید باز بماند</label>
+              <label class="chk"><input type="checkbox" checked="{{t.on}}" onChange="{{t.setOn}}" />فعال</label>
+            </div>
+          </sc-for>
+          <button type="button" class="add" onClick="{{addTag}}" style="align-self: flex-start;">افزودن برچسب</button>
+        </section>
+        </div>
+      </sc-if>
+    </div>
+  </sc-if>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    var opt = function (t, tag, b) { return { t: t, tags: [], b: b || 0 }; };
+    this.state = {
+      role: 'agent', tTab: 'open', q: '', fCamp: 'all', sort: 'due', sel: [], taskId: null, outcome: null, answers: {}, note: '', toast: '', undoData: null,
+      mPage: 'report', rTab: 'sales', rCamp: 'all', editId: null, openO: null, openF: null, openCust: null, newCamp: '', seq: 200,
+      rules: { buyWindow: 30, gapAfterSuccess: 30, noteMin: 20 },
+      tags: [{ id: 'tg1', title: 'فرصت فروش', color: '#34d399', action: true, untilBuy: true, on: true }, { id: 'tg2', title: 'نارضایتی', color: '#fb7185', action: true, untilBuy: false, on: true }],
+      closedEsc: [], fResult: 'all', fTag: 'all',
+      page: 'calls', ecTab: 'aud', cfTier: [], cfMin: 'all', cfBranch: 'all', cfPay: 'all', cSel: [], listOpen: false, listName: '', listType: 'fixed', listMsg: '',
+      lists: [
+        { id: 'l1', name: 'طلایی‌های غیرفعال', type: 'dynamic', count: 640, rule: 'سطح طلایی ۱ و ۲، آخرین خرید بیش از ۹۰ روز پیش' },
+        { id: 'l2', name: 'VIP بعد از خرید', type: 'dynamic', count: 120, rule: 'سطح VIP و الماس، خرید در ۷ روز اخیر' }
+      ],
+      camps: [
+        { id: 'c1', name: 'بازگشت طلایی‌ها', listId: 'l1', shareMode: 'equal', shares: {}, agents: ['سارا', 'نیما'], on: true, s: [640, 214, 19, 78], outcomes: [
+          { id: 'a1', title: 'پاسخ نداد', connected: false, noteReq: false, times: 3, gap: 2, unit: 'روز', effect: 'none', tags: [], b: 96, fields: [] },
+          { id: 'a2', title: 'علاقه‌مند است', connected: true, noteReq: true, times: 0, gap: 1, unit: 'روز', effect: 'none', tags: ['tg1'], b: 57, fields: [
+            { id: 'f1', type: 'single', title: 'به چه دسته‌ای علاقه دارد؟', required: true, options: [opt('مانتو', 'none', 24), opt('شلوار', 'none', 18), opt('کفش', 'none', 15)] },
+            { id: 'f2', type: 'number', title: 'بودجه تقریبی (میلیون تومان)', required: false, options: [], avg: 6.5 },
+            { id: 'f3', type: 'date', title: 'تاریخ تماس بعدی', required: true, followup: true, options: [] }
+          ] },
+          { id: 'a3', escalate: true, title: 'ناراضی است', connected: true, noteReq: true, times: 0, gap: 1, unit: 'روز', effect: 'none', tags: ['tg2'], b: 21, fields: [
+            { id: 'f4', type: 'multi', title: 'دلیل نارضایتی', required: true, options: [opt('قیمت', 'none', 9), opt('ارسال', 'none', 14), opt('کیفیت', 'none', 5)] },
+            { id: 'f5', type: 'toggle', title: 'پیگیری مدیر لازم است', required: false, options: [], yes: 8 }
+          ] },
+          { id: 'a4', title: 'تماس نگیرید', connected: false, noteReq: false, times: 0, gap: 1, unit: 'روز', effect: 'dnc', tags: [], b: 6, fields: [] }
+        ] },
+        { id: 'c2', name: 'نظرسنجی VIP بعد از خرید', listId: 'l2', shareMode: 'equal', shares: {}, agents: ['سارا', 'مینا'], on: true, s: [120, 88, 12, 46], outcomes: [
+          { id: 'b1', title: 'در دسترس نبود', connected: false, noteReq: false, times: 2, gap: 4, unit: 'ساعت', effect: 'none', tags: [], b: 22, fields: [] },
+          { id: 'b2', title: 'نظر داد', connected: true, noteReq: false, times: 0, gap: 1, unit: 'روز', effect: 'none', tags: [], b: 66, fields: [
+            { id: 'g1', type: 'rating', title: 'امتیاز تجربه خرید', required: true, options: [opt('۱', 'none', 2), opt('۲', 'none', 4), opt('۳', 'none', 12), opt('۴', 'none', 26), opt('۵', 'none', 22)] },
+            { id: 'g2', type: 'toggle', title: 'الینور را به دیگران معرفی می‌کند', required: false, options: [], yes: 51 },
+            { id: 'g3', type: 'time', title: 'بهترین ساعت تماس', required: false, options: [] },
+            { id: 'g4', type: 'long', title: 'پیشنهاد مشتری', required: false, options: [] }
+          ] }
+        ] }
+      ],
+      tasks: [
+        { id: 't1', cid: 1, camp: 'c1', due: -2, attempt: 2, last: 'پاسخ نداد' },
+        { id: 't2', cid: 2, camp: 'c2', due: 0, attempt: 1, last: '', star: true },
+        { id: 't3', cid: 3, camp: 'c1', due: 0, attempt: 2, last: 'پاسخ نداد' },
+        { id: 't4', cid: 4, camp: 'c1', due: 0, attempt: 1, last: '' },
+        { id: 't5', cid: 5, camp: 'c2', due: 1, attempt: 1, last: '' },
+        { id: 't6', cid: 6, camp: 'c1', due: 3, attempt: 1, last: '' }
+      ],
+      logs: {
+        7: [{ day: '۱۴۰۵/۰۸/۰۳', agent: 'مینا', camp: 'c1', title: 'علاقه‌مند است', connected: true, tags: ['tg1'], detail: 'به چه دسته‌ای علاقه دارد؟: مانتو؛ تاریخ تماس بعدی: ۱۴۰۵/۰۸/۲۰؛ منتظر مدل جدید است.', answers: {} }],
+        8: [{ day: '۱۴۰۵/۰۸/۰۵', agent: 'نیما', camp: 'c1', esc: true, title: 'ناراضی است', connected: true, tags: ['tg2'], detail: 'دلیل نارضایتی: ارسال؛ پیگیری مدیر لازم است: بله؛ از تأخیر ارسال ناراضی بود.', answers: {} }]
+      }
+    };
+  }
+  renderVals() {
+    var self = this, S = this.state;
+    var fa = function (n) { return Number(n).toLocaleString('fa-IR', { maximumFractionDigits: 1 }); };
+    var customers = {
+      1: { name: 'مشتری نمونه ۱', tier: 'طلایی ۱', info: 'آخرین خرید ۱۲۰ روز پیش، فروشگاه ساری', phone: '0912 000 0001', v: 48 },
+      2: { name: 'مشتری نمونه ۲', tier: 'VIP', info: 'آخرین خرید ۳ روز پیش، سایت', phone: '0912 000 0002', v: 92 },
+      3: { name: 'مشتری نمونه ۳', tier: 'طلایی ۲', info: 'آخرین خرید ۹۵ روز پیش، فروشگاه گرگان', phone: '0912 000 0003', v: 19 },
+      4: { name: 'مشتری نمونه ۴', tier: 'طلایی ۱', info: 'آخرین خرید ۳۱۰ روز پیش، سایت', phone: '0912 000 0004', v: 37 },
+      5: { name: 'مشتری نمونه ۵', tier: 'الماس', info: 'آخرین خرید ۷ روز پیش، فروشگاه کاپری', phone: '0912 000 0005', v: 64 },
+      6: { name: 'مشتری نمونه ۶', tier: 'طلایی ۲', info: 'آخرین خرید ۶۰ روز پیش، سایت', phone: '0912 000 0006', v: 17 },
+      7: { name: 'مشتری نمونه ۷', tier: 'طلایی ۱', info: '', phone: '0912 000 0007', v: 28 },
+      8: { name: 'مشتری نمونه ۸', tier: 'طلایی ۲', info: '', phone: '0912 000 0008', v: 15 }
+    };
+    var pill = function (on) { return 'min-height: 42px; padding: 0 14px; border-radius: 12px; font-size: 13px; cursor: pointer; border: 1px solid ' + (on ? '#60a5fa' : 'rgba(255,255,255,.12)') + '; background: ' + (on ? 'rgba(59,130,246,.22)' : '#131924') + '; color: ' + (on ? '#fff' : '#cbd5e1') + ';' + (on ? ' font-weight: 600;' : ''); };
+    var seg = function (on) { return 'border: 0; cursor: pointer; min-height: 38px; padding: 0 16px; border-radius: 10px; font-size: 13px; ' + (on ? 'background: #3b82f6; color: #fff; font-weight: 600;' : 'background: transparent; color: #94a3b8;'); };
+    var tab = function (on) { return 'min-height: 42px; padding: 0 2px; margin-bottom: -1px; background: transparent; border: 0; border-bottom: 2px solid ' + (on ? '#60a5fa' : 'transparent') + '; cursor: pointer; font-size: 14px; color: ' + (on ? '#f8fafc' : '#94a3b8') + ';' + (on ? ' font-weight: 600;' : ''); };
+    var chip = function (on) { return 'min-height: 34px; padding: 0 12px; border-radius: 999px; font-size: 12.5px; cursor: pointer; border: 1px solid ' + (on ? '#60a5fa' : 'rgba(255,255,255,.12)') + '; background: ' + (on ? 'rgba(59,130,246,.2)' : 'transparent') + '; color: ' + (on ? '#fff' : '#94a3b8') + ';'; };
+    var opts = function (list, cur, set, st) { return list.map(function (x) { var on = cur === x[0]; return { label: x[1], pressed: on ? 'true' : 'false', style: (st || pill)(on), pick: function () { set(x[0]); } }; }); };
+    var tabs = function (list, cur, key, st) { return opts(list, cur, function (v) { var o = {}; o[key] = v; self.setState(o); }, st); };
+    var bar = function (v, max) { return 'height: 8px; border-radius: 4px; background: #3b82f6; width: ' + Math.max(2, Math.round(v / (max || 1) * 100)) + '%;'; };
+    var campOf = function (id) { return S.camps.filter(function (c) { return c.id === id; })[0]; };
+    var typeLabels = { single: 'تک‌انتخابی', multi: 'چندانتخابی', toggle: 'تیک روشن/خاموش', text: 'متن کوتاه', long: 'متن بلند', number: 'عدد', rating: 'امتیاز ۱ تا ۵', date: 'تاریخ', time: 'ساعت' };
+    var listOf = function (id) { return S.lists.filter(function (l) { return l.id === id; })[0]; };
+    var dueText = function (d) { return d < 0 ? fa(-d) + ' روز تأخیر' : (d === 0 ? 'امروز' : fa(d) + ' روز دیگر'); };
+
+    var lastLogOf = function (cid) { var l = S.logs[cid] || []; return l[l.length - 1] || null; };
+    var tagOf = function (id) { return S.tags.filter(function (t) { return t.id === id; })[0]; };
+    var tagNames = function (cid) { var l = lastLogOf(cid); var n = l && l.tags ? l.tags.map(function (i) { var t = tagOf(i); return t ? t.title : ''; }).filter(Boolean) : []; return n.length ? ' (' + n.join('، ') + ')' : ''; };
+    var tagChips = function (cur, set) { return S.tags.filter(function (t) { return t.on; }).map(function (t) { var on = cur.indexOf(t.id) >= 0; return { label: t.title, pressed: on ? 'true' : 'false', style: chip(on) + (on ? ' border-color: ' + t.color + '; color: ' + t.color + '; background: transparent;' : ''), pick: function () { set(on ? cur.filter(function (x) { return x !== t.id; }) : cur.concat([t.id])); } }; }); };
+    var open = S.tasks.filter(function (t) { return !t.done; });
+    var inTab = function (t) { var k = S.tTab; if (k === 'done') return t.done; if (t.done) return false; if (k === 'late') return t.due < 0; if (k === 'today') return t.due === 0; if (k === 'future') return t.due > 0; return true; };
+    var rowsData = S.tasks.filter(inTab).filter(function (t) {
+      var c = customers[t.cid];
+      var ll = lastLogOf(t.cid);
+      return (S.fCamp === 'all' || t.camp === S.fCamp) && (!S.q || c.name.indexOf(S.q) >= 0 || c.phone.indexOf(S.q) >= 0) && (S.fResult === 'all' || t.last === S.fResult) && (S.fTag === 'all' || (ll && ll.tags && ll.tags.indexOf(S.fTag) >= 0));
+    }).sort(function (a, b) {
+      if (S.sort === 'value') return customers[b.cid].v - customers[a.cid].v;
+      if (S.sort === 'star') return (b.star ? 1 : 0) - (a.star ? 1 : 0) || a.due - b.due;
+      return a.due - b.due;
+    });
+    var resetForm = { outcome: null, answers: {}, note: '' };
+    var openTask = function (id) { self.setState(Object.assign({}, resetForm, { taskId: id, toast: '' })); };
+    var patchTasks = function (ids, patch) { self.setState({ tasks: S.tasks.map(function (t) { return ids.indexOf(t.id) >= 0 ? Object.assign({}, t, patch) : t; }) }); };
+
+    var curT = S.tasks.filter(function (t) { return t.id === S.taskId && !t.done; })[0] || null;
+    var cur = curT ? customers[curT.cid] : null;
+    var curC = curT ? campOf(curT.camp) : null;
+    var selO = curC ? curC.outcomes.filter(function (o) { return o.id === S.outcome; })[0] : null;
+    var filled = function (f) { var a = S.answers[f.id]; return Array.isArray(a) ? a.length > 0 : !!a; };
+    var missing = selO ? selO.fields.filter(function (f) { return f.required && !filled(f); }).map(function (f) { return f.title || 'فیلد بدون عنوان'; }) : [];
+    var noteOk = !selO || !selO.connected || S.note.trim().length >= S.rules.noteMin;
+    var cannotSave = !selO || missing.length > 0 || !noteOk;
+    var setAns = function (id, v) { var n = Object.assign({}, S.answers); n[id] = v; self.setState({ answers: n }); };
+    var choices = function (f) { return f.type === 'rating' ? ['۱', '۲', '۳', '۴', '۵'] : f.options.map(function (o) { return o.t; }); };
+
+    var save = function (o) {
+      var parts = [];
+      o.fields.forEach(function (f) { var a = S.answers[f.id]; if (Array.isArray(a) ? a.length : a) parts.push(f.title + ': ' + (Array.isArray(a) ? a.join('، ') : (a === true ? 'بله' : a))); });
+      if (S.note.trim()) parts.push(S.note.trim());
+      var flagged = o.tags.slice();
+      o.fields.forEach(function (f) { f.options.forEach(function (p) { var a = S.answers[f.id]; if (a === p.t || (Array.isArray(a) && a.indexOf(p.t) >= 0)) (p.tags || []).forEach(function (x) { if (flagged.indexOf(x) < 0) flagged.push(x); }); }); });
+      var logs = Object.assign({}, S.logs);
+      logs[curT.cid] = (logs[curT.cid] || []).concat([{ day: 'امروز', agent: 'سارا', camp: curT.camp, oid: o.id, title: o.title, connected: o.connected, tags: flagged, esc: !!o.escalate, detail: parts.join('؛ '), answers: S.answers }]);
+      var msg = o.title + ' ثبت شد.', retry = curT.attempt <= o.times && o.times > 0, exhausted = o.times > 0 && !retry;
+      var fu = o.fields.filter(function (f) { return f.type === 'date' && f.followup && S.answers[f.id]; })[0];
+      var tasks = S.tasks.map(function (t) {
+        if (t.id !== curT.id) return t;
+        if (retry) return Object.assign({}, t, { due: o.unit === 'ساعت' ? 0 : o.gap, attempt: t.attempt + 1, last: o.title });
+        return Object.assign({}, t, { done: true, last: exhausted ? 'در دسترس نبود' : o.title });
+      });
+      if (retry) msg += ' تلاش بعدی: ' + fa(o.gap) + ' ' + o.unit + ' دیگر.';
+      if (exhausted) msg += ' تلاش‌ها تمام شد و کار با وضعیت «در دسترس نبود» بسته شد.';
+      if (o.escalate) msg += ' به مدیر ارجاع شد.';
+      if (o.effect !== 'dnc' && !retry && (o.noCall || o.connected)) msg += ' تا ' + fa(o.noCall || S.rules.gapAfterSuccess) + ' روز در هیچ برنامهی نمی‌آید.';
+      if (fu) { tasks = tasks.concat([{ id: 't' + S.seq, cid: curT.cid, camp: curT.camp, due: 3, attempt: 1, last: o.title }]); msg += ' کار پیگیری برای ' + S.answers[fu.id] + ' ساخته شد.'; }
+      if (o.effect === 'dnc') { tasks = tasks.map(function (t) { return t.cid === curT.cid ? Object.assign({}, t, { done: true }) : t; }); msg += ' مشتری از همه صف‌ها خارج شد.'; }
+      self.setState(Object.assign({}, resetForm, { logs: logs, tasks: tasks, seq: S.seq + 1, toast: msg, taskId: null, undoData: { logs: S.logs, tasks: S.tasks, taskId: S.taskId } }));
+    };
+
+    var todayLogs = [];
+    Object.keys(S.logs).forEach(function (k) { S.logs[k].forEach(function (l) { if (l.day === 'امروز') todayLogs.push(l); }); });
+    var todayOk = todayLogs.filter(function (l) { return l.connected; }).length;
+    var count = function (fn) { return S.tasks.filter(fn).length; };
+
+    /* builder */
+    var ec = S.editId ? campOf(S.editId) : null;
+    var updCamp = function (patch) { self.setState({ camps: S.camps.map(function (c) { return c.id === ec.id ? Object.assign({}, c, patch) : c; }) }); };
+    var eo = ec ? (ec.outcomes.filter(function (o) { return o.id === S.openO; })[0] || ec.outcomes[0] || null) : null;
+    var updO = function (patch) { updCamp({ outcomes: ec.outcomes.map(function (o) { return o.id === eo.id ? Object.assign({}, o, patch) : o; }) }); };
+    var updF = function (fid, patch) { updO({ fields: eo.fields.map(function (f) { return f.id === fid ? Object.assign({}, f, patch) : f; }) }); };
+    var multi = function (list, cur, set) { return list.map(function (v) { var on = cur.indexOf(v) >= 0; return { label: v, pressed: on ? 'true' : 'false', style: chip(on), pick: function () { set(on ? cur.filter(function (x) { return x !== v; }) : cur.concat([v])); } }; }); };
+    var moveO = function (oid, d) { var l = ec.outcomes.slice(), i = l.map(function (x) { return x.id; }).indexOf(oid), j = i + d; if (j < 0 || j >= l.length) return; var t = l[i]; l[i] = l[j]; l[j] = t; updCamp({ outcomes: l }); };
+    var eoUsed = !!eo && ((eo.b || 0) > 0 || Object.keys(S.logs).some(function (k) { return S.logs[k].some(function (l) { return l.oid === eo.id; }); }));
+    var move = function (fid, d) { var l = eo.fields.slice(), i = l.map(function (x) { return x.id; }).indexOf(fid), j = i + d; if (j < 0 || j >= l.length) return; var t = l[i]; l[i] = l[j]; l[j] = t; updO({ fields: l }); };
+
+    /* reports */
+    var cIds = S.rCamp === 'all' ? S.camps.map(function (c) { return c.id; }) : [S.rCamp];
+    var sum = [0, 0, 0, 0];
+    cIds.forEach(function (id) { var c = campOf(id); if (c) c.s.forEach(function (v, i) { sum[i] += v; }); });
+    var liveOk = todayLogs.filter(function (l) { return l.connected && cIds.indexOf(l.camp) >= 0; }).length;
+    var reached = sum[1] + liveOk;
+    var allLogs = [];
+    Object.keys(S.logs).forEach(function (k) { S.logs[k].forEach(function (l) { if (cIds.indexOf(l.camp) >= 0) allLogs.push({ cid: k, l: l }); }); });
+    var tagCount = function (tag, base) { return base + allLogs.filter(function (x) { return (x.l.tags || []).indexOf(tag) >= 0 && x.l.day === 'امروز'; }).length; };
+    var tagRows = function (tag) { return allLogs.filter(function (x) { return (x.l.tags || []).indexOf(tag) >= 0; }).slice(-2).map(function (x) { return { n: customers[x.cid].name, d: x.l.title + '، ' + x.l.day }; }); };
+    var widgets = [];
+    if (S.rCamp !== 'all' && campOf(S.rCamp)) {
+      var rc = campOf(S.rCamp);
+      var lv = todayLogs.filter(function (l) { return l.camp === rc.id; });
+      var dist = rc.outcomes.map(function (o) { return [o.title, (o.b || 0) + lv.filter(function (l) { return l.oid === o.id; }).length]; });
+      var dm = Math.max.apply(null, dist.map(function (d) { return d[1]; }).concat([1]));
+      widgets.push({ title: 'نتیجه تماس‌ها', summary: fa(dist.reduce(function (s, d) { return s + d[1]; }, 0)) + ' تماس', bars: dist.map(function (d) { return { label: d[0], value: fa(d[1]), bar: bar(d[1], dm) }; }), texts: [] });
+      rc.outcomes.forEach(function (o) { o.fields.forEach(function (f) {
+        var ans = lv.map(function (l) { return l.answers[f.id]; }).filter(function (a) { return Array.isArray(a) ? a.length : a; });
+        var w = { title: f.title || 'فیلد بدون عنوان', summary: o.title, bars: [], texts: [] };
+        if (f.type === 'single' || f.type === 'multi' || f.type === 'rating') {
+          var list = f.type === 'rating' ? ['۱', '۲', '۳', '۴', '۵'].map(function (t, i) { return { t: t, b: f.options[i] ? f.options[i].b : 0 }; }) : f.options;
+          var vals = list.map(function (p) { return [p.t, (p.b || 0) + ans.filter(function (a) { return a === p.t || (Array.isArray(a) && a.indexOf(p.t) >= 0); }).length]; });
+          var mx = Math.max.apply(null, vals.map(function (v) { return v[1]; }).concat([1]));
+          w.bars = vals.map(function (v) { return { label: v[0], value: fa(v[1]), bar: bar(v[1], mx) }; });
+          if (f.type === 'rating') { var tot = vals.reduce(function (s, v) { return s + v[1]; }, 0); w.summary = 'میانگین ' + fa(Math.round(vals.reduce(function (s, v, i) { return s + v[1] * (i + 1); }, 0) / (tot || 1) * 10) / 10) + ' از ۵'; }
+        } else if (f.type === 'toggle') {
+          var y = (f.yes || 0) + ans.length; w.summary = fa(y) + ' بله'; w.bars = [{ label: 'بله', value: fa(y), bar: bar(y, y || 1) }];
+        } else if (f.type === 'number') {
+          var nums = ans.map(Number).filter(function (n) { return !isNaN(n); });
+          w.summary = 'میانگین ' + fa(nums.length ? nums.reduce(function (s, n) { return s + n; }, 0) / nums.length : (f.avg || 0));
+        } else {
+          w.summary = fa(ans.length) + ' پاسخ جدید'; w.texts = ans.slice(-3).length ? ans.slice(-3) : ['هنوز پاسخی ثبت نشده است.'];
+        }
+        widgets.push(w);
+      }); });
+    }
+    var setRule = function (k) { return function (e) { var r = Object.assign({}, S.rules); r[k] = Number(e.target.value); self.setState({ rules: r }); }; };
+    var cantCreate = !S.newCamp.trim();
+    var cMeta = { 1: ['ساری', 'ــ'], 2: ['سایت', 'اسنپ‌پی'], 3: ['گرگان', 'دیجی‌پی'], 4: ['سایت', 'شاپینو'], 5: ['کاپری', 'ــ'], 6: ['سایت', 'اسنپ‌پی'], 7: ['ساری', 'ــ'], 8: ['گرگان', 'ــ'] };
+    var cMatch = Object.keys(customers).filter(function (id) {
+      var c = customers[id];
+      return (!S.cfTier.length || S.cfTier.indexOf(c.tier) >= 0) && (S.cfMin === 'all' || c.v > Number(S.cfMin)) && (S.cfBranch === 'all' || cMeta[id][0] === S.cfBranch) && (S.cfPay === 'all' || cMeta[id][1] === S.cfPay);
+    });
+    var cEst = cMatch.length * 1240;
+    var cParts = [];
+    if (S.cfTier.length) cParts.push('سطح ' + S.cfTier.join('، '));
+    if (S.cfMin !== 'all') cParts.push('خرید بیش از ' + fa(S.cfMin) + ' میلیون');
+    if (S.cfBranch !== 'all') cParts.push('شعبه ' + S.cfBranch);
+    if (S.cfPay !== 'all') cParts.push('پرداخت با ' + S.cfPay);
+    var cRule = cParts.join('، ') || 'بدون فیلتر';
+    var ecList = ec ? listOf(ec.listId) : null;
+    var exA = ecList ? Math.round(ecList.count * 0.015) : 0, exB = ecList ? Math.round(ecList.count * 0.024) : 0, exC = ecList ? Math.round(ecList.count * 0.012) : 0;
+    var netCount = ecList ? ecList.count - exA - exB - exC : 0;
+    var previewText = ecList ? fa(ecList.count) + ' مشتری در لیست، ' + fa(exA + exB + exC) + ' نفر حذف شدند (' + fa(exA) + ' تماس نگیرید، ' + fa(exB) + ' تماس اخیر، ' + fa(exC) + ' کار فعال در برنامه دیگر). ' + fa(netCount) + ' کار ساخته می‌شود.' : 'یک لیست انتخاب کنید.';
+
+    return {
+      roles: tabs([['agent', 'نمای کارمند'], ['manager', 'نمای مدیر']], S.role, 'role', seg),
+      isAgent: S.role === 'agent', isManager: S.role === 'manager' && S.page === 'calls', isCustomers: S.role === 'manager' && S.page === 'customers',
+      mainNav: (S.role === 'agent' ? [['calls', 'مرکز تماس', true]] : [['home', 'خانه', false], ['sales', 'فروش', false], ['customers', 'مشتریان', true], ['products', 'محصولات', false], ['calls', 'مرکز تماس', true]]).map(function (x) {
+        var on = S.role === 'agent' ? true : S.page === x[0];
+        return { label: x[1], disabled: !x[2], pressed: on ? 'true' : 'false', style: 'min-height: 38px; padding: 0 14px; border-radius: 10px; border: 0; font-size: 13.5px; background: ' + (on ? '#131924' : 'transparent') + '; color: ' + (on ? '#f8fafc' : (x[2] ? '#cbd5e1' : '#64748b')) + '; cursor: ' + (x[2] ? 'pointer' : 'default') + ';' + (on ? ' font-weight: 600;' : ''), pick: function () { if (x[2]) self.setState({ page: x[0] }); } };
+      }),
+      myStats: [
+        { label: 'تماس امروز', value: fa(12 + todayLogs.length) + ' از ' + fa(30) },
+        { label: 'پاسخ‌دهی این ماه', value: fa(Math.round((121 + todayOk) / (180 + todayLogs.length) * 100)) + '٪' },
+        { label: 'خرید از تماس‌های من', value: fa(16) }
+      ],
+      taskTabs: tabs([['open', 'همه باز (' + fa(open.length) + ')'], ['late', 'عقب‌افتاده (' + fa(count(function (t) { return !t.done && t.due < 0; })) + ')'], ['today', 'امروز (' + fa(count(function (t) { return !t.done && t.due === 0; })) + ')'], ['future', 'آینده (' + fa(count(function (t) { return !t.done && t.due > 0; })) + ')'], ['done', 'انجام‌شده (' + fa(count(function (t) { return t.done; })) + ')']], S.tTab, 'tTab', tab),
+      q: S.q, setQ: function (e) { self.setState({ q: e.target.value }); },
+      fCamps: tabs([['all', 'همه']].concat(S.camps.map(function (c) { return [c.id, c.name]; })), S.fCamp, 'fCamp', chip),
+      sorts: tabs([['due', 'موعد'], ['value', 'ارزش مشتری'], ['star', 'اولویت']], S.sort, 'sort', chip),
+      fResults: tabs([['all', 'همه']].concat(S.tasks.map(function (t) { return t.last; }).filter(function (v, i, a) { return v && a.indexOf(v) === i; }).map(function (v) { return [v, v]; })), S.fResult, 'fResult', chip),
+      fTags: tabs([['all', 'همه']].concat(S.tags.filter(function (t) { return t.on; }).map(function (t) { return [t.id, t.title]; })), S.fTag, 'fTag', chip),
+      hasSel: S.sel.length > 0,
+      selText: fa(S.sel.length) + ' مورد انتخاب شد',
+      bulkTomorrow: function () { self.setState({ sel: [], tasks: S.tasks.map(function (t) { return S.sel.indexOf(t.id) >= 0 ? Object.assign({}, t, { due: 1 }) : t; }) }); },
+      bulkWeek: function () { self.setState({ sel: [], tasks: S.tasks.map(function (t) { return S.sel.indexOf(t.id) >= 0 ? Object.assign({}, t, { due: 7 }) : t; }) }); },
+      bulkStar: function () { self.setState({ sel: [], tasks: S.tasks.map(function (t) { return S.sel.indexOf(t.id) >= 0 ? Object.assign({}, t, { star: true }) : t; }) }); },
+      bulkClear: function () { self.setState({ sel: [] }); },
+      rows: rowsData.map(function (t) {
+        var c = customers[t.cid], cm = campOf(t.camp), isSel = S.sel.indexOf(t.id) >= 0;
+        return {
+          name: c.name, tier: c.tier, camp: cm ? cm.name : '', due: t.done ? 'انجام شد' : dueText(t.due),
+          dueStyle: 'font-size: 12.5px; color: ' + (t.done ? '#94a3b8' : (t.due < 0 ? '#fb7185' : (t.due === 0 ? '#fbbf24' : '#94a3b8'))) + ';',
+          attempt: fa(t.attempt), last: (t.last || 'ــ') + tagNames(t.cid), value: fa(c.v) + ' م',
+          trStyle: t.id === S.taskId ? 'background: rgba(59,130,246,.12);' : '',
+          sel: isSel, selLabel: 'انتخاب ' + c.name,
+          toggleSel: function () { self.setState({ sel: isSel ? S.sel.filter(function (x) { return x !== t.id; }) : S.sel.concat([t.id]) }); },
+          open: function () { if (!t.done) openTask(t.id); },
+          star: function () { patchTasks([t.id], { star: !t.star }); },
+          starred: t.star ? 'true' : 'false', starLabel: t.star ? 'حذف اولویت' : 'اولویت بالا',
+          starStyle: 'width: 32px; height: 32px; background: transparent; border: 0; cursor: pointer; font-size: 15px; color: ' + (t.star ? '#fbbf24' : '#475569') + ';'
+        };
+      }),
+      noRows: rowsData.length === 0,
+      noCur: !cur, hasCur: !!cur,
+      cur: cur || {}, curCamp: curC ? 'برنامه: ' + curC.name + '، تلاش ' + fa(curT.attempt) : '',
+      noOutcomes: !!curC && curC.outcomes.length === 0,
+      outBtns: curC ? curC.outcomes.filter(function (o) { return !o.off; }).map(function (o) {
+        var on = S.outcome === o.id;
+        return { label: o.title, pressed: on ? 'true' : 'false', style: pill(on), pick: function () { if (o.fields.length || o.connected) self.setState({ outcome: o.id, answers: {}, toast: '' }); else save(o); } };
+      }) : [],
+      formFields: selO ? selO.fields.map(function (f) {
+        var a = S.answers[f.id], isChoice = f.type === 'single' || f.type === 'multi' || f.type === 'rating';
+        var inputTypes = { text: 'text', number: 'number', date: 'text', time: 'time' };
+        return {
+          title: (f.title || 'فیلد بدون عنوان') + (f.required ? ' (اجباری)' : ''),
+          isToggle: f.type === 'toggle', notToggle: f.type !== 'toggle', checked: !!a,
+          setCheck: function (e) { setAns(f.id, e.target.checked); },
+          isInput: !!inputTypes[f.type], inputType: inputTypes[f.type] || 'text', ph: f.type === 'date' ? '۱۴۰۵/۰۸/۲۰' : '',
+          isLong: f.type === 'long', val: a || '', setVal: function (e) { setAns(f.id, e.target.value); },
+          opts: isChoice ? choices(f).map(function (t) {
+            var on = f.type === 'multi' ? (a || []).indexOf(t) >= 0 : a === t;
+            return { label: t, pressed: on ? 'true' : 'false', style: pill(on), pick: function () {
+              if (f.type === 'multi') { var l = a || []; setAns(f.id, on ? l.filter(function (x) { return x !== t; }) : l.concat([t])); } else setAns(f.id, t);
+            } };
+          }) : []
+        };
+      }) : [],
+      showNote: !!selO,
+      noteLabel: selO && selO.connected ? 'یادداشت (اجباری)' : 'یادداشت (اختیاری)',
+      note: S.note, setNote: function (e) { self.setState({ note: e.target.value }); },
+      saveCall: function () { if (!cannotSave) save(selO); },
+      cannotSave: cannotSave,
+      saveStyle: 'min-height: 44px; padding: 0 22px; border-radius: 12px; border: 0; font-size: 14px; font-weight: 600; ' + (cannotSave ? 'background: #1e2633; color: #94a3b8; cursor: not-allowed;' : 'background: #3b82f6; color: #fff; cursor: pointer;'),
+      saveHint: missing.length ? 'لازم است: ' + missing.join('، ') : (!noteOk ? 'یادداشت حداقل ' + fa(S.rules.noteMin) + ' حرف (الان ' + fa(S.note.trim().length) + ')' : 'آماده ثبت'),
+      snooze1: function () { self.setState({ taskId: null, tasks: S.tasks.map(function (t) { return t.id === S.taskId ? Object.assign({}, t, { due: 1 }) : t; }) }); },
+      snooze7: function () { self.setState({ taskId: null, tasks: S.tasks.map(function (t) { return t.id === S.taskId ? Object.assign({}, t, { due: 7 }) : t; }) }); },
+      noHistory: !curT || !(S.logs[curT.cid] || []).length,
+      history: curT ? (S.logs[curT.cid] || []).slice().reverse().map(function (l) { return { head: l.day + '، ' + l.agent + ': ' + l.title, detail: l.detail }; }) : [],
+      hasToast: !!S.toast, toast: S.toast,
+      undo: function () { var u = S.undoData; if (u) self.setState({ logs: u.logs, tasks: u.tasks, taskId: u.taskId, role: 'agent', toast: '', undoData: null }); },
+
+      mNav: opts([['report', 'گزارش'], ['camps', 'برنامه‌های تماس'], ['settings', 'تنظیمات عمومی']], S.mPage, function (v) { self.setState({ mPage: v, editId: null }); }, tab),
+      isReport: S.mPage === 'report', isSettings: S.mPage === 'settings',
+      isCampList: S.mPage === 'camps' && !ec, isCampEdit: S.mPage === 'camps' && !!ec,
+      rTabs: tabs([['sales', 'فروش'], ['voice', 'پاسخ‌های فرم'], ['team', 'تیم']], S.rTab, 'rTab', chip),
+      rCamps: tabs([['all', 'همه']].concat(S.camps.map(function (c) { return [c.id, c.name]; })), S.rCamp, 'rCamp', chip),
+      isSales: S.rTab === 'sales', isVoice: S.rTab === 'voice', isTeam: S.rTab === 'team',
+      kpis: [
+        { label: 'فروش پس از تماس', value: fa(sum[3]) + ' میلیون', note: 'تومان، تا ' + fa(S.rules.buyWindow) + ' روز بعد از تماس' },
+        { label: 'مشتریان خریدار', value: fa(sum[2]), note: 'از ' + fa(reached) + ' تماس انجام‌شده' },
+        { label: 'نرخ تبدیل', value: fa(Math.round(sum[2] / (reached || 1) * 1000) / 10) + '٪', note: 'خریدار به تماس' },
+        { label: 'پیشرفت', value: fa(reached) + ' از ' + fa(sum[0]), note: 'مخاطبان برنامه' }
+      ],
+      opps: S.tags.filter(function (t) { return t.on && t.action; }).map(function (t) {
+        return { title: t.title + (t.untilBuy ? '، هنوز نخریده' : ''), count: fa(tagCount(t.id, { tg1: 23, tg2: 7 }[t.id] || 0)), rows: tagRows(t.id) };
+      }).concat([{ title: 'پیگیری عقب‌افتاده', count: fa(4 + count(function (t) { return !t.done && t.due < 0; })), rows: [{ n: 'مشتری نمونه ۱', d: 'سارا، ۲ روز' }] }]),
+      outcomeBuy: (function () {
+        var r = [];
+        cIds.forEach(function (id) { var c = campOf(id); if (c) c.outcomes.forEach(function (o) {
+          if (!o.connected) return;
+          var calls = (o.b || 0) + todayLogs.filter(function (l) { return l.oid === o.id; }).length;
+          var buy = Math.round((o.b || 0) * (o.tags.indexOf('tg1') >= 0 ? 0.24 : 0.05));
+          r.push({ title: o.title, camp: c.name, calls: fa(calls), buy: fa(buy), rate: fa(Math.round(buy / (calls || 1) * 1000) / 10) + '٪' });
+        }); });
+        return r;
+      })(),
+      escRows: allLogs.filter(function (x) { return x.l.esc && S.closedEsc.indexOf(x.cid + x.l.day) < 0; }).map(function (x) {
+        return { n: customers[x.cid].name, d: x.l.title + '، ' + x.l.agent + '، ' + x.l.day, close: function () { self.setState({ closedEsc: S.closedEsc.concat([x.cid + x.l.day]) }); } };
+      }),
+      custRows: Object.keys(S.logs).filter(function (k) { return S.logs[k].some(function (l) { return cIds.indexOf(l.camp) >= 0; }); }).map(function (k) {
+        var list = S.logs[k], last = list[list.length - 1], c = customers[k];
+        return { name: c.name, tier: c.tier, res: last.title, who: last.agent + '، ' + last.day, open: S.openCust === k,
+          resStyle: 'color: ' + (last.connected ? '#34d399' : '#fbbf24') + ';',
+          logs: list.slice().reverse().map(function (l) { return { head: l.day + '، ' + l.agent + ': ' + l.title, detail: l.detail }; }),
+          pick: function () { self.setState({ openCust: S.openCust === k ? null : k }); } };
+      }),
+      voiceNeedsCamp: S.rCamp === 'all', widgets: widgets,
+      teamRows: [['سارا', 180, 121, 16, 64], ['نیما', 132, 79, 8, 31], ['مینا', 100, 68, 7, 29]].map(function (r) {
+        var me = r[0] === 'سارا';
+        return { a: r[0], b: fa(r[1] + (me ? todayLogs.length : 0)), c: fa(r[2] + (me ? todayOk : 0)), d: fa(r[3]), e: fa(r[4]) + ' میلیون تومان', f: fa(me ? count(function (t) { return !t.done && t.due < 0; }) : (r[0] === 'نیما' ? 4 : 0)) };
+      }),
+
+      campRows: S.camps.map(function (c) {
+        var fc = c.outcomes.reduce(function (s, o) { return s + o.fields.length; }, 0);
+        return { name: c.name, info: 'لیست: ' + (listOf(c.listId) ? listOf(c.listId).name : 'انتخاب نشده') + '. کارمندان: ' + (c.agents.join('، ') || 'انتخاب نشده'),
+          form: fa(c.outcomes.length) + ' نتیجه، ' + fa(fc) + ' فیلد', state: c.on ? 'فعال' : 'متوقف', toggleLabel: c.on ? 'توقف' : 'ادامه',
+          edit: function () { self.setState({ editId: c.id, openO: null, openF: null, ecTab: 'aud' }); },
+          toggle: function () { self.setState({ camps: S.camps.map(function (x) { return x.id === c.id ? Object.assign({}, x, { on: !x.on }) : x; }) }); } };
+      }),
+      newCamp: S.newCamp, setNewCamp: function (e) { self.setState({ newCamp: e.target.value }); }, cantCreate: cantCreate,
+      createStyle: 'min-height: 42px; padding: 0 18px; border-radius: 11px; border: 0; font-size: 13.5px; font-weight: 600; ' + (cantCreate ? 'background: #1e2633; color: #94a3b8; cursor: not-allowed;' : 'background: #3b82f6; color: #fff; cursor: pointer;'),
+      createCamp: function () {
+        if (cantCreate) return;
+        var id = 'c' + S.seq;
+        self.setState({ seq: S.seq + 3, newCamp: '', editId: id, openO: null, ecTab: 'aud',
+          camps: S.camps.concat([{ id: id, name: S.newCamp.trim(), listId: null, shareMode: 'equal', shares: {}, agents: ['سارا'], on: true, s: [80, 0, 0, 0], outcomes: [] }]),
+          tasks: S.tasks.concat([{ id: 't' + S.seq, cid: 7, camp: id, due: 0, attempt: 1, last: '' }, { id: 't' + (S.seq + 1), cid: 8, camp: id, due: 0, attempt: 1, last: '' }]) });
+      },
+      backCamps: function () { self.setState({ editId: null }); },
+      ec: ec || {}, setEcName: function (e) { updCamp({ name: e.target.value }); },
+      ecAgents: ec ? multi(['سارا', 'نیما', 'مینا'], ec.agents, function (v) { updCamp({ agents: v }); }) : [],
+      ecTabs: tabs([['aud', 'مشتریان و کارمندان'], ['form', 'فرم تماس']], S.ecTab, 'ecTab', tab),
+      isAud: S.ecTab === 'aud', isFormTab: S.ecTab === 'form',
+      ecLists: ec ? S.lists.map(function (l) { var on = ec.listId === l.id; return { label: l.name, pressed: on ? 'true' : 'false', style: chip(on), pick: function () { updCamp({ listId: l.id }); } }; }) : [],
+      goCustomers: function () { self.setState({ page: 'customers', listOpen: true }); },
+      uploadExcel: function () {
+        var id = 'l' + S.seq, nm = 'فایل اکسل ' + fa(S.lists.length + 1);
+        self.setState({ seq: S.seq + 1, lists: S.lists.concat([{ id: id, name: nm, type: 'fixed', count: 114, rule: 'از فایل: ۱۲۰ شماره، ۶ شماره ناشناس کنار گذاشته شد' }]), camps: S.camps.map(function (c) { return c.id === ec.id ? Object.assign({}, c, { listId: id }) : c; }) });
+      },
+      previewText: previewText,
+      shareModes: ec ? opts([['equal', 'مساوی'], ['custom', 'سهم دلخواه']], ec.shareMode, function (v) { updCamp({ shareMode: v }); }, chip) : [],
+      agentRows: ec ? ec.agents.map(function (n) {
+        var eq = Math.round(100 / ec.agents.length), custom = ec.shareMode === 'custom', sh = custom && ec.shares[n] !== undefined ? ec.shares[n] : eq;
+        return { name: n, custom: custom, share: sh, aria: 'سهم ' + n, count: fa(Math.round(netCount * sh / 100)) + ' مشتری',
+          setShare: function (e) { var x = Object.assign({}, ec.shares); x[n] = Number(e.target.value); updCamp({ shares: x }); } };
+      }) : [],
+      hasListMsg: !!S.listMsg, listMsg: S.listMsg,
+      listRows: S.lists.map(function (l) { return { name: l.name, rule: l.rule, type: l.type === 'dynamic' ? 'پویا' : 'ثابت', count: fa(l.count) + ' مشتری' }; }),
+      cfTiers: multi(['VIP', 'الماس', 'طلایی ۱', 'طلایی ۲'], S.cfTier, function (v) { self.setState({ cfTier: v }); }),
+      cfMins: tabs([['all', 'همه'], ['20', 'بیش از ۲۰ میلیون'], ['50', 'بیش از ۵۰ میلیون']], S.cfMin, 'cfMin', chip),
+      cfBranches: tabs([['all', 'همه'], ['سایت', 'سایت'], ['ساری', 'ساری'], ['گرگان', 'گرگان'], ['کاپری', 'کاپری']], S.cfBranch, 'cfBranch', chip),
+      cfPays: tabs([['all', 'همه'], ['اسنپ‌پی', 'اسنپ‌پی'], ['دیجی‌پی', 'دیجی‌پی'], ['شاپینو', 'شاپینو']], S.cfPay, 'cfPay', chip),
+      cRows: cMatch.map(function (id) {
+        var c = customers[id], on = S.cSel.indexOf(id) >= 0;
+        return { name: c.name, tier: c.tier, branch: cMeta[id][0], pay: cMeta[id][1], value: fa(c.v) + ' میلیون تومان', sel: on, selLabel: 'انتخاب ' + c.name,
+          toggle: function () { self.setState({ cSel: on ? S.cSel.filter(function (x) { return x !== id; }) : S.cSel.concat([id]) }); } };
+      }),
+      cCountText: 'حدود ' + fa(cEst) + ' مشتری با این فیلترها (عدد نمونه).',
+      openList: function () { self.setState({ listOpen: true }); }, closeList: function () { self.setState({ listOpen: false }); },
+      listOpen: S.listOpen, listName: S.listName, setListName: function (e) { self.setState({ listName: e.target.value }); },
+      listSummary: S.cSel.length ? fa(S.cSel.length) + ' مشتری انتخاب‌شده با تیک.' : fa(cEst) + ' مشتری با فیلترهای فعلی: ' + cRule + '.',
+      listCanChoose: !S.cSel.length,
+      listTypes: opts([['fixed', 'ثابت'], ['dynamic', 'پویا']], S.listType, function (v) { self.setState({ listType: v }); }, chip),
+      listTypeHelp: S.listType === 'fixed' ? 'همین مشتری‌های الان. مناسب برنامه‌های یک‌باره.' : 'هر روز مشتریان تازه‌ای که این فیلترها را دارند اضافه می‌شوند.',
+      cantSaveList: !S.listName.trim(),
+      saveListStyle: 'min-height: 44px; padding: 0 18px; border-radius: 12px; border: 0; font-size: 13.5px; font-weight: 600; ' + (S.listName.trim() ? 'background: #3b82f6; color: #fff; cursor: pointer;' : 'background: #1e2633; color: #94a3b8; cursor: not-allowed;'),
+      saveList: function () {
+        if (!S.listName.trim()) return;
+        var nm = S.listName.trim();
+        self.setState({ seq: S.seq + 1, lists: S.lists.concat([{ id: 'l' + S.seq, name: nm, type: S.cSel.length ? 'fixed' : S.listType, count: S.cSel.length || cEst, rule: S.cSel.length ? 'انتخاب دستی' : cRule }]),
+          listOpen: false, listName: '', cSel: [], page: 'calls', mPage: 'camps', editId: S.editId, listMsg: 'لیست «' + nm + '» ساخته شد و در برنامه‌های تماس قابل انتخاب است.' });
+      },
+      showCopy: !!ec && ec.outcomes.length === 0,
+      copyFrom: ec ? S.camps.filter(function (c) { return c.id !== ec.id && c.outcomes.length; }).map(function (c) {
+        return { label: c.name, pick: function () { updCamp({ outcomes: JSON.parse(JSON.stringify(c.outcomes)).map(function (o) { o.b = 0; o.fields.forEach(function (f) { f.yes = 0; f.avg = 0; f.options.forEach(function (p) { p.b = 0; }); }); return o; }) }); } };
+      }) : [],
+      outList: ec ? ec.outcomes.map(function (o) {
+        var on = eo && eo.id === o.id;
+        return { title: o.title || 'بدون عنوان', sub: (o.fields.length ? fa(o.fields.length) + ' فیلد' : (o.connected ? 'فقط یادداشت' : 'یک کلیکی')) + (o.times ? '، ' + fa(o.times) + ' تلاش مجدد' : '') + (o.off ? '، غیرفعال' : ''), pressed: on ? 'true' : 'false',
+          style: 'flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 54px; padding: 8px 12px; border-radius: 12px; cursor: pointer; text-align: right; color: inherit; border: 1px solid ' + (on ? '#60a5fa' : 'rgba(255,255,255,.08)') + '; background: ' + (on ? 'rgba(59,130,246,.12)' : '#0c1017') + ';',
+          pick: function () { self.setState({ openO: o.id, openF: null }); }, up: function () { moveO(o.id, -1); }, down: function () { moveO(o.id, 1); } };
+      }) : [],
+      addOutcome: function () { var id = 'o' + S.seq; self.setState({ seq: S.seq + 1, openO: id, openF: null, camps: S.camps.map(function (c) { return c.id === ec.id ? Object.assign({}, c, { outcomes: c.outcomes.concat([{ id: id, title: 'نتیجه جدید', connected: true, noteReq: false, times: 0, gap: 1, unit: 'روز', effect: 'none', tags: [], b: 0, fields: [] }]) }) : c; }) }); },
+      noOut: !eo, hasOut: !!eo, eo: eo || {},
+      eoTitle: function (e) { updO({ title: e.target.value }); },
+      eoRemove: function () { updCamp({ outcomes: ec.outcomes.filter(function (o) { return o.id !== eo.id; }) }); self.setState({ openO: null }); },
+      eoConnected: function (e) { updO({ connected: e.target.checked }); },
+      eoTimes: function (e) { updO({ times: Number(e.target.value) }); },
+      eoGap: function (e) { updO({ gap: Number(e.target.value) }); },
+      eoUnits: eo ? opts([['روز', 'روز'], ['ساعت', 'ساعت']], eo.unit, function (v) { updO({ unit: v }); }, chip) : [],
+      eoActions: eo ? opts([['none', 'پایان در این برنامه'], ['retry', 'تلاش مجدد'], ['dnc', 'خروج از همه صف‌ها']], eo.effect === 'dnc' ? 'dnc' : (eo.times > 0 ? 'retry' : 'none'), function (v) { updO(v === 'retry' ? { times: eo.times || 2, effect: 'none' } : { times: 0, effect: v }); }, chip) : [],
+      eoRetry: !!eo && eo.times > 0,
+      eoTags: eo ? tagChips(eo.tags, function (v) { updO({ tags: v }); }) : [],
+      eoCanDelete: !!eo && !eoUsed,
+      gapDefault: fa(S.rules.gapAfterSuccess),
+      eoNoCall: eo && eo.noCall ? eo.noCall : '', eoSetNoCall: function (e) { updO({ noCall: Number(e.target.value) || 0 }); },
+      eoEscalate: !!eo && !!eo.escalate, eoSetEscalate: function (e) { updO({ escalate: e.target.checked }); },
+      eoActive: !!eo && !eo.off, eoSetActive: function (e) { updO({ off: !e.target.checked }); },
+      noEsc: !allLogs.some(function (x) { return x.l.esc && S.closedEsc.indexOf(x.cid + x.l.day) < 0; }),
+      tagLib: S.tags.map(function (t) {
+        var up = function (patch) { self.setState({ tags: S.tags.map(function (x) { return x.id === t.id ? Object.assign({}, x, patch) : x; }) }); };
+        return { title: t.title, action: t.action, untilBuy: t.untilBuy, on: t.on, setTitle: function (e) { up({ title: e.target.value }); },
+          setAction: function (e) { up({ action: e.target.checked }); }, setUntil: function (e) { up({ untilBuy: e.target.checked }); }, setOn: function (e) { up({ on: e.target.checked }); },
+          colors: ['#34d399', '#fb7185', '#fbbf24', '#60a5fa', '#a78bfa', '#f472b6'].map(function (c) { var sel = t.color === c; return { aria: 'رنگ ' + c, pressed: sel ? 'true' : 'false', style: 'width: 30px; height: 30px; border-radius: 50%; cursor: pointer; background: ' + c + '; border: 3px solid ' + (sel ? '#f8fafc' : 'transparent') + ';', pick: function () { up({ color: c }); } }; }) };
+      }),
+      addTag: function () { self.setState({ seq: S.seq + 1, tags: S.tags.concat([{ id: 'tg' + S.seq, title: 'برچسب جدید', color: '#60a5fa', action: false, untilBuy: false, on: true }]) }); },
+      fieldRows: eo ? eo.fields.map(function (f) {
+        var hasOptions = f.type === 'single' || f.type === 'multi';
+        return {
+          label: f.title || 'فیلد بدون عنوان', sub: typeLabels[f.type] + (f.required ? '، اجباری' : '') + (f.followup ? '، می‌سازد: پیگیری' : ''), open: S.openF === f.id, title: f.title, required: !!f.required, followup: !!f.followup, isDate: f.type === 'date', hasOptions: hasOptions,
+          toggle: function () { self.setState({ openF: S.openF === f.id ? null : f.id }); },
+          up: function () { move(f.id, -1); }, down: function () { move(f.id, 1); },
+          remove: function () { updO({ fields: eo.fields.filter(function (x) { return x.id !== f.id; }) }); },
+          setTitle: function (e) { updF(f.id, { title: e.target.value }); },
+          setRequired: function (e) { updF(f.id, { required: e.target.checked }); },
+          setFollowup: function (e) { updF(f.id, { followup: e.target.checked }); },
+          addOpt: function () { updF(f.id, { options: f.options.concat([{ t: 'گزینه ' + fa(f.options.length + 1), tags: [], b: 0 }]) }); },
+          optRows: f.options.map(function (p, i) {
+            var setP = function (patch) { updF(f.id, { options: f.options.map(function (x, j) { return j === i ? Object.assign({}, x, patch) : x; }) }); };
+            return { t: p.t, setT: function (e) { setP({ t: e.target.value }); }, tags: tagChips(p.tags || [], function (v) { setP({ tags: v }); }), remove: function () { updF(f.id, { options: f.options.filter(function (x, j) { return j !== i; }) }); } };
+          })
+        };
+      }) : [],
+      palette: Object.keys(typeLabels).map(function (k) {
+        return { label: typeLabels[k], pick: function () { var id = 'f' + S.seq; self.setState({ seq: S.seq + 1, openF: id }); updO({ fields: eo.fields.concat([{ id: id, type: k, title: '', required: false, followup: false, options: [] }]) }); } };
+      }),
+      noPreview: !eo || !eo.fields.length,
+      preview: eo ? eo.fields.map(function (f) {
+        var hint = { toggle: ['تیک روشن/خاموش'], text: ['متن کوتاه'], long: ['متن بلند'], number: ['عدد'], date: ['انتخاب تاریخ'], time: ['انتخاب ساعت'] }[f.type];
+        return { title: (f.title || 'فیلد بدون عنوان') + (f.required ? ' (اجباری)' : ''), bits: hint || choices(f) };
+      }) : [],
+      ruleRows: [
+        { title: 'پنجره سنجش خرید', help: 'خرید تا چند روز بعد از تماس در گزارش فروش حساب شود.', value: S.rules.buyWindow, unit: 'روز', set: setRule('buyWindow') },
+        { title: 'فاصله بین دو تماس موفق', help: 'مشتری بعد از تماس موفق تا این مدت در هیچ برنامهی نمی‌آید.', value: S.rules.gapAfterSuccess, unit: 'روز', set: setRule('gapAfterSuccess') },
+        { title: 'حداقل طول یادداشت اجباری', help: 'برای جلوگیری از یادداشت‌های بی‌معنی.', value: S.rules.noteMin, unit: 'حرف', set: setRule('noteMin') }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
