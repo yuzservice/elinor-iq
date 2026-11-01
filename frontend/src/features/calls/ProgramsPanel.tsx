@@ -1,11 +1,12 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useApi } from "../../hooks/useApi";
 import { formatNumber } from "../../lib/format";
 import { ApiError } from "../../services/api";
 import { callsService } from "../../services/calls";
+import { parseCallsUrl, programUrl, stepsDone, type ProgramStep } from "./callsUrl";
 import type { CallListRow, ProgramRow } from "./types";
-import { CARD, Chip, Ghost, H, INPUT, MUTED, Primary, SOFT, UnderlineTab } from "./ui";
+import { CARD, Chip, Ghost, H, INPUT, MUTED, Primary, SOFT } from "./ui";
 
 const FormBuilder = lazy(() => import("./FormBuilder").then((module) => ({ default: module.FormBuilder })));
 
@@ -14,25 +15,39 @@ const KIND_LABEL = { fixed: "ثابت", dynamic: "پویا" };
 
 export function ProgramsPanel() {
   const [reload, setReload] = useState(0);
-  const [editing, setEditing] = useState<number | null>(null);
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { programId: editing, tab } = parseCallsUrl(params);
   const [name, setName] = useState("");
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState((location.state as { message?: string } | null)?.message ?? "");
   const programs = useApi(() => callsService.programs(), [reload]);
   const lists = useApi(() => callsService.lists(), [reload]);
   const refresh = () => setReload((value) => value + 1);
 
   const rows = programs.data?.results ?? [];
   const current = rows.find((row) => row.id === editing);
+  if (editing != null && !current) {
+    return programs.data ? <p className={MUTED}>این برنامه پیدا نشد.</p> : <p className={MUTED}>در حال دریافت اطلاعات...</p>;
+  }
   if (current) {
-    return <ProgramEditor program={current} programs={rows} lists={lists.data?.results ?? []} onBack={() => setEditing(null)} onChanged={refresh} />;
+    return (
+      <ProgramEditor
+        program={current}
+        programs={rows}
+        lists={lists.data?.results ?? []}
+        tab={tab}
+        onBack={() => navigate("/calls?section=programs")}
+        onChanged={refresh}
+      />
+    );
   }
 
   const create = async () => {
     try {
       const row = await callsService.createProgram(name.trim());
       setName("");
-      refresh();
-      setEditing(row.id);
+      navigate(programUrl(row.id, "list"));
     } catch (error) {
       setMessage(error instanceof ApiError ? error.message : "ساخت برنامه انجام نشد.");
     }
@@ -54,7 +69,7 @@ export function ProgramsPanel() {
           </div>
           <span className={MUTED}>{row.form_summary ? `${formatNumber(row.form_summary.outcomes)} نتیجه، ${formatNumber(row.form_summary.fields)} فیلد` : "فرم ندارد"}</span>
           <span className={MUTED}>{STATUS_LABEL[row.status]}</span>
-          <Ghost onClick={() => setEditing(row.id)}>ویرایش برنامه و فرم</Ghost>
+          <Ghost onClick={() => navigate(programUrl(row.id, "list"))}>ویرایش برنامه و فرم</Ghost>
           {row.status === "active" ? <Ghost onClick={() => setStatus(row, "pause")}>توقف</Ghost> : null}
           {row.status === "paused" ? <Ghost onClick={() => setStatus(row, "resume")}>ادامه</Ghost> : null}
           {row.status === "active" || row.status === "paused" ? <Ghost onClick={() => window.confirm("برنامه پایان یابد و کارهای باز لغو شوند؟") && setStatus(row, "end")}>پایان</Ghost> : null}
@@ -85,8 +100,47 @@ export function ProgramsPanel() {
   );
 }
 
-function ProgramEditor({ program, programs, lists, onBack, onChanged }: { program: ProgramRow; programs: ProgramRow[]; lists: CallListRow[]; onBack: () => void; onChanged: () => void }) {
-  const [tab, setTab] = useState<"audience" | "form">("audience");
+const STEP_ITEMS: { key: ProgramStep; label: string }[] = [
+  { key: "list", label: "لیست" },
+  { key: "form", label: "فرم تماس" },
+  { key: "agents", label: "کارمندان" },
+  { key: "activate", label: "فعال‌سازی" },
+];
+
+function StepStrip({ program, tab }: { program: ProgramRow; tab: ProgramStep }) {
+  const navigate = useNavigate();
+  const done = stepsDone(program);
+  return (
+    <nav aria-label="مراحل برنامه" className="flex flex-wrap items-center gap-1.5 border-b border-line pb-2.5">
+      {STEP_ITEMS.map((step, index) => (
+        <span key={step.key} className="flex items-center gap-1.5">
+          {index ? <span aria-hidden="true" className={MUTED}>←</span> : null}
+          <button
+            type="button"
+            aria-current={tab === step.key ? "step" : undefined}
+            onClick={() => navigate(programUrl(program.id, step.key))}
+            className={`inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-full border px-3.5 text-[13px] ${
+              tab === step.key ? "border-accent bg-blue-500/10 font-semibold text-ink" : "border-black/10 text-muted dark:border-white/10"
+            }`}
+          >
+            <span className={done[step.key] ? "text-[var(--delta-up)]" : "text-faint"}>{done[step.key] ? "✓" : "○"}</span>
+            {step.label}
+            {done[step.key] ? <span className="sr-only">(انجام شده)</span> : null}
+          </button>
+        </span>
+      ))}
+    </nav>
+  );
+}
+
+function ProgramEditor({ program, programs, lists, tab, onBack, onChanged }: {
+  program: ProgramRow;
+  programs: ProgramRow[];
+  lists: CallListRow[];
+  tab: ProgramStep;
+  onBack: () => void;
+  onChanged: () => void;
+}) {
   const [name, setName] = useState(program.name);
   const settings = useApi(() => callsService.settings(), []);
 
@@ -103,22 +157,19 @@ function ProgramEditor({ program, programs, lists, onBack, onChanged }: { progra
         </div>
         <span className={MUTED}>هر تغییر برای تماس‌های بعدی اعمال می‌شود. تماس‌های قبلی با فرم زمان خودشان می‌مانند.</span>
       </div>
-      <div className="flex flex-wrap items-center gap-[22px] border-b border-line">
-        <UnderlineTab on={tab === "audience"} onClick={() => setTab("audience")}>مشتریان و کارمندان</UnderlineTab>
-        <UnderlineTab on={tab === "form"} onClick={() => setTab("form")}>فرم تماس</UnderlineTab>
-      </div>
-      {tab === "audience" ? (
-        <Audience program={program} lists={lists} onChanged={onChanged} />
-      ) : (
+      <StepStrip program={program} tab={tab} />
+      {tab === "form" ? (
         <Suspense fallback={<p className={MUTED}>در حال دریافت اطلاعات...</p>}>
           <FormBuilder program={program} others={programs.filter((row) => row.id !== program.id)} gapDefault={settings.data?.default_gap_days ?? 30} onPublished={onChanged} />
         </Suspense>
+      ) : (
+        <Audience program={program} lists={lists} step={tab} onChanged={onChanged} />
       )}
     </div>
   );
 }
 
-function Audience({ program, lists, onChanged }: { program: ProgramRow; lists: CallListRow[]; onChanged: () => void }) {
+function Audience({ program, lists, step, onChanged }: { program: ProgramRow; lists: CallListRow[]; step: ProgramStep; onChanged: () => void }) {
   const agents = useApi(() => callsService.agents(), []);
   const preview = useApi(() => callsService.preview(program.id), [program.id, program.list?.id], Boolean(program.list));
   const [message, setMessage] = useState("");
@@ -176,8 +227,18 @@ function Audience({ program, lists, onChanged }: { program: ProgramRow; lists: C
   };
 
   const counts = preview.data;
+  const previewText = (
+    <p className={`m-0 text-[13.5px] leading-[1.8] ${SOFT}`}>
+      {!program.list
+        ? "یک لیست انتخاب کنید."
+        : counts
+          ? `${formatNumber(counts.total)} مشتری در لیست، ${formatNumber(counts.excluded)} نفر حذف شدند (${formatNumber(counts.do_not_call)} تماس نگیرید، ${formatNumber(counts.recent)} تماس اخیر، ${formatNumber(counts.open_task)} کار فعال در برنامه دیگر، ${formatNumber(counts.internal)} حساب داخلی). ${formatNumber(counts.eligible)} کار ساخته می‌شود.`
+          : "در حال شمارش..."}
+    </p>
+  );
   return (
     <div className="flex flex-col gap-3.5">
+      {step === "list" ? (
       <section className={`${CARD} flex flex-col gap-3 p-[18px]`}>
         <h2 className={`${H} text-[15px]`}>لیست مشتریان</h2>
         <div className="flex flex-wrap items-center gap-1.5">
@@ -202,14 +263,10 @@ function Audience({ program, lists, onChanged }: { program: ProgramRow; lists: C
             <Ghost onClick={() => setUpload(null)}>انصراف</Ghost>
           </div>
         ) : null}
-        <p className={`m-0 text-[13.5px] leading-[1.8] ${SOFT}`}>
-          {!program.list
-            ? "یک لیست انتخاب کنید."
-            : counts
-              ? `${formatNumber(counts.total)} مشتری در لیست، ${formatNumber(counts.excluded)} نفر حذف شدند (${formatNumber(counts.do_not_call)} تماس نگیرید، ${formatNumber(counts.recent)} تماس اخیر، ${formatNumber(counts.open_task)} کار فعال در برنامه دیگر، ${formatNumber(counts.internal)} حساب داخلی). ${formatNumber(counts.eligible)} کار ساخته می‌شود.`
-              : "در حال شمارش..."}
-        </p>
+        {previewText}
       </section>
+      ) : null}
+      {step === "agents" ? (
       <section className={`${CARD} flex flex-col gap-3 p-[18px]`}>
         <h2 className={`${H} text-[15px]`}>کارمندان و تقسیم مشتریان</h2>
         <div className="flex flex-wrap items-center gap-1.5">
@@ -248,6 +305,10 @@ function Audience({ program, lists, onChanged }: { program: ProgramRow; lists: C
           </div>
         ))}
       </section>
+      ) : null}
+      {step === "activate" ? (
+      <section className={`${CARD} flex flex-col gap-3 p-[18px]`}>
+      {previewText}
       <div className="flex flex-wrap items-center gap-3">
         <Primary disabled={program.job.status === "running" || program.status === "ended"} onClick={activate}>
           {program.status === "active" ? "افزودن مشتریان جدید لیست" : "فعال‌سازی برنامه"}
@@ -256,6 +317,8 @@ function Audience({ program, lists, onChanged }: { program: ProgramRow; lists: C
         {program.job.status === "failed" ? <span className="text-[13px] text-rose-600 dark:text-rose-400">ساخت کارها ناموفق بود.</span> : null}
         {message ? <span className={MUTED}>{message}</span> : null}
       </div>
+      </section>
+      ) : null}
     </div>
   );
 }

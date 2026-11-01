@@ -24,14 +24,17 @@ export function CreateCallList({ selectedIds, filterParams, total, onClose }: {
   const [message, setMessage] = useState("");
   const manual = selectedIds.length > 0;
 
-  const save = async () => {
+  const save = async (createProgram: boolean) => {
     setBusy(true);
     setMessage("");
     try {
-      await callsService.createList(
-        manual ? { name: name.trim(), customer_ids: selectedIds } : { name: name.trim(), kind, filter_params: filterParams },
-      );
-      navigate("/calls");
+      const saved = await callsService.createList({
+        name: name.trim(),
+        create_program: createProgram,
+        ...(manual ? { customer_ids: selectedIds } : { kind, filter_params: filterParams }),
+      });
+      if (saved.program_id) navigate(`/calls?section=programs&program=${saved.program_id}&tab=form`);
+      else navigate("/calls?section=programs", { state: { message: "لیست ساخته شد" } });
     } catch (error) {
       setMessage(error instanceof ApiError && error.message ? error.message : "ساخت لیست انجام نشد.");
       setBusy(false);
@@ -58,7 +61,8 @@ export function CreateCallList({ selectedIds, filterParams, total, onClose }: {
         </div>
       )}
       <div className="flex flex-wrap items-center gap-1.5">
-        <Primary disabled={!name.trim() || busy} onClick={save}>ذخیره لیست و رفتن به برنامه‌های تماس</Primary>
+        <Primary disabled={!name.trim() || busy} onClick={() => save(true)}>ذخیره و ساخت برنامه تماس</Primary>
+        <Ghost disabled={!name.trim() || busy} onClick={() => save(false)}>فقط ذخیره لیست</Ghost>
         <Ghost onClick={onClose}>انصراف</Ghost>
         {message ? <span className="text-[13px] text-rose-600 dark:text-rose-400">{message}</span> : null}
       </div>

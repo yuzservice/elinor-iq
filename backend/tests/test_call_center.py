@@ -549,3 +549,29 @@ def test_reports_answers_team_and_escalation_close(agent, manager):
     assert boss.post(f"/api/calls/escalations/{open_rows[0]['id']}/close/").status_code == 200
     assert boss.post(f"/api/calls/escalations/{open_rows[0]['id']}/close/").status_code == 409
     assert _client(agent).get("/api/calls/reports/sales/").status_code == 403
+
+
+# --- List to draft program, list edits, dnc clear -------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_list_with_draft_program_creates_no_tasks(manager, sync_threads):
+    _customer(1)
+    client = _client(manager)
+    saved = client.post("/api/calls/lists/", {"name": "کمپین", "kind": "fixed", "filter_params": {}, "create_program": True}, format="json")
+    assert saved.status_code == 201
+    program = CallProgram.objects.get(pk=saved.data["program_id"])
+    assert (program.name, program.status, program.list_id) == ("کمپین", "draft", saved.data["id"])
+    assert CallTask.objects.count() == 0
+    only = client.post("/api/calls/lists/", {"name": "تنها", "customer_ids": [1]}, format="json")
+    assert only.data["program_id"] is None
+
+
+@pytest.mark.django_db
+def test_list_and_draft_program_are_atomic(manager, sync_threads):
+    client = _client(manager)
+    client.raise_request_exception = False
+    with patch("apps.calls.views.CallProgram.objects.create", side_effect=RuntimeError):
+        response = client.post("/api/calls/lists/", {"name": "کمپین", "kind": "fixed", "filter_params": {}, "create_program": True}, format="json")
+    assert response.status_code == 500
+    assert CallList.objects.count() == 0

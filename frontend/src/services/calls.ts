@@ -39,8 +39,8 @@ export const callsService = {
 
   lists: () => api<{ results: CallListRow[] }>("/calls/lists/"),
   list: (id: number) => api<CallListRow>(`/calls/lists/${id}/`),
-  createList: (body: { name: string; kind?: string; filter_params?: unknown; customer_ids?: number[] }) =>
-    api<CallListRow>("/calls/lists/", json("POST", body)),
+  createList: (body: { name: string; kind?: string; filter_params?: unknown; customer_ids?: number[]; create_program?: boolean }) =>
+    api<CallListRow & { program_id: number | null }>("/calls/lists/", json("POST", body)),
   excelDryRun: (file: File) => {
     const data = new FormData();
     data.append("file", file);

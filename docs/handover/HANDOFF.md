@@ -129,6 +129,7 @@ Notes for the Product Architect / next task:
 ## 9. Log
 
 ### 2026-11-02 — Call Center (`feature/call-center`, from `production`), checkpoints
+- Review fix 1: «ذخیره و ساخت برنامه تماس» (list + draft program in one transaction), section/program/tab in the URL, step strip. Next: list edits; dnc; nightly timing; label; browser checks.
 - Checkpoint 1: `apps/calls` models + migrations (`calls.0001`, `0002_seed_tags`, `accounts.0003`), role `sales_agent`, `SalesAgentScopeMiddleware`. Next: lists and tasks. No API yet.
 - Checkpoint 2: lists (filters/manual/excel), programs, forms (draft/publish), settings, tags, activation in background (`lists.py`, `tasks.py`, `forms.py`, `views.py`); `test_call_center.py` 8 passed. Next: saving logs. Daily dynamic-list job not yet.
 - Checkpoint 3: saving logs (`logs.py`: retry/unreachable, dnc, no-call, followup, escalation, facts, 24h edit), agent list API (`agent.py`), customer calls endpoint; 18 tests passed. Next: agent UI; then builder, reports + nightly job, performance.

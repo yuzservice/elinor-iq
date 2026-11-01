@@ -36,6 +36,16 @@ export function FormBuilder({ program, others, gapDefault, onPublished }: { prog
     return () => window.clearTimeout(timer);
   }, [schema, program.id]);
 
+  // Leaving the step inside the autosave delay must not lose the edit.
+  const latest = useRef(schema);
+  latest.current = schema;
+  useEffect(
+    () => () => {
+      if (dirty.current && latest.current) void callsService.saveForm(program.id, latest.current);
+    },
+    [program.id],
+  );
+
   if (form.error) return <p className={MUTED}>فرم بارگذاری نشد.</p>;
   if (!schema || !form.data) return <p className={MUTED}>در حال دریافت اطلاعات...</p>;
 

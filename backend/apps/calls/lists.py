@@ -88,11 +88,20 @@ def preview_counts(call_list, program=None):
 # --- Creating lists ---------------------------------------------------------------------------
 
 
-def create_list(user, name, kind, source, filter_params=None, customer_ids=None):
-    call_list = CallList.objects.create(
+def new_list(user, name, kind, source, filter_params=None):
+    return CallList.objects.create(
         name=name, kind=kind, source=source, filter_params=filter_params or {}, created_by=user, job_status=JOB_RUNNING
     )
+
+
+def start_fill(call_list, customer_ids=None):
+    """Call after the creating transaction commits: the thread uses its own connection."""
     threading.Thread(target=_fill_list, args=(call_list.pk, customer_ids), name="call-list-fill", daemon=True).start()
+
+
+def create_list(user, name, kind, source, filter_params=None, customer_ids=None):
+    call_list = new_list(user, name, kind, source, filter_params)
+    start_fill(call_list, customer_ids)
     return call_list
 
 

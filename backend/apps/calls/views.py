@@ -142,16 +142,24 @@ def lists_view(request):
         if not isinstance(source_ids, list) or not source_ids:
             return _bad("مشتری‌ای انتخاب نشده است.")
         ids = list(Customer.objects.filter(source_id__in=source_ids[:5000]).values_list("pk", flat=True))
-        row = lists.create_list(request.user, name, CallList.KIND_FIXED, CallList.SOURCE_MANUAL, customer_ids=ids)
-        return Response(_list_payload(row), status=status.HTTP_201_CREATED)
-    kind = request.data.get("kind")
-    if kind not in (CallList.KIND_FIXED, CallList.KIND_DYNAMIC):
-        return _bad("نوع لیست نامعتبر است.")
-    filter_params = request.data.get("filter_params")
-    if not isinstance(filter_params, dict):
-        return _bad("فیلترها نامعتبر است.")
-    row = lists.create_list(request.user, name, kind, CallList.SOURCE_FILTERS, filter_params=filter_params)
-    return Response(_list_payload(row), status=status.HTTP_201_CREATED)
+        kind, source, filter_params = CallList.KIND_FIXED, CallList.SOURCE_MANUAL, None
+    else:
+        ids = None
+        kind = request.data.get("kind")
+        if kind not in (CallList.KIND_FIXED, CallList.KIND_DYNAMIC):
+            return _bad("نوع لیست نامعتبر است.")
+        filter_params = request.data.get("filter_params")
+        if not isinstance(filter_params, dict):
+            return _bad("فیلترها نامعتبر است.")
+        source = CallList.SOURCE_FILTERS
+    # List and draft program are saved together; a draft creates no tasks.
+    program = None
+    with transaction.atomic():
+        row = lists.new_list(request.user, name, kind, source, filter_params)
+        if request.data.get("create_program"):
+            program = CallProgram.objects.create(name=name, list=row, created_by=request.user)
+    lists.start_fill(row, ids)
+    return Response({**_list_payload(row), "program_id": program.pk if program else None}, status=status.HTTP_201_CREATED)
 
 
 @api_view(["GET"])
