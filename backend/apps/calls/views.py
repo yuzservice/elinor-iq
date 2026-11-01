@@ -489,6 +489,25 @@ def log_detail(request, log_id):
     return Response({"id": log.id, "answers": log.answers, "note": log.note})
 
 
+@api_view(["POST"])
+@permission_classes([IsCallManager])
+def customer_clear_dnc(request, source_id):
+    """Managers only. Cancelled tasks are not restored."""
+    reason = (request.data.get("reason") or "").strip()
+    if not reason:
+        return _bad("دلیل لازم است.")
+    with transaction.atomic():
+        state = get_object_or_404(CustomerCallStatus.objects.select_for_update(), customer__source_id=source_id)
+        if not state.do_not_call:
+            return _bad("این مشتری «تماس نگیرید» نیست.", status.HTTP_409_CONFLICT)
+        state.do_not_call = False
+        state.dnc_cleared_by = request.user
+        state.dnc_cleared_at = timezone.now()
+        state.dnc_clear_reason = reason
+        state.save(update_fields=["do_not_call", "dnc_cleared_by", "dnc_cleared_at", "dnc_clear_reason"])
+    return Response({"ok": True})
+
+
 @api_view(["GET"])
 def customer_calls(request, source_id):
     """Customer 360 «تماس‌ها» tab and badges. Agents only for customers with a task assigned to them."""
@@ -497,7 +516,7 @@ def customer_calls(request, source_id):
         return _bad("به این مشتری دسترسی ندارید.", status.HTTP_403_FORBIDDEN)
     page = _positive(request.query_params.get("page"), 1)
     per_page = _positive(request.query_params.get("per_page"), 20, cap=50)
-    state = CustomerCallStatus.objects.filter(customer=customer).first()
+    state = CustomerCallStatus.objects.select_related("dnc_cleared_by").filter(customer=customer).first()
     qs = agent.customer_logs(customer.pk)
     return Response(
         {
@@ -506,6 +525,9 @@ def customer_calls(request, source_id):
                 "next_call_allowed_at": state.next_call_allowed_at,
                 "last_outcome_title": state.last_outcome_title,
                 "last_call_at": state.last_call_at,
+                "dnc_cleared_at": state.dnc_cleared_at,
+                "dnc_cleared_by": state.dnc_cleared_by.username if state.dnc_cleared_by else None,
+                "dnc_clear_reason": state.dnc_clear_reason,
             }
             if state
             else None,

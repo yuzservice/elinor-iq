@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { answerSummary, dueLabel, isOneClick, rawAnswers, saveCheck, toggleOption } from "./callForm";
+import { answerSummary, dueLabel, isOneClick, needsDncConfirm, rawAnswers, saveCheck, toggleOption } from "./callForm";
 import type { FormOutcome } from "./types";
 
 const outcome = (patch: Partial<FormOutcome> = {}): FormOutcome => ({
@@ -17,6 +17,11 @@ describe("call form", () => {
     expect(isOneClick(outcome())).toBe(true);
     expect(isOneClick(outcome({ connected: true }))).toBe(false);
     expect(isOneClick(outcome({ fields: [{ id: "f", type: "text", title: "ت" }] }))).toBe(false);
+  });
+
+  it("asks for confirmation on dnc outcomes only", () => {
+    expect(needsDncConfirm(outcome({ after_save: "dnc" }))).toBe(true);
+    expect(needsDncConfirm(outcome({ after_save: "retry" }))).toBe(false);
   });
 
   it("requires required fields, then the note for connected calls", () => {

@@ -16,6 +16,7 @@ urlpatterns = [
     path("tasks/<int:task_id>/logs/", views.task_save_log),
     path("logs/<int:log_id>/", views.log_detail),
     path("customers/<int:source_id>/", views.customer_calls),
+    path("customers/<int:source_id>/clear-dnc/", views.customer_clear_dnc),
     path("settings/", views.settings_view),
     path("tags/", views.tags_view),
     path("tags/<int:tag_id>/", views.tag_detail),

@@ -30,6 +30,8 @@ export const callsService = {
   editLog: (id: number, body: { answers: Answers; note: string }) => api(`/calls/logs/${id}/`, json("PATCH", body)),
   customerCalls: (sourceId: number, page = 1) => api<CustomerCalls>(queryPath(`/calls/customers/${sourceId}/`, { page })),
 
+  clearDnc: (sourceId: number, reason: string) => api(`/calls/customers/${sourceId}/clear-dnc/`, json("POST", { reason })),
+
   tags: () => api<{ results: CallTag[] }>("/calls/tags/"),
   createTag: (body: Partial<CallTag>) => api<CallTag>("/calls/tags/", json("POST", body)),
   updateTag: (id: number, body: Partial<CallTag>) => api<CallTag>(`/calls/tags/${id}/`, json("PATCH", body)),

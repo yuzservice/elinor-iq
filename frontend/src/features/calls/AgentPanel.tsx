@@ -7,7 +7,7 @@ import { ApiError } from "../../services/api";
 import { callsService } from "../../services/calls";
 import { CallField } from "./CallFormFields";
 import { CallHistoryRow } from "./CallHistory";
-import { dueLabel, isOneClick, saveCheck } from "./callForm";
+import { DNC_CONFIRM, dueLabel, isOneClick, needsDncConfirm, saveCheck } from "./callForm";
 import type { Answers, FormOutcome, TaskRow } from "./types";
 import { CARD, Chip, Ghost, H, INPUT, MUTED, Primary, UnderlineTab } from "./ui";
 
@@ -277,6 +277,7 @@ function TaskPanel({ taskId, onSaved, onPostponed }: { taskId: number; onSaved: 
   const check = saveCheck(outcome, answers, note, data.note_min_chars);
 
   const save = async (chosen: FormOutcome, values: Answers, text: string) => {
+    if (needsDncConfirm(chosen) && !window.confirm(DNC_CONFIRM)) return false;
     setBusy(true);
     setMessage("");
     try {
@@ -292,7 +293,8 @@ function TaskPanel({ taskId, onSaved, onPostponed }: { taskId: number; onSaved: 
     setMessage("");
     setOutcome(row);
     setAnswers({});
-    if (isOneClick(row)) void save(row, {}, "");
+    // Cancelling a one-click dnc confirmation leaves no outcome selected.
+    if (isOneClick(row)) void save(row, {}, "").then((saved) => saved === false && setOutcome(null));
   };
 
   const postpone = async (days: number) => {

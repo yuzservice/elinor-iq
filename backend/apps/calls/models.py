@@ -244,6 +244,9 @@ class CustomerCallStatus(models.Model):
     next_call_allowed_at = models.DateTimeField(null=True, blank=True)
     last_outcome_title = models.CharField(max_length=160, blank=True)
     last_call_at = models.DateTimeField(null=True, blank=True)
+    dnc_cleared_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    dnc_cleared_at = models.DateTimeField(null=True, blank=True)
+    dnc_clear_reason = models.TextField(blank=True)
 
     class Meta:
         db_table = "customer_call_status"

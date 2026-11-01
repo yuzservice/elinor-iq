@@ -77,7 +77,15 @@ export type TaskDetail = {
 };
 export type CallTag = { id: number; title: string; color: string; needs_action: boolean; open_until_purchase: boolean; is_active: boolean };
 export type CustomerCalls = {
-  status: { do_not_call: boolean; next_call_allowed_at: string | null; last_outcome_title: string; last_call_at: string | null } | null;
+  status: {
+    do_not_call: boolean;
+    next_call_allowed_at: string | null;
+    last_outcome_title: string;
+    last_call_at: string | null;
+    dnc_cleared_at: string | null;
+    dnc_cleared_by: string | null;
+    dnc_clear_reason: string;
+  } | null;
   results: CallLogRow[];
   total: number;
   page: number;

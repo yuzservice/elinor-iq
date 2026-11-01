@@ -51,7 +51,11 @@ def _annotated(call_list, program=None):
         has_open=Exists(CallTask.objects.filter(customer_id=OuterRef("pk"), status=CallTask.STATUS_OPEN)),
     )
     if program is not None:
-        qs = qs.annotate(in_program=Exists(CallTask.objects.filter(program=program, customer_id=OuterRef("pk"))))
+        tasks = CallTask.objects.filter(program=program, customer_id=OuterRef("pk"))
+        # A dynamic program picks a customer up again after «تماس نگیرید» is cleared; a fixed list does not.
+        if call_list.kind == CallList.KIND_DYNAMIC:
+            tasks = tasks.exclude(status=CallTask.STATUS_CANCELLED)
+        qs = qs.annotate(in_program=Exists(tasks))
     return qs
 
 

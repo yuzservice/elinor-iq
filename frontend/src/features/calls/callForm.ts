@@ -12,6 +12,13 @@ export function isOneClick(outcome: FormOutcome): boolean {
   return !outcome.connected && outcome.fields.length === 0;
 }
 
+export const DNC_CONFIRM = "این مشتری از همه برنامه‌های تماس خارج می‌شود.";
+
+/** Every «تماس نگیرید» outcome asks first, even a one-click one. */
+export function needsDncConfirm(outcome: FormOutcome): boolean {
+  return outcome.after_save === "dnc";
+}
+
 export function saveCheck(outcome: FormOutcome | null, answers: Answers, note: string, noteMin: number): { ok: boolean; hint: string } {
   if (!outcome) return { ok: false, hint: "" };
   const missing = outcome.fields.filter((field) => field.required && isEmpty(field, answers[field.id]));

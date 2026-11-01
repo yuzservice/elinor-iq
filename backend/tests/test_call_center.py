@@ -641,3 +641,39 @@ def test_delete_and_running_job_rules(manager):
     running = CallList.objects.create(name="در حال ساخت", kind="fixed", source="filters", job_status="running")
     assert client.patch(f"/api/calls/lists/{running.pk}/", {"name": "نو"}, format="json").status_code == 409
     assert client.delete(f"/api/calls/lists/{running.pk}/").status_code == 409
+
+
+@pytest.mark.django_db
+def test_clear_dnc_permissions_audit_and_pickup(agent, manager, sync_threads):
+    customer = _customer(1)
+    _order(customer, timezone.now() - timedelta(days=1), 100)
+    Customer.objects.filter(pk=customer.pk).update(order_count=1)
+    schema = _schema(after_save="dnc")
+    dynamic = _program(agents=[agent], kind=CallList.KIND_DYNAMIC, filter_params={"population": "purchasing"}, schema=schema)
+    task = _task(dynamic, customer, agent)
+    assert _save(_client(agent), task).data["result"] == "dnc"
+    url = f"/api/calls/customers/{customer.source_id}/clear-dnc/"
+
+    assert _client(agent).post(url, {"reason": "درخواست مشتری"}, format="json").status_code == 403
+    boss = _client(manager)
+    assert boss.post(url, {"reason": " "}, format="json").status_code == 400
+    assert boss.post(url, {"reason": "درخواست مشتری"}, format="json").status_code == 200
+    state = CustomerCallStatus.objects.get(customer=customer)
+    assert (state.do_not_call, state.dnc_cleared_by, state.dnc_clear_reason) == (False, manager, "درخواست مشتری")
+    assert state.dnc_cleared_at is not None
+    assert boss.post(url, {"reason": "دوباره"}, format="json").status_code == 409
+    task.refresh_from_db()
+    assert task.status == "cancelled"  # not restored
+
+    jobs.run_daily()
+    assert CallTask.objects.filter(program=dynamic, status="open").count() == 1  # dynamic picks up
+
+
+@pytest.mark.django_db
+def test_fixed_list_does_not_pick_up_after_dnc_clear(agent, manager, sync_threads):
+    customer = _customer(1)
+    program = _program(customers=[customer], agents=[agent], schema=_schema(after_save="dnc"))
+    _save(_client(agent), _task(program, customer, agent))
+    assert _client(manager).post(f"/api/calls/customers/{customer.source_id}/clear-dnc/", {"reason": "اشتباه"}, format="json").status_code == 200
+    assert _client(manager).post(f"/api/calls/programs/{program.pk}/activate/").status_code == 202
+    assert CallTask.objects.filter(program=program, status="open").count() == 0
