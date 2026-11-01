@@ -255,6 +255,16 @@ This registry catalogs the core architectural modules of ELINOR IQ V2. Each entr
 
 ---
 
+## 10. Call Center (`apps.calls`)
+
+- **Models:** `CallSettings`, `CallTag`, `CallList`, `CallListMember`, `CallProgram`, `CallProgramAgent`, `CallFormVersion`, `CallTask`, `CallLog`, `CallAnswerFact`, `CallLogPurchase`, `CustomerCallStatus`, `CustomerCallTag`, `CallEscalation`. Role `sales_agent` in `apps.accounts`; scope in `accounts/middleware.py`.
+- **Backend:** `lists.py` (lists, eligibility, Excel), `tasks.py` (background activation), `forms.py` (versions), `logs.py` (save/edit), `agent.py` (work list), `reports.py`, `jobs.py` + `calls_daily` (nightly), `call_center_load` (dev-only load test).
+- **APIs (`/api/calls/`):** `tasks/`, `tasks/counts/`, `tasks/bulk/`, `tasks/<id>/`, `tasks/<id>/logs/`, `logs/<id>/`, `customers/<source_id>/`, `lists/`, `lists/excel/`, `programs/` (+ `preview/`, `activate/`, `status/`, `form/`, `form/publish/`), `settings/`, `tags/`, `agents/`, `reports/{sales,escalations,customers,answers,team}/`, `escalations/<id>/close/`.
+- **Frontend:** lazy route `/calls` (`pages/CallCenterPage.tsx`), `features/calls/` (`AgentPanel`, `CallFormFields`, `FormBuilder` lazy, `ProgramsPanel`, `ReportsPanel`, `SettingsPanel`, `CreateCallList`, `CustomerCalls`), `services/calls.ts`.
+- **Tests:** `tests/test_call_center.py`, `features/calls/callForm.test.ts`. **Rules:** `docs/business-rules/call-center.md`.
+
+---
+
 ## 8. Smart Direct (`apps.smart_direct`) — RETIRED
 
 - **Status:** Retired in commit 3bc0a48. Not in `INSTALLED_APPS`, not routed, no frontend page.

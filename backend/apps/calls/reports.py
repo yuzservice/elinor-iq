@@ -79,11 +79,20 @@ def _sales(program_id):
             ],
         }
     )
+    # Two small GROUP BYs, merged: joining purchases into the 300k-row log scan costs several times more.
+    buyers = {
+        (row["log__program_id"], row["log__outcome_title"]): row["n"]
+        for row in _scope(CallLogPurchase.objects.all(), program_id, "log__program_id")
+        .order_by()
+        .values("log__program_id", "log__outcome_title")
+        .annotate(n=Count("log__customer_id", distinct=True))
+    }
+    names = dict(CallProgram.objects.values_list("pk", "name"))
     outcomes = (
         _scope(CallLog.objects.all(), program_id)
         .order_by()
-        .values("program__name", "outcome_id", "outcome_title")
-        .annotate(calls=Count("pk"), buyers=Count("customer_id", distinct=True, filter=Q(purchase__isnull=False)))
+        .values("program_id", "outcome_title")
+        .annotate(calls=Count("pk"))
         .order_by("-calls")[:50]
     )
     return {
@@ -97,7 +106,12 @@ def _sales(program_id):
         },
         "cards": cards,
         "outcomes": [
-            {"program": row["program__name"], "title": row["outcome_title"], "calls": row["calls"], "buyers": row["buyers"]}
+            {
+                "program": names.get(row["program_id"]),
+                "title": row["outcome_title"],
+                "calls": row["calls"],
+                "buyers": buyers.get((row["program_id"], row["outcome_title"]), 0),
+            }
             for row in outcomes
         ],
     }
@@ -232,13 +246,15 @@ def _team(program_id):
         _scope(CallLog.objects.all(), program_id)
         .order_by()
         .values("agent_id", "agent__username")
-        .annotate(
-            calls=Count("pk"),
-            reached=Count("pk", filter=Q(connected=True)),
-            buyers=Count("customer_id", distinct=True, filter=Q(purchase__isnull=False)),
-            sales=Sum("purchase__amount"),
-        )
+        .annotate(calls=Count("pk"), reached=Count("pk", filter=Q(connected=True)))
     )
+    bought = {
+        row["log__agent_id"]: row
+        for row in _scope(CallLogPurchase.objects.all(), program_id, "log__program_id")
+        .order_by()
+        .values("log__agent_id")
+        .annotate(buyers=Count("log__customer_id", distinct=True), sales=Sum("amount"))
+    }
     overdue = dict(
         _scope(CallTask.objects.filter(status=CallTask.STATUS_OPEN, due_at__lt=now, program__status=CallProgram.STATUS_ACTIVE), program_id)
         .order_by()
@@ -250,8 +266,8 @@ def _team(program_id):
             "agent": row["agent__username"],
             "calls": row["calls"],
             "reached": row["reached"],
-            "buyers": row["buyers"],
-            "sales": int(row["sales"] or 0),
+            "buyers": bought.get(row["agent_id"], {}).get("buyers", 0),
+            "sales": int(bought.get(row["agent_id"], {}).get("sales") or 0),
             "overdue": overdue.get(row["agent_id"], 0),
         }
         for row in logs

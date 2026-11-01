@@ -134,6 +134,7 @@ Notes for the Product Architect / next task:
 - Checkpoint 4: agent UI (`/calls` lazy route, `AgentPanel`, form renderer, 360 «تماس‌ها» tab + badges, sidebar/role redirect, Settings can create `sales_agent`). Manager sections are empty until the next steps. Next: form builder + programs UI.
 - Checkpoint 5: form builder (autosave draft, publish, copy), programs + audience UI, settings/tags UI, «ساخت لیست تماس» on the customers page. Next: nightly job + reports.
 - Checkpoint 6: nightly `calls_daily` (attribution, tag resolve, dynamic lists; hooked into `scheduler-entrypoint.sh`), reports API + UI (`reports.py`, `ReportsPanel`). Next: performance (load seed, EXPLAIN, timings), docs, screenshots.
+- Checkpoint 7: `call_center_load` (dev-only, refuses a DB without "load" in its name), reports split into small GROUP BYs. All targets met on 300k logs / 1M facts / 505k tasks. Next: docs, screenshots, final report.
 
 ### 2026-10-28 — Customers overview, prototype v3 (`feature/customers-overview`, uncommitted)
 
