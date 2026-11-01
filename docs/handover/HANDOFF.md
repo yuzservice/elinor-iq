@@ -3,7 +3,7 @@
 Durable state for the next engineer or AI assistant. Do not rely on chat history; this file plus the repo is the source of truth.
 Update this file at the end of every implementation task (newest entry first in the Log).
 
-Last updated: 2026-10-28 · **Customers overview v3 on `feature/customers-overview` (uncommitted, awaiting owner review)** · **`production` = `3f5de33` (tier rules + «از» + channel-based tiers + channel-draft button), pushed; the server gets it when the owner runs `update.sh`**; `main` is development (see §2 Branches); **RFM/Club reverted on `main` 2026-10-27 (decision 0005)**
+Last updated: 2026-11-02 · **Call Center on `feature/call-center` (pushed, awaiting owner review)** · **Customers overview v3 on `feature/customers-overview` (uncommitted, awaiting owner review)** · **`production` = `3f5de33` (tier rules + «از» + channel-based tiers + channel-draft button), pushed; the server gets it when the owner runs `update.sh`**; `main` is development (see §2 Branches); **RFM/Club reverted on `main` 2026-10-27 (decision 0005)**
 
 ## 1. Current priority
 
@@ -120,6 +120,7 @@ Notes for the Product Architect / next task:
 
 ## 8. Next step
 
+- Owner: review the Call Center locally (`feature/call-center`, see the Log), then approve the merge.
 0. Owner: review the Customers overview locally (`feature/customers-overview`), then approve the commit/push.
 1. Owner: decide whether to release internal accounts to `production` (§3 steps).
 2. Decide on the pre-existing export/campaign test failures and the unused campaign exclusion.
@@ -135,6 +136,7 @@ Notes for the Product Architect / next task:
 - Checkpoint 5: form builder (autosave draft, publish, copy), programs + audience UI, settings/tags UI, «ساخت لیست تماس» on the customers page. Next: nightly job + reports.
 - Checkpoint 6: nightly `calls_daily` (attribution, tag resolve, dynamic lists; hooked into `scheduler-entrypoint.sh`), reports API + UI (`reports.py`, `ReportsPanel`). Next: performance (load seed, EXPLAIN, timings), docs, screenshots.
 - Checkpoint 7: `call_center_load` (dev-only, refuses a DB without "load" in its name), reports split into small GROUP BYs. All targets met on 300k logs / 1M facts / 505k tasks. Next: docs, screenshots, final report.
+- Checkpoint 8 (feature complete, awaiting owner review): docs, screenshots done on a scratch DB (dropped afterwards), agent-only sidebar fixes. Not done: nothing merged; on deploy run nothing extra (migrations + scheduler pick it up). Create agents in Settings. Local dev DB has `calls` migrations applied, no call data.
 
 ### 2026-10-28 — Customers overview, prototype v3 (`feature/customers-overview`, uncommitted)
 

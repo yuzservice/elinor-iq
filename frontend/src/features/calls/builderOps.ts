@@ -1,3 +1,4 @@
+import { formatNumber } from "../../lib/format";
 import type { FieldType, FormField, FormOutcome, FormSchema } from "./types";
 
 export const FIELD_PALETTE: { type: FieldType; label: string }[] = [
@@ -65,8 +66,8 @@ export function move<T>(items: T[], index: number, delta: number): T[] {
 }
 
 export function outcomeSubtitle(outcome: FormOutcome): string {
-  const parts = [outcome.fields.length ? `${outcome.fields.length} فیلد` : outcome.connected ? "فقط یادداشت" : "یک کلیکی"];
-  if (outcome.after_save === "retry") parts.push(`${outcome.retry_times ?? 0} تلاش مجدد`);
+  const parts = [outcome.fields.length ? `${formatNumber(outcome.fields.length)} فیلد` : outcome.connected ? "فقط یادداشت" : "یک کلیکی"];
+  if (outcome.after_save === "retry") parts.push(`${formatNumber(outcome.retry_times ?? 0)} تلاش مجدد`);
   if (outcome.after_save === "dnc") parts.push("خروج از همه صف‌ها");
   if (!outcome.is_active) parts.push("غیرفعال");
   return parts.join("، ");

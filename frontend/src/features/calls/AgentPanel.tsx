@@ -148,7 +148,7 @@ export function AgentPanel() {
 
       <div className="flex flex-wrap items-start gap-3.5">
         <section className={`${CARD} min-w-0 flex-[3_1_560px] px-2 py-1`}>
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className="w-full min-w-[660px] border-collapse text-[13px]">
               <thead>
                 <tr className="text-right text-muted [&>th]:whitespace-nowrap [&>th]:px-2 [&>th]:py-[9px] [&>th]:font-medium">

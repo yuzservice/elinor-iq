@@ -63,6 +63,6 @@ describe("form builder helpers", () => {
     expect(newField("single").options).toHaveLength(1);
     expect(newField("rating").options).toHaveLength(0);
     expect(outcomeSubtitle(newOutcome())).toBe("یک کلیکی");
-    expect(outcomeSubtitle({ ...newOutcome(), connected: true, after_save: "retry", retry_times: 3 })).toBe("فقط یادداشت، 3 تلاش مجدد");
+    expect(outcomeSubtitle({ ...newOutcome(), connected: true, after_save: "retry", retry_times: 3 })).toBe("فقط یادداشت، ۳ تلاش مجدد");
   });
 });
