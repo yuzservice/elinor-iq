@@ -19,6 +19,6 @@ export const systemService = {
   saveApi: (body: { base_url: string; username: string; password: string }) =>
     api<{ ok: boolean }>("/system/api-config/", { method: "PUT", body: JSON.stringify(body) }),
   admins: () => api<{ results: PanelAdmin[] }>("/system/admins/"),
-  createAdmin: (body: { username: string; password: string }) =>
+  createAdmin: (body: { username: string; password: string; role?: string }) =>
     api<PanelAdmin>("/system/admins/", { method: "POST", body: JSON.stringify(body) }),
 };

@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useTheme } from "../theme/ThemeProvider";
 import {
+  IconCalls,
   IconCollapse,
   IconCustomers,
   IconHome,
@@ -11,13 +12,14 @@ import {
   IconSales,
   IconSettings,
 } from "../components/Icons";
-import { NAV_ITEMS } from "../lib/nav";
+import { SALES_AGENT_ROLE, visibleNavItems } from "../lib/nav";
 
 const ICONS = {
   home: IconHome,
   sales: IconSales,
   customers: IconCustomers,
   products: IconProducts,
+  calls: IconCalls,
 };
 
 export function Sidebar() {
@@ -109,7 +111,7 @@ export function Sidebar() {
         {/* NAVIGATION LINKS                                               */}
         {/* ============================================================== */}
         <nav className="space-y-1 pt-1">
-          {NAV_ITEMS.map((item) => {
+          {visibleNavItems(user).map((item) => {
             const Icon = ICONS[item.key];
             const isHome = item.key === "home";
             const isCustomers = item.key === "customers";
@@ -164,6 +166,7 @@ export function Sidebar() {
           })}
 
           {/* Settings NavLink */}
+          {user?.role === SALES_AGENT_ROLE ? null : (
           <NavLink
             to="/settings"
             className={({ isActive }) =>
@@ -190,6 +193,7 @@ export function Sidebar() {
               </div>
             )}
           </NavLink>
+          )}
         </nav>
       </div>
 

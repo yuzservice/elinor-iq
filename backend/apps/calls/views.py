@@ -24,7 +24,7 @@ from .models import (
     CallTask,
     CustomerCallStatus,
 )
-from .permissions import IsCallManager, IsCallUser
+from .permissions import IsCallManager, IsCallUser, is_call_manager
 
 COLOR_FALLBACK = "#34d399"
 
@@ -79,10 +79,12 @@ def _apply_tag(tag, data):
 
 
 @api_view(["GET", "POST"])
-@permission_classes([IsCallManager])
+@permission_classes([IsCallUser])
 def tags_view(request):
     if request.method == "GET":
         return Response({"results": [_tag_payload(tag) for tag in CallTag.objects.all()]})
+    if not is_call_manager(request.user):
+        return _bad("این بخش فقط برای مدیران است.", status.HTTP_403_FORBIDDEN)
     tag = CallTag(color=COLOR_FALLBACK)
     _apply_tag(tag, request.data)
     if not tag.title:
@@ -392,7 +394,7 @@ def task_detail(request, task_id):
     task = get_object_or_404(
         CallTask.objects.select_related("customer", "program"), pk=task_id, assignee=request.user
     )
-    return Response(agent.task_detail_payload(task))
+    return Response(agent.task_detail_payload(task, request.user))
 
 
 @api_view(["POST"])
@@ -456,7 +458,7 @@ def customer_calls(request, source_id):
             }
             if state
             else None,
-            "results": [agent.log_payload(log) for log in qs[(page - 1) * per_page : page * per_page]],
+            "results": [agent.log_payload(log, request.user) for log in qs[(page - 1) * per_page : page * per_page]],
             "total": qs.count(),
             "page": page,
             "per_page": per_page,

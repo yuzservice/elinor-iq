@@ -7,9 +7,10 @@ import {
   IconProducts,
   IconSales,
   IconSettings,
+  IconCalls,
 } from "../components/Icons";
 import { CoverageNotice } from "../components/ui";
-import { NAV_ITEMS } from "../lib/nav";
+import { visibleNavItems } from "../lib/nav";
 import { Sidebar } from "./Sidebar";
 
 const ICONS = {
@@ -17,6 +18,7 @@ const ICONS = {
   sales: IconSales,
   customers: IconCustomers,
   products: IconProducts,
+  calls: IconCalls,
 };
 
 function MobileThemeToggle() {
@@ -86,7 +88,7 @@ export function AppShell() {
         {/* Mobile Floating VisionOS Dock */}
         <div className="lg:hidden fixed bottom-3 inset-x-3 z-50 pointer-events-none flex justify-center">
           <nav className="floating-dock pointer-events-auto w-full max-w-sm px-3 py-2 flex items-center justify-around text-[10px] text-muted shadow-2xl">
-            {NAV_ITEMS.map((item) => {
+            {visibleNavItems(user).map((item) => {
               const Icon = ICONS[item.key];
               return (
                 <NavLink

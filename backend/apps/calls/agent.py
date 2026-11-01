@@ -10,8 +10,8 @@ from apps.customers.presentation import display_name
 from apps.customers.tiers import tier_label, tier_title_map
 
 from .forms import published_form
-from .logs import counts_cache_key
-from .models import CallLog, CallLogPurchase, CallProgram, CallTask
+from .logs import EDIT_WINDOW, counts_cache_key
+from .models import CallLog, CallLogPurchase, CallProgram, CallSettings, CallTask
 
 TABS = ("open", "overdue", "today", "future", "done")
 COUNTS_TTL = 60
@@ -120,7 +120,7 @@ def task_rows(tasks):
     return rows
 
 
-def log_payload(log):
+def log_payload(log, user=None):
     return {
         "id": log.id,
         "created_at": log.created_at,
@@ -131,6 +131,7 @@ def log_payload(log):
         "answers": log.answers,
         "note": log.note,
         "form_version": log.form_version.version,
+        "editable": user is not None and log.agent_id == user.pk and timezone.now() - log.created_at <= EDIT_WINDOW,
     }
 
 
@@ -139,14 +140,14 @@ def customer_logs(customer_id):
         CallLog.objects.filter(customer_id=customer_id)
         .select_related("agent", "program", "form_version")
         .only(
-            "created_at", "outcome_title", "connected", "answers", "note",
+            "created_at", "outcome_title", "connected", "answers", "note", "agent_id",
             "agent__username", "program__name", "form_version__version",
         )
         .order_by("-created_at")
     )
 
 
-def task_detail_payload(task):
+def task_detail_payload(task, user=None):
     customer = task.customer
     form = published_form(task.program)
     return {
@@ -155,6 +156,7 @@ def task_detail_payload(task):
         "attempt": task.attempt,
         "due_at": task.due_at,
         "is_priority": task.is_priority,
+        "note_min_chars": CallSettings.load().note_min_chars,
         "program": {"id": task.program_id, "name": task.program.name},
         "customer": {
             "source_id": customer.source_id,
@@ -166,5 +168,5 @@ def task_detail_payload(task):
             "value": task.customer_value,
         },
         "form": {"version": form.version, "schema": form.schema} if form else None,
-        "history": [log_payload(log) for log in customer_logs(task.customer_id)[:HISTORY_LIMIT]],
+        "history": [log_payload(log, user) for log in customer_logs(task.customer_id)[:HISTORY_LIMIT]],
     }
