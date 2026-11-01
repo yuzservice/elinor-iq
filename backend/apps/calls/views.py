@@ -1,4 +1,7 @@
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -8,8 +11,9 @@ from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 
 from apps.accounts.models import User
+from apps.customers.models import Customer
 
-from . import forms, lists, tasks
+from . import agent, forms, lists, logs, tasks
 from .models import (
     JOB_RUNNING,
     CallList,
@@ -17,8 +21,10 @@ from .models import (
     CallProgramAgent,
     CallSettings,
     CallTag,
+    CallTask,
+    CustomerCallStatus,
 )
-from .permissions import IsCallManager
+from .permissions import IsCallManager, IsCallUser
 
 COLOR_FALLBACK = "#34d399"
 
@@ -132,8 +138,6 @@ def lists_view(request):
     if source_ids is not None:
         if not isinstance(source_ids, list) or not source_ids:
             return _bad("مشتری‌ای انتخاب نشده است.")
-        from apps.customers.models import Customer
-
         ids = list(Customer.objects.filter(source_id__in=source_ids[:5000]).values_list("pk", flat=True))
         row = lists.create_list(request.user, name, CallList.KIND_FIXED, CallList.SOURCE_MANUAL, customer_ids=ids)
         return Response(_list_payload(row), status=status.HTTP_201_CREATED)
@@ -339,3 +343,122 @@ def program_form_publish(request, program_id):
         return Response(_form_payload(forms.publish(program)))
     except forms.FormError as exc:
         return _bad(str(exc))
+
+
+# --- Agent work list and logs -------------------------------------------------------------------
+
+
+def _positive(value, default, cap=None):
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return default
+    number = default if number < 1 else number
+    return min(number, cap) if cap else number
+
+
+@api_view(["GET"])
+@permission_classes([IsCallUser])
+def task_list(request):
+    params = request.query_params
+    if params.get("tag") and not str(params["tag"]).isdigit():
+        return _bad("برچسب نامعتبر است.")
+    if params.get("program") and not str(params["program"]).isdigit():
+        return _bad("برنامه نامعتبر است.")
+    page = _positive(params.get("page"), 1)
+    per_page = _positive(params.get("per_page"), 20, cap=50)
+    qs = agent.task_queryset(request.user, params)
+    total = qs.count()
+    rows = (
+        qs.select_related("customer", "program")
+        .only(
+            "due_at", "attempt", "last_outcome_title", "customer_value", "is_priority", "status", "source",
+            "customer__source_id", "customer__first_name", "customer__last_name", "customer__mobile", "customer__tier_code",
+            "program__name",
+        )[(page - 1) * per_page : page * per_page]
+    )
+    return Response({"results": agent.task_rows(rows), "total": total, "page": page, "per_page": per_page})
+
+
+@api_view(["GET"])
+@permission_classes([IsCallUser])
+def task_counts(request):
+    return Response({**agent.tab_counts(request.user), **agent.task_filters(request.user)})
+
+
+@api_view(["GET"])
+@permission_classes([IsCallUser])
+def task_detail(request, task_id):
+    task = get_object_or_404(
+        CallTask.objects.select_related("customer", "program"), pk=task_id, assignee=request.user
+    )
+    return Response(agent.task_detail_payload(task))
+
+
+@api_view(["POST"])
+@permission_classes([IsCallUser])
+def task_save_log(request, task_id):
+    data = request.data
+    try:
+        log, effect = logs.save_log(task_id, request.user, data.get("outcome_id"), data.get("answers"), data.get("note"))
+    except logs.LogError as exc:
+        return Response({"detail": str(exc), "errors": exc.errors}, status=exc.code)
+    return Response({"log_id": log.id, **effect}, status=status.HTTP_201_CREATED)
+
+
+@api_view(["POST"])
+@permission_classes([IsCallUser])
+def task_bulk(request):
+    """Postpone or star the agent's own open tasks. One UPDATE; the UI selects at most a page."""
+    ids = request.data.get("ids")
+    if not isinstance(ids, list) or not ids:
+        return _bad("موردی انتخاب نشده است.")
+    tasks_qs = CallTask.objects.filter(pk__in=ids[:200], assignee=request.user, status=CallTask.STATUS_OPEN)
+    action = request.data.get("action")
+    if action == "postpone":
+        days = _positive(request.data.get("days"), 1, cap=365)
+        updated = tasks_qs.update(due_at=timezone.now() + timedelta(days=days))
+    elif action == "priority":
+        updated = tasks_qs.update(is_priority=bool(request.data.get("value")))
+    else:
+        return _bad("عملیات نامعتبر است.")
+    cache.delete(logs.counts_cache_key(request.user.pk))
+    return Response({"updated": updated})
+
+
+@api_view(["PATCH"])
+@permission_classes([IsCallUser])
+def log_detail(request, log_id):
+    try:
+        log = logs.update_log(log_id, request.user, request.data.get("answers"), request.data.get("note"))
+    except logs.LogError as exc:
+        return Response({"detail": str(exc), "errors": exc.errors}, status=exc.code)
+    return Response({"id": log.id, "answers": log.answers, "note": log.note})
+
+
+@api_view(["GET"])
+def customer_calls(request, source_id):
+    """Customer 360 «تماس‌ها» tab and badges. Agents only for customers with a task assigned to them."""
+    customer = get_object_or_404(Customer.objects.only("pk"), source_id=source_id)
+    if request.user.role == User.ROLE_SALES_AGENT and not CallTask.objects.filter(assignee=request.user, customer=customer).exists():
+        return _bad("به این مشتری دسترسی ندارید.", status.HTTP_403_FORBIDDEN)
+    page = _positive(request.query_params.get("page"), 1)
+    per_page = _positive(request.query_params.get("per_page"), 20, cap=50)
+    state = CustomerCallStatus.objects.filter(customer=customer).first()
+    qs = agent.customer_logs(customer.pk)
+    return Response(
+        {
+            "status": {
+                "do_not_call": state.do_not_call,
+                "next_call_allowed_at": state.next_call_allowed_at,
+                "last_outcome_title": state.last_outcome_title,
+                "last_call_at": state.last_call_at,
+            }
+            if state
+            else None,
+            "results": [agent.log_payload(log) for log in qs[(page - 1) * per_page : page * per_page]],
+            "total": qs.count(),
+            "page": page,
+            "per_page": per_page,
+        }
+    )

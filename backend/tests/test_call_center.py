@@ -5,18 +5,23 @@ from unittest.mock import patch
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.calls import forms, lists, tasks
+from apps.calls import forms, lists
 from apps.calls.models import (
+    CallEscalation,
     CallFormVersion,
     CallList,
     CallListMember,
+    CallLog,
     CallProgram,
     CallProgramAgent,
+    CallTag,
     CallTask,
     CustomerCallStatus,
+    CustomerCallTag,
 )
 from apps.customers.models import Customer, InternalAccount
 from apps.sales.models import Order
@@ -222,3 +227,198 @@ def test_excel_upload_reports_unknown_numbers(manager, sync_threads):
     bad = io.BytesIO(b"not a zip")
     bad.name = "bad.xlsx"
     assert client.post("/api/calls/lists/excel/", {"file": bad, "dry_run": "1"}, format="multipart").status_code == 400
+
+
+# --- Saving logs ---------------------------------------------------------------------------------
+
+
+def _task(program, customer, agent_user, **extra):
+    return CallTask.objects.create(program=program, customer=customer, assignee=agent_user, due_at=timezone.now(), **extra)
+
+
+def _save(client, task, outcome="o1", note="", answers=None):
+    return client.post(f"/api/calls/tasks/{task.pk}/logs/", {"outcome_id": outcome, "note": note, "answers": answers or {}}, format="json")
+
+
+LONG_NOTE = "مشتری منتظر مدل جدید است و تماس می‌گیرد"
+
+
+@pytest.mark.django_db
+def test_one_click_outcome_and_note_rule(agent):
+    customer = _customer(1)
+    program = _program(agents=[agent], schema={"outcomes": [
+        {"id": "o1", "title": "پاسخ نداد", "connected": False, "after_save": "close", "fields": []},
+        {"id": "o2", "title": "صحبت شد", "connected": True, "after_save": "close", "fields": []},
+    ]})
+    client = _client(agent)
+    task = _task(program, customer, agent)
+    assert _save(client, task, "o2", note="کوتاه").status_code == 400
+    response = _save(client, task, "o1")
+    assert response.status_code == 201
+    task.refresh_from_db()
+    assert (task.status, task.last_outcome_title) == ("done", "پاسخ نداد")
+    assert _save(client, task, "o1").status_code == 409  # no longer open
+
+
+@pytest.mark.django_db
+def test_retries_then_unreachable(agent):
+    customer = _customer(1)
+    program = _program(agents=[agent], schema=_schema(after_save="retry", retry_times=2, retry_gap=4, retry_unit="hour"))
+    client = _client(agent)
+    task = _task(program, customer, agent)
+    before = timezone.now()
+    assert _save(client, task).data["result"] == "retry"
+    task.refresh_from_db()
+    assert (task.status, task.attempt, task.source) == ("open", 2, "retry")
+    assert task.due_at >= before + timedelta(hours=4)
+    assert _save(client, task).data["result"] == "retry"
+    assert _save(client, task).data["result"] == "unreachable"
+    task.refresh_from_db()
+    assert (task.status, task.last_outcome_title, task.attempt) == ("unreachable", "در دسترس نبود", 3)
+    assert task.logs.count() == 3
+    assert CustomerCallStatus.objects.get(customer=customer).next_call_allowed_at is None  # not connected, no no_call_days
+
+
+@pytest.mark.django_db
+def test_dnc_blocks_future_lists(agent, sync_threads):
+    customer = _customer(1)
+    program = _program(customers=[customer], agents=[agent], schema=_schema(after_save="dnc"))
+    client = _client(agent)
+    task = _task(program, customer, agent)
+    assert _save(client, task).data["result"] == "dnc"
+    task.refresh_from_db()
+    assert task.status == "cancelled"
+    assert CustomerCallStatus.objects.get(customer=customer).do_not_call is True
+    assert lists.preview_counts(program.list)["do_not_call"] == 1
+    assert not lists.eligible_customers(program.list, _program(name="نو", agents=[agent])).exists()
+
+
+@pytest.mark.django_db
+def test_no_call_days_and_default_gap(agent):
+    a, b, c = _customer(1), _customer(2), _customer(3)
+    program = _program(agents=[agent], schema={"outcomes": [
+        {"id": "gap", "title": "صحبت", "connected": True, "after_save": "close", "fields": []},
+        {"id": "days", "title": "بعدا", "connected": False, "after_save": "close", "no_call_days": 5, "fields": []},
+        {"id": "none", "title": "نه", "connected": False, "after_save": "close", "fields": []},
+    ]})
+    client = _client(agent)
+    now = timezone.now()
+    _save(client, _task(program, a, agent), "gap", note=LONG_NOTE)
+    _save(client, _task(program, b, agent), "days")
+    _save(client, _task(program, c, agent), "none")
+    status = {row.customer_id: row.next_call_allowed_at for row in CustomerCallStatus.objects.all()}
+    assert timedelta(days=29) < status[a.pk] - now <= timedelta(days=30, seconds=5)
+    assert timedelta(days=4) < status[b.pk] - now <= timedelta(days=5, seconds=5)
+    assert status[c.pk] is None
+
+
+@pytest.mark.django_db
+def test_followup_escalation_answers_and_facts(agent):
+    customer = _customer(1)
+    tag = CallTag.objects.get(title="فرصت فروش")
+    day = (timezone.localdate() + timedelta(days=9)).isoformat()
+    schema = _schema(connected=True, escalate=True, tag_ids=[], fields=[
+        {"id": "cat", "type": "multi", "title": "دسته", "required": True, "options": [
+            {"id": "x", "title": "مانتو", "is_active": True, "tag_ids": [tag.pk]},
+            {"id": "y", "title": "کفش", "is_active": True},
+            {"id": "z", "title": "قدیمی", "is_active": False},
+        ]},
+        {"id": "rate", "type": "rating", "title": "امتیاز"},
+        {"id": "ok", "type": "toggle", "title": "معرفی"},
+        {"id": "when", "type": "date", "title": "تماس بعدی", "creates_followup": True},
+        {"id": "free", "type": "text", "title": "توضیح"},
+    ])
+    program = _program(agents=[agent], schema=schema)
+    client = _client(agent)
+    task = _task(program, customer, agent)
+    assert _save(client, task, note=LONG_NOTE).status_code == 400  # required multi missing
+    bad = _save(client, task, note=LONG_NOTE, answers={"cat": ["z"]})
+    assert bad.status_code == 400 and "cat" in bad.data["errors"]  # inactive option
+    good = _save(client, task, note=LONG_NOTE, answers={"cat": ["x", "y"], "rate": 4, "ok": True, "when": day, "free": "سلام"})
+    assert good.status_code == 201
+    log = CallLog.objects.get()
+    assert log.answers["cat"]["labels"] == ["مانتو", "کفش"] and log.tag_ids == [tag.pk]
+    assert sorted((f.field_id, f.option_id or "", f.number_value) for f in log.facts.all()) == [
+        ("cat", "x", None), ("cat", "y", None), ("ok", "", 1), ("rate", "", 4),
+    ]
+    followup = CallTask.objects.get(status="open")
+    assert (followup.source, timezone.localtime(followup.due_at).date().isoformat(), followup.last_tag_ids) == ("followup", day, [tag.pk])
+    assert CallEscalation.objects.filter(log=log, status="open").count() == 1
+    assert CustomerCallTag.objects.filter(customer=customer, tag=tag, resolved_at=None).count() == 1
+
+
+@pytest.mark.django_db
+def test_single_open_task_per_customer(agent):
+    customer = _customer(1)
+    program, other = _program(agents=[agent]), _program(name="دو", agents=[agent])
+    _task(program, customer, agent)
+    with pytest.raises(IntegrityError), transaction.atomic():
+        _task(other, customer, agent)
+
+
+@pytest.mark.django_db
+def test_log_edit_window_and_versions_survive_republish(agent):
+    customer = _customer(1)
+    program = _program(agents=[agent], schema=_schema(connected=True))
+    client = _client(agent)
+    task = _task(program, customer, agent)
+    log_id = _save(client, task, note=LONG_NOTE).data["log_id"]
+    forms.save_draft(program, _schema(title="نام جدید", connected=True))
+    forms.publish(program)
+    log = CallLog.objects.get(pk=log_id)
+    assert (log.outcome_title, log.form_version.version) == ("پاسخ نداد", 1)
+    assert client.patch(f"/api/calls/logs/{log_id}/", {"note": LONG_NOTE + " ویرایش", "answers": {}}, format="json").status_code == 200
+    assert _client(_user("agent9", "sales_agent")).patch(f"/api/calls/logs/{log_id}/", {"note": LONG_NOTE, "answers": {}}, format="json").status_code == 404
+    CallLog.objects.filter(pk=log_id).update(created_at=timezone.now() - timedelta(hours=25))
+    assert client.patch(f"/api/calls/logs/{log_id}/", {"note": LONG_NOTE, "answers": {}}, format="json").status_code == 403
+
+
+@pytest.mark.django_db
+def test_used_outcome_cannot_be_deleted(agent):
+    customer = _customer(1)
+    program = _program(agents=[agent], schema={"outcomes": [
+        {"id": "o1", "title": "الف", "connected": False, "after_save": "close", "fields": []},
+        {"id": "o2", "title": "ب", "connected": False, "after_save": "close", "fields": []},
+    ]})
+    _save(_client(agent), _task(program, customer, agent), "o1")
+    forms.save_draft(program, {"outcomes": [{"id": "o2", "title": "ب", "connected": False, "after_save": "close", "fields": []}]})
+    with pytest.raises(forms.FormError):
+        forms.publish(program)
+
+
+@pytest.mark.django_db
+def test_agent_list_tabs_counts_and_scope(agent):
+    other_agent = _user("agent2", "sales_agent")
+    program = _program(agents=[agent])
+    now = timezone.now()
+    overdue = _task(program, _customer(1), agent)
+    CallTask.objects.filter(pk=overdue.pk).update(due_at=now - timedelta(days=3))
+    today = _task(program, _customer(2), agent, customer_value=500)
+    future = _task(program, _customer(3), agent)
+    CallTask.objects.filter(pk=future.pk).update(due_at=now + timedelta(days=4))
+    _task(program, _customer(4), other_agent)
+    client = _client(agent)
+    counts = client.get("/api/calls/tasks/counts/").data
+    assert (counts["open"], counts["overdue"], counts["today"], counts["future"], counts["done"]) == (3, 1, 1, 1, 0)
+    assert client.get("/api/calls/tasks/?tab=overdue").data["results"][0]["id"] == overdue.pk
+    assert client.get("/api/calls/tasks/?sort=value").data["results"][0]["id"] == today.pk
+    assert client.get("/api/calls/tasks/?q=09120000001").data["total"] == 1
+    assert client.get("/api/calls/tasks/?per_page=500").data["per_page"] == 50
+    foreign = CallTask.objects.get(assignee=other_agent)
+    assert client.get(f"/api/calls/tasks/{foreign.pk}/").status_code == 404
+    assert _save(client, foreign).status_code == 404
+    client.post("/api/calls/tasks/bulk/", {"ids": [today.pk, foreign.pk], "action": "postpone", "days": 7}, format="json")
+    today.refresh_from_db(), foreign.refresh_from_db()
+    assert today.due_at > now + timedelta(days=6) and foreign.due_at < now + timedelta(days=6)
+    CallProgram.objects.filter(pk=program.pk).update(status="paused")
+    assert client.get("/api/calls/tasks/").data["total"] == 0  # paused programs hide their tasks
+
+
+@pytest.mark.django_db
+def test_customer_calls_endpoint_scope(agent, manager):
+    customer, other = _customer(1), _customer(2)
+    program = _program(agents=[agent], schema=_schema(after_save="dnc"))
+    _save(_client(agent), _task(program, customer, agent))
+    data = _client(manager).get(f"/api/calls/customers/{customer.source_id}/").data
+    assert data["status"]["do_not_call"] is True and data["total"] == 1
+    assert _client(agent).get(f"/api/calls/customers/{other.source_id}/").status_code == 403

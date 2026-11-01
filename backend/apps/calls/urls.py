@@ -3,6 +3,13 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    path("tasks/", views.task_list),
+    path("tasks/counts/", views.task_counts),
+    path("tasks/bulk/", views.task_bulk),
+    path("tasks/<int:task_id>/", views.task_detail),
+    path("tasks/<int:task_id>/logs/", views.task_save_log),
+    path("logs/<int:log_id>/", views.log_detail),
+    path("customers/<int:source_id>/", views.customer_calls),
     path("settings/", views.settings_view),
     path("tags/", views.tags_view),
     path("tags/<int:tag_id>/", views.tag_detail),
