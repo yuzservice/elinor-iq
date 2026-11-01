@@ -8,12 +8,14 @@ class User(AbstractUser):
     ROLE_MANAGER = "manager"
     ROLE_ANALYST = "analyst"
     ROLE_STAFF = "staff"
+    ROLE_SALES_AGENT = "sales_agent"
     ROLE_CHOICES = [
         (ROLE_SUPER_ADMIN, "Super admin"),
         (ROLE_ADMIN, "Admin"),
         (ROLE_MANAGER, "Manager"),
         (ROLE_ANALYST, "Analyst"),
         (ROLE_STAFF, "Staff"),
+        (ROLE_SALES_AGENT, "Sales agent"),
     ]
 
     role = models.CharField(max_length=32, choices=ROLE_CHOICES, default=ROLE_ADMIN)

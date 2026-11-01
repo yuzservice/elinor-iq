@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useApi } from "../../hooks/useApi";
 import { useTiers } from "../../hooks/useTiers";
 import { customerDisplayName } from "../../lib/customerDisplay";
@@ -22,6 +22,7 @@ import {
   SMART_SEGMENTS,
   SORT_OPTIONS,
   buildCustomerListParams,
+  filtersFromParams,
   type CustomerListFilters,
   type SalesLineValue,
   type SmartSegmentId,
@@ -31,6 +32,9 @@ import { EmptyState, ErrorState, Skeleton } from "../../components/Table";
 import type { CustomerRow } from "../../types";
 import { TierBadge, groupTierOptions, tierOptions } from "./tierDisplay";
 import { CustomerOverview } from "./CustomerOverview";
+import { CreateCallList } from "../calls/CreateCallList";
+import { callsService } from "../../services/calls";
+import { useAuth } from "../../hooks/useAuth";
 
 type FilterDrawerTab = "loyalty" | "financial" | "product" | "behavior";
 
@@ -73,6 +77,8 @@ const AVATAR_GRADIENTS = [
 type Props = { canManage: boolean; onEditTierRules: () => void };
 
 export function CustomerListPanel({ canManage, onEditTierRules }: Props) {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
   const [filters, setFilters] = useState<CustomerListFilters>(EMPTY_CUSTOMER_FILTERS);
@@ -97,11 +103,38 @@ export function CustomerListPanel({ canManage, onEditTierRules }: Props) {
   const [exportError, setExportError] = useState<string | null>(null);
   const [refreshingTiers, setRefreshingTiers] = useState(false);
   const [tierMessage, setTierMessage] = useState<string | null>(null);
+  const { user } = useAuth();
+  const canManageCalls = Boolean(user?.can_manage_calls);
+  const [callListOpen, setCallListOpen] = useState(false);
+  const [callSelection, setCallSelection] = useState<number[]>([]);
+  const editListId = canManageCalls ? Number(searchParams.get("edit_list")) || null : null;
+  const editingList = useApi(() => callsService.list(editListId as number), [editListId], editListId != null);
+  useEffect(() => {
+    if (!editingList.data) return;
+    const restored = filtersFromParams(editingList.data.filter_params);
+    setFilters(restored.filters);
+    setSearch(restored.search);
+    setAppliedSearch(restored.search);
+    setPage(1);
+  }, [editingList.data]);
+  const [listEditError, setListEditError] = useState("");
+  const saveListFilters = async () => {
+    if (!editListId) return;
+    setListEditError("");
+    try {
+      await callsService.updateList(editListId, { filter_params: buildCustomerListParams(filters, appliedSearch) });
+      navigate("/calls?section=programs", { state: { message: "تغییرات لیست ذخیره شد" } });
+    } catch (err) {
+      setListEditError(err instanceof Error ? err.message : "ذخیره تغییرات انجام نشد.");
+    }
+  };
+  const toggleCallSelection = (id: number) =>
+    setCallSelection((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
 
   const reports = useApi(() => customersService.reports(), []);
 
   // Tier legend links in the overview open the list filtered by ?tier=CODE.
-  const tierParam = useSearchParams()[0].get("tier");
+  const tierParam = searchParams.get("tier");
   useEffect(() => {
     if (!tierParam) return;
     setFilters({ ...EMPTY_CUSTOMER_FILTERS, tier: tierParam });
@@ -320,6 +353,19 @@ export function CustomerListPanel({ canManage, onEditTierRules }: Props) {
 
   return (
     <div className="space-y-5">
+      {editListId != null ? (
+        <div role="status" className="flex flex-wrap items-center gap-2 rounded-xl border border-accent bg-blue-500/10 px-3.5 py-2.5 text-[13px] text-ink">
+          <span className="me-auto font-semibold">در حال ویرایش لیست {editingList.data?.name ?? "..."}</span>
+          {listEditError ? <span className="text-rose-600 dark:text-rose-400">{listEditError}</span> : null}
+          <button type="button" onClick={saveListFilters} disabled={!editingList.data} className="min-h-9 cursor-pointer rounded-xl bg-accent px-4 text-xs font-bold text-on-accent disabled:opacity-50">
+            ذخیره تغییرات
+          </button>
+          <button type="button" onClick={() => navigate("/calls?section=programs")} className="min-h-9 cursor-pointer rounded-xl border border-line px-4 text-xs font-bold text-muted">
+            انصراف
+          </button>
+        </div>
+      ) : null}
+
       {tierMessage && (
         <div className="p-3 rounded-2xl bg-accent/10 border border-accent/25 text-xs text-accent">
           ℹ️ {tierMessage}
@@ -337,6 +383,15 @@ export function CustomerListPanel({ canManage, onEditTierRules }: Props) {
         onRefreshTiers={handleRefreshTiers}
         refreshingTiers={refreshingTiers}
       />
+
+      {callListOpen && data ? (
+        <CreateCallList
+          selectedIds={callSelection}
+          filterParams={listParams as Record<string, unknown>}
+          total={data.total}
+          onClose={() => setCallListOpen(false)}
+        />
+      ) : null}
 
       {/* ============================================================== */}
       {/* 3. MINIMAL, RESPONSIVE FILTER & SEGMENT BAR                    */}
@@ -477,6 +532,16 @@ export function CustomerListPanel({ canManage, onEditTierRules }: Props) {
               </svg>
               <span>{exporting ? "در حال استخراج..." : "خروجی اکسل"}</span>
             </button>
+
+            {canManageCalls && editListId == null ? (
+              <button
+                type="button"
+                onClick={() => setCallListOpen(true)}
+                className="px-3 py-1.5 rounded-xl bg-accent text-on-accent text-xs font-bold cursor-pointer"
+              >
+                ساخت لیست تماس
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -1358,6 +1423,7 @@ export function CustomerListPanel({ canManage, onEditTierRules }: Props) {
             <table className="w-full text-right text-xs">
               <thead>
                 <tr className="text-muted border-b border-line pb-3 font-semibold">
+                  {canManageCalls ? <th className="py-3 px-2"><span className="sr-only">انتخاب</span></th> : null}
                   <th className="py-3 px-3">نام و مشخصات مشتری</th>
                   <th className="py-3 px-3">شماره تماس</th>
                   <th className="py-3 px-3">رتبه وفاداری</th>
@@ -1377,6 +1443,16 @@ export function CustomerListPanel({ canManage, onEditTierRules }: Props) {
 
                   return (
                     <tr key={customer.id} className="hover:bg-hover transition-colors">
+                      {canManageCalls ? (
+                        <td className="py-3.5 px-2">
+                          <input
+                            type="checkbox"
+                            aria-label={`انتخاب ${display.name}`}
+                            checked={callSelection.includes(customer.id)}
+                            onChange={() => toggleCallSelection(customer.id)}
+                          />
+                        </td>
+                      ) : null}
                       {/* Name & Avatar */}
                       <td className="py-3.5 px-3">
                         <div className="flex items-center gap-3">
@@ -1514,6 +1590,14 @@ export function CustomerListPanel({ canManage, onEditTierRules }: Props) {
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2.5">
+                      {canManageCalls ? (
+                        <input
+                          type="checkbox"
+                          aria-label={`انتخاب ${display.name}`}
+                          checked={callSelection.includes(customer.id)}
+                          onChange={() => toggleCallSelection(customer.id)}
+                        />
+                      ) : null}
                       <div className={`h-9 w-9 rounded-xl bg-gradient-to-tr ${gradient} flex items-center justify-center font-bold text-white text-xs shrink-0`}>
                         {initials}
                       </div>

@@ -177,10 +177,13 @@ def admins(request):
     if UserModel.objects.filter(username=username).exists():
         return Response({"detail": "این نام کاربری قبلاً ساخته شده است."}, status=status.HTTP_409_CONFLICT)
 
+    role = request.data.get("role") or User.ROLE_ADMIN
+    if role not in (User.ROLE_ADMIN, User.ROLE_MANAGER, User.ROLE_SALES_AGENT):
+        return Response({"detail": "نقش نامعتبر است."}, status=status.HTTP_400_BAD_REQUEST)
     user = UserModel.objects.create_user(
         username=username,
         password=password,
-        role=User.ROLE_ADMIN,
+        role=role,
         is_staff=False,
         is_superuser=False,
     )

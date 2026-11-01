@@ -11,9 +11,10 @@ import { TierBadge } from "../features/customers/tierDisplay";
 import { INCOMPLETE_LABEL, customerDisplayName } from "../lib/customerDisplay";
 import { formatDate, formatDateLong, formatMobile, formatNumber, formatToman } from "../lib/format";
 import { customersService } from "../services/customers";
+import { CustomerCallBadges, CustomerCallsTab } from "../features/calls/CustomerCalls";
 import type { Customer360, CustomerProductHistory, CustomerPurchase } from "../types";
 
-type TabKey = "purchases" | "products" | "profile" | "addresses" | "discounts";
+type TabKey = "purchases" | "products" | "profile" | "addresses" | "discounts" | "calls";
 type PurchaseKindFilter = "all" | "online" | "pos" | "cancelled";
 
 function getInitials(name: string) {
@@ -146,10 +147,12 @@ export function Customer360Page() {
     { key: "profile", label: "مشخصات هویتی" },
     { key: "addresses", label: "نشانی‌ها", count: data.addresses.length },
     { key: "discounts", label: "تخفیف‌ها", count: data.discounts.length },
+    { key: "calls", label: "تماس‌ها" },
   ];
 
   return (
     <div className="space-y-5">
+      <CustomerCallBadges sourceId={Number(id)} />
       {/* ============================================================== */}
       {/* 1. MINIMAL BREADCRUMB & QUICK NAVIGATION                       */}
       {/* ============================================================== */}
@@ -429,6 +432,7 @@ export function Customer360Page() {
         {tab === "profile" ? <ProfileTab data={data} displayName={display.name} /> : null}
         {tab === "addresses" ? <AddressTab addresses={data.addresses} /> : null}
         {tab === "discounts" ? <DiscountTab discounts={data.discounts} /> : null}
+        {tab === "calls" ? <CustomerCallsTab sourceId={Number(id)} /> : null}
       </div>
     </div>
   );

@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useTheme } from "../theme/ThemeProvider";
 import {
+  IconCalls,
   IconCollapse,
   IconCustomers,
   IconHome,
@@ -11,13 +12,14 @@ import {
   IconSales,
   IconSettings,
 } from "../components/Icons";
-import { NAV_ITEMS } from "../lib/nav";
+import { SALES_AGENT_ROLE, visibleNavItems } from "../lib/nav";
 
 const ICONS = {
   home: IconHome,
   sales: IconSales,
   customers: IconCustomers,
   products: IconProducts,
+  calls: IconCalls,
 };
 
 export function Sidebar() {
@@ -109,7 +111,7 @@ export function Sidebar() {
         {/* NAVIGATION LINKS                                               */}
         {/* ============================================================== */}
         <nav className="space-y-1 pt-1">
-          {NAV_ITEMS.map((item) => {
+          {visibleNavItems(user).map((item) => {
             const Icon = ICONS[item.key];
             const isHome = item.key === "home";
             const isCustomers = item.key === "customers";
@@ -164,6 +166,7 @@ export function Sidebar() {
           })}
 
           {/* Settings NavLink */}
+          {user?.role === SALES_AGENT_ROLE ? null : (
           <NavLink
             to="/settings"
             className={({ isActive }) =>
@@ -190,6 +193,7 @@ export function Sidebar() {
               </div>
             )}
           </NavLink>
+          )}
         </nav>
       </div>
 
@@ -199,7 +203,7 @@ export function Sidebar() {
       <div className="space-y-3">
         
         {/* AI Assistant Widget */}
-        {!collapsed ? (
+        {user?.role === SALES_AGENT_ROLE ? null : !collapsed ? (
           <div className="p-3.5 rounded-2xl bg-accent/5 border border-accent/20">
             <div className="flex items-center gap-2 text-xs font-bold text-accent">
               <span className="h-2 w-2 rounded-full bg-accent pulse-glow" />
@@ -244,7 +248,7 @@ export function Sidebar() {
                   <div className="text-xs font-bold text-ink truncate">
                     {user?.username || "admin"}
                   </div>
-                  <div className="text-[10px] text-faint">مدیر ارشد فروشگاه</div>
+                  <div className="text-[10px] text-faint">{user?.role === SALES_AGENT_ROLE ? "کارمند فروش" : "مدیر ارشد فروشگاه"}</div>
                 </div>
               </div>
 
@@ -297,7 +301,7 @@ export function Sidebar() {
             >
               {user?.username?.slice(0, 2).toUpperCase() || "AD"}
               <div className="opacity-0 pointer-events-none group-hover:opacity-100 absolute right-12 z-50 px-2.5 py-1 rounded-lg bg-elevated border border-line text-ink text-xs font-semibold whitespace-nowrap shadow-xl transition-opacity">
-                {user?.username || "admin"} (مدیر ارشد)
+                {user?.username || "admin"} ({user?.role === SALES_AGENT_ROLE ? "کارمند فروش" : "مدیر ارشد"})
               </div>
             </div>
 

@@ -26,6 +26,8 @@ function todayIso() {
 function accountRoleLabel(role?: string) {
   if (role === "super_admin") return "سوپر ادمین";
   if (role === "admin") return "ادمین";
+  if (role === "manager") return "مدیر";
+  if (role === "sales_agent") return "کارمند فروش";
   return role || "—";
 }
 
@@ -48,6 +50,7 @@ export function SettingsPage() {
   const [savingApi, setSavingApi] = useState(false);
   const [admins, setAdmins] = useState<PanelAdmin[]>([]);
   const [newUsername, setNewUsername] = useState("");
+  const [newRole, setNewRole] = useState("admin");
   const [newPassword, setNewPassword] = useState("");
   const [adminMessage, setAdminMessage] = useState("");
   const [savingAdmin, setSavingAdmin] = useState(false);
@@ -245,7 +248,7 @@ export function SettingsPage() {
               setSavingAdmin(true);
               setAdminMessage("");
               try {
-                await systemService.createAdmin({ username: newUsername.trim(), password: newPassword });
+                await systemService.createAdmin({ username: newUsername.trim(), password: newPassword, role: newRole });
                 setNewUsername("");
                 setNewPassword("");
                 setAdminMessage("ادمین لایه ۲ ساخته شد.");
@@ -259,6 +262,16 @@ export function SettingsPage() {
             }}
           >
             <Input value={newUsername} onChange={(event) => setNewUsername(event.target.value)} placeholder="نام کاربری ادمین لایه ۲" />
+            <select
+              aria-label="نقش کاربر جدید"
+              value={newRole}
+              onChange={(event) => setNewRole(event.target.value)}
+              className="min-h-[42px] rounded-xl border border-line bg-elevated px-3 text-sm text-ink"
+            >
+              <option value="admin">ادمین</option>
+              <option value="manager">مدیر</option>
+              <option value="sales_agent">کارمند فروش</option>
+            </select>
             <Input
               type="password"
               value={newPassword}
