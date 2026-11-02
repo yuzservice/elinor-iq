@@ -4,6 +4,10 @@ from . import views
 
 urlpatterns = [
     path("reports/", views.reports),
+    path("list-summary/", views.customer_list_summary),
+    path("list-options/", views.customer_list_options),
+    path("list-views/", views.customer_list_views),
+    path("list-views/<int:view_id>/", views.customer_list_view_detail),
     path("overview/", views.overview),
     path("campaigns/", views.customer_campaigns),
     path("export/", views.customer_export),

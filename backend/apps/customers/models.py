@@ -309,3 +309,17 @@ class CustomerMetrics(models.Model):
 
     class Meta:
         db_table = "customer_metrics"
+
+
+class CustomerListView(models.Model):
+    """A user's saved list filters. Each user sees only their own."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="+", on_delete=models.CASCADE)
+    name = models.CharField(max_length=80)
+    filters = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "customer_list_views"
+        ordering = ["name"]
+        constraints = [models.UniqueConstraint(fields=["user", "name"], name="customer_list_view_user_name")]
