@@ -7,6 +7,7 @@ python manage.py migrate --noinput
 interval="${ELINOR_SYNC_INTERVAL_SECONDS:-3600}"
 
 while true; do
+  python manage.py refresh_customer_metrics --if-empty || echo "Customer metrics first fill failed; will retry next interval."
   echo "Checking daily customer tiers at $(date -Iseconds)"
   python manage.py refresh_customer_tiers --if-due || echo "Customer tier refresh failed; will retry next interval."
   python manage.py calls_daily --if-due || echo "Call Center daily job failed; will retry next interval."

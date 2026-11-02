@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.contrib.postgres.fields import ArrayField
 from django.db import models
 
 
@@ -287,3 +288,46 @@ class InternalAccount(models.Model):
     class Meta:
         db_table = "customer_internal_accounts"
         ordering = ["-updated_at"]
+
+
+class CustomerMetrics(models.Model):
+    """Daily purchase facts per customer, so the list sorts and filters without touching sales tables.
+
+    Amount follows the tier facts and the overview: online total_amount + signed POS item lines. Written only by
+    apps.customers.metrics; refreshed_at is when the row last changed. Rules: docs/business-rules/customer-list.md.
+    """
+
+    CHANNEL_NONE = "none"
+
+    customer = models.OneToOneField(Customer, primary_key=True, related_name="metrics", on_delete=models.CASCADE)
+    invoice_count = models.IntegerField(default=0)
+    total_amount = models.BigIntegerField(default=0)
+    avg_basket = models.BigIntegerField(null=True, blank=True)
+    first_purchase_at = models.DateTimeField(null=True, blank=True)
+    last_purchase_at = models.DateTimeField(null=True, blank=True)
+    channel = models.CharField(max_length=16, default=CHANNEL_NONE)
+    # Facts for list filters that would otherwise scan sales tables on every request.
+    lines = ArrayField(models.CharField(max_length=16), default=list, blank=True)
+    payments = ArrayField(models.CharField(max_length=16), default=list, blank=True)
+    has_discount = models.BooleanField(default=False)
+    sizes = ArrayField(models.CharField(max_length=64), default=list, blank=True)
+    categories = ArrayField(models.CharField(max_length=255), default=list, blank=True)
+    cities = ArrayField(models.CharField(max_length=255), default=list, blank=True)
+    refreshed_at = models.DateTimeField()
+
+    class Meta:
+        db_table = "customer_metrics"
+
+
+class CustomerListView(models.Model):
+    """A user's saved list filters. Each user sees only their own."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="+", on_delete=models.CASCADE)
+    name = models.CharField(max_length=80)
+    filters = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "customer_list_views"
+        ordering = ["name"]
+        constraints = [models.UniqueConstraint(fields=["user", "name"], name="customer_list_view_user_name")]

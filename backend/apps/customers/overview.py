@@ -114,14 +114,16 @@ def _flag(q):
     return ExpressionWrapper(q, output_field=BooleanField())
 
 
-def _events_sql():
+def _events_sql(include_internal=False):
+    scope = (lambda qs: qs) if include_internal else exclude_operator_sales
+
     def gateway(name):
         return _flag(Q(pk__in=qualifying_online_gateway_payments(name).values("invoice__order_id")))
 
     def compiled(qs, *columns):
         return qs.order_by().values(*columns).query.sql_with_params()
 
-    online = exclude_operator_sales(qualifying_online_orders().filter(customer_id__isnull=False)).annotate(
+    online = scope(qualifying_online_orders().filter(customer_id__isnull=False)).annotate(
         cid=F("customer_id"),
         at=F("created_at"),
         amt=F("total_amount"),
@@ -133,7 +135,7 @@ def _events_sql():
     )
 
     def pos(qs, invoice):
-        return exclude_operator_sales(qs.filter(customer_id__isnull=False)).annotate(
+        return scope(qs.filter(customer_id__isnull=False)).annotate(
             sid=F("pk"),
             cid=F("customer_id"),
             at=F("created_at"),

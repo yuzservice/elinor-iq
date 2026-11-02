@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>لیست مشتریان</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#06080d}
+button,input{font-family:inherit}
+button:focus-visible,input:focus-visible{outline:2px solid #60a5fa;outline-offset:2px}
+.card{background:#0c1017;border:1px solid rgba(255,255,255,.08);border-radius:18px}
+.inp{box-sizing:border-box;min-height:40px;padding:0 12px;border-radius:11px;background:#131924;color:#f8fafc;border:1px solid rgba(255,255,255,.12);font-size:13px}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.col{display:flex;flex-direction:column}
+.mut{font-size:12.5px;color:#94a3b8}
+.ghost{min-height:38px;padding:0 13px;border-radius:10px;background:transparent;border:1px solid rgba(255,255,255,.14);color:#cbd5e1;font-size:12.5px;cursor:pointer}
+th{font-weight:500;text-align:right;padding:6px 10px;color:#94a3b8;white-space:nowrap}
+td{padding:9px 10px;white-space:nowrap}
+tbody tr{border-top:1px solid rgba(255,255,255,.06)}
+tbody tr:hover{background:rgba(255,255,255,.025)}
+</style>
+</helmet>
+<div dir="rtl" style="min-height: 100vh; box-sizing: border-box; background: #06080d; color: #f8fafc; font-family: Vazirmatn, system-ui, sans-serif; padding: 24px 16px 56px;">
+<div style="max-width: 1360px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px;">
+
+  <div class="row" style="justify-content: space-between; gap: 12px;">
+    <div class="col" style="gap: 8px;">
+      <h1 style="margin: 0; font-size: 24px; font-weight: 800;">مشتریان</h1>
+      <div class="row">
+        <span style="padding: 6px 14px; border-radius: 999px; background: #3b82f6; color: #fff; font-size: 13px; font-weight: 600;">لیست مشتریان</span>
+        <span style="padding: 6px 14px; border-radius: 999px; background: #131924; color: #94a3b8; font-size: 13px;">کمپین‌ها</span>
+      </div>
+    </div>
+    <span class="mut">داده‌ها نمونه است. بخش خلاصه بالای صفحه اینجا جمع‌شده نمایش داده شده و تغییر نمی‌کند.</span>
+  </div>
+
+  <div class="card row" style="gap: 8px 28px; padding: 12px 16px; border-radius: 14px; font-size: 13px;">
+    <span><span style="color: #94a3b8;">کل مشتریان</span> <b>۱۹۹٬۲۶۶</b></span>
+    <span><span style="color: #94a3b8;">خریداران فعال</span> <b>۹٬۸۴۰</b></span>
+    <span><span style="color: #94a3b8;">میانگین سبد خرید</span> <b>۳٬۸۵۰</b></span>
+    <span><span style="color: #94a3b8;">نرخ خرید مجدد</span> <b>۳۱٪</b></span>
+  </div>
+
+  <section class="card col" style="position: relative; z-index: 5; padding: 12px 14px; gap: 10px;">
+    <div class="row" style="gap: 8px;">
+      <span style="position: relative; display: flex; flex: 1 1 220px; max-width: 320px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="position: absolute; top: 12px; right: 12px;"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.5" y2="16.5"></line></svg>
+        <input class="inp" type="search" aria-label="جستجوی مشتری" placeholder="جستجوی نام یا شماره" value="{{q}}" onChange="{{setQ}}" style="width: 100%; padding-right: 36px;" />
+      </span>
+      <sc-for list="{{cats}}" as="c" hint-placeholder-count="5">
+        <button type="button" onClick="{{c.pick}}" aria-expanded="{{c.open}}" style="{{c.style}}">{{c.label}}<sc-if value="{{c.has}}" hint-placeholder-val="{{ false }}"><span style="min-width: 18px; height: 18px; border-radius: 9px; background: #3b82f6; color: #fff; font-size: 11px; display: inline-flex; align-items: center; justify-content: center;">{{c.count}}</span></sc-if><span aria-hidden="true" style="font-size: 10px; color: #64748b;">▾</span></button>
+      </sc-for>
+    </div>
+
+    <sc-if value="{{panelOpen}}" hint-placeholder-val="{{ false }}">
+      <div style="position: absolute; top: calc(100% + 6px); right: 0; left: 0; z-index: 20; max-height: 72vh; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding: 18px; border-radius: 16px; background: #131924; border: 1px solid rgba(255,255,255,.14); box-shadow: 0 24px 60px -12px rgba(0,0,0,.8);">
+        <sc-if value="{{isFieldsPanel}}" hint-placeholder-val="{{ true }}">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px 28px;">
+            <sc-for list="{{fields}}" as="f" hint-placeholder-count="4">
+              <div class="col" style="gap: 8px;">
+                <span style="font-size: 13px; font-weight: 600; color: #cbd5e1;">{{f.label}}</span>
+                <sc-if value="{{f.isRange}}" hint-placeholder-val="{{ false }}">
+                  <div class="row" style="flex-wrap: nowrap;">
+                    <input class="inp" type="number" min="0" aria-label="{{f.minLabel}}" placeholder="از" value="{{f.min}}" onChange="{{f.setMin}}" style="width: 88px; background: #0c1017;" />
+                    <input class="inp" type="number" min="0" aria-label="{{f.maxLabel}}" placeholder="تا" value="{{f.max}}" onChange="{{f.setMax}}" style="width: 88px; background: #0c1017;" />
+                    <span class="mut">{{f.unit}}</span>
+                  </div>
+                </sc-if>
+                <div class="row"><sc-for list="{{f.opts}}" as="o" hint-placeholder-count="4"><button type="button" onClick="{{o.pick}}" aria-pressed="{{o.pressed}}" style="{{o.style}}">{{o.label}}</button></sc-for></div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{isViewsPanel}}" hint-placeholder-val="{{ false }}">
+          <div class="col" style="gap: 14px;">
+            <div class="col" style="gap: 8px;"><span style="font-size: 13px; font-weight: 600; color: #cbd5e1;">میان‌برها</span><div class="row"><sc-for list="{{presets}}" as="p" hint-placeholder-count="4"><button type="button" onClick="{{p.pick}}" style="{{p.style}}">{{p.label}}</button></sc-for></div></div>
+            <div class="col" style="gap: 8px;"><span style="font-size: 13px; font-weight: 600; color: #cbd5e1;">نماهای من</span><div class="row"><sc-for list="{{views}}" as="p" hint-placeholder-count="1"><button type="button" onClick="{{p.pick}}" style="{{p.style}}">{{p.label}}</button></sc-for></div></div>
+            <div class="row"><input class="inp" type="text" aria-label="نام نما" placeholder="نام نمای جدید" value="{{viewName}}" onChange="{{setViewName}}" style="background: #0c1017; width: 200px;" /><button type="button" class="ghost" onClick="{{saveView}}" disabled="{{cantSaveView}}">ذخیره فیلترهای فعلی</button></div>
+          </div>
+        </sc-if>
+        <div class="row" style="justify-content: space-between; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.08);">
+          <span class="mut">{{panelCount}}</span>
+          <button type="button" onClick="{{closePanel}}" style="min-height: 38px; padding: 0 18px; border-radius: 10px; border: 0; background: #3b82f6; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;">نمایش نتیجه</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{hasActive}}" hint-placeholder-val="{{ false }}">
+      <div class="row">
+        <sc-for list="{{active}}" as="a" hint-placeholder-count="2">
+          <button type="button" onClick="{{a.remove}}" aria-label="{{a.aria}}" style="min-height: 32px; padding: 0 11px; border-radius: 999px; background: rgba(59,130,246,.16); border: 1px solid rgba(96,165,250,.4); color: #dbeafe; font-size: 12.5px; cursor: pointer;">{{a.label}} ✕</button>
+        </sc-for>
+        <button type="button" onClick="{{clearAll}}" style="min-height: 32px; padding: 0 8px; background: transparent; border: 0; color: #93c5fd; font-size: 12.5px; cursor: pointer;">پاک کردن همه</button>
+      </div>
+    </sc-if>
+  </section>
+
+  <section aria-label="خلاصه نتیجه فیلتر" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px;">
+    <sc-for list="{{summary}}" as="s" hint-placeholder-count="4">
+      <div class="card col" style="padding: 14px 18px; gap: 5px;">
+        <span style="font-size: 13px; color: #cbd5e1;">{{s.label}}</span>
+        <span style="display: flex; align-items: baseline; gap: 5px;"><span style="font-size: 26px; font-weight: 800; letter-spacing: -0.5px;">{{s.value}}</span><span class="mut">{{s.unit}}</span></span>
+        <span style="{{s.noteStyle}}">{{s.note}}</span>
+      </div>
+    </sc-for>
+  </section>
+
+  <section class="card col" style="padding: 12px 8px 10px;">
+    <div class="row" style="justify-content: space-between; gap: 8px; padding: 0 8px 10px;">
+      <span class="row" style="gap: 8px;"><span style="font-size: 14px; font-weight: 600;">{{resultLine}}</span><sc-if value="{{hasSel}}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{clearSel}}" style="min-height: 30px; background: transparent; border: 0; color: #93c5fd; font-size: 12.5px; cursor: pointer;">لغو انتخاب</button></sc-if></span>
+      <div class="row">
+        <button type="button" class="ghost" onClick="{{toggleCols}}" aria-expanded="{{colsOpen}}">ستون‌ها</button>
+        <button type="button" class="ghost" onClick="{{doExport}}">خروجی اکسل</button>
+        <button type="button" onClick="{{doCall}}" style="min-height: 38px; padding: 0 14px; border-radius: 10px; border: 0; background: #3b82f6; color: #fff; font-size: 12.5px; font-weight: 600; cursor: pointer;">{{callLabel}}</button>
+      </div>
+    </div>
+    <sc-if value="{{colsOpen}}" hint-placeholder-val="{{ false }}">
+      <div class="row" style="gap: 4px 16px; padding: 8px 12px; margin: 0 8px 10px; border-radius: 12px; background: #131924;">
+        <sc-for list="{{colOpts}}" as="c" hint-placeholder-count="5"><label style="display: inline-flex; align-items: center; gap: 7px; min-height: 34px; font-size: 13px; color: #cbd5e1;"><input type="checkbox" checked="{{c.on}}" onChange="{{c.toggle}}" />{{c.label}}</label></sc-for>
+      </div>
+    </sc-if>
+    <sc-if value="{{hasMsg}}" hint-placeholder-val="{{ false }}"><p role="status" style="margin: 0 8px 10px; padding: 8px 12px; border-radius: 10px; background: rgba(59,130,246,.14); font-size: 13px;">{{msg}}</p></sc-if>
+    <div style="overflow-x: auto;">
+      <table style="width: 100%; min-width: 760px; border-collapse: collapse; font-size: 13px;">
+        <thead><tr>
+          <th scope="col"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden;">انتخاب</span></th>
+          <sc-for list="{{heads}}" as="h" hint-placeholder-count="6">
+            <th scope="col" aria-sort="{{h.aria}}">
+              <sc-if value="{{h.sortable}}" hint-placeholder-val="{{ true }}"><button type="button" onClick="{{h.pick}}" style="{{h.style}}">{{h.label}} <span style="{{h.arrowStyle}}">{{h.arrow}}</span></button></sc-if>
+              <sc-if value="{{h.plain}}" hint-placeholder-val="{{ false }}"><span>{{h.label}}</span></sc-if>
+            </th>
+          </sc-for>
+          <th scope="col"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden;">پروفایل</span></th>
+        </tr></thead>
+        <tbody>
+          <sc-for list="{{rows}}" as="r" hint-placeholder-count="10">
+            <tr>
+              <td><input type="checkbox" aria-label="{{r.selLabel}}" checked="{{r.sel}}" onChange="{{r.toggle}}" /></td>
+              <sc-for list="{{r.cells}}" as="c" hint-placeholder-count="6">
+                <td style="{{c.style}}">
+                  <sc-if value="{{c.isName}}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{r.open}}" style="display: flex; align-items: center; gap: 10px; background: transparent; border: 0; padding: 0; color: inherit; cursor: pointer; text-align: right;"><span style="{{c.avatar}}">{{c.initial}}</span><span class="col" style="gap: 1px; align-items: flex-start;"><span style="font-size: 13.5px; font-weight: 600; color: #e2e8f0;">{{c.main}}</span><span style="font-size: 12px; color: #94a3b8; direction: ltr;">{{c.sub}}</span></span></button></sc-if>
+                  <sc-if value="{{c.isTier}}" hint-placeholder-val="{{ false }}"><span style="{{c.badge}}">{{c.main}}</span></sc-if>
+                  <sc-if value="{{c.isText}}" hint-placeholder-val="{{ true }}"><span style="display: inline-flex; align-items: center; gap: 7px;"><span style="{{c.dot}}"></span><span>{{c.main}}</span></span></sc-if>
+                  <sc-if value="{{c.isAvg}}" hint-placeholder-val="{{ false }}"><span class="col" style="gap: 4px; min-width: 90px;"><span>{{c.main}}</span><span style="height: 3px; border-radius: 2px; background: rgba(255,255,255,.07);"><span style="{{c.bar}}"></span></span></span></sc-if>
+                </td>
+              </sc-for>
+              <td><button type="button" onClick="{{r.open}}" aria-label="{{r.openLabel}}" style="width: 32px; height: 32px; border-radius: 9px; background: transparent; border: 0; color: #64748b; font-size: 16px; cursor: pointer;">‹</button></td>
+            </tr>
+          </sc-for>
+        </tbody>
+      </table>
+    </div>
+    <sc-if value="{{noRows}}" hint-placeholder-val="{{ false }}"><p class="mut" style="margin: 0; padding: 30px; text-align: center;">مشتری‌ای با این فیلترها پیدا نشد. یکی از فیلترها را بردارید.</p></sc-if>
+    <div class="row" style="justify-content: space-between; padding: 12px 8px 2px;">
+      <span class="mut">{{pageLine}}</span>
+      <div class="row"><button type="button" class="ghost" onClick="{{prev}}" disabled="{{noPrev}}">قبلی</button><button type="button" class="ghost" onClick="{{next}}" disabled="{{noNext}}">بعدی</button></div>
+    </div>
+  </section>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1200}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      q: '', cat: null, f: {}, sort: 'last', dir: 'asc', page: 1, sel: [], colsOpen: false, msg: '', viewName: '',
+      cols: { total: false, first: false, city: false },
+      views: [{ name: 'طلایی‌های غیرفعال', f: { tier: ['طلایی ۱', 'طلایی ۲'], last: 'gt90' } }]
+    };
+  }
+  renderVals() {
+    var self = this, S = this.state, F = S.f;
+    var fa = function (n) { return Math.round(n).toLocaleString('fa-IR'); };
+    var fa1 = function (n) { return Number(n).toLocaleString('fa-IR', { maximumFractionDigits: 1 }); };
+    var pick = function (a, i, m, b) { return a[(i * m + b) % a.length]; };
+    var tiers = ['VIP', 'الماس', 'طلایی ۱', 'طلایی ۲', 'نقره‌ای', 'برنز ۱', 'برنز ۲'];
+    var all = [];
+    for (var i = 1; i <= 60; i++) {
+      var count = 1 + (i * 7) % 12, avg = 1.2 + ((i * 13) % 70) / 10, last = 1 + (i * 37) % 400, ch = pick(['آنلاین', 'حضوری', 'ترکیبی'], i, 5, 1);
+      all.push({
+        id: i, name: 'مشتری نمونه ' + fa(i), mobile: '0912 000 ' + String(1000 + i), tier: tiers[(i * 3) % 7], count: count, avg: avg, total: count * avg,
+        last: last, first: last + (i * 53) % 900, ch: ch, branch: ch === 'آنلاین' ? 'سایت' : pick(['ساری', 'گرگان', 'کاپری'], i, 7, 2),
+        city: pick(['ساری', 'گرگان', 'تهران', 'بابل', 'آمل'], i, 11, 3), profile: i % 6 === 0 ? 'ناقص' : 'کامل',
+        pay: pick(['اسنپ‌پی', 'دیجی‌پی', 'شاپینو', 'بدون اقساط', 'بدون اقساط'], i, 3, 1), discount: i % 3 === 0 ? 'دارد' : 'ندارد',
+        cat: pick(['مانتو', 'شلوار', 'کفش', 'اکسسوری'], i, 9, 1), size: pick(['S', 'M', 'L', 'XL'], i, 5, 2),
+        result: i % 4 === 0 ? pick(['علاقه‌مند', 'ناراضی', 'پاسخ نداد'], i, 7, 1) : 'بدون تماس', tag: i % 8 === 0 ? 'فرصت فروش' : (i % 12 === 1 ? 'نارضایتی' : 'بدون برچسب'), dnc: i % 15 === 0 ? 'بله' : 'خیر'
+      });
+    }
+    var dayMatch = { '30': function (d) { return d <= 30; }, '90': function (d) { return d <= 90; }, 'gt90': function (d) { return d > 90; }, 'gt180': function (d) { return d > 180; } };
+    var lastOpts = [['30', 'تا ۳۰ روز پیش'], ['90', 'تا ۹۰ روز پیش'], ['gt90', 'بیش از ۹۰ روز'], ['gt180', 'بیش از ۱۸۰ روز']];
+    var defs = {
+      customer: { label: 'مشتری', fields: [
+        { k: 'tier', label: 'سطح', list: tiers, get: 'tier' }, { k: 'city', label: 'شهر', list: ['ساری', 'گرگان', 'تهران', 'بابل', 'آمل'], get: 'city' },
+        { k: 'profile', label: 'وضعیت پروفایل', list: ['کامل', 'ناقص'], get: 'profile' } ] },
+      purchase: { label: 'خرید', fields: [
+        { k: 'count', label: 'تعداد فاکتور', range: true, get: 'count', unit: 'فاکتور' }, { k: 'total', label: 'مجموع خرید', range: true, get: 'total', unit: 'میلیون تومان' },
+        { k: 'avg', label: 'میانگین سبد خرید', range: true, get: 'avg', unit: 'میلیون تومان' }, { k: 'last', label: 'آخرین خرید', days: lastOpts, get: 'last' }, { k: 'first', label: 'اولین خرید', days: lastOpts, get: 'first' } ] },
+      channel: { label: 'کانال و پرداخت', fields: [
+        { k: 'ch', label: 'کانال', list: ['آنلاین', 'حضوری', 'ترکیبی'], get: 'ch' }, { k: 'branch', label: 'شعبه', list: ['سایت', 'ساری', 'گرگان', 'کاپری'], get: 'branch' },
+        { k: 'pay', label: 'روش پرداخت', list: ['اسنپ‌پی', 'دیجی‌پی', 'شاپینو'], get: 'pay' }, { k: 'discount', label: 'تخفیف', list: ['دارد', 'ندارد'], get: 'discount' } ] },
+      product: { label: 'کالا', fields: [ { k: 'cat', label: 'دسته‌بندی', list: ['مانتو', 'شلوار', 'کفش', 'اکسسوری'], get: 'cat' }, { k: 'size', label: 'سایز', list: ['S', 'M', 'L', 'XL'], get: 'size' } ] },
+      call: { label: 'تماس', fields: [
+        { k: 'result', label: 'آخرین نتیجه', list: ['علاقه‌مند', 'ناراضی', 'پاسخ نداد', 'بدون تماس'], get: 'result' }, { k: 'tag', label: 'برچسب', list: ['فرصت فروش', 'نارضایتی'], get: 'tag' }, { k: 'dnc', label: 'تماس نگیرید', list: ['بله', 'خیر'], get: 'dnc' } ] }
+    };
+    var allFields = [];
+    Object.keys(defs).forEach(function (c) { defs[c].fields.forEach(function (x) { x.cat = c; allFields.push(x); }); });
+    var isOn = function (x) { var v = F[x.k]; return x.range ? !!(v && (v.min || v.max)) : (x.days ? !!v : !!(v && v.length)); };
+    var setF = function (k, v) { var n = Object.assign({}, F); if (v === undefined) delete n[k]; else n[k] = v; self.setState({ f: n, page: 1, msg: '' }); };
+
+    var found = all.filter(function (c) {
+      if (S.q && c.name.indexOf(S.q) < 0 && c.mobile.indexOf(S.q) < 0) return false;
+      return allFields.every(function (x) {
+        if (!isOn(x)) return true;
+        var v = F[x.k], val = c[x.get];
+        if (x.range) return (!v.min || val >= Number(v.min)) && (!v.max || val <= Number(v.max));
+        if (x.days) return dayMatch[v](val);
+        return v.indexOf(val) >= 0;
+      });
+    });
+    var key = S.sort, sign = S.dir === 'asc' ? 1 : -1;
+    var tierRank = function (t) { return tiers.indexOf(t); };
+    found.sort(function (a, b) {
+      if (key === 'name') return sign * (a.id - b.id);
+      if (key === 'tier') return sign * (tierRank(a.tier) - tierRank(b.tier));
+      return sign * (a[key] - b[key]);
+    });
+    var SCALE = 3321, perPage = 10;
+    var pages = Math.max(1, Math.ceil(found.length / perPage)), page = Math.min(S.page, pages);
+    var pageRows = found.slice((page - 1) * perPage, page * perPage);
+    var est = found.length * SCALE, totalSum = found.reduce(function (s, c) { return s + c.total; }, 0) * SCALE;
+    var invoices = found.reduce(function (s, c) { return s + c.count; }, 0) * SCALE;
+    var share = est / 199266 * 100;
+    var chip = function (on) { return 'min-height: 34px; padding: 0 12px; border-radius: 999px; font-size: 12.5px; cursor: pointer; border: 1px solid ' + (on ? '#60a5fa' : 'rgba(255,255,255,.12)') + '; background: ' + (on ? 'rgba(59,130,246,.2)' : 'transparent') + '; color: ' + (on ? '#fff' : '#94a3b8') + ';'; };
+
+    var fieldVals = S.cat && defs[S.cat] ? defs[S.cat].fields.map(function (x) {
+      var v = F[x.k];
+      if (x.range) {
+        var r = v || {};
+        var setR = function (part) { return function (e) { var n = Object.assign({}, r); n[part] = e.target.value; setF(x.k, n.min || n.max ? n : undefined); }; };
+        return { label: x.label, isRange: true, unit: x.unit, min: r.min || '', max: r.max || '', minLabel: x.label + ' از', maxLabel: x.label + ' تا', setMin: setR('min'), setMax: setR('max'), opts: [] };
+      }
+      if (x.days) return { label: x.label, isRange: false, opts: x.days.map(function (o) { var on = v === o[0]; return { label: o[1], pressed: on ? 'true' : 'false', style: chip(on), pick: function () { setF(x.k, on ? undefined : o[0]); } }; }) };
+      var cur = v || [];
+      return { label: x.label, isRange: false, opts: x.list.map(function (t) { var on = cur.indexOf(t) >= 0; return { label: t, pressed: on ? 'true' : 'false', style: chip(on), pick: function () { var n = on ? cur.filter(function (y) { return y !== t; }) : cur.concat([t]); setF(x.k, n.length ? n : undefined); } }; }) };
+    }) : [];
+
+    var actives = [];
+    allFields.forEach(function (x) {
+      if (!isOn(x)) return;
+      var v = F[x.k], txt;
+      if (x.range) txt = (v.min ? 'از ' + fa1(v.min) + ' ' : '') + (v.max ? 'تا ' + fa1(v.max) : '');
+      else if (x.days) txt = x.days.filter(function (o) { return o[0] === v; })[0][1];
+      else txt = v.join('، ');
+      actives.push({ label: x.label + ': ' + txt, aria: 'حذف فیلتر ' + x.label, remove: function () { setF(x.k, undefined); } });
+    });
+
+    var colDefs = [
+      { k: 'name', label: 'مشتری', sort: 'name' }, { k: 'tier', label: 'سطح', sort: 'tier' }, { k: 'avg', label: 'میانگین سبد خرید', sort: 'avg' },
+      { k: 'count', label: 'تعداد فاکتور', sort: 'count' }, { k: 'total', label: 'مجموع خرید', sort: 'total', opt: true }, { k: 'last', label: 'آخرین خرید', sort: 'last' },
+      { k: 'first', label: 'اولین خرید', sort: 'first', opt: true }, { k: 'ch', label: 'کانال' }, { k: 'city', label: 'شهر', opt: true }
+    ];
+    var visible = colDefs.filter(function (c) { return !c.opt || S.cols[c.k]; });
+    var defaultDir = { last: 'asc', first: 'desc', name: 'asc', tier: 'asc' };
+    var cellText = function (k, c) {
+      if (k === 'avg' || k === 'total') return fa1(c[k]) + ' میلیون';
+      if (k === 'count') return fa(c.count);
+      if (k === 'last' || k === 'first') return fa(c[k]) + ' روز پیش';
+      if (k === 'ch') return c.ch + '، ' + c.branch;
+      return c[k];
+    };
+    var selCount = S.sel.length;
+    var overallTotal = all.reduce(function (s, c) { return s + c.total; }, 0), overallInv = all.reduce(function (s, c) { return s + c.count; }, 0);
+    var compare = function (val, base, none) {
+      if (!actives.length && !S.q) return { text: none, style: 'font-size: 12.5px; color: #94a3b8;' };
+      var d = Math.round((val / (base || 1) - 1) * 100);
+      return { text: d === 0 ? 'برابر میانگین کل' : fa(Math.abs(d)) + '٪ ' + (d > 0 ? 'بیشتر' : 'کمتر') + ' از میانگین کل', style: 'font-size: 12.5px; color: ' + (d > 0 ? '#34d399' : (d < 0 ? '#fb7185' : '#94a3b8')) + ';' };
+    };
+    var basketVal = totalSum / (invoices || 1), freqVal = invoices / (est || 1);
+    var cmpBasket = compare(basketVal, overallTotal / overallInv, 'مبلغ تقسیم بر فاکتور'), cmpFreq = compare(freqVal, overallInv / all.length, 'برای هر مشتری');
+    var tierColor = { 'VIP': '#a78bfa', 'الماس': '#60a5fa', 'طلایی ۱': '#fbbf24', 'طلایی ۲': '#fbbf24', 'نقره‌ای': '#cbd5e1', 'برنز ۱': '#fb923c', 'برنز ۲': '#fb923c' };
+    var chColor = { 'آنلاین': '#3b82f6', 'حضوری': '#10b981', 'ترکیبی': '#8b5cf6' };
+    var avatarBg = ['#1e3a5f', '#14443a', '#4a3a14', '#3b2a5f', '#4a2438'];
+    var dotOf = function (color) { return color ? 'width: 7px; height: 7px; border-radius: 50%; flex: none; background: ' + color + ';' : 'display: none;'; };
+
+    return {
+      q: S.q, setQ: function (e) { self.setState({ q: e.target.value, page: 1 }); },
+      cats: Object.keys(defs).concat(['views']).map(function (c) {
+        var isV = c === 'views', n = isV ? 0 : defs[c].fields.filter(isOn).length, open = S.cat === c;
+        return { label: isV ? 'میان‌برها و نماها' : defs[c].label, open: open ? 'true' : 'false', has: n > 0, count: fa(n),
+          style: 'display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 14px; border-radius: 11px; font-size: 13px; cursor: pointer; border: 1px solid ' + (open ? '#60a5fa' : (n ? 'rgba(96,165,250,.45)' : 'rgba(255,255,255,.12)')) + '; background: ' + (open ? 'rgba(59,130,246,.18)' : (isV ? 'transparent' : '#131924')) + '; color: ' + (open || n ? '#fff' : '#cbd5e1') + ';',
+          pick: function () { self.setState({ cat: open ? null : c }); } };
+      }),
+      isFieldsPanel: !!S.cat && S.cat !== 'views', isViewsPanel: S.cat === 'views',
+      panelCount: fa(est) + ' مشتری با این فیلترها',
+      closePanel: function () { self.setState({ cat: null }); },
+      cantSaveView: !S.viewName.trim(),
+      panelOpen: !!S.cat, fields: fieldVals,
+      presets: [['غیرفعال ۹۰ روز', { last: 'gt90' }], ['تک‌خریدی', { count: { min: '1', max: '1' } }], ['خریداران ارزشمند', { avg: { min: '5' } }], ['چندکاناله', { ch: ['ترکیبی'] }]].map(function (p) {
+        return { label: p[0], style: chip(false), pick: function () { self.setState({ f: p[1], page: 1, msg: '', cat: null }); } };
+      }),
+      views: S.views.map(function (w) { return { label: w.name, style: chip(false), pick: function () { self.setState({ f: w.f, page: 1, msg: '', cat: null }); } }; }),
+      hasActive: actives.length > 0, active: actives,
+      clearAll: function () { self.setState({ f: {}, page: 1, msg: '' }); },
+      viewName: S.viewName, setViewName: function (e) { self.setState({ viewName: e.target.value }); },
+      saveView: function () { var n = S.viewName.trim(); if (n) self.setState({ views: S.views.concat([{ name: n, f: F }]), viewName: '', msg: 'نمای «' + n + '» ذخیره شد.' }); },
+      summary: [
+        { label: 'مشتریان این نتیجه', value: fa(est), unit: 'نفر', note: fa1(Math.round(share * 10) / 10) + '٪ از کل مشتریان', noteStyle: 'font-size: 12.5px; color: #94a3b8;' },
+        { label: 'مجموع خرید', value: fa(totalSum / 1000), unit: 'میلیارد تومان', note: 'از ابتدا تا امروز', noteStyle: 'font-size: 12.5px; color: #94a3b8;' },
+        { label: 'میانگین سبد خرید', value: fa1(Math.round(basketVal * 10) / 10), unit: 'میلیون تومان', note: cmpBasket.text, noteStyle: cmpBasket.style },
+        { label: 'میانگین تعداد خرید', value: fa1(Math.round(freqVal * 10) / 10), unit: 'فاکتور', note: cmpFreq.text, noteStyle: cmpFreq.style }
+      ],
+      resultLine: selCount ? fa(selCount) + ' مشتری انتخاب شد' : fa(est) + ' مشتری',
+      hasSel: selCount > 0, clearSel: function () { self.setState({ sel: [] }); },
+      colsOpen: S.colsOpen, toggleCols: function () { self.setState({ colsOpen: !S.colsOpen }); },
+      colOpts: colDefs.filter(function (c) { return c.opt; }).map(function (c) { return { label: c.label, on: !!S.cols[c.k], toggle: function (e) { var n = Object.assign({}, S.cols); n[c.k] = e.target.checked; self.setState({ cols: n }); } }; }),
+      doExport: function () { self.setState({ msg: 'خروجی اکسل همین ' + fa(selCount || est) + ' مشتری ساخته می‌شود.' }); },
+      callLabel: selCount ? 'ساخت لیست تماس (' + fa(selCount) + ')' : 'ساخت لیست تماس',
+      doCall: function () { self.setState({ msg: 'فرم ساخت لیست تماس برای ' + fa(selCount || est) + ' مشتری باز می‌شود.' }); },
+      hasMsg: !!S.msg, msg: S.msg,
+      heads: visible.map(function (c) {
+        var on = S.sort === c.sort;
+        return { label: c.label, sortable: !!c.sort, plain: !c.sort, aria: on ? (S.dir === 'asc' ? 'ascending' : 'descending') : 'none',
+          arrow: on ? (S.dir === 'asc' ? '▲' : '▼') : '↕', arrowStyle: 'font-size: 10px; color: ' + (on ? '#60a5fa' : '#475569') + ';',
+          style: 'min-height: 36px; padding: 0; background: transparent; border: 0; cursor: pointer; font-size: 12.5px; color: ' + (on ? '#f8fafc' : '#94a3b8') + ';' + (on ? ' font-weight: 600;' : ''),
+          pick: function () { if (on) self.setState({ dir: S.dir === 'asc' ? 'desc' : 'asc', page: 1 }); else self.setState({ sort: c.sort, dir: defaultDir[c.sort] || 'desc', page: 1 }); } };
+      }),
+      rows: pageRows.map(function (c) {
+        var on = S.sel.indexOf(c.id) >= 0;
+        return {
+          sel: on, selLabel: 'انتخاب ' + c.name, openLabel: 'باز کردن پروفایل ' + c.name,
+          toggle: function () { self.setState({ sel: on ? S.sel.filter(function (x) { return x !== c.id; }) : S.sel.concat([c.id]) }); },
+          open: function () { self.setState({ msg: 'پروفایل ۳۶۰ ' + c.name + ' باز می‌شود. در نسخه اصلی کلیک روی کل ردیف هم همین کار را می‌کند.' }); },
+          cells: visible.map(function (v) {
+            var tc = tierColor[c.tier], isAvg = v.k === 'avg';
+            var dot = v.k === 'last' ? (c.last <= 90 ? '#34d399' : (c.last <= 180 ? '#fbbf24' : '#fb7185')) : (v.k === 'ch' ? chColor[c.ch] : '');
+            return { isName: v.k === 'name', isTier: v.k === 'tier', isAvg: isAvg, isText: v.k !== 'name' && v.k !== 'tier' && !isAvg,
+              main: v.k === 'name' ? c.name : cellText(v.k, c), sub: c.mobile, initial: 'م', dot: dotOf(dot),
+              avatar: 'width: 34px; height: 34px; flex: none; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; color: #e2e8f0; background: ' + avatarBg[c.id % 5] + ';',
+              badge: 'padding: 3px 10px; border-radius: 999px; font-size: 12px; background: ' + tc + '22; color: ' + tc + ';',
+              bar: 'display: block; height: 3px; border-radius: 2px; background: #3b82f6; width: ' + Math.round(c.avg / 8.1 * 100) + '%;',
+              style: S.sort === v.sort ? 'font-weight: 600; color: #f8fafc;' : 'color: #cbd5e1;' };
+          })
+        };
+      }),
+      noRows: found.length === 0,
+      pageLine: found.length ? 'نمایش ' + fa((page - 1) * perPage + 1) + ' تا ' + fa(Math.min(page * perPage, found.length)) + ' از ' + fa(found.length) + ' ردیف نمونه' : '',
+      noPrev: page <= 1, noNext: page >= pages,
+      prev: function () { self.setState({ page: page - 1 }); }, next: function () { self.setState({ page: page + 1 }); }
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -236,6 +236,10 @@ export type SalesOrder = {
   item_count: number;
 };
 
+export type CustomerListTotals = { count: number; total_amount: number; avg_basket: number | null; avg_invoice_count: number | null };
+export type CustomerListSummary = CustomerListTotals & { share: number | null; baseline: CustomerListTotals };
+export type CustomerListViewRow = { id: number; name: string; filters: Record<string, string> };
+
 export type CustomerRow = {
   id: number;
   name: string;
@@ -257,6 +261,12 @@ export type CustomerRow = {
   sales_line_labels: string[];
   lifetime_purchase_amount: number;
   days_since_last_purchase: number | null;
+  invoice_count: number;
+  total_amount: number;
+  avg_basket: number | null;
+  first_invoice_at: string | null;
+  last_invoice_at: string | null;
+  city: string;
   tier_code: string | null;
   tier_label: string | null;
   tier_channel?: TierChannel | null;
