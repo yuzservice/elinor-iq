@@ -134,7 +134,8 @@ Notes for the Product Architect / next task:
 - Step 3: `CustomerListView` (`customers.0011`), list/create/delete per user. Next: UI.
 - Step 4: new `CustomerListPanel` and `customerListUrl.ts` (filters, sort, page in the URL); old drawer and `customerListFilters.ts` removed. Not yet checked in the browser. Next: performance on real data.
 - Step 5: on real local data the sales-table filters missed the target (city 2.1 s, category 4.7 s), so `CustomerMetrics` gained `lines, payments, has_discount, sizes, categories, cities` (`customers.0012`) and the UI uses new params `branches, payments, discount, sizes, categories, cities`. Old names keep their old path. All list cases now < 300 ms, summary cold < 150 ms; no new index was needed. Next: browser check, docs.
-- Step 6-7: tests, docs, browser check on a scratch DB (dropped). Awaiting owner review; nothing merged. On release: the scheduler fills metrics by itself on first start.
+- Step 6-7: tests, docs, browser check on a scratch DB (dropped). Owner approved.
+- Released: merged into `production`, then `main`. Reaches the server on the next `update.sh`; the scheduler fills metrics by itself on first start. Amounts show «—» until then.
 
 ### 2026-11-02 — Call Center (`feature/call-center`, from `production`), checkpoints
 - Review fix 1: «ذخیره و ساخت برنامه تماس» (list + draft program in one transaction), section/program/tab in the URL, step strip. Next: list edits; dnc; nightly timing; label; browser checks.
