@@ -103,6 +103,7 @@ This registry catalogs the core architectural modules of ELINOR IQ V2. Each entr
   - `InternalAccount` (`customer_internal_accounts`): desk/staff accounts excluded from customer reports (kind, note, is_active, created/updated by). Source of truth for `operators.py` (exclusion by customer id); migration `0008_internalaccount` moved the former hard-coded desk mobile, `0009_seed_internal_accounts` adds the 15 owner-confirmed accounts. Rules: `docs/business-rules/internal-accounts.md`.
 - **Important Services & APIs:**
   - `GET /api/customers/` (`customer_list`): Paginated customer list with rich multi-parameter filters (city, province, tier, channel, purchase frequency, registered-only, order behavior).
+  - `GET /api/customers/list-summary/`, `list-options/`, `GET|POST list-views/`, `DELETE list-views/<id>/`: redesigned list totals, filter choices, saved views. `CustomerMetrics` (`metrics.py`, `refresh_customer_metrics`) backs list sorts and filters. Rules: `docs/business-rules/customer-list.md`.
   - `GET /api/customers/<source_id>/` (`customer_detail`): Complete Customer 360 record combining online orders and POS sales.
   - `GET /api/customers/<source_id>/purchases/` (`customer_purchases`): Chronological purchase history across online and physical stores.
   - `GET /api/customers/<source_id>/products/` (`customer_products`): Customer product purchase history with category and variant attribution.
@@ -117,6 +118,7 @@ This registry catalogs the core architectural modules of ELINOR IQ V2. Each entr
 - **Frontend Entrypoints & Components:**
   - Pages: `frontend/src/pages/CustomersPage.tsx`, `frontend/src/pages/Customer360Page.tsx`
   - Overview (list tab, above the filter bar): `frontend/src/features/customers/CustomerOverview.tsx` + `overviewDisplay.ts` (formatting, sparkline, collapsed state in `localStorage` per user); tier legend links open the list with `?tier=CODE`; «ویرایش قوانین» / «به‌روزرسانی سطوح» in its tier panel (super admins only). Design: `docs/design/customers-overview-v3.html`.
+  - List filters, sort and page live in the URL: `features/customers/customerListUrl.ts`.
   - Panels: `frontend/src/features/customers/CustomerListPanel.tsx`, `frontend/src/features/customers/CustomerCampaignsPanel.tsx`, `frontend/src/features/customers/CustomerReportsPanel.tsx`
   - Tier rules editor: `frontend/src/features/customers/TierRulesModal.tsx` (+ `tierRules.ts` validation/summary/reorder), opened from `pages/CustomersPage.tsx` («قوانین سطح‌بندی», `?tierRules=1`) for super admins only
   - Dynamic tiers: `frontend/src/hooks/useTiers.ts` (shared fetch of `/api/customers/tiers/`), `features/customers/tierDisplay.tsx` (`TierBadge`, per-code style)
