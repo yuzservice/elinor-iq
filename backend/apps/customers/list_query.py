@@ -2,6 +2,7 @@ from datetime import timedelta
 from hashlib import sha1
 
 from django.core.cache import cache
+from django.db import connection
 from django.db.models import Case, Count, Exists, F, IntegerField, Max, Min, OuterRef, Q, Sum, Value, When
 from django.utils import timezone
 
@@ -227,6 +228,21 @@ def _apply_metric_filters(qs, params):
     channels = _split(params.get("channels"))
     if channels:
         qs = qs.filter(metrics__channel__in=channels)
+    for param, lookup in (
+        ("branches", "metrics__lines__overlap"),
+        ("payments", "metrics__payments__overlap"),
+        ("sizes", "metrics__sizes__overlap"),
+        ("categories", "metrics__categories__overlap"),
+        ("cities", "metrics__cities__overlap"),
+    ):
+        values = _split(params.get(param))
+        if values:
+            qs = qs.filter(**{lookup: values})
+    discount = (params.get("discount") or "").strip().lower()
+    if discount == "yes":
+        qs = qs.filter(metrics__has_discount=True)
+    elif discount == "no":
+        qs = qs.filter(metrics__has_discount=False, metrics__invoice_count__gt=0)
     now = timezone.now()
     for prefix, column in (("last", "metrics__last_purchase_at"), ("first", "metrics__first_purchase_at")):
         days = (params.get(f"{prefix}_days") or "").strip()
@@ -243,13 +259,16 @@ def _apply_metric_filters(qs, params):
 
 
 def _apply_call_filters(qs, params):
-    from apps.calls.models import CustomerCallTag
+    from apps.calls.models import CustomerCallStatus, CustomerCallTag
 
     results = _split(params.get("call_result"))
     if results:
-        wanted = Q(call_status__last_outcome_title__in=[value for value in results if value != NO_CALL])
+        status = CustomerCallStatus.objects.filter(customer_id=OuterRef("pk"))
+        titles = [value for value in results if value != NO_CALL]
+        wanted = Q(Exists(status.filter(last_outcome_title__in=titles))) if titles else None
         if NO_CALL in results:
-            wanted |= Q(call_status__isnull=True) | Q(call_status__last_call_at__isnull=True)
+            never = ~Exists(status.filter(last_call_at__isnull=False))
+            wanted = never if wanted is None else wanted | never
         qs = qs.filter(wanted)
     tags = [value for value in (_as_int(part) for part in _split(params.get("call_tag"))) if value is not None]
     if tags:
@@ -687,6 +706,19 @@ def list_summary(params):
     return data
 
 
+def _facet_options():
+    """The most common real values, from the metrics table, for the filter chips."""
+    facets = {}
+    with connection.cursor() as cursor:
+        for column, key, limit in (("cities", "cities", 12), ("categories", "categories", 16), ("sizes", "sizes", 14)):
+            cursor.execute(
+                f"SELECT value FROM (SELECT UNNEST({column}) AS value FROM customer_metrics) v GROUP BY value ORDER BY COUNT(*) DESC, value LIMIT %s",
+                [limit],
+            )
+            facets[key] = [row[0] for row in cursor.fetchall()]
+    return facets
+
+
 def list_options():
     """Choices for the call filters. Tags and results are not tier- or sales-related, so this is cheap to share."""
     from apps.calls.models import CallTag, CustomerCallStatus
@@ -695,6 +727,7 @@ def list_options():
     if data is None:
         results = CustomerCallStatus.objects.exclude(last_outcome_title="").order_by("last_outcome_title").values_list("last_outcome_title", flat=True).distinct()
         data = {
+            **_facet_options(),
             "call_results": list(results),
             "call_tags": list(CallTag.objects.filter(is_active=True).values("id", "title")),
         }

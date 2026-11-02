@@ -108,6 +108,9 @@ export function CustomerListPanel({ canManage, onEditTierRules }: Props) {
         tiers: tiers.map((tier) => ({ value: tier.code, label: tier.title })),
         callResults: (options.data?.call_results ?? []).map((value) => ({ value, label: value })),
         callTags: (options.data?.call_tags ?? []).map((tag) => ({ value: String(tag.id), label: tag.title })),
+        cities: options.data?.cities ?? [],
+        categories: options.data?.categories ?? [],
+        sizes: options.data?.sizes ?? [],
       }),
     [tiers, options.data],
   );

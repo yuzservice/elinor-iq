@@ -25,6 +25,9 @@ const categories = buildCategories({
   tiers: [{ value: "VIP", label: "VIP" }, { value: "GOLD_1", label: "طلایی ۱" }],
   callResults: [{ value: "علاقه‌مند", label: "علاقه‌مند" }],
   callTags: [{ value: "1", label: "فرصت فروش" }],
+  cities: ["ساری"],
+  categories: ["مانتو"],
+  sizes: ["M"],
 });
 const url = (query: string) => new URLSearchParams(query);
 
@@ -36,13 +39,8 @@ describe("customer list URL", () => {
   });
 
   it("changes a filter, returns to page 1 and removes empty values", () => {
-    const next = withChanges(url("page=4&tier=VIP"), { tier: null, city: "ساری" });
-    expect(next.toString()).toBe(new URLSearchParams("city=ساری").toString());
-  });
-
-  it("matches any branch when several are selected", () => {
-    expect(withChanges(url(""), { sales_lines: "SARI,ONLINE" }).get("sales_lines_mode")).toBe("any");
-    expect(withChanges(url("sales_lines=SARI,ONLINE&sales_lines_mode=any"), { sales_lines: "SARI" }).get("sales_lines_mode")).toBeNull();
+    const next = withChanges(url("page=4&tier=VIP"), { tier: null, cities: "ساری" });
+    expect(next.toString()).toBe(new URLSearchParams("cities=ساری").toString());
   });
 
   it("toggles a value in a comma list", () => {

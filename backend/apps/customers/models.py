@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.contrib.postgres.fields import ArrayField
 from django.db import models
 
 
@@ -305,6 +306,13 @@ class CustomerMetrics(models.Model):
     first_purchase_at = models.DateTimeField(null=True, blank=True)
     last_purchase_at = models.DateTimeField(null=True, blank=True)
     channel = models.CharField(max_length=16, default=CHANNEL_NONE)
+    # Facts for list filters that would otherwise scan sales tables on every request.
+    lines = ArrayField(models.CharField(max_length=16), default=list, blank=True)
+    payments = ArrayField(models.CharField(max_length=16), default=list, blank=True)
+    has_discount = models.BooleanField(default=False)
+    sizes = ArrayField(models.CharField(max_length=64), default=list, blank=True)
+    categories = ArrayField(models.CharField(max_length=255), default=list, blank=True)
+    cities = ArrayField(models.CharField(max_length=255), default=list, blank=True)
     refreshed_at = models.DateTimeField()
 
     class Meta:

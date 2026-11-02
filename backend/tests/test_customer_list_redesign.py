@@ -11,7 +11,7 @@ from apps.calls.models import CallLog, CallProgram, CallTag, CallTask, CustomerC
 from apps.customers.metrics import refresh_customer_metrics
 from apps.customers.models import Customer, CustomerMetrics, InternalAccount
 from apps.customers.tiers import metrics_for_customers
-from apps.sales.models import Order, PosSale, PosSaleItem, SalesLine
+from apps.sales.models import Order, OrderItem, PosSale, PosSaleItem, SalesLine
 
 _ids = iter(range(600_000, 699_999))
 
@@ -206,3 +206,34 @@ def test_saved_views_are_per_user_with_unique_names(auth_api):
     assert other.post("/api/customers/list-views/", {"name": "طلایی", "filters": {}}, format="json").status_code == 201
     assert auth_api.get("/api/customers/list-views/").data["results"][0]["filters"] == {"tier": "GOLD_1"}
     assert auth_api.delete(f"/api/customers/list-views/{created.data['id']}/").status_code == 204
+
+
+@pytest.mark.django_db
+def test_facet_filters_and_options(auth_api):
+    from apps.customers.models import CustomerAddress
+    from apps.products.models import Category, Product, Variant
+
+    category = Category.objects.create(source_id=1, title="مانتو")
+    product = Product.objects.create(source_id=1, title="کالا")
+    product.categories.add(category)
+    variant = Variant.objects.create(source_id=1, product=product, size="m")
+    a, b, c = _customer(1), _customer(2), _customer(3)
+    order = _order(a, 1_000_000)
+    Order.objects.filter(pk=order.pk).update(discount_amount=100, receiver_city=" ساری ")
+    OrderItem.objects.create(source_id=next(_ids), order=order, product=product, variant=variant, quantity=1, amount=1)
+    sale = _pos(b, line=SalesLine.GORGAN)
+    PosSale.objects.filter(pk=sale.pk).update(snappay_cashier_amount=5)
+    CustomerAddress.objects.create(source_id=9, customer=b, city_name="گرگان")
+    refresh_customer_metrics()
+    query = "&sort=name&dir=asc"
+    assert _rows(auth_api, "branches=GORGAN" + query) == [2]
+    assert _rows(auth_api, "branches=GORGAN,ONLINE" + query) == [1, 2]
+    assert _rows(auth_api, "payments=snappay" + query) == [2]
+    assert _rows(auth_api, "sizes=M" + query) == [1]
+    assert _rows(auth_api, "categories=مانتو" + query) == [1]
+    assert _rows(auth_api, "cities=ساری" + query) == [1]
+    assert _rows(auth_api, "cities=گرگان,ساری" + query) == [1, 2]
+    assert _rows(auth_api, "discount=yes" + query) == [1]
+    assert _rows(auth_api, "discount=no" + query) == [2]  # purchasers only; 3 has no purchase
+    options = auth_api.get("/api/customers/list-options/").data
+    assert options["sizes"] == ["M"] and options["categories"] == ["مانتو"] and set(options["cities"]) == {"ساری", "گرگان"}

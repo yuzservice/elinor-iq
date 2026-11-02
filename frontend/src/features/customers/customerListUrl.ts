@@ -8,7 +8,7 @@ export type Field =
   | { key: string; label: string; kind: "range"; min: string; max: string; unit: string; scale: number }
   | { key: string; label: string; kind: "days"; prefix: "last" | "first" };
 export type Category = { key: string; label: string; fields: Field[] };
-export type DynamicOptions = { tiers: Option[]; callResults: Option[]; callTags: Option[] };
+export type DynamicOptions = { tiers: Option[]; callResults: Option[]; callTags: Option[]; cities: string[]; categories: string[]; sizes: string[] };
 
 export const DAY_OPTIONS: Option[] = [
   { value: "30", label: "تا ۳۰ روز پیش" },
@@ -17,9 +17,6 @@ export const DAY_OPTIONS: Option[] = [
   { value: "gt180", label: "بیش از ۱۸۰ روز" },
 ];
 const MILLION = 1_000_000;
-const CITIES = ["ساری", "گرگان", "تهران", "بابل", "آمل", "قائم‌شهر", "بجنورد"];
-const CATEGORIES = ["مانتو", "شومیز", "شلوار", "کت", "پالتو", "شال", "کفش"];
-const SIZES = ["S", "M", "L", "XL", "2XL", "36", "38", "40", "42", "44", "Free"];
 const asOptions = (values: string[]) => values.map((value) => ({ value, label: value }));
 
 export function buildCategories(dynamic: DynamicOptions): Category[] {
@@ -29,7 +26,7 @@ export function buildCategories(dynamic: DynamicOptions): Category[] {
       label: "مشتری",
       fields: [
         { key: "tier", label: "سطح", kind: "multi", param: "tier", options: dynamic.tiers },
-        { key: "city", label: "شهر", kind: "multi", param: "city", options: asOptions(CITIES) },
+        { key: "city", label: "شهر", kind: "multi", param: "cities", options: asOptions(dynamic.cities) },
         { key: "profile", label: "وضعیت پروفایل", kind: "single", param: "profile_state", options: [{ value: "complete", label: "کامل" }, { value: "incomplete", label: "ناقص" }] },
       ],
     },
@@ -49,17 +46,17 @@ export function buildCategories(dynamic: DynamicOptions): Category[] {
       label: "کانال و پرداخت",
       fields: [
         { key: "channels", label: "کانال", kind: "multi", param: "channels", options: [{ value: "online", label: "آنلاین" }, { value: "physical", label: "حضوری" }, { value: "both", label: "ترکیبی" }] },
-        { key: "branch", label: "شعبه", kind: "multi", param: "sales_lines", options: [{ value: "ONLINE", label: "سایت" }, { value: "SARI", label: "ساری" }, { value: "GORGAN", label: "گرگان" }, { value: "CAPRI", label: "کاپری" }] },
-        { key: "pay", label: "روش پرداخت", kind: "multi", param: "payment_method", options: [{ value: "snappay", label: "اسنپ‌پی" }, { value: "digipay", label: "دیجی‌پی" }, { value: "shopino", label: "شاپینو" }] },
-        { key: "discount", label: "تخفیف", kind: "single", param: "has_discount", options: [{ value: "yes", label: "دارد" }, { value: "no", label: "ندارد" }] },
+        { key: "branch", label: "شعبه", kind: "multi", param: "branches", options: [{ value: "ONLINE", label: "سایت" }, { value: "SARI", label: "ساری" }, { value: "GORGAN", label: "گرگان" }, { value: "CAPRI", label: "کاپری" }] },
+        { key: "pay", label: "روش پرداخت", kind: "multi", param: "payments", options: [{ value: "snappay", label: "اسنپ‌پی" }, { value: "digipay", label: "دیجی‌پی" }, { value: "shopino", label: "شاپینو" }] },
+        { key: "discount", label: "تخفیف", kind: "single", param: "discount", options: [{ value: "yes", label: "دارد" }, { value: "no", label: "ندارد" }] },
       ],
     },
     {
       key: "product",
       label: "کالا",
       fields: [
-        { key: "cat", label: "دسته‌بندی", kind: "multi", param: "category", options: asOptions(CATEGORIES) },
-        { key: "size", label: "سایز", kind: "multi", param: "size", options: asOptions(SIZES) },
+        { key: "cat", label: "دسته‌بندی", kind: "multi", param: "categories", options: asOptions(dynamic.categories) },
+        { key: "size", label: "سایز", kind: "multi", param: "sizes", options: asOptions(dynamic.sizes) },
       ],
     },
     {
@@ -106,8 +103,6 @@ export function withChanges(params: URLSearchParams, changes: Record<string, str
     else next.delete(key);
   });
   next.delete("page");
-  if (splitList(next.get("sales_lines")).length > 1) next.set("sales_lines_mode", "any");
-  else next.delete("sales_lines_mode");
   return next;
 }
 
@@ -130,7 +125,7 @@ export function toggleInList(raw: string | null, value: string): string {
 function fieldParams(field: Field): string[] {
   if (field.kind === "range") return [field.min, field.max];
   if (field.kind === "days") return [`${field.prefix}_days`, `${field.prefix}_after`, `${field.prefix}_before`];
-  return field.param === "sales_lines" ? ["sales_lines", "sales_lines_mode"] : [field.param];
+  return [field.param];
 }
 
 export function isFieldActive(field: Field, params: URLSearchParams): boolean {
@@ -176,6 +171,13 @@ const LEGACY_LABELS: Record<string, string> = {
   order_behavior: "رفتار سفارش",
   birth_month: "ماه تولد",
   tier_channel: "کانال سطح",
+  sales_lines: "شعبه",
+  sales_lines_mode: "حالت شعبه",
+  payment_method: "روش پرداخت",
+  has_discount: "تخفیف",
+  size: "سایز",
+  category: "دسته‌بندی",
+  city: "شهر",
 };
 
 export type Chip = { key: string; label: string; aria: string; remove: Record<string, null> };
