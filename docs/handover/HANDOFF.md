@@ -128,6 +128,9 @@ Notes for the Product Architect / next task:
 
 ## 9. Log
 
+### 2026-11-02 — Customers list redesign (`feature/customer-list-redesign`, from `production`), checkpoints
+- Step 1: `CustomerMetrics` (`customers.0010`), `metrics.py` one-statement refresh after the daily tier pass, `refresh_customer_metrics` (first fill runs itself from the scheduler). Local: 273,705 rows, 30 MB, first fill 9 s, no-change run 4.2 s. Next: list API.
+
 ### 2026-11-02 — Call Center (`feature/call-center`, from `production`), checkpoints
 - Review fix 1: «ذخیره و ساخت برنامه تماس» (list + draft program in one transaction), section/program/tab in the URL, step strip. Next: list edits; dnc; nightly timing; label; browser checks.
 - Review fix 2: PATCH/DELETE `lists/<id>/`, rename and delete in the list row, «ویرایش فیلترها» on the customers page (`?edit_list=`). Fixed list used by a non-draft program refuses filter edits. Next: dnc safety.

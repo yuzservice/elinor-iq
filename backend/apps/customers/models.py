@@ -287,3 +287,25 @@ class InternalAccount(models.Model):
     class Meta:
         db_table = "customer_internal_accounts"
         ordering = ["-updated_at"]
+
+
+class CustomerMetrics(models.Model):
+    """Daily purchase facts per customer, so the list sorts and filters without touching sales tables.
+
+    Amount follows the tier facts and the overview: online total_amount + signed POS item lines. Written only by
+    apps.customers.metrics; refreshed_at is when the row last changed. Rules: docs/business-rules/customer-list.md.
+    """
+
+    CHANNEL_NONE = "none"
+
+    customer = models.OneToOneField(Customer, primary_key=True, related_name="metrics", on_delete=models.CASCADE)
+    invoice_count = models.IntegerField(default=0)
+    total_amount = models.BigIntegerField(default=0)
+    avg_basket = models.BigIntegerField(null=True, blank=True)
+    first_purchase_at = models.DateTimeField(null=True, blank=True)
+    last_purchase_at = models.DateTimeField(null=True, blank=True)
+    channel = models.CharField(max_length=16, default=CHANNEL_NONE)
+    refreshed_at = models.DateTimeField()
+
+    class Meta:
+        db_table = "customer_metrics"
