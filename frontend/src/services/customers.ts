@@ -2,6 +2,8 @@ import { api, queryPath } from "./api";
 import type {
   Customer360,
   CustomerPurchase,
+  CustomerListSummary,
+  CustomerListViewRow,
   CustomerOverviewData,
   CustomerReports,
   OverviewCompare,
@@ -123,6 +125,14 @@ async function downloadExport(path: string, fallbackFilename: string): Promise<v
 
 export const customersService = {
   reports: () => api<CustomerReports>("/customers/reports/"),
+  rows: (query: string, signal?: AbortSignal) => api<Paginated<CustomerRow>>(`/customers/?${query}`, { signal }),
+  listSummary: (query: string, signal?: AbortSignal) => api<CustomerListSummary>(`/customers/list-summary/?${query}`, { signal }),
+  listOptions: () => api<{ call_results: string[]; call_tags: { id: number; title: string }[]; cities: string[]; categories: string[]; sizes: string[] }>("/customers/list-options/"),
+  exportRows: (query: string) => downloadExport(`/customers/export/?${query}`, `customers-${new Date().toISOString().slice(0, 10)}.csv`),
+  listViews: () => api<{ results: CustomerListViewRow[] }>("/customers/list-views/"),
+  createListView: (name: string, filters: Record<string, string>) =>
+    api<CustomerListViewRow>("/customers/list-views/", { method: "POST", body: JSON.stringify({ name, filters }) }),
+  deleteListView: (id: number) => api(`/customers/list-views/${id}/`, { method: "DELETE" }),
   overview: (period: OverviewPeriod, compare: OverviewCompare) =>
     api<CustomerOverviewData>(queryPath("/customers/overview/", { period, compare })),
   list: (params: CustomerListParams) => api<Paginated<CustomerRow>>(customerListQuery(params)),

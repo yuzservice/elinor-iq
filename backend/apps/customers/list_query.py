@@ -1,6 +1,12 @@
-from django.db.models import Case, Count, Exists, F, IntegerField, Max, Min, OuterRef, Q, Value, When
+from datetime import timedelta
+from hashlib import sha1
 
-from apps.customers.models import Customer, CustomerAddress
+from django.core.cache import cache
+from django.db import connection
+from django.db.models import Case, Count, Exists, F, IntegerField, Max, Min, OuterRef, Q, Sum, Value, When
+from django.utils import timezone
+
+from apps.customers.models import Customer, CustomerAddress, CustomerMetrics
 from apps.customers.operators import active_internal_accounts, exclude_operator_accounts, is_operator_account
 from apps.customers.presentation import customer_status_label, list_payload
 from apps.customers.purchases import (
@@ -11,6 +17,7 @@ from apps.customers.purchases import (
     qualifying_pos,
     qualifying_pos_exists,
 )
+from apps.customers.tier_rules import active_rules, all_tiers
 from apps.customers.tiers import (
     TIER_ONLINE_EXCLUDED_STATUSES,
     enabled_tier_codes,
@@ -28,6 +35,19 @@ from apps.sales.services import _parse_bound
 
 LIST_DEFER = ("source_payload", "addresses", "summary")
 VALID_SALES_LINES = {SalesLine.ONLINE, SalesLine.SARI, SalesLine.GORGAN, SalesLine.CAPRI}
+MAX_SELECTED_IDS = 1000
+NO_CALL = "none"
+# value -> (older than, days)
+DAY_WINDOWS = {"30": (False, 30), "90": (False, 90), "gt90": (True, 90), "gt180": (True, 180)}
+METRIC_SORTS = {
+    "avg_basket": "metrics__avg_basket",
+    "invoice_count": "metrics__invoice_count",
+    "total_amount": "metrics__total_amount",
+    "last_purchase": "metrics__last_purchase_at",
+    "first_purchase": "metrics__first_purchase_at",
+}
+SUMMARY_SECONDS = 5 * 60
+SUMMARY_IGNORED_PARAMS = {"page", "per_page", "sort", "dir"}
 
 
 def customer_list_queryset(params):
@@ -82,8 +102,9 @@ def customer_list_queryset(params):
     if search:
         qs = _apply_search(qs, search)
 
-    if tier and tier in enabled_tier_codes():
-        qs = exclude_operator_accounts(qs.filter(tier_code=tier))
+    tier_codes = [code for code in _split(tier) if code in enabled_tier_codes()]
+    if tier_codes:
+        qs = exclude_operator_accounts(qs.filter(tier_code__in=tier_codes))
 
     tier_channel = (params.get("tier_channel") or "").strip().lower()
     if tier_channel in ("online", "pos"):
@@ -100,7 +121,7 @@ def customer_list_queryset(params):
         sales_lines,
         min_count,
         max_count,
-        tier,
+        tier_codes[0] if tier_codes else tier,
         min_amount=min_amount,
         max_amount=max_amount,
         payment_method=payment_method,
@@ -143,8 +164,7 @@ def customer_list_queryset(params):
         if first_to:
             qs = qs.filter(first_qualifying_at__lte=first_to)
 
-    if payment_method:
-        qs = _apply_payment_method_filter(qs, payment_method)
+    qs = _any_of(qs, payment_method, _payment_q)
 
     if has_discount in {"yes", "no"}:
         qs = _apply_discount_filter(qs, has_discount)
@@ -152,14 +172,9 @@ def customer_list_queryset(params):
     if order_behavior:
         qs = _apply_order_behavior_filter(qs, order_behavior)
 
-    if size:
-        qs = _apply_size_filter(qs, size)
-
-    if category:
-        qs = _apply_category_filter(qs, category)
-
-    if city:
-        qs = _apply_city_filter(qs, city)
+    qs = _any_of(qs, size, _size_q)
+    qs = _any_of(qs, category, _category_q)
+    qs = _any_of(qs, city, _city_q)
 
     if profile_state:
         qs = _apply_profile_state_filter(qs, profile_state)
@@ -167,10 +182,123 @@ def customer_list_queryset(params):
     if birth_month is not None and 1 <= birth_month <= 12:
         qs = qs.filter(birth_date__month=birth_month)
 
+    qs = _apply_metric_filters(qs, params)
+    qs = _apply_call_filters(qs, params)
+
+    source_ids = [value for value in (_as_int(part) for part in _split(params.get("ids") or "")) if value is not None]
+    if source_ids:
+        qs = qs.filter(source_id__in=source_ids[:MAX_SELECTED_IDS])
+
+    direction = (params.get("dir") or "").strip().lower()
+    if direction in ("asc", "desc"):
+        # The redesigned list: internal accounts stay out, except when searching for one by name.
+        if not search:
+            qs = exclude_operator_accounts(qs)
+        return _apply_metric_sort(qs, sort, direction)
     return _apply_sort(qs, sort)
 
 
-def _apply_payment_method_filter(qs, payment_method):
+def _split(raw):
+    return [part.strip() for part in str(raw or "").split(",") if part.strip()]
+
+
+def _any_of(qs, raw, build):
+    """OR of build(term) for each comma-separated term. A single value behaves as before."""
+    combined = None
+    for term in _split(raw):
+        expr = build(term)
+        if expr is not None:
+            combined = expr if combined is None else combined | expr
+    return qs if combined is None else qs.filter(combined)
+
+
+def _apply_metric_filters(qs, params):
+    """Filters on CustomerMetrics: no request-time joins to sales tables."""
+    for param, lookup in (
+        ("min_avg_basket", "metrics__avg_basket__gte"),
+        ("max_avg_basket", "metrics__avg_basket__lte"),
+        ("min_invoices", "metrics__invoice_count__gte"),
+        ("max_invoices", "metrics__invoice_count__lte"),
+        ("min_total", "metrics__total_amount__gte"),
+        ("max_total", "metrics__total_amount__lte"),
+    ):
+        value = _as_int(params.get(param))
+        if value is not None:
+            qs = qs.filter(**{lookup: value})
+    channels = _split(params.get("channels"))
+    if channels:
+        qs = qs.filter(metrics__channel__in=channels)
+    for param, lookup in (
+        ("branches", "metrics__lines__overlap"),
+        ("payments", "metrics__payments__overlap"),
+        ("sizes", "metrics__sizes__overlap"),
+        ("categories", "metrics__categories__overlap"),
+        ("cities", "metrics__cities__overlap"),
+    ):
+        values = _split(params.get(param))
+        if values:
+            qs = qs.filter(**{lookup: values})
+    discount = (params.get("discount") or "").strip().lower()
+    if discount == "yes":
+        qs = qs.filter(metrics__has_discount=True)
+    elif discount == "no":
+        qs = qs.filter(metrics__has_discount=False, metrics__invoice_count__gt=0)
+    now = timezone.now()
+    for prefix, column in (("last", "metrics__last_purchase_at"), ("first", "metrics__first_purchase_at")):
+        days = (params.get(f"{prefix}_days") or "").strip()
+        if days in DAY_WINDOWS:
+            older, count = DAY_WINDOWS[days]
+            qs = qs.filter(**{f"{column}__{'lt' if older else 'gte'}": now - timedelta(days=count)})
+        if params.get(f"{prefix}_after"):
+            bound = _parse_bound(params.get(f"{prefix}_after"), end_of_day=False)
+            qs = qs.filter(**{f"{column}__gte": bound}) if bound else qs
+        if params.get(f"{prefix}_before"):
+            bound = _parse_bound(params.get(f"{prefix}_before"), end_of_day=True)
+            qs = qs.filter(**{f"{column}__lte": bound}) if bound else qs
+    return qs
+
+
+def _apply_call_filters(qs, params):
+    from apps.calls.models import CustomerCallStatus, CustomerCallTag
+
+    results = _split(params.get("call_result"))
+    if results:
+        status = CustomerCallStatus.objects.filter(customer_id=OuterRef("pk"))
+        titles = [value for value in results if value != NO_CALL]
+        wanted = Q(Exists(status.filter(last_outcome_title__in=titles))) if titles else None
+        if NO_CALL in results:
+            never = ~Exists(status.filter(last_call_at__isnull=False))
+            wanted = never if wanted is None else wanted | never
+        qs = qs.filter(wanted)
+    tags = [value for value in (_as_int(part) for part in _split(params.get("call_tag"))) if value is not None]
+    if tags:
+        qs = qs.filter(Exists(CustomerCallTag.objects.filter(customer_id=OuterRef("pk"), tag_id__in=tags, resolved_at__isnull=True)))
+    do_not_call = (params.get("do_not_call") or "").strip().lower()
+    if do_not_call == "yes":
+        qs = qs.filter(call_status__do_not_call=True)
+    elif do_not_call == "no":
+        qs = qs.exclude(call_status__do_not_call=True)
+    return qs
+
+
+def _tier_rank():
+    codes = [tier["code"] for _channel, tier in all_tiers(active_rules())]
+    return Case(*[When(tier_code=code, then=Value(index)) for index, code in enumerate(codes)], default=None, output_field=IntegerField())
+
+
+def _apply_metric_sort(qs, sort, direction):
+    def ordered(column):
+        return F(column).asc(nulls_last=True) if direction == "asc" else F(column).desc(nulls_last=True)
+
+    if sort == "name":
+        return qs.order_by(ordered("last_name"), ordered("first_name"), "-source_id")
+    if sort == "tier":
+        return qs.annotate(tier_rank=_tier_rank()).order_by(ordered("tier_rank"), "-source_id")
+    return qs.order_by(ordered(METRIC_SORTS.get(sort, METRIC_SORTS["last_purchase"])), "-source_id")
+
+
+def _payment_q(payment_method):
+    payment_method = payment_method.lower()
     pos_base = PosSale.objects.filter(
         customer_id=OuterRef("pk"),
         deleted_at__isnull=True,
@@ -182,32 +310,18 @@ def _apply_payment_method_filter(qs, payment_method):
     ).exclude(invoice__order__status__in=TIER_ONLINE_EXCLUDED_STATUSES)
 
     if payment_method == "snappay":
-        return qs.filter(
-            Exists(pos_base.filter(snappay_cashier_amount__gt=0))
-            | Exists(online_gw_base.filter(gateway__icontains="snapp"))
-        )
+        return Exists(pos_base.filter(snappay_cashier_amount__gt=0)) | Exists(online_gw_base.filter(gateway__icontains="snapp"))
     if payment_method == "digipay":
-        return qs.filter(
-            Exists(pos_base.filter(digipay_cashier_amount__gt=0))
-            | Exists(online_gw_base.filter(gateway__icontains="digi"))
-        )
+        return Exists(pos_base.filter(digipay_cashier_amount__gt=0)) | Exists(online_gw_base.filter(gateway__icontains="digi"))
     if payment_method == "installment":
-        return qs.filter(
-            Exists(pos_base.filter(Q(snappay_cashier_amount__gt=0) | Q(digipay_cashier_amount__gt=0)))
-            | Exists(online_gw_base.filter(Q(gateway__icontains="snapp") | Q(gateway__icontains="digi")))
+        return Exists(pos_base.filter(Q(snappay_cashier_amount__gt=0) | Q(digipay_cashier_amount__gt=0))) | Exists(
+            online_gw_base.filter(Q(gateway__icontains="snapp") | Q(gateway__icontains="digi"))
         )
     if payment_method == "wallet":
-        return qs.filter(Exists(pos_base.filter(from_wallet_amount__gt=0)))
+        return Q(Exists(pos_base.filter(from_wallet_amount__gt=0)))
     if payment_method == "shopino":
-        return qs.filter(
-            Exists(
-                qualifying_orders().filter(
-                    customer_id=OuterRef("pk"),
-                    is_shopino=True,
-                )
-            )
-        )
-    return qs
+        return Q(Exists(qualifying_orders().filter(customer_id=OuterRef("pk"), is_shopino=True)))
+    return None
 
 
 def _apply_discount_filter(qs, has_discount):
@@ -250,10 +364,8 @@ def _apply_order_behavior_filter(qs, order_behavior):
     return qs
 
 
-def _apply_size_filter(qs, size):
+def _size_q(size):
     normalized = size.strip()
-    if not normalized:
-        return qs
     online_size = Exists(
         OrderItem.objects.filter(
             order__customer_id=OuterRef("pk"),
@@ -270,13 +382,11 @@ def _apply_size_filter(qs, size):
             variant__size__iexact=normalized,
         ).exclude(pos_sale__type="refund")
     )
-    return qs.filter(online_size | pos_size)
+    return online_size | pos_size
 
 
-def _apply_category_filter(qs, category):
+def _category_q(category):
     term = category.strip()
-    if not term:
-        return qs
     online_cat = Exists(
         OrderItem.objects.filter(
             order__customer_id=OuterRef("pk"),
@@ -303,13 +413,11 @@ def _apply_category_filter(qs, category):
             | Q(variant__title__icontains=term)
         )
     )
-    return qs.filter(online_cat | pos_cat)
+    return online_cat | pos_cat
 
 
-def _apply_city_filter(qs, city):
+def _city_q(city):
     term = city.strip()
-    if not term:
-        return qs
     addr_match = Exists(
         CustomerAddress.objects.filter(
             customer_id=OuterRef("pk"),
@@ -326,7 +434,7 @@ def _apply_city_filter(qs, city):
             Q(receiver_city__icontains=term) | Q(receiver_province__icontains=term)
         )
     )
-    return qs.filter(addr_match | order_city_match)
+    return addr_match | order_city_match
 
 
 def _apply_profile_state_filter(qs, profile_state):
@@ -392,6 +500,12 @@ def hydrate_customer_rows(customers):
     titles = tier_title_map()
     tiers = metrics_for_customers(ids, titles=titles)
     accounts = active_internal_accounts()
+    metrics = {row.customer_id: row for row in CustomerMetrics.objects.filter(customer_id__in=ids)}
+    cities = {}
+    for customer_id, city_name, linked in (
+        CustomerAddress.objects.filter(customer_id__in=ids, deleted_at__isnull=True).order_by("id").values_list("customer_id", "city_name", "city__name")
+    ):
+        cities.setdefault(customer_id, city_name or linked or "")
 
     payloads = []
     for customer in customers:
@@ -406,8 +520,15 @@ def hydrate_customer_rows(customers):
         lines.extend(sorted(line for line in pos_lines.get(customer.pk, set()) if line))
         channel_key, channel_label = channel_for(online_count, pos_count)
         payload = list_payload(customer, accounts)
+        metric = metrics.get(customer.pk)
         payload.update(
             {
+                "invoice_count": metric.invoice_count if metric else 0,
+                "total_amount": metric.total_amount if metric else 0,
+                "avg_basket": metric.avg_basket if metric else None,
+                "first_invoice_at": metric.first_purchase_at if metric else None,
+                "last_invoice_at": metric.last_purchase_at if metric else None,
+                "city": cities.get(customer.pk, ""),
                 "order_count": int(tier.get("purchase_count") or 0),
                 "online_count": online_count,
                 "pos_count": pos_count,
@@ -547,3 +668,68 @@ def _as_int(value):
         return int(cleaned)
     except (TypeError, ValueError):
         return None
+
+
+def _summary_key(params):
+    items = sorted((key, value) for key in params for value in (params.getlist(key) if hasattr(params, "getlist") else [params[key]]) if key not in SUMMARY_IGNORED_PARAMS)
+    return sha1(repr(items).encode()).hexdigest()
+
+
+def _totals(qs):
+    row = qs.order_by().aggregate(count=Count("pk"), total=Sum("metrics__total_amount"), invoices=Sum("metrics__invoice_count"))
+    count, total, invoices = row["count"], int(row["total"] or 0), int(row["invoices"] or 0)
+    return {
+        "count": count,
+        "total_amount": total,
+        "avg_basket": int(round(total / invoices)) if invoices else None,
+        "avg_invoice_count": round(invoices / count, 2) if count else None,
+    }
+
+
+def list_summary(params):
+    """Totals of the filtered list plus overall baselines, aggregated in SQL. Cached 5 minutes per (filters, day)."""
+    day = timezone.localdate().isoformat()
+    key = f"customer-list-summary:{day}:{_summary_key(params)}"
+    data = cache.get(key)
+    if data is not None:
+        return data
+    baseline_key = f"customer-list-baseline:{day}"
+    baseline = cache.get(baseline_key)
+    if baseline is None:
+        baseline = _totals(exclude_operator_accounts(Customer.objects.all()))
+        cache.set(baseline_key, baseline, SUMMARY_SECONDS)
+    scoped = params.copy()
+    scoped["dir"] = "desc"  # the same internal-account rule as the redesigned list
+    data = {**_totals(customer_list_queryset(scoped)), "baseline": baseline}
+    data["share"] = round(data["count"] / baseline["count"] * 100, 1) if baseline["count"] else None
+    cache.set(key, data, SUMMARY_SECONDS)
+    return data
+
+
+def _facet_options():
+    """The most common real values, from the metrics table, for the filter chips."""
+    facets = {}
+    with connection.cursor() as cursor:
+        for column, key, limit in (("cities", "cities", 12), ("categories", "categories", 16), ("sizes", "sizes", 14)):
+            cursor.execute(
+                f"SELECT value FROM (SELECT UNNEST({column}) AS value FROM customer_metrics) v GROUP BY value ORDER BY COUNT(*) DESC, value LIMIT %s",
+                [limit],
+            )
+            facets[key] = [row[0] for row in cursor.fetchall()]
+    return facets
+
+
+def list_options():
+    """Choices for the call filters. Tags and results are not tier- or sales-related, so this is cheap to share."""
+    from apps.calls.models import CallTag, CustomerCallStatus
+
+    data = cache.get("customer-list-options")
+    if data is None:
+        results = CustomerCallStatus.objects.exclude(last_outcome_title="").order_by("last_outcome_title").values_list("last_outcome_title", flat=True).distinct()
+        data = {
+            **_facet_options(),
+            "call_results": list(results),
+            "call_tags": list(CallTag.objects.filter(is_active=True).values("id", "title")),
+        }
+        cache.set("customer-list-options", data, SUMMARY_SECONDS)
+    return data

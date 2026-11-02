@@ -11,7 +11,7 @@ from apps.sales.services import parse_range, window_meta
 
 from .detail import HISTORY_PER_PAGE, customer_360_payload, product_history, purchase_history
 from .list_query import customer_list_queryset, paginate_customers
-from .models import Customer
+from .models import Customer, CustomerListView
 from .operators import exclude_operator_accounts
 
 
@@ -130,6 +130,50 @@ def customer_list(request):
             "results": results,
         }
     )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def customer_list_summary(request):
+    from .list_query import list_summary
+
+    return Response(list_summary(request.query_params))
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def customer_list_options(request):
+    from .list_query import list_options
+
+    return Response(list_options())
+
+
+def _view_payload(view):
+    return {"id": view.id, "name": view.name, "filters": view.filters}
+
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+def customer_list_views(request):
+    if request.method == "GET":
+        return Response({"results": [_view_payload(view) for view in CustomerListView.objects.filter(user=request.user)]})
+    name = (request.data.get("name") or "").strip()[:80]
+    filters = request.data.get("filters")
+    if not name:
+        return Response({"detail": "نام نما لازم است."}, status=status.HTTP_400_BAD_REQUEST)
+    if not isinstance(filters, dict):
+        return Response({"detail": "فیلترها نامعتبر است."}, status=status.HTTP_400_BAD_REQUEST)
+    view, created = CustomerListView.objects.get_or_create(user=request.user, name=name, defaults={"filters": filters})
+    if not created:
+        return Response({"detail": "نمایی با این نام دارید."}, status=status.HTTP_409_CONFLICT)
+    return Response(_view_payload(view), status=status.HTTP_201_CREATED)
+
+
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def customer_list_view_detail(request, view_id):
+    deleted, _rows = CustomerListView.objects.filter(pk=view_id, user=request.user).delete()
+    return Response(status=status.HTTP_204_NO_CONTENT if deleted else status.HTTP_404_NOT_FOUND)
 
 
 def _positive_int(value, default, cap=None):

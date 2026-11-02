@@ -8,6 +8,7 @@ from django.db import IntegrityError, connection, transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
+from apps.customers.metrics import refresh_customer_metrics
 from apps.customers.tiers import refresh_stored_tiers
 from apps.integrations.elinor.models import SyncCursor
 
@@ -57,6 +58,7 @@ def start_full_tier_refresh():
 def _run_full_refresh(close_connection=False, reason="manual"):
     try:
         refresh_stored_tiers(reason=reason)
+        _refresh_metrics()
         _finish(success=True)
         return True
     except Exception:
@@ -66,6 +68,14 @@ def _run_full_refresh(close_connection=False, reason="manual"):
     finally:
         if close_connection:
             connection.close()
+
+
+def _refresh_metrics():
+    # A metrics failure must not mark the tier pass as failed.
+    try:
+        refresh_customer_metrics()
+    except Exception:
+        logger.exception("Customer metrics refresh failed")
 
 
 def _claim():
