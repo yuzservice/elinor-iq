@@ -132,6 +132,7 @@ Notes for the Product Architect / next task:
 - Step 1: `CustomerMetrics` (`customers.0010`), `metrics.py` one-statement refresh after the daily tier pass, `refresh_customer_metrics` (first fill runs itself from the scheduler). Local: 273,705 rows, 30 MB, first fill 9 s, no-change run 4.2 s. Next: list API.
 - Step 2: list API on metrics (`dir`, new filters, comma lists, `ids`), `list-summary/`, `list-options/`. Without `dir` the old filters and sorts behave as before. Next: saved views, then UI.
 - Step 3: `CustomerListView` (`customers.0011`), list/create/delete per user. Next: UI.
+- Step 4: new `CustomerListPanel` and `customerListUrl.ts` (filters, sort, page in the URL); old drawer and `customerListFilters.ts` removed. Not yet checked in the browser. Next: performance on real data.
 
 ### 2026-11-02 — Call Center (`feature/call-center`, from `production`), checkpoints
 - Review fix 1: «ذخیره و ساخت برنامه تماس» (list + draft program in one transaction), section/program/tab in the URL, step strip. Next: list edits; dnc; nightly timing; label; browser checks.

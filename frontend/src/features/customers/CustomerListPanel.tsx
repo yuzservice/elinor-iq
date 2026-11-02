@@ -1,1718 +1,705 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { JalaliDateField } from "../../components/JalaliDatePicker";
 import { useApi } from "../../hooks/useApi";
-import { useTiers } from "../../hooks/useTiers";
-import { customerDisplayName } from "../../lib/customerDisplay";
-import { formatJalali, todayIso } from "../../lib/dates";
-import { formatDate, formatMobile, formatNumber, formatToman } from "../../lib/format";
-import { customersService, type CustomerListParams } from "../../services/customers";
-import {
-  CATEGORY_PRESETS,
-  CHANNEL_OPTIONS,
-  CITY_PRESETS,
-  DISCOUNT_FILTER_OPTIONS,
-  EMPTY_CUSTOMER_FILTERS,
-  LTV_AMOUNT_PRESETS,
-  ORDER_BEHAVIOR_OPTIONS,
-  PAYMENT_METHOD_OPTIONS,
-  PROFILE_STATE_OPTIONS,
-  PURCHASE_VOLUME_PRESETS,
-  SALES_LINE_OPTIONS,
-  SIZE_PRESETS,
-  SMART_SEGMENTS,
-  SORT_OPTIONS,
-  buildCustomerListParams,
-  filtersFromParams,
-  type CustomerListFilters,
-  type SalesLineValue,
-  type SmartSegmentId,
-} from "./customerListFilters";
-import { JalaliRangeModal } from "../../components/JalaliDatePicker";
-import { EmptyState, ErrorState, Skeleton } from "../../components/Table";
-import type { CustomerRow } from "../../types";
-import { TierBadge, groupTierOptions, tierOptions } from "./tierDisplay";
-import { CustomerOverview } from "./CustomerOverview";
-import { CreateCallList } from "../calls/CreateCallList";
-import { callsService } from "../../services/calls";
 import { useAuth } from "../../hooks/useAuth";
+import { useTiers } from "../../hooks/useTiers";
+import { formatMobile, formatNumber } from "../../lib/format";
+import { ApiError } from "../../services/api";
+import { callsService } from "../../services/calls";
+import { customersService } from "../../services/customers";
+import type { CustomerListSummary, CustomerRow } from "../../types";
+import { CreateCallList } from "../calls/CreateCallList";
+import { CustomerOverview } from "./CustomerOverview";
+import {
+  DAY_OPTIONS,
+  PRESETS,
+  activeChips,
+  ariaSort,
+  basketBar,
+  buildCategories,
+  categoryCount,
+  channelCell,
+  columnsKey,
+  compareNote,
+  currentPage,
+  currentSort,
+  daysAgoText,
+  daysSince,
+  filterParams,
+  hasFilters,
+  listQuery,
+  millionText,
+  nextSort,
+  readColumns,
+  recencyColor,
+  replaceFilters,
+  splitList,
+  tierColors,
+  toggleInList,
+  withChanges,
+  writeColumns,
+  type Category,
+  type Field,
+  type OptionalColumns,
+  type SortKey,
+} from "./customerListUrl";
 
-type FilterDrawerTab = "loyalty" | "financial" | "product" | "behavior";
-
-const DRAWER_TABS: ReadonlyArray<{ id: FilterDrawerTab; label: string }> = [
-  { id: "loyalty", label: "وفاداری و شعب" },
-  { id: "financial", label: "مالی و پرداخت" },
-  { id: "product", label: "کالا و سایز" },
-  { id: "behavior", label: "زمان و مشخصات" },
-];
-
-function getTierBadge(customer: CustomerRow) {
-  if (customer.is_operator) {
-    return (
-      <span className="px-2.5 py-1 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold text-[11px] border border-amber-500/30">
-        اپراتور
-      </span>
-    );
-  }
-  if (!customer.tier_code) {
-    return <span className="text-muted text-xs">—</span>;
-  }
-  return <TierBadge code={customer.tier_code} label={customer.tier_label} channelLabel={customer.tier_channel_label} />;
-}
-
-function getInitials(name: string) {
-  if (!name || name === "مشتری بدون نام") return "EL";
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-  return name.slice(0, 2).toUpperCase();
-}
-
-const AVATAR_GRADIENTS = [
-  "from-pink-500 to-rose-600",
-  "from-cyan-500 to-blue-600",
-  "from-amber-500 to-yellow-600",
-  "from-purple-500 to-indigo-600",
-  "from-emerald-500 to-teal-600",
-];
+const PER_PAGE = 20;
+const DEBOUNCE_MS = 300;
+const CARD = "rounded-[18px] border border-line bg-surface";
+const MUTED = "text-[12.5px] text-muted";
+const SOFT = "text-slate-600 dark:text-slate-300";
+const LABEL = `text-[13px] font-semibold ${SOFT}`;
+const INPUT = "min-h-10 rounded-[11px] border border-slate-300/70 px-3 text-[13px] text-ink outline-none focus:border-accent dark:border-white/[0.12]";
+const GHOST = `min-h-[38px] cursor-pointer rounded-[10px] border border-slate-300 bg-transparent px-[13px] text-[12.5px] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/[0.14] ${SOFT}`;
+const PRIMARY = "min-h-[38px] cursor-pointer rounded-[10px] border-0 bg-accent px-3.5 text-[12.5px] font-semibold text-on-accent";
 
 type Props = { canManage: boolean; onEditTierRules: () => void };
 
+/** Debounced, and a newer request aborts the previous one. */
+function useLiveQuery<T>(key: string, load: (signal: AbortSignal) => Promise<T>) {
+  const [state, setState] = useState<{ data: T | null; loading: boolean; error: boolean }>({ data: null, loading: true, error: false });
+  useEffect(() => {
+    const controller = new AbortController();
+    setState((prev) => ({ ...prev, loading: true, error: false }));
+    const timer = window.setTimeout(() => {
+      load(controller.signal)
+        .then((data) => setState({ data, loading: false, error: false }))
+        .catch((error) => {
+          if (error?.name !== "AbortError") setState((prev) => ({ ...prev, loading: false, error: true }));
+        });
+    }, DEBOUNCE_MS);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return state;
+}
+
+function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={onClick}
+      className={`min-h-[34px] cursor-pointer rounded-full border px-3 text-[12.5px] ${
+        on ? "border-blue-400 bg-blue-500/20 text-ink" : "border-black/10 bg-transparent text-muted dark:border-white/[0.12]"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 export function CustomerListPanel({ canManage, onEditTierRules }: Props) {
-  const [searchParams] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
-  const [search, setSearch] = useState("");
-  const [appliedSearch, setAppliedSearch] = useState("");
-  const [filters, setFilters] = useState<CustomerListFilters>(EMPTY_CUSTOMER_FILTERS);
-  const { tiers } = useTiers();
-  const tierChoices = useMemo(() => tierOptions(tiers), [tiers]);
-  const visibleSegments = useMemo(() => {
-    const codes = new Set(tiers.map((tier) => tier.code));
-    return SMART_SEGMENTS.filter(
-      (seg) => (seg.id !== "vip" || codes.has("VIP")) && (seg.id !== "at_risk_vip" || codes.has("GOLD_1")),
-    );
-  }, [tiers]);
-
-  // Minimal UI states
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [activeTab, setActiveTab] = useState<FilterDrawerTab>("loyalty");
-  const [dateModalTarget, setDateModalTarget] = useState<"last" | "first" | null>(null);
-  const [page, setPage] = useState(1);
-  const [retry, setRetry] = useState(0);
-
-  // Async action states
-  const [exporting, setExporting] = useState(false);
-  const [exportError, setExportError] = useState<string | null>(null);
-  const [refreshingTiers, setRefreshingTiers] = useState(false);
-  const [tierMessage, setTierMessage] = useState<string | null>(null);
   const { user } = useAuth();
+  const { tiers } = useTiers();
   const canManageCalls = Boolean(user?.can_manage_calls);
+
+  const options = useApi(() => customersService.listOptions(), []);
+  const categories = useMemo(
+    () =>
+      buildCategories({
+        tiers: tiers.map((tier) => ({ value: tier.code, label: tier.title })),
+        callResults: (options.data?.call_results ?? []).map((value) => ({ value, label: value })),
+        callTags: (options.data?.call_tags ?? []).map((tag) => ({ value: String(tag.id), label: tag.title })),
+      }),
+    [tiers, options.data],
+  );
+
+  const [panel, setPanel] = useState<string | null>(null);
+  const [selected, setSelected] = useState<number[]>([]);
+  const [retry, setRetry] = useState(0);
+  const [message, setMessage] = useState("");
   const [callListOpen, setCallListOpen] = useState(false);
-  const [callSelection, setCallSelection] = useState<number[]>([]);
-  const editListId = canManageCalls ? Number(searchParams.get("edit_list")) || null : null;
+  const [exporting, setExporting] = useState(false);
+  const [colsOpen, setColsOpen] = useState(false);
+  const storageKey = columnsKey(user?.id);
+  const [columns, setColumns] = useState<OptionalColumns>(() => readColumns(storageKey));
+  const [refreshingTiers, setRefreshingTiers] = useState(false);
+  const toolbarRef = useRef<HTMLElement>(null);
+
+  const change = (changes: Record<string, string | null>) => {
+    setMessage("");
+    setParams(withChanges(params, changes), { replace: true });
+  };
+  const applyFilters = (filters: Record<string, unknown>) => {
+    setMessage("");
+    setPanel(null);
+    setParams(replaceFilters(params, filters), { replace: true });
+  };
+
+  const query = listQuery(params, PER_PAGE);
+  const summaryQuery = useMemo(() => {
+    const scoped = new URLSearchParams(query);
+    ["page", "per_page", "sort", "dir"].forEach((key) => scoped.delete(key));
+    return scoped.toString();
+  }, [query]);
+  const list = useLiveQuery(`${query}|${retry}`, (signal) => customersService.rows(query, signal));
+  const summary = useLiveQuery(`${summaryQuery}|${retry}`, (signal) => customersService.listSummary(summaryQuery, signal));
+
+  // Editing a call list: its saved filters become the URL once, then the banner saves what is on screen.
+  const editListId = canManageCalls ? Number(params.get("edit_list")) || null : null;
   const editingList = useApi(() => callsService.list(editListId as number), [editListId], editListId != null);
   useEffect(() => {
-    if (!editingList.data) return;
-    const restored = filtersFromParams(editingList.data.filter_params);
-    setFilters(restored.filters);
-    setSearch(restored.search);
-    setAppliedSearch(restored.search);
-    setPage(1);
+    if (editingList.data) setParams(replaceFilters(params, editingList.data.filter_params), { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingList.data]);
-  const [listEditError, setListEditError] = useState("");
   const saveListFilters = async () => {
     if (!editListId) return;
-    setListEditError("");
     try {
-      await callsService.updateList(editListId, { filter_params: buildCustomerListParams(filters, appliedSearch) });
+      await callsService.updateList(editListId, { filter_params: filterParams(params) });
       navigate("/calls?section=programs", { state: { message: "تغییرات لیست ذخیره شد" } });
-    } catch (err) {
-      setListEditError(err instanceof Error ? err.message : "ذخیره تغییرات انجام نشد.");
+    } catch (error) {
+      setMessage(error instanceof ApiError && error.message ? error.message : "ذخیره تغییرات انجام نشد.");
     }
   };
-  const toggleCallSelection = (id: number) =>
-    setCallSelection((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
 
-  const reports = useApi(() => customersService.reports(), []);
-
-  // Tier legend links in the overview open the list filtered by ?tier=CODE.
-  const tierParam = searchParams.get("tier");
   useEffect(() => {
-    if (!tierParam) return;
-    setFilters({ ...EMPTY_CUSTOMER_FILTERS, tier: tierParam });
-    setPage(1);
-  }, [tierParam]);
+    if (!panel) return;
+    const onKey = (event: KeyboardEvent) => event.key === "Escape" && setPanel(null);
+    const onDown = (event: globalThis.MouseEvent) => {
+      if (toolbarRef.current && !toolbarRef.current.contains(event.target as Node)) setPanel(null);
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("mousedown", onDown);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("mousedown", onDown);
+    };
+  }, [panel]);
 
-  function updateFilter<K extends keyof CustomerListFilters>(key: K, value: CustomerListFilters[K]) {
-    setFilters((prev) => ({ ...prev, [key]: value }));
-    setPage(1);
-  }
+  const handleExport = async () => {
+    setExporting(true);
+    setMessage("");
+    try {
+      await customersService.exportRows(listQuery(params, PER_PAGE, selected));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "خروجی اکسل با خطا مواجه شد.");
+    } finally {
+      setExporting(false);
+    }
+  };
 
-  function patchFilters(patch: Partial<CustomerListFilters>) {
-    setFilters((prev) => ({ ...prev, ...patch }));
-    setPage(1);
-  }
-
-  const listParams: CustomerListParams = useMemo(
-    () => buildCustomerListParams(filters, appliedSearch, { page, perPage: 20 }),
-    [filters, appliedSearch, page],
-  );
-
-  const { data, loading, error } = useApi(
-    () => customersService.list(listParams),
-    [listParams, retry],
-  );
-
-  function resetFilters() {
-    setSearch("");
-    setAppliedSearch("");
-    setFilters(EMPTY_CUSTOMER_FILTERS);
-    setPage(1);
-    setExportError(null);
-  }
-
-  function applySmartSegment(segmentId: SmartSegmentId) {
-    setPage(1);
-    if (segmentId === "all") {
-      setFilters(EMPTY_CUSTOMER_FILTERS);
-      return;
-    }
-    if (segmentId === "vip") {
-      setFilters({ ...EMPTY_CUSTOMER_FILTERS, tier: "VIP", sort: "lifetime_amount" });
-      return;
-    }
-    if (segmentId === "at_risk_vip") {
-      setFilters({ ...EMPTY_CUSTOMER_FILTERS, tier: "GOLD_1", sort: "churn_risk" });
-      return;
-    }
-    if (segmentId === "installment") {
-      setFilters({ ...EMPTY_CUSTOMER_FILTERS, paymentMethod: "installment" });
-      return;
-    }
-    if (segmentId === "omnichannel") {
-      setFilters({ ...EMPTY_CUSTOMER_FILTERS, channel: "both" });
-      return;
-    }
-    if (segmentId === "discount_hunters") {
-      setFilters({ ...EMPTY_CUSTOMER_FILTERS, hasDiscount: "yes" });
-      return;
-    }
-    if (segmentId === "incomplete_profile") {
-      setFilters({ ...EMPTY_CUSTOMER_FILTERS, profileState: "incomplete" });
-    }
-  }
-
-  const activeSegmentId = useMemo<SmartSegmentId | null>(() => {
-    const isDefaultRest =
-      filters.salesLines.length === 0 &&
-      !filters.minPurchases &&
-      !filters.maxPurchases &&
-      !filters.minAmount &&
-      !filters.maxAmount &&
-      !filters.lastFrom &&
-      !filters.lastTo &&
-      !filters.firstFrom &&
-      !filters.firstTo &&
-      !filters.orderBehavior &&
-      !filters.size &&
-      !filters.category &&
-      !filters.city &&
-      filters.population === "all";
-
-    if (!isDefaultRest) return null;
-    if (
-      !filters.tier &&
-      !filters.channel &&
-      !filters.paymentMethod &&
-      !filters.hasDiscount &&
-      !filters.profileState &&
-      filters.sort === "last_purchase"
-    ) {
-      return "all";
-    }
-    if (filters.tier === "VIP" && !filters.channel && !filters.paymentMethod && !filters.hasDiscount && !filters.profileState) {
-      return "vip";
-    }
-    if (filters.tier === "GOLD_1" && !filters.channel && !filters.paymentMethod && !filters.hasDiscount && !filters.profileState) {
-      return "at_risk_vip";
-    }
-    if (filters.paymentMethod === "installment" && !filters.tier && !filters.channel && !filters.hasDiscount && !filters.profileState) {
-      return "installment";
-    }
-    if (filters.channel === "both" && !filters.tier && !filters.paymentMethod && !filters.hasDiscount && !filters.profileState) {
-      return "omnichannel";
-    }
-    if (filters.hasDiscount === "yes" && !filters.tier && !filters.channel && !filters.paymentMethod && !filters.profileState) {
-      return "discount_hunters";
-    }
-    if (filters.profileState === "incomplete" && !filters.tier && !filters.channel && !filters.paymentMethod && !filters.hasDiscount) {
-      return "incomplete_profile";
-    }
-    return null;
-  }, [filters]);
-
-  function toggleSalesLine(line: SalesLineValue) {
-    setFilters((prev) => {
-      const next = prev.salesLines.includes(line)
-        ? prev.salesLines.filter((item) => item !== line)
-        : [...prev.salesLines, line];
-      return { ...prev, salesLines: next };
-    });
-    setPage(1);
-  }
-
-  function applyDatePreset(daysAgo: number | null, isColdFilter = false) {
-    const today = todayIso();
-    if (daysAgo === null) {
-      patchFilters({ lastFrom: "", lastTo: "" });
-    } else if (isColdFilter) {
-      const d = new Date();
-      d.setDate(d.getDate() - daysAgo);
-      patchFilters({ lastFrom: "", lastTo: d.toISOString().slice(0, 10) });
-    } else {
-      const d = new Date();
-      d.setDate(d.getDate() - daysAgo);
-      patchFilters({ lastFrom: d.toISOString().slice(0, 10), lastTo: today });
-    }
-  }
-
-  async function handleRefreshTiers() {
+  const handleRefreshTiers = async () => {
     setRefreshingTiers(true);
-    setTierMessage(null);
+    setMessage("");
     try {
       const started = await customersService.refreshTiers();
-      setTierMessage(started.detail);
+      setMessage(started.detail);
       const deadline = Date.now() + 10 * 60 * 1000;
       let running = true;
       while (running && Date.now() < deadline) {
         await new Promise((resolve) => window.setTimeout(resolve, 2000));
-        const status = await customersService.tierRefreshStatus();
-        running = status.running;
+        running = (await customersService.tierRefreshStatus()).running;
       }
-      setTierMessage(running ? "به‌روزرسانی هنوز ادامه دارد. کمی بعد لیست را دوباره باز کنید." : "سطح‌ها به‌روز شد.");
+      setMessage(running ? "به‌روزرسانی هنوز ادامه دارد. کمی بعد لیست را دوباره باز کنید." : "سطح‌ها به‌روز شد.");
       if (!running) setRetry((value) => value + 1);
-    } catch (err) {
-      setTierMessage(err instanceof Error ? err.message : "به‌روزرسانی سطح‌ها با خطا مواجه شد.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "به‌روزرسانی سطح‌ها با خطا مواجه شد.");
     } finally {
       setRefreshingTiers(false);
     }
-  }
+  };
 
-  async function handleExport() {
-    setExporting(true);
-    setExportError(null);
-    try {
-      await customersService.exportList(listParams);
-    } catch (err) {
-      setExportError(err instanceof Error ? err.message : "خروجی اکسل با خطا مواجه شد.");
-    } finally {
-      setExporting(false);
-    }
-  }
+  const toggleColumn = (key: keyof OptionalColumns, on: boolean) => {
+    const next = { ...columns, [key]: on };
+    setColumns(next);
+    writeColumns(storageKey, next);
+  };
 
-  // Count active filters per drawer tab for subtle badges
-  const tabCounts = useMemo(() => {
-    const loyalty =
-      (filters.channel ? 1 : 0) +
-      (filters.tier ? 1 : 0) +
-      filters.salesLines.length;
-    const financial =
-      (filters.minAmount || filters.maxAmount ? 1 : 0) +
-      (filters.minPurchases || filters.maxPurchases ? 1 : 0) +
-      (filters.paymentMethod ? 1 : 0) +
-      (filters.hasDiscount ? 1 : 0);
-    const product =
-      (filters.size ? 1 : 0) +
-      (filters.category ? 1 : 0);
-    const behavior =
-      (filters.lastFrom || filters.lastTo ? 1 : 0) +
-      (filters.firstFrom || filters.firstTo ? 1 : 0) +
-      (filters.city ? 1 : 0) +
-      (filters.orderBehavior ? 1 : 0) +
-      (filters.profileState ? 1 : 0);
-
-    return {
-      loyalty,
-      financial,
-      product,
-      behavior,
-      total:
-        loyalty +
-        financial +
-        product +
-        behavior +
-        (appliedSearch ? 1 : 0) +
-        (filters.population !== "all" ? 1 : 0) +
-        (filters.sort !== "last_purchase" ? 1 : 0),
-    };
-  }, [filters, appliedSearch]);
-
-  const totalCustomers = reports.data?.populations?.all_customers || data?.total || 4218;
-  const purchasingCustomers = reports.data?.populations?.purchasing_customers || 2840;
-  const registeredNoOrder = reports.data?.populations?.registered_without_orders || 1378;
-
-  const totalPages = data ? Math.max(1, Math.ceil(data.total / (data.per_page || 20))) : 1;
+  const chips = activeChips(categories, params);
+  const total = list.data?.total ?? 0;
+  const page = currentPage(params);
+  const rows = list.data?.results ?? [];
+  const pageMax = Math.max(0, ...rows.map((row) => row.avg_basket ?? 0));
+  const lastPage = Math.max(1, Math.ceil(total / PER_PAGE));
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col gap-3.5">
       {editListId != null ? (
         <div role="status" className="flex flex-wrap items-center gap-2 rounded-xl border border-accent bg-blue-500/10 px-3.5 py-2.5 text-[13px] text-ink">
           <span className="me-auto font-semibold">در حال ویرایش لیست {editingList.data?.name ?? "..."}</span>
-          {listEditError ? <span className="text-rose-600 dark:text-rose-400">{listEditError}</span> : null}
-          <button type="button" onClick={saveListFilters} disabled={!editingList.data} className="min-h-9 cursor-pointer rounded-xl bg-accent px-4 text-xs font-bold text-on-accent disabled:opacity-50">
-            ذخیره تغییرات
-          </button>
-          <button type="button" onClick={() => navigate("/calls?section=programs")} className="min-h-9 cursor-pointer rounded-xl border border-line px-4 text-xs font-bold text-muted">
-            انصراف
-          </button>
+          <button type="button" onClick={saveListFilters} disabled={!editingList.data} className={`${PRIMARY} disabled:opacity-50`}>ذخیره تغییرات</button>
+          <button type="button" onClick={() => navigate("/calls?section=programs")} className={GHOST}>انصراف</button>
         </div>
       ) : null}
 
-      {tierMessage && (
-        <div className="p-3 rounded-2xl bg-accent/10 border border-accent/25 text-xs text-accent">
-          ℹ️ {tierMessage}
-        </div>
-      )}
-      {exportError && (
-        <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/25 text-xs text-rose-500">
-          ⚠️ {exportError}
-        </div>
-      )}
+      <CustomerOverview canManage={canManage} onEditTierRules={onEditTierRules} onRefreshTiers={handleRefreshTiers} refreshingTiers={refreshingTiers} />
 
-      <CustomerOverview
-        canManage={canManage}
-        onEditTierRules={onEditTierRules}
-        onRefreshTiers={handleRefreshTiers}
-        refreshingTiers={refreshingTiers}
-      />
-
-      {callListOpen && data ? (
-        <CreateCallList
-          selectedIds={callSelection}
-          filterParams={listParams as Record<string, unknown>}
-          total={data.total}
-          onClose={() => setCallListOpen(false)}
-        />
-      ) : null}
-
-      {/* ============================================================== */}
-      {/* 3. MINIMAL, RESPONSIVE FILTER & SEGMENT BAR                    */}
-      {/* ============================================================== */}
-      <div className="bento-card p-3.5 sm:p-4 glass-rim shadow-soft space-y-3">
-        {/* Row 1: Search + Population Switcher + Sort + Filter Drawer Toggle */}
-        <div className="flex flex-col lg:flex-row lg:items-center gap-2.5">
-          {/* Search Input */}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              setPage(1);
-              setAppliedSearch(search.trim());
-            }}
-            className="relative flex-1 min-w-0"
-          >
-            <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-muted">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </span>
+      <section ref={toolbarRef} className={`${CARD} relative z-[5] flex flex-col gap-2.5 px-3.5 py-3`}>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="relative flex max-w-[320px] flex-[1_1_220px]">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" className="absolute right-3 top-3 text-faint">
+              <circle cx="11" cy="11" r="7" />
+              <line x1="21" y1="21" x2="16.5" y2="16.5" />
+            </svg>
             <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="جستجوی نام یا شماره موبایل مشتری..."
-              className="w-full pl-16 pr-9 py-2 rounded-xl bg-elevated border border-line text-xs font-medium text-ink placeholder:text-muted focus:outline-none focus:border-accent transition-colors"
+              className={`${INPUT} w-full bg-elevated pr-9`}
+              type="search"
+              aria-label="جستجوی مشتری"
+              placeholder="جستجوی نام یا شماره"
+              value={params.get("search") ?? ""}
+              onChange={(event) => change({ search: event.target.value })}
             />
-            {search && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearch("");
-                  setAppliedSearch("");
-                  setPage(1);
-                }}
-                className="absolute left-14 top-1/2 -translate-y-1/2 text-muted hover:text-ink text-xs p-1"
-                title="پاک کردن جستجو"
-              >
-                ✕
-              </button>
+          </span>
+          {categories.map((category) => (
+            <CategoryButton key={category.key} label={category.label} count={categoryCount(category, params)} open={panel === category.key} onClick={() => setPanel(panel === category.key ? null : category.key)} />
+          ))}
+          <CategoryButton label="میان‌برها و نماها" count={0} open={panel === "views"} quiet onClick={() => setPanel(panel === "views" ? null : "views")} />
+        </div>
+
+        {panel ? (
+          <div className="absolute inset-x-0 top-[calc(100%+6px)] z-20 flex max-h-[72vh] flex-col gap-3.5 overflow-y-auto rounded-2xl border border-slate-300/70 bg-elevated p-[18px] shadow-2xl dark:border-white/[0.14]">
+            {panel === "views" ? (
+              <ViewsPanel params={params} onApply={applyFilters} />
+            ) : (
+              <FieldsPanel category={categories.find((item) => item.key === panel) as Category} params={params} change={change} />
             )}
-            <button
-              type="submit"
-              className="absolute left-1.5 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-accent text-on-accent text-[11px] font-bold hover:opacity-95 transition-opacity"
-            >
-              بیاب
-            </button>
-          </form>
-
-          {/* Compact Controls Group (Responsive wrap on mobile, inline on desktop) */}
-          <div className="flex flex-wrap items-center justify-between sm:justify-start gap-2">
-            {/* Population Segmented Control */}
-            <div className="flex items-center bg-elevated p-0.5 rounded-xl border border-line text-[11px] overflow-x-auto no-scrollbar">
-              <button
-                type="button"
-                onClick={() => updateFilter("population", "all")}
-                className={`px-2.5 py-1 rounded-lg whitespace-nowrap transition-all ${
-                  filters.population === "all"
-                    ? "bg-surface text-ink font-bold shadow-xs"
-                    : "text-muted hover:text-ink"
-                }`}
-              >
-                همه ({formatNumber(totalCustomers)})
-              </button>
-              <button
-                type="button"
-                onClick={() => updateFilter("population", "purchasing")}
-                className={`px-2.5 py-1 rounded-lg whitespace-nowrap transition-all ${
-                  filters.population === "purchasing"
-                    ? "bg-surface text-ink font-bold shadow-xs"
-                    : "text-muted hover:text-ink"
-                }`}
-              >
-                خریداران ({formatNumber(purchasingCustomers)})
-              </button>
-              <button
-                type="button"
-                onClick={() => updateFilter("population", "registered")}
-                className={`px-2.5 py-1 rounded-lg whitespace-nowrap transition-all ${
-                  filters.population === "registered"
-                    ? "bg-surface text-ink font-bold shadow-xs"
-                    : "text-muted hover:text-ink"
-                }`}
-              >
-                بدون خرید ({formatNumber(registeredNoOrder)})
+            <div className="flex flex-wrap items-center justify-between gap-1.5 border-t border-line pt-3">
+              <span className={MUTED}>{list.loading ? "در حال شمارش..." : `${formatNumber(total)} مشتری با این فیلترها`}</span>
+              <button type="button" onClick={() => setPanel(null)} className="min-h-[38px] cursor-pointer rounded-[10px] border-0 bg-accent px-[18px] text-[13px] font-semibold text-on-accent">
+                نمایش نتیجه
               </button>
             </div>
+          </div>
+        ) : null}
 
-            {/* Sort Select */}
-            <div className="flex items-center gap-1 bg-elevated border border-line rounded-xl px-2.5 py-1.5 text-xs">
-              <span className="text-muted text-[11px] hidden sm:inline">مرتب‌سازی:</span>
-              <select
-                aria-label="مرتب‌سازی مشتریان"
-                value={filters.sort}
-                onChange={(e) => updateFilter("sort", e.target.value)}
-                className="bg-transparent text-ink font-semibold text-xs focus:outline-none cursor-pointer"
+        {chips.length ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {chips.map((chip) => (
+              <button
+                key={chip.key}
+                type="button"
+                aria-label={chip.aria}
+                onClick={() => change(chip.remove)}
+                className="min-h-8 cursor-pointer rounded-full border border-blue-400/40 bg-blue-500/[0.16] px-[11px] text-[12.5px] text-blue-800 dark:text-blue-100"
               >
-                {SORT_OPTIONS.map((s) => (
-                  <option key={s.value} value={s.value} className="bg-surface text-ink">
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Minimal Filter Drawer Button */}
-            <button
-              type="button"
-              aria-expanded={showAdvanced}
-              onClick={() => setShowAdvanced((prev) => !prev)}
-              className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                showAdvanced || tabCounts.total > 0
-                  ? "bg-accent/15 border-accent text-accent"
-                  : "bg-elevated border-line text-muted hover:text-ink"
-              }`}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-              </svg>
-              <span>فیلترها</span>
-              {tabCounts.total > 0 && (
-                <span className="h-4 min-w-[1rem] px-1 rounded-full bg-accent text-on-accent text-[10px] font-black flex items-center justify-center tabular">
-                  {formatNumber(tabCounts.total)}
-                </span>
-              )}
-              <span className={`text-[9px] transition-transform ${showAdvanced ? "rotate-180" : ""}`}>▼</span>
+                {chip.label} ✕
+              </button>
+            ))}
+            <button type="button" onClick={() => applyFilters({})} className="min-h-8 cursor-pointer border-0 bg-transparent px-2 text-[12.5px] text-blue-600 dark:text-blue-300">
+              پاک کردن همه
             </button>
+          </div>
+        ) : null}
+      </section>
 
-            <button
-              type="button"
-              onClick={handleExport}
-              disabled={exporting}
-              className="px-3 py-1.5 rounded-xl border border-line bg-elevated text-xs font-bold text-muted hover:text-ink flex items-center gap-1.5 transition-all cursor-pointer"
-            >
-              <svg className="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              <span>{exporting ? "در حال استخراج..." : "خروجی اکسل"}</span>
-            </button>
+      <SummaryCards summary={summary.data} failed={summary.error} active={hasFilters(params)} />
 
+      {callListOpen ? <CreateCallList selectedIds={selected} filterParams={filterParams(params)} total={total} onClose={() => setCallListOpen(false)} /> : null}
+
+      <section className={`${CARD} flex flex-col px-2 pb-2.5 pt-3`}>
+        <div className="flex flex-wrap items-center justify-between gap-2 px-2 pb-2.5">
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-ink">{selected.length ? `${formatNumber(selected.length)} مشتری انتخاب شد` : `${formatNumber(total)} مشتری`}</span>
+            {selected.length ? (
+              <button type="button" onClick={() => setSelected([])} className="min-h-[30px] cursor-pointer border-0 bg-transparent text-[12.5px] text-blue-600 dark:text-blue-300">لغو انتخاب</button>
+            ) : null}
+          </span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button type="button" aria-expanded={colsOpen} onClick={() => setColsOpen(!colsOpen)} className={GHOST}>ستون‌ها</button>
+            <button type="button" disabled={exporting} onClick={handleExport} className={GHOST}>{exporting ? "در حال استخراج..." : "خروجی اکسل"}</button>
             {canManageCalls && editListId == null ? (
-              <button
-                type="button"
-                onClick={() => setCallListOpen(true)}
-                className="px-3 py-1.5 rounded-xl bg-accent text-on-accent text-xs font-bold cursor-pointer"
-              >
-                ساخت لیست تماس
+              <button type="button" onClick={() => setCallListOpen(true)} className={PRIMARY}>
+                {selected.length ? `ساخت لیست تماس (${formatNumber(selected.length)})` : "ساخت لیست تماس"}
               </button>
             ) : null}
           </div>
         </div>
-
-        {/* Row 2: Horizontal Scrollable 1-Click Smart Segments */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-2 border-t border-line/60">
-          <span className="text-[11px] text-muted font-medium shrink-0 ml-1">سگمنت سریع:</span>
-          {visibleSegments.map((seg) => {
-            const active = activeSegmentId === seg.id;
-            return (
-              <button
-                key={seg.id}
-                type="button"
-                onClick={() => applySmartSegment(seg.id)}
-                title={seg.desc}
-                className={`px-2.5 py-1 rounded-lg text-[11px] whitespace-nowrap transition-all shrink-0 cursor-pointer ${
-                  active
-                    ? "bg-accent text-on-accent font-bold shadow-xs"
-                    : "bg-elevated/70 text-muted hover:text-ink border border-line/80"
-                }`}
-              >
-                {seg.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Row 3: Categorized Minimal Filter Drawer (Progressive Disclosure) */}
-        {showAdvanced && (
-          <div className="pt-3 border-t border-line space-y-3 animate-fade-in">
-            {/* Category Tabs Header */}
-            <div className="flex items-center justify-between gap-2 border-b border-line/70 pb-2 overflow-x-auto no-scrollbar">
-              <div className="flex items-center gap-1">
-                {DRAWER_TABS.map((tab) => {
-                  const isCurrent = activeTab === tab.id;
-                  const badgeCount = tabCounts[tab.id];
-                  return (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
-                        isCurrent
-                          ? "bg-accent/15 text-accent border border-accent/30"
-                          : "text-muted hover:text-ink hover:bg-elevated/60"
-                      }`}
-                    >
-                      <span>{tab.label}</span>
-                      {badgeCount > 0 && (
-                        <span className="px-1.5 py-0.2 rounded-full bg-accent text-on-accent text-[10px] tabular">
-                          {formatNumber(badgeCount)}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {tabCounts.total > 0 && (
-                <button
-                  type="button"
-                  onClick={resetFilters}
-                  className="text-[11px] text-rose-500 hover:underline font-semibold whitespace-nowrap px-2"
-                >
-                  پاک کردن همه
-                </button>
-              )}
-            </div>
-
-            {/* TAB 1: LOYALTY, CHANNEL & BRANCHES */}
-            {activeTab === "loyalty" && (
-              <div className="space-y-3.5 text-xs">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                  {/* Channel */}
-                  <div className="space-y-1.5">
-                    <span className="text-[11px] font-bold text-muted block">کانال خرید</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {CHANNEL_OPTIONS.map((ch) => {
-                        const active = filters.channel === ch.value;
-                        return (
-                          <button
-                            key={ch.value}
-                            type="button"
-                            onClick={() => updateFilter("channel", ch.value)}
-                            className={`px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center gap-1 cursor-pointer ${
-                              active
-                                ? "bg-accent text-on-accent font-bold"
-                                : "bg-elevated text-muted hover:text-ink border border-line"
-                            }`}
-                          >
-                            <span>{ch.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Sales Lines & Match Mode (ANY / ALL) */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-bold text-muted">شعب و خطوط فروش</span>
-                      {filters.salesLines.length > 1 && (
-                        <div className="inline-flex items-center bg-elevated p-0.5 rounded-lg border border-line text-[10px]">
-                          <button
-                            type="button"
-                            onClick={() => updateFilter("salesLinesMode", "any")}
-                            className={`px-2 py-0.5 rounded-md transition-all ${
-                              filters.salesLinesMode === "any"
-                                ? "bg-accent text-on-accent font-bold"
-                                : "text-muted hover:text-ink"
-                            }`}
-                          >
-                            حداقل یکی (OR)
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => updateFilter("salesLinesMode", "all")}
-                            className={`px-2 py-0.5 rounded-md transition-all ${
-                              filters.salesLinesMode === "all"
-                                ? "bg-accent text-on-accent font-bold"
-                                : "text-muted hover:text-ink"
-                            }`}
-                          >
-                            همه شعب (AND)
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {SALES_LINE_OPTIONS.map((branch) => {
-                        const selected = filters.salesLines.includes(branch.value);
-                        return (
-                          <button
-                            key={branch.value}
-                            type="button"
-                            onClick={() => toggleSalesLine(branch.value)}
-                            className={`px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center gap-1 cursor-pointer ${
-                              selected
-                                ? "bg-accent text-on-accent font-bold"
-                                : "bg-elevated text-muted border border-line hover:text-ink"
-                            }`}
-                          >
-                            <span>{selected ? "✓" : "+"}</span>
-                            <span>{branch.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Compact 8 Loyalty Tiers */}
-                <div className="space-y-1.5 pt-2 border-t border-line/50">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-muted">سطح وفاداری مشتری</span>
-                    {filters.tier && (
-                      <button
-                        type="button"
-                        onClick={() => updateFilter("tier", "")}
-                        className="text-[11px] text-accent hover:underline"
-                      >
-                        همه سطوح
-                      </button>
-                    )}
-                  </div>
-                  {groupTierOptions(tierChoices).map((group) => (
-                  <div key={group.channel ?? "general"} className="space-y-1">
-                  {group.channelLabel ? <div className="text-[10px] font-bold text-faint">{group.channelLabel}</div> : null}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-1.5">
-                    {group.options.map((opt) => {
-                      const active = filters.tier === opt.value;
-                      return (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          onClick={() => updateFilter("tier", active ? "" : opt.value)}
-                          title={opt.desc}
-                          className={`p-2 rounded-xl border text-right transition-all cursor-pointer ${
-                            active
-                              ? "bg-accent/15 border-accent text-ink font-bold"
-                              : "bg-elevated/70 border-line hover:border-accent/40 text-muted hover:text-ink"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between text-xs">
-                            <span>{opt.icon}</span>
-                            {active && <span className="text-[10px] text-accent font-bold">✓</span>}
-                          </div>
-                          <div className="font-bold text-ink text-[11px] truncate mt-0.5">{opt.shortLabel}</div>
-                          <div className="text-[9px] text-muted truncate mt-0.5">{opt.desc}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* TAB 2: FINANCIAL, LTV, VOLUME & PAYMENT METHOD */}
-            {activeTab === "financial" && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                {/* Lifetime Spend (LTV) */}
-                <div className="space-y-2">
-                  <span className="text-[11px] font-bold text-muted block">مجموع مبلغ خرید کل (LTV - تومان)</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {LTV_AMOUNT_PRESETS.map((preset) => {
-                      const active = filters.minAmount === preset.min && filters.maxAmount === preset.max;
-                      return (
-                        <button
-                          key={preset.label}
-                          type="button"
-                          onClick={() => patchFilters({ minAmount: preset.min, maxAmount: preset.max })}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
-                            active
-                              ? "bg-accent text-on-accent font-bold"
-                              : "bg-elevated text-muted border border-line hover:text-ink"
-                          }`}
-                        >
-                          {preset.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 pt-0.5">
-                    <div className="flex items-center justify-between bg-elevated border border-line rounded-xl px-2.5 py-1.5">
-                      <span className="text-muted text-[10px]">حداقل:</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="500000"
-                        value={filters.minAmount}
-                        onChange={(e) => updateFilter("minAmount", e.target.value.replace(/[^\d]/g, ""))}
-                        placeholder="۰ تومان"
-                        className="w-24 bg-transparent text-ink font-bold tabular text-left focus:outline-none text-xs"
-                      />
-                    </div>
-                    <div className="flex items-center justify-between bg-elevated border border-line rounded-xl px-2.5 py-1.5">
-                      <span className="text-muted text-[10px]">حداکثر:</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="500000"
-                        value={filters.maxAmount}
-                        onChange={(e) => updateFilter("maxAmount", e.target.value.replace(/[^\d]/g, ""))}
-                        placeholder="بدون سقف"
-                        className="w-24 bg-transparent text-ink font-bold tabular text-left focus:outline-none text-xs"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Purchase Count */}
-                <div className="space-y-2">
-                  <span className="text-[11px] font-bold text-muted block">تعداد فاکتورهای موفق</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {PURCHASE_VOLUME_PRESETS.map((preset) => {
-                      const active = filters.minPurchases === preset.min && filters.maxPurchases === preset.max;
-                      return (
-                        <button
-                          key={preset.label}
-                          type="button"
-                          onClick={() => patchFilters({ minPurchases: preset.min, maxPurchases: preset.max })}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
-                            active
-                              ? "bg-accent text-on-accent font-bold"
-                              : "bg-elevated text-muted border border-line hover:text-ink"
-                          }`}
-                        >
-                          {preset.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 pt-0.5">
-                    <div className="flex items-center justify-between bg-elevated border border-line rounded-xl px-2.5 py-1.5">
-                      <span className="text-muted text-[10px]">حداقل فاکتور:</span>
-                      <input
-                        type="number"
-                        min="0"
-                        value={filters.minPurchases}
-                        onChange={(e) => updateFilter("minPurchases", e.target.value.replace(/[^\d]/g, ""))}
-                        placeholder="۰"
-                        className="w-16 bg-transparent text-ink font-bold tabular text-left focus:outline-none text-xs"
-                      />
-                    </div>
-                    <div className="flex items-center justify-between bg-elevated border border-line rounded-xl px-2.5 py-1.5">
-                      <span className="text-muted text-[10px]">حداکثر فاکتور:</span>
-                      <input
-                        type="number"
-                        min="0"
-                        value={filters.maxPurchases}
-                        onChange={(e) => updateFilter("maxPurchases", e.target.value.replace(/[^\d]/g, ""))}
-                        placeholder="بی‌نهایت"
-                        className="w-16 bg-transparent text-ink font-bold tabular text-left focus:outline-none text-xs"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Payment Method & Installments */}
-                <div className="space-y-1.5 pt-2 border-t border-line/50">
-                  <span className="text-[11px] font-bold text-muted block">روش پرداخت و خرید اقساطی</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {PAYMENT_METHOD_OPTIONS.map((pm) => {
-                      const active = filters.paymentMethod === pm.value;
-                      return (
-                        <button
-                          key={pm.value}
-                          type="button"
-                          onClick={() => updateFilter("paymentMethod", pm.value)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
-                            active
-                              ? "bg-accent text-on-accent font-bold"
-                              : "bg-elevated text-muted border border-line hover:text-ink"
-                          }`}
-                        >
-                          {pm.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Discount Sensitivity */}
-                <div className="space-y-1.5 pt-2 border-t border-line/50">
-                  <span className="text-[11px] font-bold text-muted block">استفاده از تخفیف</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {DISCOUNT_FILTER_OPTIONS.map((df) => {
-                      const active = filters.hasDiscount === df.value;
-                      return (
-                        <button
-                          key={df.value}
-                          type="button"
-                          onClick={() => updateFilter("hasDiscount", df.value)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
-                            active
-                              ? "bg-accent text-on-accent font-bold"
-                              : "bg-elevated text-muted border border-line hover:text-ink"
-                          }`}
-                        >
-                          {df.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* TAB 3: PRODUCT CATEGORY & SIZE AFFINITY */}
-            {activeTab === "product" && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                {/* Size Affinity */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-muted">سایز پوشاک خریداری‌شده</span>
-                    {filters.size && (
-                      <button
-                        type="button"
-                        onClick={() => updateFilter("size", "")}
-                        className="text-[11px] text-accent hover:underline"
-                      >
-                        پاک کردن سایز
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {SIZE_PRESETS.map((sz) => {
-                      const active = filters.size.toUpperCase() === sz.toUpperCase();
-                      return (
-                        <button
-                          key={sz}
-                          type="button"
-                          onClick={() => updateFilter("size", active ? "" : sz)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold transition-all cursor-pointer ${
-                            active
-                              ? "bg-accent text-on-accent"
-                              : "bg-elevated text-muted border border-line hover:text-ink"
-                          }`}
-                        >
-                          {sz}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <input
-                    type="text"
-                    value={filters.size}
-                    onChange={(e) => updateFilter("size", e.target.value)}
-                    placeholder="یا تایپ سایز دلخواه (مثلاً 46)..."
-                    className="w-full px-3 py-1.5 rounded-xl bg-elevated border border-line text-xs text-ink placeholder:text-muted focus:outline-none focus:border-accent"
-                  />
-                </div>
-
-                {/* Category / Product Affinity */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-muted">دسته‌بندی یا نام کالا</span>
-                    {filters.category && (
-                      <button
-                        type="button"
-                        onClick={() => updateFilter("category", "")}
-                        className="text-[11px] text-accent hover:underline"
-                      >
-                        پاک کردن دسته
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {CATEGORY_PRESETS.map((cat) => {
-                      const active = filters.category === cat;
-                      return (
-                        <button
-                          key={cat}
-                          type="button"
-                          onClick={() => updateFilter("category", active ? "" : cat)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
-                            active
-                              ? "bg-accent text-on-accent font-bold"
-                              : "bg-elevated text-muted border border-line hover:text-ink"
-                          }`}
-                        >
-                          {cat}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <input
-                    type="text"
-                    value={filters.category}
-                    onChange={(e) => updateFilter("category", e.target.value)}
-                    placeholder="جستجوی نام دسته یا محصول (مثلاً مانتو کتان)..."
-                    className="w-full px-3 py-1.5 rounded-xl bg-elevated border border-line text-xs text-ink placeholder:text-muted focus:outline-none focus:border-accent"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* TAB 4: DATES, GEOGRAPHY & BEHAVIOR */}
-            {activeTab === "behavior" && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                {/* Last Purchase & First Purchase Date Ranges */}
-                <div className="space-y-2">
-                  <span className="text-[11px] font-bold text-muted block">بازه زمانی خرید و کوهورت جذب</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setDateModalTarget("last")}
-                      className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                        filters.lastFrom || filters.lastTo
-                          ? "bg-accent text-on-accent border-accent"
-                          : "bg-elevated border-line text-ink hover:border-accent"
-                      }`}
-                    >
-                      <span>📅 آخرین خرید:</span>
-                      <span>
-                        {filters.lastFrom || filters.lastTo
-                          ? `${filters.lastFrom ? formatJalali(filters.lastFrom) : "ابتدا"} تا ${
-                              filters.lastTo ? formatJalali(filters.lastTo) : "امروز"
-                            }`
-                          : "انتخاب بازه"}
-                      </span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setDateModalTarget("first")}
-                      className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                        filters.firstFrom || filters.firstTo
-                          ? "bg-accent text-on-accent border-accent"
-                          : "bg-elevated border-line text-ink hover:border-accent"
-                      }`}
-                    >
-                      <span>✨ تاریخ جذب (اولین خرید):</span>
-                      <span>
-                        {filters.firstFrom || filters.firstTo
-                          ? `${filters.firstFrom ? formatJalali(filters.firstFrom) : "ابتدا"} تا ${
-                              filters.firstTo ? formatJalali(filters.firstTo) : "امروز"
-                            }`
-                          : "انتخاب بازه"}
-                      </span>
-                    </button>
-                  </div>
-
-                  {/* Quick Recency Shortcuts */}
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => applyDatePreset(7)}
-                      className="px-2 py-1 rounded-lg bg-elevated border border-line text-muted hover:text-ink text-[11px]"
-                    >
-                      ۷ روز اخیر
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => applyDatePreset(30)}
-                      className="px-2 py-1 rounded-lg bg-elevated border border-line text-muted hover:text-ink text-[11px]"
-                    >
-                      ۳۰ روز اخیر
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => applyDatePreset(90, true)}
-                      className="px-2 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-[11px] font-medium"
-                    >
-                      +۹۰ روز عدم خرید
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => applyDatePreset(180, true)}
-                      className="px-2 py-1 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-[11px] font-medium"
-                    >
-                      +۱۸۰ روز عدم خرید (ریزش)
-                    </button>
-                  </div>
-                </div>
-
-                {/* City / Province Filter */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-muted">شهر یا استان مشتری</span>
-                    {filters.city && (
-                      <button
-                        type="button"
-                        onClick={() => updateFilter("city", "")}
-                        className="text-[11px] text-accent hover:underline"
-                      >
-                        پاک کردن شهر
-                      </button>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {CITY_PRESETS.map((cityItem) => {
-                      const active = filters.city === cityItem;
-                      return (
-                        <button
-                          key={cityItem}
-                          type="button"
-                          onClick={() => updateFilter("city", active ? "" : cityItem)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
-                            active
-                              ? "bg-accent text-on-accent font-bold"
-                              : "bg-elevated text-muted border border-line hover:text-ink"
-                          }`}
-                        >
-                          {cityItem}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <input
-                    type="text"
-                    value={filters.city}
-                    onChange={(e) => updateFilter("city", e.target.value)}
-                    placeholder="نام شهر یا استان (مثلاً مازندران، گلستان، مشهد)..."
-                    className="w-full px-3 py-1.5 rounded-xl bg-elevated border border-line text-xs text-ink placeholder:text-muted focus:outline-none focus:border-accent"
-                  />
-                </div>
-
-                {/* Order Behavior (Refunds / Canceled) */}
-                <div className="space-y-1.5 pt-2 border-t border-line/50">
-                  <span className="text-[11px] font-bold text-muted block">رفتار مرجوعی و لغو سفارش</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {ORDER_BEHAVIOR_OPTIONS.map((ob) => {
-                      const active = filters.orderBehavior === ob.value;
-                      return (
-                        <button
-                          key={ob.value}
-                          type="button"
-                          onClick={() => updateFilter("orderBehavior", ob.value)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
-                            active
-                              ? "bg-accent text-on-accent font-bold"
-                              : "bg-elevated text-muted border border-line hover:text-ink"
-                          }`}
-                        >
-                          {ob.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Profile Completeness */}
-                <div className="space-y-1.5 pt-2 border-t border-line/50">
-                  <span className="text-[11px] font-bold text-muted block">وضعیت تکمیل پرونده</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {PROFILE_STATE_OPTIONS.map((ps) => {
-                      const active = filters.profileState === ps.value;
-                      return (
-                        <button
-                          key={ps.value}
-                          type="button"
-                          onClick={() => updateFilter("profileState", ps.value)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
-                            active
-                              ? "bg-accent text-on-accent font-bold"
-                              : "bg-elevated text-muted border border-line hover:text-ink"
-                          }`}
-                        >
-                          {ps.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Row 4: Removable Active Filter Chips (Only visible when filters are active) */}
-        {tabCounts.total > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 pt-2.5 border-t border-line/70">
-            <span className="text-[11px] text-muted font-medium ml-1">فیلترهای فعال:</span>
-
-            {appliedSearch && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-accent/15 text-accent font-bold text-[11px] border border-accent/25">
-                <span>جستجو: {appliedSearch}</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearch("");
-                    setAppliedSearch("");
-                    setPage(1);
-                  }}
-                  className="hover:text-rose-500 mr-0.5"
-                >
-                  ✕
-                </button>
-              </span>
-            )}
-
-            {filters.population !== "all" && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-accent/15 text-accent font-bold text-[11px] border border-accent/25">
-                <span>جامعه: {filters.population === "purchasing" ? "خریداران" : "بدون خرید"}</span>
-                <button type="button" onClick={() => updateFilter("population", "all")} className="hover:text-rose-500 mr-0.5">
-                  ✕
-                </button>
-              </span>
-            )}
-
-            {filters.channel && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-accent/15 text-accent font-bold text-[11px] border border-accent/25">
-                <span>کانال: {CHANNEL_OPTIONS.find((c) => c.value === filters.channel)?.label || filters.channel}</span>
-                <button type="button" onClick={() => updateFilter("channel", "")} className="hover:text-rose-500 mr-0.5">
-                  ✕
-                </button>
-              </span>
-            )}
-
-            {filters.tier && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-accent/15 text-accent font-bold text-[11px] border border-accent/25">
-                <span>سطح: {tierChoices.find((t) => t.value === filters.tier)?.label || filters.tier}</span>
-                <button type="button" onClick={() => updateFilter("tier", "")} className="hover:text-rose-500 mr-0.5">
-                  ✕
-                </button>
-              </span>
-            )}
-
-            {filters.salesLines.map((line) => (
-              <span
-                key={line}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-accent/15 text-accent font-bold text-[11px] border border-accent/25"
-              >
-                <span>
-                  {SALES_LINE_OPTIONS.find((s) => s.value === line)?.label || line}
-                  {filters.salesLines.length > 1 ? ` (${filters.salesLinesMode === "any" ? "OR" : "AND"})` : ""}
-                </span>
-                <button type="button" onClick={() => toggleSalesLine(line)} className="hover:text-rose-500 mr-0.5">
-                  ✕
-                </button>
-              </span>
+        {colsOpen ? (
+          <div className="mx-2 mb-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl bg-elevated px-3 py-2">
+            {(
+              [
+                ["total", "مجموع خرید"],
+                ["first", "اولین خرید"],
+                ["city", "شهر"],
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key} className={`inline-flex min-h-[34px] items-center gap-[7px] text-[13px] ${SOFT}`}>
+                <input type="checkbox" checked={columns[key]} onChange={(event) => toggleColumn(key, event.target.checked)} />
+                {label}
+              </label>
             ))}
-
-            {(filters.minAmount || filters.maxAmount) && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-accent/15 text-accent font-bold text-[11px] border border-accent/25">
-                <span>
-                  مبلغ خرید:{" "}
-                  {filters.minAmount && filters.maxAmount
-                    ? `${formatNumber(Number(filters.minAmount))} تا ${formatNumber(Number(filters.maxAmount))}`
-                    : filters.minAmount
-                    ? `+${formatNumber(Number(filters.minAmount))} تومان`
-                    : `تا ${formatNumber(Number(filters.maxAmount))} تومان`}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => patchFilters({ minAmount: "", maxAmount: "" })}
-                  className="hover:text-rose-500 mr-0.5"
-                >
-                  ✕
-                </button>
-              </span>
-            )}
-
-            {(filters.minPurchases || filters.maxPurchases) && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-accent/15 text-accent font-bold text-[11px] border border-accent/25">
-                <span>
-                  فاکتور:{" "}
-                  {filters.minPurchases && filters.maxPurchases
-                    ? `${filters.minPurchases} تا ${filters.maxPurchases}`
-                    : filters.minPurchases
-                    ? `حداقل ${filters.minPurchases}`
-                    : `حداکثر ${filters.maxPurchases}`}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => patchFilters({ minPurchases: "", maxPurchases: "" })}
-                  className="hover:text-rose-500 mr-0.5"
-                >
-                  ✕
-                </button>
-              </span>
-            )}
-
-            {filters.paymentMethod && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-accent/15 text-accent font-bold text-[11px] border border-accent/25">
-                <span>
-                  {PAYMENT_METHOD_OPTIONS.find((p) => p.value === filters.paymentMethod)?.label || filters.paymentMethod}
-                </span>
-                <button type="button" onClick={() => updateFilter("paymentMethod", "")} className="hover:text-rose-500 mr-0.5">
-                  ✕
-                </button>
-              </span>
-            )}
-
-            {filters.hasDiscount && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-accent/15 text-accent font-bold text-[11px] border border-accent/25">
-                <span>
-                  {DISCOUNT_FILTER_OPTIONS.find((d) => d.value === filters.hasDiscount)?.label || filters.hasDiscount}
-                </span>
-                <button type="button" onClick={() => updateFilter("hasDiscount", "")} className="hover:text-rose-500 mr-0.5">
-                  ✕
-                </button>
-              </span>
-            )}
-
-            {filters.size && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-accent/15 text-accent font-bold text-[11px] border border-accent/25">
-                <span>سایز: {filters.size}</span>
-                <button type="button" onClick={() => updateFilter("size", "")} className="hover:text-rose-500 mr-0.5">
-                  ✕
-                </button>
-              </span>
-            )}
-
-            {filters.category && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-accent/15 text-accent font-bold text-[11px] border border-accent/25">
-                <span>دسته: {filters.category}</span>
-                <button type="button" onClick={() => updateFilter("category", "")} className="hover:text-rose-500 mr-0.5">
-                  ✕
-                </button>
-              </span>
-            )}
-
-            {filters.city && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-accent/15 text-accent font-bold text-[11px] border border-accent/25">
-                <span>شهر: {filters.city}</span>
-                <button type="button" onClick={() => updateFilter("city", "")} className="hover:text-rose-500 mr-0.5">
-                  ✕
-                </button>
-              </span>
-            )}
-
-            {filters.orderBehavior && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-accent/15 text-accent font-bold text-[11px] border border-accent/25">
-                <span>
-                  {ORDER_BEHAVIOR_OPTIONS.find((o) => o.value === filters.orderBehavior)?.label || filters.orderBehavior}
-                </span>
-                <button type="button" onClick={() => updateFilter("orderBehavior", "")} className="hover:text-rose-500 mr-0.5">
-                  ✕
-                </button>
-              </span>
-            )}
-
-            {filters.profileState && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-accent/15 text-accent font-bold text-[11px] border border-accent/25">
-                <span>
-                  {PROFILE_STATE_OPTIONS.find((p) => p.value === filters.profileState)?.label || filters.profileState}
-                </span>
-                <button type="button" onClick={() => updateFilter("profileState", "")} className="hover:text-rose-500 mr-0.5">
-                  ✕
-                </button>
-              </span>
-            )}
-
-            {(filters.lastFrom || filters.lastTo) && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-accent/15 text-accent font-bold text-[11px] border border-accent/25">
-                <span>
-                  آخرین خرید:{" "}
-                  {filters.lastFrom && filters.lastTo
-                    ? `${formatJalali(filters.lastFrom)} تا ${formatJalali(filters.lastTo)}`
-                    : filters.lastFrom
-                    ? `از ${formatJalali(filters.lastFrom)}`
-                    : `تا ${formatJalali(filters.lastTo)}`}
-                </span>
-                <button type="button" onClick={() => applyDatePreset(null)} className="hover:text-rose-500 mr-0.5">
-                  ✕
-                </button>
-              </span>
-            )}
-
-            {(filters.firstFrom || filters.firstTo) && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-accent/15 text-accent font-bold text-[11px] border border-accent/25">
-                <span>
-                  تاریخ جذب:{" "}
-                  {filters.firstFrom && filters.firstTo
-                    ? `${formatJalali(filters.firstFrom)} تا ${formatJalali(filters.firstTo)}`
-                    : filters.firstFrom
-                    ? `از ${formatJalali(filters.firstFrom)}`
-                    : `تا ${formatJalali(filters.firstTo)}`}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => patchFilters({ firstFrom: "", firstTo: "" })}
-                  className="hover:text-rose-500 mr-0.5"
-                >
-                  ✕
-                </button>
-              </span>
-            )}
-
-            {filters.sort !== "last_purchase" && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-accent/15 text-accent font-bold text-[11px] border border-accent/25">
-                <span>سورت: {SORT_OPTIONS.find((s) => s.value === filters.sort)?.label || filters.sort}</span>
-                <button type="button" onClick={() => updateFilter("sort", "last_purchase")} className="hover:text-rose-500 mr-0.5">
-                  ✕
-                </button>
-              </span>
-            )}
-
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="text-[11px] text-rose-500 hover:text-rose-600 font-bold px-2 py-0.5 rounded-lg hover:bg-rose-500/10 transition-colors mr-auto cursor-pointer"
-            >
-              پاک کردن همه
-            </button>
           </div>
-        )}
+        ) : null}
+        {message ? <p role="status" className="mx-2 mb-2.5 mt-0 rounded-[10px] bg-blue-500/[0.14] px-3 py-2 text-[13px] text-ink">{message}</p> : null}
 
-        {/* Results Counter Bar */}
-        <div className="flex items-center justify-between text-[11px] text-muted pt-2 border-t border-line/60">
-          <div>
-            نمایش <span className="font-bold text-ink tabular">{data?.results?.length || 0}</span> از{" "}
-            <span className="font-bold text-ink tabular">{formatNumber(data?.total || 0)}</span> مشتری
+        <CustomerTable
+          rows={rows}
+          loading={list.loading}
+          hasData={Boolean(list.data)}
+          params={params}
+          columns={columns}
+          pageMax={pageMax}
+          selected={selected}
+          onSort={(column) => setParams(nextSort(params, column), { replace: true })}
+          onToggle={(id) => setSelected((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]))}
+          onOpen={(id) => navigate(`/customers/${id}`)}
+        />
+
+        {list.error ? (
+          <p className={`${MUTED} m-0 p-[30px] text-center`} role="alert">
+            لیست بارگذاری نشد.{" "}
+            <button type="button" onClick={() => setRetry((value) => value + 1)} className="cursor-pointer border-0 bg-transparent text-blue-600 dark:text-blue-300">تلاش دوباره</button>
+          </p>
+        ) : !list.loading && !rows.length ? (
+          <p className={`${MUTED} m-0 p-[30px] text-center`}>مشتری‌ای با این فیلترها پیدا نشد. یکی از فیلترها را بردارید.</p>
+        ) : null}
+
+        <div className="flex flex-wrap items-center justify-between gap-1.5 px-2 pb-0.5 pt-3">
+          <span className={MUTED}>
+            {total ? `نمایش ${formatNumber((page - 1) * PER_PAGE + 1)} تا ${formatNumber(Math.min(page * PER_PAGE, total))} از ${formatNumber(total)}` : ""}
+          </span>
+          <div className="flex items-center gap-1.5">
+            <button type="button" className={GHOST} disabled={page <= 1} onClick={() => goToPage(setParams, params, page - 1)}>قبلی</button>
+            <button type="button" className={GHOST} disabled={page >= lastPage} onClick={() => goToPage(setParams, params, page + 1)}>بعدی</button>
           </div>
-          {data && data.total > 0 && (
-            <div>
-              صفحه <span className="font-bold text-ink tabular">{formatNumber(page)}</span> از{" "}
-              <span className="font-bold text-ink tabular">{formatNumber(totalPages)}</span>
-            </div>
-          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function goToPage(setParams: ReturnType<typeof useSearchParams>[1], params: URLSearchParams, page: number) {
+  const next = new URLSearchParams(params);
+  next.set("page", String(page));
+  setParams(next);
+}
+
+function CategoryButton({ label, count, open, quiet, onClick }: { label: string; count: number; open: boolean; quiet?: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-expanded={open}
+      onClick={onClick}
+      className={`inline-flex min-h-10 cursor-pointer items-center gap-[7px] rounded-[11px] border px-3.5 text-[13px] ${
+        open ? "border-blue-400 bg-blue-500/[0.18] text-ink" : `${count ? "border-blue-400/45 text-ink" : `border-slate-300/70 dark:border-white/[0.12] ${SOFT}`} ${quiet ? "bg-transparent" : "bg-elevated"}`
+      }`}
+    >
+      {label}
+      {count ? <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-accent text-[11px] text-on-accent">{formatNumber(count)}</span> : null}
+      <span aria-hidden="true" className="text-[10px] text-faint">▾</span>
+    </button>
+  );
+}
+
+function FieldsPanel({ category, params, change }: { category: Category; params: URLSearchParams; change: (changes: Record<string, string | null>) => void }) {
+  return (
+    <div className="grid gap-x-7 gap-y-[18px]" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(260px, 100%), 1fr))" }}>
+      {category.fields.map((field) => (
+        <div key={field.key} className="flex flex-col gap-2">
+          <span className={LABEL}>{field.label}</span>
+          <FieldInput field={field} params={params} change={change} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FieldInput({ field, params, change }: { field: Field; params: URLSearchParams; change: (changes: Record<string, string | null>) => void }) {
+  if (field.kind === "range") {
+    const shown = (param: string) => (params.get(param) ? String(Number(params.get(param)) / field.scale) : "");
+    const set = (param: string, value: string) => change({ [param]: value === "" ? null : String(Math.round(Number(value) * field.scale)) });
+    return (
+      <div className="flex flex-nowrap items-center gap-1.5">
+        <input className={`${INPUT} w-[88px] bg-surface`} type="number" min="0" step="any" aria-label={`${field.label} از`} placeholder="از" value={shown(field.min)} onChange={(event) => set(field.min, event.target.value)} />
+        <input className={`${INPUT} w-[88px] bg-surface`} type="number" min="0" step="any" aria-label={`${field.label} تا`} placeholder="تا" value={shown(field.max)} onChange={(event) => set(field.max, event.target.value)} />
+        <span className={MUTED}>{field.unit}</span>
+      </div>
+    );
+  }
+  if (field.kind === "days") {
+    const dayParam = `${field.prefix}_days`;
+    const clearDates = { [`${field.prefix}_after`]: null, [`${field.prefix}_before`]: null };
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {DAY_OPTIONS.map((option) => (
+            <Chip key={option.value} on={params.get(dayParam) === option.value} onClick={() => change({ [dayParam]: params.get(dayParam) === option.value ? null : option.value, ...clearDates })}>
+              {option.label}
+            </Chip>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <JalaliDateField compact allowEmpty emptyLabel="از تاریخ" value={params.get(`${field.prefix}_after`) ?? ""} onChange={(iso) => change({ [`${field.prefix}_after`]: iso, [dayParam]: null })} />
+          <JalaliDateField compact allowEmpty emptyLabel="تا تاریخ" value={params.get(`${field.prefix}_before`) ?? ""} onChange={(iso) => change({ [`${field.prefix}_before`]: iso, [dayParam]: null })} />
         </div>
       </div>
+    );
+  }
+  const selected = splitList(params.get(field.param));
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {field.options.map((option) => (
+        <Chip
+          key={option.value}
+          on={selected.includes(option.value)}
+          onClick={() =>
+            change({
+              [field.param]: field.kind === "single" ? (selected.includes(option.value) ? null : option.value) : toggleInList(params.get(field.param), option.value),
+            })
+          }
+        >
+          {option.label}
+        </Chip>
+      ))}
+    </div>
+  );
+}
 
-      {/* ============================================================== */}
-      {/* 4. CUSTOMER LIST CONTENT (Table on Desktop, Cards on Mobile)  */}
-      {/* ============================================================== */}
-      {loading && !data ? (
-        <div className="bento-card p-6 glass-rim shadow-soft space-y-4">
-          <Skeleton className="h-12 w-full rounded-2xl" />
-          <Skeleton className="h-12 w-full rounded-2xl" />
-          <Skeleton className="h-12 w-full rounded-2xl" />
-          <Skeleton className="h-12 w-full rounded-2xl" />
-          <Skeleton className="h-12 w-full rounded-2xl" />
+function ViewsPanel({ params, onApply }: { params: URLSearchParams; onApply: (filters: Record<string, unknown>) => void }) {
+  const [reload, setReload] = useState(0);
+  const views = useApi(() => customersService.listViews(), [reload]);
+  const [name, setName] = useState("");
+  const [message, setMessage] = useState("");
+
+  const save = async () => {
+    setMessage("");
+    try {
+      await customersService.createListView(name.trim(), filterParams(params));
+      setMessage(`نمای «${name.trim()}» ذخیره شد.`);
+      setName("");
+      setReload((value) => value + 1);
+    } catch (error) {
+      setMessage(error instanceof ApiError && error.message ? error.message : "ذخیره نما انجام نشد.");
+    }
+  };
+  const remove = async (id: number) => {
+    await customersService.deleteListView(id);
+    setReload((value) => value + 1);
+  };
+
+  return (
+    <div className="flex flex-col gap-3.5">
+      <div className="flex flex-col gap-2">
+        <span className={LABEL}>میان‌برها</span>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {PRESETS.map((preset) => (
+            <Chip key={preset.label} on={false} onClick={() => onApply(preset.filters)}>{preset.label}</Chip>
+          ))}
         </div>
-      ) : error && !data ? (
-        <ErrorState onRetry={() => setRetry((v) => v + 1)} />
-      ) : !data || data.results.length === 0 ? (
-        <EmptyState
-          title="مشتری‌ای با فیلترهای انتخابی یافت نشد."
-          body="معیارهای فیلتر را تغییر دهید یا از دکمه پاک کردن همه فیلترها استفاده کنید."
-        />
-      ) : (
-        <div className="bento-card p-4 sm:p-6 glass-rim shadow-soft overflow-hidden">
-          {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-right text-xs">
-              <thead>
-                <tr className="text-muted border-b border-line pb-3 font-semibold">
-                  {canManageCalls ? <th className="py-3 px-2"><span className="sr-only">انتخاب</span></th> : null}
-                  <th className="py-3 px-3">نام و مشخصات مشتری</th>
-                  <th className="py-3 px-3">شماره تماس</th>
-                  <th className="py-3 px-3">رتبه وفاداری</th>
-                  <th className="py-3 px-3">کل خرید (LTV)</th>
-                  <th className="py-3 px-3">تعداد فاکتور</th>
-                  <th className="py-3 px-3">آخرین خرید</th>
-                  <th className="py-3 px-3">کانال و شعب</th>
-                  <th className="py-3 px-3">وضعیت</th>
-                  <th className="py-3 px-3 text-center">شناسنامه ۳۶۰</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {data.results.map((customer, idx) => {
-                  const display = customerDisplayName(customer);
-                  const gradient = AVATAR_GRADIENTS[idx % AVATAR_GRADIENTS.length];
-                  const initials = getInitials(display.name);
+      </div>
+      <div className="flex flex-col gap-2">
+        <span className={LABEL}>نماهای من</span>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {views.data?.results.map((view) => (
+            <span key={view.id} className="inline-flex items-center">
+              <Chip on={false} onClick={() => onApply(view.filters)}>{view.name}</Chip>
+              <button type="button" aria-label={`حذف نمای ${view.name}`} onClick={() => remove(view.id)} className="min-h-[34px] min-w-[34px] cursor-pointer border-0 bg-transparent text-faint">✕</button>
+            </span>
+          ))}
+          {views.data && !views.data.results.length ? <span className={MUTED}>هنوز نمایی ذخیره نشده است.</span> : null}
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <input className={`${INPUT} w-[200px] bg-surface`} aria-label="نام نما" placeholder="نام نمای جدید" value={name} onChange={(event) => setName(event.target.value)} />
+        <button type="button" className={GHOST} disabled={!name.trim()} onClick={save}>ذخیره فیلترهای فعلی</button>
+        {message ? <span className={MUTED}>{message}</span> : null}
+      </div>
+    </div>
+  );
+}
 
-                  return (
-                    <tr key={customer.id} className="hover:bg-hover transition-colors">
-                      {canManageCalls ? (
-                        <td className="py-3.5 px-2">
-                          <input
-                            type="checkbox"
-                            aria-label={`انتخاب ${display.name}`}
-                            checked={callSelection.includes(customer.id)}
-                            onChange={() => toggleCallSelection(customer.id)}
-                          />
-                        </td>
-                      ) : null}
-                      {/* Name & Avatar */}
-                      <td className="py-3.5 px-3">
-                        <div className="flex items-center gap-3">
-                          <div className={`h-9 w-9 rounded-2xl bg-gradient-to-tr ${gradient} flex items-center justify-center font-bold text-white text-xs shadow-sm shrink-0`}>
-                            {initials}
-                          </div>
-                          <div>
-                            <div className="font-bold text-ink flex items-center gap-1.5">
-                              <span>{display.name}</span>
-                              {customer.tier_label && (
-                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-accent/15 text-accent font-extrabold border border-accent/25">
-                                  {customer.tier_label}
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-[10px] text-faint font-mono mt-0.5">
-                              شناسه: #EL-{customer.id}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
+function SummaryCards({ summary, failed, active }: { summary: CustomerListSummary | null; failed: boolean; active: boolean }) {
+  const fa1 = (value: number | null | undefined, scale = 1) =>
+    value == null ? "—" : new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 1 }).format(Math.round((value / scale) * 10) / 10);
+  if (!summary) {
+    return (
+      <section aria-label="خلاصه نتیجه فیلتر" className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" }}>
+        {[0, 1, 2, 3].map((index) =>
+          failed ? (
+            <div key={index} className={`${CARD} flex h-[106px] items-center justify-center ${MUTED}`}>خلاصه بارگذاری نشد</div>
+          ) : (
+            <div key={index} className={`${CARD} h-[106px] animate-pulse`} />
+          ),
+        )}
+      </section>
+    );
+  }
+  const basket = compareNote(summary.avg_basket, summary.baseline.avg_basket);
+  const frequency = compareNote(summary.avg_invoice_count, summary.baseline.avg_invoice_count);
+  const tone = (sign: number) => (sign > 0 ? "text-[var(--delta-up)]" : sign < 0 ? "text-[var(--delta-down)]" : "text-muted");
+  const cards = [
+    { label: "مشتریان این نتیجه", value: formatNumber(summary.count), unit: "نفر", note: `${fa1(summary.share)}٪ از کل مشتریان`, noteClass: "text-muted" },
+    { label: "مجموع خرید", value: fa1(summary.total_amount, 1_000_000_000), unit: "میلیارد تومان", note: "از ابتدا تا امروز", noteClass: "text-muted" },
+    {
+      label: "میانگین سبد خرید",
+      value: fa1(summary.avg_basket, 1_000_000),
+      unit: "میلیون تومان",
+      note: active ? basket.text : "مبلغ تقسیم بر فاکتور",
+      noteClass: active ? tone(basket.sign) : "text-muted",
+    },
+    {
+      label: "میانگین تعداد خرید",
+      value: fa1(summary.avg_invoice_count),
+      unit: "فاکتور",
+      note: active ? frequency.text : "برای هر مشتری",
+      noteClass: active ? tone(frequency.sign) : "text-muted",
+    },
+  ];
+  return (
+    <section aria-label="خلاصه نتیجه فیلتر" className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" }}>
+      {cards.map((card) => (
+        <div key={card.label} className={`${CARD} flex flex-col gap-[5px] px-[18px] py-3.5`}>
+          <span className={`text-[13px] ${SOFT}`}>{card.label}</span>
+          <span className="flex items-baseline gap-[5px]">
+            <span className="text-[26px] font-extrabold tracking-[-0.5px] text-ink">{card.value}</span>
+            <span className={MUTED}>{card.unit}</span>
+          </span>
+          <span className={`text-[12.5px] ${card.noteClass}`}>{card.note}</span>
+        </div>
+      ))}
+    </section>
+  );
+}
 
-                      {/* Mobile */}
-                      <td className="py-3.5 px-3 font-mono tabular text-muted ltr-iso">
-                        {customer.mobile ? formatMobile(customer.mobile) : "—"}
-                      </td>
+function Dot({ color }: { color: string | null }) {
+  return color ? <span className="h-[7px] w-[7px] flex-none rounded-full" style={{ background: color }} /> : null;
+}
 
-                      {/* Tier Badge */}
-                      <td className="py-3.5 px-3">{getTierBadge(customer)}</td>
+function TierPill({ row }: { row: CustomerRow }) {
+  if (row.is_operator) return <span className="whitespace-nowrap rounded-full bg-amber-500/15 px-2.5 py-[3px] text-xs text-amber-700 dark:text-amber-400">{row.operator_label ?? "اپراتور"}</span>;
+  if (!row.tier_code) return <span className="text-muted">—</span>;
+  const [dark, light] = tierColors(row.tier_code);
+  const style = { "--tier-dark": dark, "--tier-light": light, "--tier-dark-bg": `${dark}22`, "--tier-light-bg": `${light}1a` } as CSSProperties;
+  return (
+    <span style={style} className="whitespace-nowrap rounded-full bg-[var(--tier-light-bg)] px-2.5 py-[3px] text-xs text-[var(--tier-light)] dark:bg-[var(--tier-dark-bg)] dark:text-[var(--tier-dark)]">
+      {row.tier_label}
+    </span>
+  );
+}
 
-                      {/* LTV */}
-                      <td className="py-3.5 px-3">
-                        <div className="font-black text-ink tabular text-sm">
-                          {formatNumber(customer.lifetime_purchase_amount || 0)}
-                        </div>
-                        <div className="text-[10px] text-muted">تومان</div>
-                      </td>
+const HEADER: { key: string; label: string; sort?: SortKey; optional?: keyof OptionalColumns }[] = [
+  { key: "name", label: "مشتری", sort: "name" },
+  { key: "tier", label: "سطح", sort: "tier" },
+  { key: "avg", label: "میانگین سبد خرید", sort: "avg_basket" },
+  { key: "count", label: "تعداد فاکتور", sort: "invoice_count" },
+  { key: "total", label: "مجموع خرید", sort: "total_amount", optional: "total" },
+  { key: "last", label: "آخرین خرید", sort: "last_purchase" },
+  { key: "first", label: "اولین خرید", sort: "first_purchase", optional: "first" },
+  { key: "channel", label: "کانال" },
+  { key: "city", label: "شهر", optional: "city" },
+];
 
-                      {/* Orders Count */}
-                      <td className="py-3.5 px-3">
-                        <div className="font-bold text-ink tabular">
-                          {formatNumber(customer.order_count)} خرید
-                        </div>
-                        <div className="text-[10px] text-muted">
-                          {formatNumber(customer.online_count)} آنلاین • {formatNumber(customer.pos_count)} حضوری
-                        </div>
-                      </td>
+function CustomerTable({ rows, loading, hasData, params, columns, pageMax, selected, onSort, onToggle, onOpen }: {
+  rows: CustomerRow[];
+  loading: boolean;
+  hasData: boolean;
+  params: URLSearchParams;
+  columns: OptionalColumns;
+  pageMax: number;
+  selected: number[];
+  onSort: (column: SortKey) => void;
+  onToggle: (id: number) => void;
+  onOpen: (id: number) => void;
+}) {
+  const visible = HEADER.filter((column) => !column.optional || columns[column.optional]);
+  const { sort } = currentSort(params);
+  const onRowClick = (event: MouseEvent, id: number) => {
+    // Checkboxes, links and buttons inside the row keep their own behavior.
+    if (!(event.target as HTMLElement).closest("a, button, input, label")) onOpen(id);
+  };
+  const cellClass = (column?: SortKey) => (column && column === sort ? "font-semibold text-ink" : SOFT);
+  const TH = "whitespace-nowrap px-2.5 py-1.5 text-right font-medium text-muted";
+  const TD = "whitespace-nowrap px-2.5 py-[9px]";
 
-                      {/* Last Purchase */}
-                      <td className="py-3.5 px-3">
-                        <div className="font-medium text-ink font-mono">
-                          {customer.last_purchase_at ? formatDate(customer.last_purchase_at) : "—"}
-                        </div>
-                        {customer.days_since_last_purchase != null && (
-                          <div
-                            className={`text-[10px] font-medium ${
-                              customer.days_since_last_purchase > 180
-                                ? "text-rose-500 font-bold"
-                                : customer.days_since_last_purchase > 90
-                                ? "text-amber-500 font-bold"
-                                : "text-accent"
-                            }`}
-                          >
-                            {customer.days_since_last_purchase === 0
-                              ? "امروز"
-                              : `${formatNumber(customer.days_since_last_purchase)} روز قبل`}
-                          </div>
-                        )}
-                      </td>
-
-                      {/* Sales Lines & Channel */}
-                      <td className="py-3.5 px-3">
-                        <div className="space-y-1">
-                          {customer.channel_label && (
-                            <span className="inline-block px-1.5 py-0.5 rounded bg-accent/10 text-accent text-[9px] font-bold">
-                              {customer.channel_label}
-                            </span>
-                          )}
-                          {customer.sales_line_labels && customer.sales_line_labels.length > 0 && (
-                            <div className="flex flex-wrap gap-1">
-                              {customer.sales_line_labels.map((lbl) => (
-                                <span
-                                  key={lbl}
-                                  className="px-1.5 py-0.5 rounded-md bg-elevated text-muted border border-line text-[9px] font-semibold"
-                                >
-                                  {lbl}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Status */}
-                      <td className="py-3.5 px-3">
-                        <span
-                          className={`px-2.5 py-0.5 rounded-full font-semibold text-[11px] ${
-                            customer.status_label === "فعال"
-                              ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
-                              : "bg-elevated text-muted border border-line"
-                          }`}
-                        >
-                          {customer.status_label || "فعال"}
-                        </span>
-                      </td>
-
-                      {/* Action */}
-                      <td className="py-3.5 px-3 text-center">
-                        <Link
-                          to={`/customers/${customer.id}`}
-                          className="px-3 py-1.5 rounded-xl bg-accent/10 hover:bg-accent text-accent hover:text-on-accent font-bold text-xs transition-all inline-flex items-center gap-1 shadow-sm"
-                        >
-                          <span>شناسنامه ۳۶۰</span>
-                          <span>←</span>
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile Touch Cards View (Optimized for handheld) */}
-          <div className="md:hidden space-y-3">
-            {data.results.map((customer, idx) => {
-              const display = customerDisplayName(customer);
-              const gradient = AVATAR_GRADIENTS[idx % AVATAR_GRADIENTS.length];
-              const initials = getInitials(display.name);
-
+  return (
+    <div className={`relative overflow-x-auto transition-opacity ${loading && hasData ? "opacity-60" : ""}`} aria-busy={loading}>
+      <table className="w-full min-w-[760px] border-collapse text-[13px]">
+        <thead>
+          <tr>
+            <th scope="col" className={TH}><span className="sr-only">انتخاب</span></th>
+            {visible.map((column) => {
+              const aria = column.sort ? ariaSort(params, column.sort) : undefined;
+              const on = column.sort === sort;
               return (
-                <div
-                  key={customer.id}
-                  className="bento-card p-3.5 glass-rim shadow-sm space-y-2.5 border-r-4 border-r-accent"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2.5">
-                      {canManageCalls ? (
-                        <input
-                          type="checkbox"
-                          aria-label={`انتخاب ${display.name}`}
-                          checked={callSelection.includes(customer.id)}
-                          onChange={() => toggleCallSelection(customer.id)}
-                        />
-                      ) : null}
-                      <div className={`h-9 w-9 rounded-xl bg-gradient-to-tr ${gradient} flex items-center justify-center font-bold text-white text-xs shrink-0`}>
-                        {initials}
-                      </div>
-                      <div>
-                        <div className="font-extrabold text-ink text-xs">{display.name}</div>
-                        <div className="text-[10px] text-muted font-mono ltr-iso">
-                          {customer.mobile ? formatMobile(customer.mobile) : "—"}
-                        </div>
-                      </div>
-                    </div>
-                    {getTierBadge(customer)}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-line text-[11px]">
-                    <div>
-                      <span className="text-[10px] text-muted block">مجموع خرید (LTV):</span>
-                      <span className="font-black text-ink tabular text-xs">
-                        {formatToman(customer.lifetime_purchase_amount || 0)}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-muted block">آخرین خرید:</span>
-                      <div className="flex items-center gap-1 font-bold text-accent">
-                        <span>{customer.last_purchase_at ? formatDate(customer.last_purchase_at) : "—"}</span>
-                        {customer.days_since_last_purchase != null && (
-                          <span className="text-[9px] text-muted font-normal">
-                            ({customer.days_since_last_purchase} روز پیش)
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2 border-t border-line text-xs">
-                    <div className="flex items-center gap-1">
-                      {customer.channel_label && (
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent/10 text-accent font-bold">
-                          {customer.channel_label}
-                        </span>
-                      )}
-                      {customer.sales_line_labels?.slice(0, 2).map((lbl) => (
-                        <span key={lbl} className="text-[9px] px-1.5 py-0.5 rounded bg-elevated border border-line text-muted">
-                          {lbl}
-                        </span>
-                      ))}
-                      <span className="text-[10px] text-muted font-mono mr-1">
-                        {formatNumber(customer.order_count)} فاکتور
-                      </span>
-                    </div>
-                    <Link
-                      to={`/customers/${customer.id}`}
-                      className="px-2.5 py-1 rounded-lg bg-accent text-on-accent font-bold text-[10px] shadow-sm flex items-center gap-1"
-                    >
-                      <span>شناسنامه ۳۶۰</span>
-                      <span>←</span>
-                    </Link>
-                  </div>
-                </div>
+                <th key={column.key} scope="col" aria-sort={aria} className={TH}>
+                  {column.sort ? (
+                    <button type="button" onClick={() => onSort(column.sort as SortKey)} className={`min-h-9 cursor-pointer border-0 bg-transparent p-0 text-[12.5px] ${on ? "font-semibold text-ink" : "text-muted"}`}>
+                      {column.label} <span className={`text-[10px] ${on ? "text-blue-500" : "text-faint"}`}>{on ? (aria === "ascending" ? "▲" : "▼") : "↕"}</span>
+                    </button>
+                  ) : (
+                    <span>{column.label}</span>
+                  )}
+                </th>
               );
             })}
-          </div>
-
-          {/* Pagination Bar */}
-          <div className="mt-5 pt-4 border-t border-line flex flex-wrap items-center justify-between gap-3 text-xs text-muted">
-            <div>
-              نمایش صفحه {formatNumber(page)} از {formatNumber(totalPages)} (کل: {formatNumber(data.total)} مشتری)
-            </div>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-                className="px-3 py-1.5 rounded-xl bg-elevated border border-line text-ink disabled:opacity-40 disabled:cursor-not-allowed hover:bg-hover transition-colors"
-              >
-                قبلی
-              </button>
-              <span className="px-3 py-1.5 rounded-xl bg-accent text-on-accent font-bold shadow-md tabular">
-                {formatNumber(page)}
-              </span>
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-                className="px-3 py-1.5 rounded-xl bg-elevated border border-line text-ink disabled:opacity-40 disabled:cursor-not-allowed hover:bg-hover transition-colors"
-              >
-                بعدی
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Persian Jalali Date Range Picker Modal (shared for Last Purchase & First Purchase) */}
-      <JalaliRangeModal
-        isOpen={dateModalTarget !== null}
-        onClose={() => setDateModalTarget(null)}
-        initialFrom={
-          dateModalTarget === "first"
-            ? filters.firstFrom || todayIso()
-            : filters.lastFrom || todayIso()
-        }
-        initialTo={
-          dateModalTarget === "first"
-            ? filters.firstTo || todayIso()
-            : filters.lastTo || todayIso()
-        }
-        onApply={(fromIso, toIso) => {
-          if (dateModalTarget === "first") {
-            patchFilters({ firstFrom: fromIso, firstTo: toIso });
-          } else {
-            patchFilters({ lastFrom: fromIso, lastTo: toIso });
-          }
-          setDateModalTarget(null);
-        }}
-      />
+            <th scope="col" className={TH}><span className="sr-only">پروفایل</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {!hasData && loading
+            ? Array.from({ length: 10 }, (_, index) => (
+                <tr key={index} className="border-t border-black/[0.06] dark:border-white/[0.06]">
+                  <td colSpan={visible.length + 2} className="px-2.5 py-[9px]"><div className="h-[34px] animate-pulse rounded-lg bg-elevated" /></td>
+                </tr>
+              ))
+            : rows.map((row) => {
+                const last = daysSince(row.last_invoice_at);
+                const channel = channelCell(row.channel, row.sales_lines);
+                const name = row.name;
+                return (
+                  <tr key={row.id} onClick={(event) => onRowClick(event, row.id)} className="cursor-pointer border-t border-black/[0.06] hover:bg-hover dark:border-white/[0.06]">
+                    <td className={TD}>
+                      <input type="checkbox" aria-label={`انتخاب ${name}`} checked={selected.includes(row.id)} onChange={() => onToggle(row.id)} />
+                    </td>
+                    {visible.map((column) => {
+                      if (column.key === "name") {
+                        return (
+                          <td key={column.key} className={TD}>
+                            <Link to={`/customers/${row.id}`} className="flex flex-col items-start gap-px">
+                              <span className="text-[13.5px] font-semibold text-slate-800 dark:text-slate-200">{name}</span>
+                              <span dir="ltr" className="text-xs text-muted">{row.mobile ? formatMobile(row.mobile) : "—"}</span>
+                            </Link>
+                          </td>
+                        );
+                      }
+                      if (column.key === "tier") return <td key={column.key} className={TD}><TierPill row={row} /></td>;
+                      if (column.key === "avg") {
+                        return (
+                          <td key={column.key} className={`${TD} ${cellClass("avg_basket")}`}>
+                            <span className="flex min-w-[90px] flex-col gap-1">
+                              <span>{millionText(row.avg_basket)}</span>
+                              <span className="h-[3px] rounded-sm bg-black/[0.07] dark:bg-white/[0.07]">
+                                <span className="block h-[3px] rounded-sm bg-accent" style={{ width: `${basketBar(row.avg_basket, pageMax)}%` }} />
+                              </span>
+                            </span>
+                          </td>
+                        );
+                      }
+                      if (column.key === "count") return <td key={column.key} className={`${TD} ${cellClass("invoice_count")}`}>{formatNumber(row.invoice_count)}</td>;
+                      if (column.key === "total") return <td key={column.key} className={`${TD} ${cellClass("total_amount")}`}>{millionText(row.total_amount)}</td>;
+                      if (column.key === "last") {
+                        return (
+                          <td key={column.key} className={`${TD} ${cellClass("last_purchase")}`}>
+                            <span className="inline-flex items-center gap-[7px]"><Dot color={recencyColor(last)} />{daysAgoText(last)}</span>
+                          </td>
+                        );
+                      }
+                      if (column.key === "first") return <td key={column.key} className={`${TD} ${cellClass("first_purchase")}`}>{daysAgoText(daysSince(row.first_invoice_at))}</td>;
+                      if (column.key === "channel") {
+                        return (
+                          <td key={column.key} className={`${TD} ${SOFT}`}>
+                            <span className="inline-flex items-center gap-[7px]"><Dot color={channel.color} />{channel.text}</span>
+                          </td>
+                        );
+                      }
+                      return <td key={column.key} className={`${TD} ${SOFT}`}>{row.city || "—"}</td>;
+                    })}
+                    <td className={TD}>
+                      <Link to={`/customers/${row.id}`} aria-label={`باز کردن پروفایل ${name}`} className="inline-flex h-8 w-8 items-center justify-center rounded-[9px] text-base text-faint">‹</Link>
+                    </td>
+                  </tr>
+                );
+              })}
+        </tbody>
+      </table>
     </div>
   );
 }
