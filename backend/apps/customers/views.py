@@ -148,6 +148,14 @@ def customer_list_options(request):
     return Response(list_options())
 
 
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def customer_list_products(request):
+    from .list_query import _ids, product_matches
+
+    return Response({"results": product_matches(request.query_params.get("q"), _ids(request.query_params.get("ids")))})
+
+
 def _view_payload(view):
     return {"id": view.id, "name": view.name, "filters": view.filters}
 

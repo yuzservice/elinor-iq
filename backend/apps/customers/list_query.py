@@ -6,7 +6,7 @@ from django.db import connection
 from django.db.models import Case, Count, Exists, F, IntegerField, Max, Min, OuterRef, Q, Sum, Value, When
 from django.utils import timezone
 
-from apps.customers.models import Customer, CustomerAddress, CustomerMetrics
+from apps.customers.models import City, Customer, CustomerAddress, CustomerMetrics, CustomerTierHistory, Province
 from apps.customers.operators import active_internal_accounts, exclude_operator_accounts, is_operator_account
 from apps.customers.presentation import customer_status_label, list_payload
 from apps.customers.purchases import (
@@ -47,6 +47,7 @@ METRIC_SORTS = {
     "first_purchase": "metrics__first_purchase_at",
 }
 SUMMARY_SECONDS = 5 * 60
+OPTIONS_SECONDS = 24 * 60 * 60  # counts and fill rates change with the daily metrics refresh
 SUMMARY_IGNORED_PARAMS = {"page", "per_page", "sort", "dir"}
 
 
@@ -238,6 +239,21 @@ def _apply_metric_filters(qs, params):
         values = _split(params.get(param))
         if values:
             qs = qs.filter(**{lookup: values})
+    for param, lookup in (("provinces", "metrics__province_ids__overlap"), ("city_ids", "metrics__city_ids__overlap"), ("products", "metrics__product_ids__overlap")):
+        ids = _ids(params.get(param))
+        if ids:
+            qs = qs.filter(**{lookup: ids})
+    months = [month for month in _ids(params.get("birth_months")) if 1 <= month <= 12]
+    if months:
+        qs = qs.filter(metrics__birth_month__in=months)
+    genders = _split(params.get("genders"))
+    if genders:
+        qs = qs.filter(gender__in=genders)
+    for param, lookup, end_of_day in (("joined_after", "created_at_source__gte", False), ("joined_before", "created_at_source__lte", True)):
+        if params.get(param):
+            bound = _parse_bound(params.get(param), end_of_day=end_of_day)
+            qs = qs.filter(**{lookup: bound}) if bound else qs
+    qs = _apply_tier_change(qs, params)
     discount = (params.get("discount") or "").strip().lower()
     if discount == "yes":
         qs = qs.filter(metrics__has_discount=True)
@@ -256,6 +272,32 @@ def _apply_metric_filters(qs, params):
             bound = _parse_bound(params.get(f"{prefix}_before"), end_of_day=True)
             qs = qs.filter(**{f"{column}__lte": bound}) if bound else qs
     return qs
+
+
+def _ids(raw):
+    return [value for value in (_as_int(part) for part in _split(raw)) if value is not None]
+
+
+def _apply_tier_change(qs, params):
+    """ارتقا / تنزل in a date range, from CustomerTierHistory. A higher tier has a lower rank; no tier ranks last."""
+    direction = (params.get("tier_change") or "").strip().lower()
+    if direction not in ("up", "down"):
+        return qs
+    codes = [tier["code"] for _channel, tier in all_tiers(active_rules())]
+
+    def rank(field):
+        return Case(*[When(**{field: code}, then=Value(index)) for index, code in enumerate(codes)], default=Value(len(codes)), output_field=IntegerField())
+
+    # Uncorrelated: one pass over the history (hash semi-join), not one probe per customer.
+    history = CustomerTierHistory.objects.annotate(old_rank=rank("previous_tier_code"), new_rank=rank("tier_code"))
+    history = history.filter(new_rank__lt=F("old_rank")) if direction == "up" else history.filter(new_rank__gt=F("old_rank"))
+    after = _parse_bound(params.get("tier_change_after"), end_of_day=False) if params.get("tier_change_after") else None
+    before = _parse_bound(params.get("tier_change_before"), end_of_day=True) if params.get("tier_change_before") else None
+    if after:
+        history = history.filter(changed_at__gte=after)
+    if before:
+        history = history.filter(changed_at__lte=before)
+    return qs.filter(pk__in=history.values("customer_id"))
 
 
 def _apply_call_filters(qs, params):
@@ -719,17 +761,67 @@ def _facet_options():
     return facets
 
 
+def _fill_rates():
+    """Share of customers (internal accounts excluded) with each optional profile fact, in percent."""
+    base = exclude_operator_accounts(Customer.objects.all())
+    total = base.count() or 1
+    rate = lambda count: round(count * 100 / total, 1)  # noqa: E731
+    return {
+        "birth_month": rate(base.filter(metrics__birth_month__isnull=False).count()),
+        "gender": rate(base.exclude(gender="").count()),
+        "joined": rate(base.filter(created_at_source__isnull=False).count()),
+        "address": rate(base.exclude(metrics__city_ids=[]).filter(metrics__isnull=False).count()),
+        "tier_change": rate(base.filter(Exists(CustomerTierHistory.objects.filter(customer_id=OuterRef("pk")))).count()),
+    }
+
+
+def _geo_options():
+    """Active provinces and cities with customer counts from CustomerMetrics; zero-count options go last."""
+    counts = {"province": {}, "city": {}}
+    with connection.cursor() as cursor:
+        for column, key in (("province_ids", "province"), ("city_ids", "city")):
+            cursor.execute(
+                f"SELECT id, COUNT(*) FROM (SELECT UNNEST(m.{column}) AS id FROM customer_metrics m "
+                "WHERE NOT EXISTS (SELECT 1 FROM customer_internal_accounts a WHERE a.customer_id = m.customer_id AND a.is_active)) v GROUP BY id"
+            )
+            counts[key] = dict(cursor.fetchall())
+    order = lambda row: (row["count"] == 0, row["name"])  # noqa: E731
+    provinces = [{"id": p.pk, "name": p.name, "count": counts["province"].get(p.pk, 0)} for p in Province.objects.filter(status=True)]
+    cities = [
+        {"id": c.pk, "name": c.name, "province_id": c.province_id, "count": counts["city"].get(c.pk, 0)}
+        for c in City.objects.filter(status=True).only("id", "name", "province_id")
+    ]
+    return {"provinces": sorted(provinces, key=order), "cities_by_id": sorted(cities, key=order)}
+
+
 def list_options():
     """Choices for the call filters. Tags and results are not tier- or sales-related, so this is cheap to share."""
     from apps.calls.models import CallTag, CustomerCallStatus
 
-    data = cache.get("customer-list-options")
+    key = f"customer-list-options:{timezone.localdate().isoformat()}"
+    data = cache.get(key)
     if data is None:
         results = CustomerCallStatus.objects.exclude(last_outcome_title="").order_by("last_outcome_title").values_list("last_outcome_title", flat=True).distinct()
         data = {
             **_facet_options(),
+            **_geo_options(),
+            "fill_rates": _fill_rates(),
             "call_results": list(results),
             "call_tags": list(CallTag.objects.filter(is_active=True).values("id", "title")),
         }
-        cache.set("customer-list-options", data, SUMMARY_SECONDS)
+        cache.set(key, data, OPTIONS_SECONDS)
     return data
+
+
+def product_matches(query, ids=None):
+    """Product picker: top 20 title matches, or the titles of already selected ids."""
+    from apps.products.models import Product
+
+    if ids:
+        rows = Product.objects.filter(pk__in=ids[:100])
+    else:
+        term = (query or "").strip()
+        if len(term) < 2:
+            return []
+        rows = Product.objects.filter(title__icontains=term).order_by("title")[:20]
+    return [{"id": row.pk, "title": row.title or f"کالا {row.source_id}"} for row in rows.only("id", "title", "source_id")]
