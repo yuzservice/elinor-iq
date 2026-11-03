@@ -9,15 +9,19 @@ import {
   compareNote,
   currentPage,
   currentSort,
+  dateRows,
+  filterOptions,
   filterParams,
   hasFilters,
   listQuery,
   millionText,
   nextSort,
+  PRESETS,
   recencyColor,
   replaceFilters,
+  selectionLabel,
+  switchDateType,
   tierColors,
-  toggleInList,
   withChanges,
 } from "./customerListUrl";
 
@@ -43,12 +47,6 @@ describe("customer list URL", () => {
     expect(next.toString()).toBe(new URLSearchParams("cities=ساری").toString());
   });
 
-  it("toggles a value in a comma list", () => {
-    expect(toggleInList("VIP", "GOLD_1")).toBe("VIP,GOLD_1");
-    expect(toggleInList("VIP,GOLD_1", "VIP")).toBe("GOLD_1");
-    expect(toggleInList(null, "VIP")).toBe("VIP");
-  });
-
   it("replaces filters but keeps the tab and sort", () => {
     const next = replaceFilters(url("tab=x&sort=name&dir=asc&tier=VIP&page=3"), { min_invoices: "1", page: 9, empty: "" });
     expect(Object.fromEntries(next)).toEqual({ tab: "x", sort: "name", dir: "asc", min_invoices: "1" });
@@ -59,7 +57,7 @@ describe("customer list URL", () => {
     const chips = activeChips(categories, params);
     expect(chips.map((chip) => chip.label)).toEqual(["سطح: VIP، طلایی ۱", "مجموع خرید: از ۲", "آخرین خرید: بیش از ۹۰ روز"]);
     expect(chips[1].remove).toEqual({ min_total: null, max_total: null });
-    expect(chips[2].remove).toEqual({ last_days: null, last_after: null, last_before: null });
+    expect(chips[2].remove).toEqual({ last_after: null, last_before: null, last_days: null });
   });
 
   it("keeps old saved parameters visible and removable", () => {
@@ -71,7 +69,65 @@ describe("customer list URL", () => {
     const params = url("tier=VIP&profile_state=complete&min_invoices=2");
     expect(categoryCount(categories[0], params)).toBe(2);
     expect(categoryCount(categories[1], params)).toBe(1);
+    expect(categoryCount(categories[1], url("last_after=2026-03-21&first_before=2025-03-20"))).toBe(1);
     expect(categoryCount(categories[2], params)).toBe(0);
+  });
+});
+
+describe("purchase date rows", () => {
+  it("shows a row per date type in the URL, plus rows just added", () => {
+    expect(dateRows(url(""))).toEqual([]);
+    expect(dateRows(url("first_after=2025-03-21"))).toEqual(["first"]);
+    expect(dateRows(url("last_before=2026-03-21&first_after=2025-03-21"))).toEqual(["last", "first"]);
+    expect(dateRows(url("last_days=gt90"))).toEqual(["last"]); // old relative param
+    expect(dateRows(url(""), ["first"])).toEqual(["first"]);
+  });
+
+  it("gives one chip per type with Jalali bounds, each removing only its own params", () => {
+    const chips = activeChips(categories, url("last_after=2026-03-21&last_before=2026-09-22&first_before=2026-03-21"));
+    expect(chips.map((chip) => chip.label)).toEqual(["آخرین خرید: از ۱۴۰۵/۰۱/۰۱ تا ۱۴۰۵/۰۶/۳۱", "اولین خرید: تا ۱۴۰۵/۰۱/۰۱"]);
+    expect(chips[0].remove).toEqual({ last_after: null, last_before: null, last_days: null });
+    expect(chips[1].remove).toEqual({ first_after: null, first_before: null, first_days: null });
+  });
+
+  it("keeps old relative params as removable chips", () => {
+    const chips = activeChips(categories, url("first_days=30&last_days=gt180"));
+    expect(chips.map((chip) => chip.label)).toEqual(["آخرین خرید: بیش از ۱۸۰ روز", "اولین خرید: تا ۳۰ روز پیش"]);
+  });
+
+  it("moves a row to the other type with its dates", () => {
+    expect(switchDateType(url("last_after=2026-01-01&last_days=30"), "last", "first")).toEqual({
+      first_after: "2026-01-01",
+      first_before: null,
+      first_days: "30",
+      last_after: null,
+      last_before: null,
+      last_days: null,
+    });
+  });
+
+  it("keeps presets relative", () => {
+    expect(PRESETS.find((preset) => preset.label === "غیرفعال ۹۰ روز")?.filters).toEqual({ last_days: "gt90" });
+  });
+});
+
+describe("dropdowns", () => {
+  const options = [{ value: "VIP", label: "VIP" }, { value: "GOLD_1", label: "طلایی ۱" }, { value: "SILVER", label: "نقره‌ای" }];
+  it("labels the closed dropdown", () => {
+    expect(selectionLabel([], options)).toBe("همه");
+    expect(selectionLabel(["GOLD_1"], options)).toBe("طلایی ۱");
+    expect(selectionLabel(["VIP", "GOLD_1", "SILVER"], options)).toBe("۳ مورد");
+  });
+
+  it("filters long lists by label or value", () => {
+    expect(filterOptions(options, "طلا").map((option) => option.value)).toEqual(["GOLD_1"]);
+    expect(filterOptions(options, "silver").map((option) => option.value)).toEqual(["SILVER"]);
+    expect(filterOptions(options, " ")).toHaveLength(3);
+  });
+
+  it("only city, category and size are searchable", () => {
+    const searchable = categories.flatMap((category) => category.fields).filter((field) => "searchable" in field && field.searchable).map((field) => field.key);
+    expect(searchable).toEqual(["city", "cat", "size"]);
   });
 });
 

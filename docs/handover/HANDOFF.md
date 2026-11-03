@@ -128,6 +128,10 @@ Notes for the Product Architect / next task:
 
 ## 9. Log
 
+### 2026-11-03 — Customer filter cleanup (`feature/customer-filter-cleanup`, from `production`)
+- One «تاریخ خرید» field (rows: آخرین/اولین خرید + از/تا, at most one row per type); day presets removed from the panel. Old `last_days`/`first_days` and the «غیرفعال ۹۰ روز» preset still work as removable chips. No API change: `last_after/before`, `first_after/before` already existed.
+- Every option list is now the shared `MultiSelect` dropdown (search for city, category, size); panel is two columns on desktop. Awaiting owner review; not merged.
+
 ### 2026-11-02 — Customers list redesign (`feature/customer-list-redesign`, from `production`), checkpoints
 - Step 1: `CustomerMetrics` (`customers.0010`), `metrics.py` one-statement refresh after the daily tier pass, `refresh_customer_metrics` (first fill runs itself from the scheduler). Local: 273,705 rows, 30 MB, first fill 9 s, no-change run 4.2 s. Next: list API.
 - Step 2: list API on metrics (`dir`, new filters, comma lists, `ids`), `list-summary/`, `list-options/`. Without `dir` the old filters and sorts behave as before. Next: saved views, then UI.
