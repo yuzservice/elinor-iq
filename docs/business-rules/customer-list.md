@@ -17,6 +17,7 @@ Requests with `dir` are the redesigned list: sort on metrics, internal accounts 
 - Old names (`channel, sales_lines, payment_method, has_discount, size, category, city, min_amount, min_purchases, last_from...`) keep their old query. `tier`, `size`, `category`, `city`, `payment_method` also accept comma lists.
 - `categories` matches exact category titles, while old `category` also matched product titles, so counts differ (local «مانتو»: 14,262 vs 18,584).
 - `ids`: selected source ids, for export.
+- The panel sets dates only through `last_after/before` and `first_after/before` (inclusive Tehran days). `last_days`/`first_days` come from presets, old URLs, saved views and call lists, and stay rolling.
 
 ## Summary and sorting
 - `list-summary/`: count, total amount, basket = total / invoices, average invoice count, share of all customers, overall baselines (internal accounts excluded). Cached 5 minutes per (filters, day).

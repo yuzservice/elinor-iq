@@ -1,12 +1,19 @@
+import { formatJalali } from "../../lib/dates";
 import { formatNumber } from "../../lib/format";
 
 /** All filters, sort and page live in the URL, using the API's own parameter names. */
 
 export type Option = { value: string; label: string };
 export type Field =
-  | { key: string; label: string; kind: "multi" | "single"; param: string; options: Option[] }
+  | { key: string; label: string; kind: "multi" | "single"; param: string; options: Option[]; searchable?: boolean }
   | { key: string; label: string; kind: "range"; min: string; max: string; unit: string; scale: number }
-  | { key: string; label: string; kind: "days"; prefix: "last" | "first" };
+  | { key: string; label: string; kind: "dates" };
+
+export type DatePrefix = "last" | "first";
+export const DATE_TYPES: { value: DatePrefix; label: string }[] = [
+  { value: "last", label: "آخرین خرید" },
+  { value: "first", label: "اولین خرید" },
+];
 export type Category = { key: string; label: string; fields: Field[] };
 export type DynamicOptions = { tiers: Option[]; callResults: Option[]; callTags: Option[]; cities: string[]; categories: string[]; sizes: string[] };
 
@@ -26,7 +33,7 @@ export function buildCategories(dynamic: DynamicOptions): Category[] {
       label: "مشتری",
       fields: [
         { key: "tier", label: "سطح", kind: "multi", param: "tier", options: dynamic.tiers },
-        { key: "city", label: "شهر", kind: "multi", param: "cities", options: asOptions(dynamic.cities) },
+        { key: "city", label: "شهر", kind: "multi", param: "cities", options: asOptions(dynamic.cities), searchable: true },
         { key: "profile", label: "وضعیت پروفایل", kind: "single", param: "profile_state", options: [{ value: "complete", label: "کامل" }, { value: "incomplete", label: "ناقص" }] },
       ],
     },
@@ -37,8 +44,7 @@ export function buildCategories(dynamic: DynamicOptions): Category[] {
         { key: "invoices", label: "تعداد فاکتور", kind: "range", min: "min_invoices", max: "max_invoices", unit: "فاکتور", scale: 1 },
         { key: "total", label: "مجموع خرید", kind: "range", min: "min_total", max: "max_total", unit: "میلیون تومان", scale: MILLION },
         { key: "avg", label: "میانگین سبد خرید", kind: "range", min: "min_avg_basket", max: "max_avg_basket", unit: "میلیون تومان", scale: MILLION },
-        { key: "last", label: "آخرین خرید", kind: "days", prefix: "last" },
-        { key: "first", label: "اولین خرید", kind: "days", prefix: "first" },
+        { key: "dates", label: "تاریخ خرید", kind: "dates" },
       ],
     },
     {
@@ -55,8 +61,8 @@ export function buildCategories(dynamic: DynamicOptions): Category[] {
       key: "product",
       label: "کالا",
       fields: [
-        { key: "cat", label: "دسته‌بندی", kind: "multi", param: "categories", options: asOptions(dynamic.categories) },
-        { key: "size", label: "سایز", kind: "multi", param: "sizes", options: asOptions(dynamic.sizes) },
+        { key: "cat", label: "دسته‌بندی", kind: "multi", param: "categories", options: asOptions(dynamic.categories), searchable: true },
+        { key: "size", label: "سایز", kind: "multi", param: "sizes", options: asOptions(dynamic.sizes), searchable: true },
       ],
     },
     {
@@ -117,14 +123,9 @@ export function replaceFilters(params: URLSearchParams, filters: Record<string, 
   return next;
 }
 
-export function toggleInList(raw: string | null, value: string): string {
-  const current = splitList(raw);
-  return (current.includes(value) ? current.filter((item) => item !== value) : [...current, value]).join(",");
-}
-
 function fieldParams(field: Field): string[] {
   if (field.kind === "range") return [field.min, field.max];
-  if (field.kind === "days") return [`${field.prefix}_days`, `${field.prefix}_after`, `${field.prefix}_before`];
+  if (field.kind === "dates") return DATE_TYPES.flatMap((type) => datePrefixParams(type.value));
   return [field.param];
 }
 
@@ -139,20 +140,26 @@ export function categoryCount(category: Category, params: URLSearchParams): numb
 const fa1 = (value: number) => new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 1 }).format(value);
 
 function chipText(field: Field, params: URLSearchParams): string {
+  if (field.kind === "dates") return "";
   if (field.kind === "range") {
     const part = (param: string, prefix: string) => (params.get(param) ? `${prefix} ${fa1(Number(params.get(param)) / field.scale)}` : "");
     return [part(field.min, "از"), part(field.max, "تا")].filter(Boolean).join(" ");
   }
-  if (field.kind === "days") {
-    const days = DAY_OPTIONS.find((option) => option.value === params.get(`${field.prefix}_days`));
-    if (days) return days.label;
-    const after = params.get(`${field.prefix}_after`);
-    const before = params.get(`${field.prefix}_before`);
-    return [after ? `از ${after}` : "", before ? `تا ${before}` : ""].filter(Boolean).join(" ");
-  }
   return splitList(params.get(field.param))
     .map((value) => field.options.find((option) => option.value === value)?.label ?? value)
     .join("، ");
+}
+
+/** Closed dropdown text: «همه», the one label, or «N مورد». */
+export function selectionLabel(selected: string[], options: Option[]): string {
+  if (!selected.length) return "همه";
+  if (selected.length === 1) return options.find((option) => option.value === selected[0])?.label ?? selected[0];
+  return `${formatNumber(selected.length)} مورد`;
+}
+
+export function filterOptions(options: Option[], query: string): Option[] {
+  const term = query.trim();
+  return term ? options.filter((option) => option.label.includes(term) || option.value.toLowerCase().includes(term.toLowerCase())) : options;
 }
 
 /** Old saved lists can hold parameters with no field in the panel; they stay visible and removable. */
@@ -182,6 +189,38 @@ const LEGACY_LABELS: Record<string, string> = {
 
 export type Chip = { key: string; label: string; aria: string; remove: Record<string, null> };
 
+export function datePrefixParams(prefix: DatePrefix): string[] {
+  return [`${prefix}_after`, `${prefix}_before`, `${prefix}_days`];
+}
+
+/** Date rows on screen: each type with any param in the URL, plus rows the user just added (still empty). */
+export function dateRows(params: URLSearchParams, added: DatePrefix[] = []): DatePrefix[] {
+  return DATE_TYPES.map((type) => type.value).filter(
+    (prefix) => added.includes(prefix) || datePrefixParams(prefix).some((param) => params.get(param)),
+  );
+}
+
+/** Moving a row to the other type carries its dates; the old type's params are removed. */
+export function switchDateType(params: URLSearchParams, from: DatePrefix, to: DatePrefix): Record<string, string | null> {
+  return {
+    [`${to}_after`]: params.get(`${from}_after`),
+    [`${to}_before`]: params.get(`${from}_before`),
+    [`${to}_days`]: params.get(`${from}_days`),
+    [`${from}_after`]: null,
+    [`${from}_before`]: null,
+    [`${from}_days`]: null,
+  };
+}
+
+/** «آخرین خرید: از ۱۴۰۵/۰۱/۰۱ تا ۱۴۰۵/۰۶/۳۱»; old relative windows keep their label. */
+export function dateChipText(params: URLSearchParams, prefix: DatePrefix): string {
+  const days = DAY_OPTIONS.find((option) => option.value === params.get(`${prefix}_days`));
+  const after = params.get(`${prefix}_after`);
+  const before = params.get(`${prefix}_before`);
+  const parts = [days?.label ?? "", after ? `از ${formatJalali(after)}` : "", before ? `تا ${formatJalali(before)}` : ""].filter(Boolean);
+  return `${DATE_TYPES.find((type) => type.value === prefix)?.label}: ${parts.join(" ")}`;
+}
+
 export function activeChips(categories: Category[], params: URLSearchParams): Chip[] {
   const chips: Chip[] = [];
   const known = new Set<string>(["search"]);
@@ -190,6 +229,18 @@ export function activeChips(categories: Category[], params: URLSearchParams): Ch
       const owned = fieldParams(field);
       owned.forEach((param) => known.add(param));
       if (!isFieldActive(field, params)) return;
+      if (field.kind === "dates") {
+        DATE_TYPES.forEach(({ value: prefix, label }) => {
+          if (!datePrefixParams(prefix).some((param) => params.get(param))) return;
+          chips.push({
+            key: `dates-${prefix}`,
+            label: dateChipText(params, prefix),
+            aria: `حذف فیلتر ${label}`,
+            remove: Object.fromEntries(datePrefixParams(prefix).map((param) => [param, null])),
+          });
+        });
+        return;
+      }
       chips.push({
         key: field.key,
         label: `${field.label}: ${chipText(field, params)}`,
