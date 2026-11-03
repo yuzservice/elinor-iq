@@ -127,7 +127,19 @@ export const customersService = {
   reports: () => api<CustomerReports>("/customers/reports/"),
   rows: (query: string, signal?: AbortSignal) => api<Paginated<CustomerRow>>(`/customers/?${query}`, { signal }),
   listSummary: (query: string, signal?: AbortSignal) => api<CustomerListSummary>(`/customers/list-summary/?${query}`, { signal }),
-  listOptions: () => api<{ call_results: string[]; call_tags: { id: number; title: string }[]; cities: string[]; categories: string[]; sizes: string[] }>("/customers/list-options/"),
+  listOptions: () =>
+    api<{
+      call_results: string[];
+      call_tags: { id: number; title: string }[];
+      cities: string[];
+      categories: string[];
+      sizes: string[];
+      provinces: { id: number; name: string; count: number }[];
+      cities_by_id: { id: number; name: string; province_id: number; count: number }[];
+      fill_rates: Record<string, number>;
+    }>("/customers/list-options/"),
+  listProducts: (query: { q?: string; ids?: string }, signal?: AbortSignal) =>
+    api<{ results: { id: number; title: string }[] }>(`/customers/list-products/?${new URLSearchParams(query as Record<string, string>)}`, { signal }),
   exportRows: (query: string) => downloadExport(`/customers/export/?${query}`, `customers-${new Date().toISOString().slice(0, 10)}.csv`),
   listViews: () => api<{ results: CustomerListViewRow[] }>("/customers/list-views/"),
   createListView: (name: string, filters: Record<string, string>) =>

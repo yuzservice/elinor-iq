@@ -1,23 +1,29 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
-import { filterOptions, selectionLabel, type Option } from "./customerListUrl";
+import { formatNumber } from "../../lib/format";
+import { SEARCH_THRESHOLD, filterOptions, selectionLabel, type Option } from "./customerListUrl";
 
-// Inline, not absolute: the floating filter panel scrolls, so an overlay list would be clipped.
-const LIST_CLASS = "mt-1 flex max-h-64 flex-col overflow-hidden rounded-xl border border-slate-300/70 bg-surface dark:border-white/[0.14]";
+// Inline, not absolute: the filter panel scrolls, so an overlay list would be clipped.
+const LIST_CLASS = "mt-1 flex max-h-[280px] flex-col overflow-hidden rounded-xl border border-slate-300/70 bg-surface dark:border-white/[0.14]";
 
-/** Compact checkbox dropdown for every option list in the filter panel. `single` keeps at most one value. */
-export function MultiSelect({ label, options, selected, single, searchable, onChange }: {
+/**
+ * Compact checkbox dropdown for every option list in the filter panel. `single` keeps at most one value.
+ * With `onQuery` the parent searches remotely and passes the matches as `options`.
+ */
+export function MultiSelect({ label, options, selected, single, onChange, onQuery, describedBy }: {
   label: string;
   options: Option[];
   selected: string[];
   single?: boolean;
-  searchable?: boolean;
   onChange: (values: string[]) => void;
+  onQuery?: (query: string) => void;
+  describedBy?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const listId = useId();
+  const searchable = Boolean(onQuery) || options.length > SEARCH_THRESHOLD;
 
   useEffect(() => {
     if (!open) return;
@@ -29,10 +35,14 @@ export function MultiSelect({ label, options, selected, single, searchable, onCh
   }, [open]);
 
   useEffect(() => {
-    if (open) (root.current?.querySelector<HTMLInputElement>("input[type=search], input[type=checkbox]"))?.focus();
+    if (open) root.current?.querySelector<HTMLInputElement>("input[type=search], input[type=checkbox]")?.focus();
     else setQuery("");
   }, [open]);
 
+  const setSearch = (value: string) => {
+    setQuery(value);
+    onQuery?.(value);
+  };
   const toggle = (value: string) => {
     if (single) onChange(selected.includes(value) ? [] : [value]);
     else onChange(selected.includes(value) ? selected.filter((item) => item !== value) : [...selected, value]);
@@ -59,7 +69,8 @@ export function MultiSelect({ label, options, selected, single, searchable, onCh
     items[next]?.focus();
   };
 
-  const visible = filterOptions(options, query);
+  const visible = onQuery ? options : filterOptions(options, query);
+  const text = selectionLabel(selected, options);
   return (
     <div ref={root} className="relative" onKeyDown={onKeyDown}>
       <button
@@ -68,15 +79,26 @@ export function MultiSelect({ label, options, selected, single, searchable, onCh
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listId}
-        aria-label={`${label}: ${selectionLabel(selected, options)}`}
+        aria-label={`${label}: ${text}`}
+        aria-describedby={describedBy}
         onClick={() => setOpen(!open)}
-        className={`flex min-h-10 w-full cursor-pointer items-center justify-between gap-2 rounded-[11px] border bg-surface px-3 text-right text-[13px] ${
+        className={`flex min-h-9 w-full cursor-pointer items-center justify-between gap-2 rounded-[10px] border bg-surface px-2.5 text-right text-[13px] ${
           selected.length ? "border-blue-400/60 text-ink" : "border-slate-300/70 text-muted dark:border-white/[0.12]"
-        }`}
+        } ${selected.length ? "pe-8" : ""}`}
       >
-        <span className="truncate">{selectionLabel(selected, options)}</span>
+        <span className="truncate">{text}</span>
         <span aria-hidden="true" className="text-[10px] text-faint">▾</span>
       </button>
+      {selected.length ? (
+        <button
+          type="button"
+          aria-label={`پاک کردن ${label}`}
+          onClick={() => onChange([])}
+          className="absolute left-6 top-[7px] h-[22px] w-[22px] cursor-pointer rounded-md border-0 bg-transparent text-[12px] leading-none text-faint hover:bg-hover hover:text-ink"
+        >
+          ✕
+        </button>
+      ) : null}
       {open ? (
         <div className={LIST_CLASS}>
           {searchable ? (
@@ -85,13 +107,18 @@ export function MultiSelect({ label, options, selected, single, searchable, onCh
               aria-label={`جستجو در ${label}`}
               placeholder="جستجو"
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              className="m-2 min-h-9 rounded-lg border border-slate-300/70 bg-elevated px-2.5 text-[13px] text-ink outline-none focus:border-accent dark:border-white/[0.12]"
+              onChange={(event) => setSearch(event.target.value)}
+              className="m-1.5 min-h-8 rounded-lg border border-slate-300/70 bg-elevated px-2.5 text-[13px] text-ink outline-none focus:border-accent dark:border-white/[0.12]"
             />
           ) : null}
           <div id={listId} role="listbox" aria-multiselectable={!single} aria-label={label} className="overflow-y-auto px-1 pb-1">
             {visible.map((option) => (
-              <label key={option.value} className="flex min-h-9 cursor-pointer items-center gap-2 rounded-lg px-2.5 text-[13px] text-ink hover:bg-hover">
+              <label
+                key={option.value}
+                role="option"
+                aria-selected={selected.includes(option.value)}
+                className="flex min-h-8 cursor-pointer items-center gap-2 rounded-lg px-2 text-[13px] text-ink hover:bg-hover"
+              >
                 <input
                   type="checkbox"
                   checked={selected.includes(option.value)}
@@ -103,13 +130,14 @@ export function MultiSelect({ label, options, selected, single, searchable, onCh
                     }
                   }}
                 />
-                {option.label}
+                <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                {option.count != null ? <span className={`text-[11.5px] ${option.count ? "text-faint" : "text-faint/60"}`}>{formatNumber(option.count)}</span> : null}
               </label>
             ))}
-            {!visible.length ? <p className="m-0 px-2.5 py-2 text-[12.5px] text-muted">موردی پیدا نشد.</p> : null}
+            {!visible.length ? <p className="m-0 px-2.5 py-2 text-[12.5px] text-muted">{onQuery && query.trim().length < 2 ? "دست‌کم دو حرف بنویسید." : "موردی پیدا نشد."}</p> : null}
           </div>
-          <div className="flex justify-end border-t border-line px-2 py-1.5">
-            <button type="button" disabled={!selected.length} onClick={() => onChange([])} className="min-h-8 cursor-pointer border-0 bg-transparent px-2 text-[12.5px] text-blue-600 disabled:opacity-40 dark:text-blue-300">
+          <div className="flex justify-end border-t border-line px-1.5 py-1">
+            <button type="button" disabled={!selected.length} onClick={() => onChange([])} className="min-h-7 cursor-pointer border-0 bg-transparent px-2 text-[12.5px] text-blue-600 disabled:opacity-40 dark:text-blue-300">
               پاک کردن
             </button>
           </div>

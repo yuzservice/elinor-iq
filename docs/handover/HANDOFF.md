@@ -128,6 +128,10 @@ Notes for the Product Architect / next task:
 
 ## 9. Log
 
+### 2026-11-03 — Customer filter v2 (`feature/customer-filter-v2`, from `production`)
+- Panel opens under its button (600 px), bottom sheet on phones; compact dropdowns with ✕ clear, search over 8 items, counts. «استان» + dependent «شهر» by id (old `cities` names still work), «تاریخ عضویت», «تغییر سطح اخیر», «خرید کالای مشخص»; ماه تولد and جنسیت are built but hidden (fill < 5%).
+- `CustomerMetrics` gains `province_ids, city_ids, product_ids, birth_month` (`customers.0013`); refresh stays ~9 s. Synced birth dates are Jalali stored as dates. Awaiting owner review; not merged.
+
 ### 2026-11-03 — Customer filter cleanup (`feature/customer-filter-cleanup`, from `production`)
 - One «تاریخ خرید» field (rows: آخرین/اولین خرید + از/تا, at most one row per type); day presets removed from the panel. Old `last_days`/`first_days` and the «غیرفعال ۹۰ روز» preset still work as removable chips. No API change: `last_after/before`, `first_after/before` already existed.
 - Every option list is now the shared `MultiSelect` dropdown (search for city, category, size); panel is two columns on desktop. Owner approved; merged into `production`, then `main`. Frontend only; reaches the server on the next `update.sh`.
