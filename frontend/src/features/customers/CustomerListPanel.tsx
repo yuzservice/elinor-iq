@@ -11,7 +11,9 @@ import { customersService } from "../../services/customers";
 import type { CustomerListSummary, CustomerRow } from "../../types";
 import { CreateCallList } from "../calls/CreateCallList";
 import { CustomerOverview } from "./CustomerOverview";
+import { MultiSelect } from "./MultiSelect";
 import {
+  DATE_TYPES,
   DAY_OPTIONS,
   PRESETS,
   activeChips,
@@ -24,6 +26,8 @@ import {
   compareNote,
   currentPage,
   currentSort,
+  datePrefixParams,
+  dateRows,
   daysAgoText,
   daysSince,
   filterParams,
@@ -35,11 +39,12 @@ import {
   recencyColor,
   replaceFilters,
   splitList,
+  switchDateType,
   tierColors,
-  toggleInList,
   withChanges,
   writeColumns,
   type Category,
+  type DatePrefix,
   type Field,
   type OptionalColumns,
   type SortKey,
@@ -394,10 +399,10 @@ function CategoryButton({ label, count, open, quiet, onClick }: { label: string;
 
 function FieldsPanel({ category, params, change }: { category: Category; params: URLSearchParams; change: (changes: Record<string, string | null>) => void }) {
   return (
-    <div className="grid gap-x-7 gap-y-[18px]" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(260px, 100%), 1fr))" }}>
+    <div className="grid grid-cols-1 gap-x-7 gap-y-[18px] md:grid-cols-2">
       {category.fields.map((field) => (
-        <div key={field.key} className="flex flex-col gap-2">
-          <span className={LABEL}>{field.label}</span>
+        <div key={field.key} className={`flex flex-col gap-2 ${field.kind === "dates" ? "md:col-span-2" : ""}`}>
+          <span className={LABEL} id={`filter-${field.key}`}>{field.label}</span>
           <FieldInput field={field} params={params} change={change} />
         </div>
       ))}
@@ -417,41 +422,69 @@ function FieldInput({ field, params, change }: { field: Field; params: URLSearch
       </div>
     );
   }
-  if (field.kind === "days") {
-    const dayParam = `${field.prefix}_days`;
-    const clearDates = { [`${field.prefix}_after`]: null, [`${field.prefix}_before`]: null };
-    return (
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-1.5">
-          {DAY_OPTIONS.map((option) => (
-            <Chip key={option.value} on={params.get(dayParam) === option.value} onClick={() => change({ [dayParam]: params.get(dayParam) === option.value ? null : option.value, ...clearDates })}>
-              {option.label}
-            </Chip>
-          ))}
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <JalaliDateField compact allowEmpty emptyLabel="از تاریخ" value={params.get(`${field.prefix}_after`) ?? ""} onChange={(iso) => change({ [`${field.prefix}_after`]: iso, [dayParam]: null })} />
-          <JalaliDateField compact allowEmpty emptyLabel="تا تاریخ" value={params.get(`${field.prefix}_before`) ?? ""} onChange={(iso) => change({ [`${field.prefix}_before`]: iso, [dayParam]: null })} />
-        </div>
-      </div>
-    );
-  }
-  const selected = splitList(params.get(field.param));
+  if (field.kind === "dates") return <DateRows params={params} change={change} />;
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      {field.options.map((option) => (
-        <Chip
-          key={option.value}
-          on={selected.includes(option.value)}
-          onClick={() =>
-            change({
-              [field.param]: field.kind === "single" ? (selected.includes(option.value) ? null : option.value) : toggleInList(params.get(field.param), option.value),
-            })
-          }
-        >
-          {option.label}
-        </Chip>
-      ))}
+    <MultiSelect
+      label={field.label}
+      options={field.options}
+      selected={splitList(params.get(field.param))}
+      single={field.kind === "single"}
+      searchable={field.searchable}
+      onChange={(values) => change({ [field.param]: values.join(",") || null })}
+    />
+  );
+}
+
+/** One row per date type: [آخرین خرید | اولین خرید] + از + تا. A second row adds the other type. */
+function DateRows({ params, change }: { params: URLSearchParams; change: (changes: Record<string, string | null>) => void }) {
+  const [added, setAdded] = useState<DatePrefix[]>([]);
+  const rows = dateRows(params, added);
+  const shown: DatePrefix[] = rows.length ? rows : ["last"];
+  const unused = DATE_TYPES.find((type) => !shown.includes(type.value));
+  const remove = (prefix: DatePrefix) => {
+    setAdded((prev) => prev.filter((item) => item !== prefix));
+    change(Object.fromEntries(datePrefixParams(prefix).map((param) => [param, null])));
+  };
+  const switchType = (from: DatePrefix, to: DatePrefix) => {
+    setAdded((prev) => [...prev.filter((item) => item !== from), to]);
+    change(switchDateType(params, from, to));
+  };
+  return (
+    <div className="flex flex-col gap-2">
+      {shown.map((prefix) => {
+        const relative = DAY_OPTIONS.find((option) => option.value === params.get(`${prefix}_days`));
+        return (
+          <div key={prefix} className="flex flex-wrap items-center gap-1.5">
+            <select
+              aria-label="نوع تاریخ"
+              value={prefix}
+              onChange={(event) => switchType(prefix, event.target.value as DatePrefix)}
+              className={`${INPUT} bg-surface`}
+            >
+              {DATE_TYPES.map((type) => (
+                <option key={type.value} value={type.value} disabled={type.value !== prefix && shown.includes(type.value)}>
+                  {type.label}
+                </option>
+              ))}
+            </select>
+            <span className={MUTED}>از</span>
+            <JalaliDateField compact allowEmpty emptyLabel="از تاریخ" value={params.get(`${prefix}_after`) ?? ""} onChange={(iso) => change({ [`${prefix}_after`]: iso, [`${prefix}_days`]: null })} />
+            <span className={MUTED}>تا</span>
+            <JalaliDateField compact allowEmpty emptyLabel="تا تاریخ" value={params.get(`${prefix}_before`) ?? ""} onChange={(iso) => change({ [`${prefix}_before`]: iso, [`${prefix}_days`]: null })} />
+            {relative ? <span className={MUTED}>({relative.label})</span> : null}
+            {rows.includes(prefix) ? (
+              <button type="button" aria-label={`حذف شرط ${DATE_TYPES.find((type) => type.value === prefix)?.label}`} onClick={() => remove(prefix)} className="min-h-9 min-w-9 cursor-pointer rounded-lg border-0 bg-transparent text-faint hover:text-ink">
+                ✕
+              </button>
+            ) : null}
+          </div>
+        );
+      })}
+      {unused ? (
+        <button type="button" onClick={() => setAdded((prev) => [...prev, ...shown.filter((item) => !prev.includes(item)), unused.value])} className="min-h-9 self-start cursor-pointer rounded-lg border border-dashed border-blue-400/50 bg-transparent px-3 text-[12.5px] text-blue-600 dark:text-blue-300">
+          + شرط تاریخ دیگر
+        </button>
+      ) : null}
     </div>
   );
 }
