@@ -518,6 +518,7 @@ def customer_calls(request, source_id):
     per_page = _positive(request.query_params.get("per_page"), 20, cap=50)
     state = CustomerCallStatus.objects.select_related("dnc_cleared_by").filter(customer=customer).first()
     qs = agent.customer_logs(customer.pk)
+    logs_page = list(qs[(page - 1) * per_page : page * per_page])
     return Response(
         {
             "status": {
@@ -531,7 +532,8 @@ def customer_calls(request, source_id):
             }
             if state
             else None,
-            "results": [agent.log_payload(log, request.user) for log in qs[(page - 1) * per_page : page * per_page]],
+            "stats": agent.customer_call_stats(customer.pk),
+            "results": agent.log_cards(logs_page, customer.pk, request.user),
             "total": qs.count(),
             "page": page,
             "per_page": per_page,

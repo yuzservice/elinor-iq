@@ -21,6 +21,7 @@ from apps.customers.purchases import (
     qualifying_pos,
 )
 from apps.customers.internal_accounts import internal_account_payload
+from apps.customers.profile360 import call_header, customer_taste, value_summary
 from apps.customers.tiers import tier_channel_label, tier_label
 from apps.sales.models import OrderItem, PosSaleItem, SalesLine
 
@@ -79,6 +80,9 @@ def customer_360_payload(customer, history_page=1, history_per_page=HISTORY_PER_
         "purchases": purchase_history(customer, history_page, history_per_page),
         "addresses": addresses_for(customer),
         "discounts": _discounts(customer),
+        "value": value_summary(customer, desk=desk),
+        "taste": customer_taste(customer),
+        "calls_header": call_header(customer),
     }
 
 
