@@ -313,6 +313,10 @@ class CustomerMetrics(models.Model):
     sizes = ArrayField(models.CharField(max_length=64), default=list, blank=True)
     categories = ArrayField(models.CharField(max_length=255), default=list, blank=True)
     cities = ArrayField(models.CharField(max_length=255), default=list, blank=True)
+    province_ids = ArrayField(models.BigIntegerField(), default=list, blank=True)
+    city_ids = ArrayField(models.BigIntegerField(), default=list, blank=True)
+    product_ids = ArrayField(models.BigIntegerField(), default=list, blank=True)
+    birth_month = models.SmallIntegerField(null=True, blank=True)  # Jalali month 1-12
     refreshed_at = models.DateTimeField()
 
     class Meta:

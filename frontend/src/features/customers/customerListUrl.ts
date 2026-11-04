@@ -3,9 +3,11 @@ import { formatNumber } from "../../lib/format";
 
 /** All filters, sort and page live in the URL, using the API's own parameter names. */
 
-export type Option = { value: string; label: string };
+export type Option = { value: string; label: string; count?: number; group?: string };
 export type Field =
-  | { key: string; label: string; kind: "multi" | "single"; param: string; options: Option[]; searchable?: boolean }
+  | { key: string; label: string; kind: "multi" | "single"; param: string; options: Option[]; dependsOn?: string; note?: string }
+  | { key: string; label: string; kind: "products"; param: string; options: Option[] }
+  | { key: string; label: string; kind: "daterange"; after: string; before: string; direction?: { param: string; options: Option[] } }
   | { key: string; label: string; kind: "range"; min: string; max: string; unit: string; scale: number }
   | { key: string; label: string; kind: "dates" };
 
@@ -15,7 +17,22 @@ export const DATE_TYPES: { value: DatePrefix; label: string }[] = [
   { value: "first", label: "اولین خرید" },
 ];
 export type Category = { key: string; label: string; fields: Field[] };
-export type DynamicOptions = { tiers: Option[]; callResults: Option[]; callTags: Option[]; cities: string[]; categories: string[]; sizes: string[] };
+export type DynamicOptions = {
+  tiers: Option[];
+  callResults: Option[];
+  callTags: Option[];
+  categories: string[];
+  sizes: string[];
+  provinces?: Option[];
+  citiesById?: Option[]; // group = province id
+  products?: Option[]; // titles of products known so far (selected or found)
+  fillRates?: Record<string, number>;
+};
+
+/** A filter whose data is filled for fewer customers than this (percent) is hidden from the panel. */
+export const MIN_FILL_RATE = 5;
+export const JALALI_MONTHS = ["فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"];
+const ADDRESS_NOTE = "فقط مشتریانی که آدرس ثبت‌شده دارند";
 
 export const DAY_OPTIONS: Option[] = [
   { value: "30", label: "تا ۳۰ روز پیش" },
@@ -26,6 +43,19 @@ export const DAY_OPTIONS: Option[] = [
 const MILLION = 1_000_000;
 const asOptions = (values: string[]) => values.map((value) => ({ value, label: value }));
 
+/** Hidden until fill rates are known, and when they are under MIN_FILL_RATE. */
+function visible(dynamic: DynamicOptions, key: string, field: Field): Field[] {
+  const rate = dynamic.fillRates?.[key];
+  return rate != null && rate >= MIN_FILL_RATE ? [field] : [];
+}
+
+/** Cities of the selected provinces only; all cities when no province is selected. */
+export function dependentOptions(field: Field, params: URLSearchParams): Option[] {
+  if (field.kind !== "multi" || !field.dependsOn) return field.kind === "multi" || field.kind === "single" ? field.options : [];
+  const provinces = splitList(params.get(field.dependsOn));
+  return provinces.length ? field.options.filter((option) => option.group && provinces.includes(option.group)) : field.options;
+}
+
 export function buildCategories(dynamic: DynamicOptions): Category[] {
   return [
     {
@@ -33,8 +63,20 @@ export function buildCategories(dynamic: DynamicOptions): Category[] {
       label: "مشتری",
       fields: [
         { key: "tier", label: "سطح", kind: "multi", param: "tier", options: dynamic.tiers },
-        { key: "city", label: "شهر", kind: "multi", param: "cities", options: asOptions(dynamic.cities), searchable: true },
+        { key: "province", label: "استان", kind: "multi", param: "provinces", options: dynamic.provinces ?? [], note: ADDRESS_NOTE },
+        { key: "city", label: "شهر", kind: "multi", param: "city_ids", options: dynamic.citiesById ?? [], dependsOn: "provinces", note: ADDRESS_NOTE },
         { key: "profile", label: "وضعیت پروفایل", kind: "single", param: "profile_state", options: [{ value: "complete", label: "کامل" }, { value: "incomplete", label: "ناقص" }] },
+        ...visible(dynamic, "birth_month", { key: "birth", label: "ماه تولد", kind: "multi", param: "birth_months", options: JALALI_MONTHS.map((label, index) => ({ value: String(index + 1), label })) } as Field),
+        ...visible(dynamic, "gender", { key: "gender", label: "جنسیت", kind: "multi", param: "genders", options: [{ value: "female", label: "زن" }, { value: "male", label: "مرد" }] } as Field),
+        ...visible(dynamic, "joined", { key: "joined", label: "تاریخ عضویت", kind: "daterange", after: "joined_after", before: "joined_before" } as Field),
+        ...visible(dynamic, "tier_change", {
+          key: "tierChange",
+          label: "تغییر سطح اخیر",
+          kind: "daterange",
+          after: "tier_change_after",
+          before: "tier_change_before",
+          direction: { param: "tier_change", options: [{ value: "up", label: "ارتقا" }, { value: "down", label: "تنزل" }] },
+        } as Field),
       ],
     },
     {
@@ -61,8 +103,9 @@ export function buildCategories(dynamic: DynamicOptions): Category[] {
       key: "product",
       label: "کالا",
       fields: [
-        { key: "cat", label: "دسته‌بندی", kind: "multi", param: "categories", options: asOptions(dynamic.categories), searchable: true },
-        { key: "size", label: "سایز", kind: "multi", param: "sizes", options: asOptions(dynamic.sizes), searchable: true },
+        { key: "products", label: "خرید کالای مشخص", kind: "products", param: "products", options: dynamic.products ?? [] },
+        { key: "cat", label: "دسته‌بندی", kind: "multi", param: "categories", options: asOptions(dynamic.categories) },
+        { key: "size", label: "سایز", kind: "multi", param: "sizes", options: asOptions(dynamic.sizes) },
       ],
     },
     {
@@ -126,7 +169,13 @@ export function replaceFilters(params: URLSearchParams, filters: Record<string, 
 function fieldParams(field: Field): string[] {
   if (field.kind === "range") return [field.min, field.max];
   if (field.kind === "dates") return DATE_TYPES.flatMap((type) => datePrefixParams(type.value));
+  if (field.kind === "daterange") return [field.direction?.param, field.after, field.before].filter((param): param is string => Boolean(param));
   return [field.param];
+}
+
+/** «پاک کردن این دسته»: every param the category's fields own. */
+export function clearCategory(category: Category): Record<string, null> {
+  return Object.fromEntries(category.fields.flatMap(fieldParams).map((param) => [param, null]));
 }
 
 export function isFieldActive(field: Field, params: URLSearchParams): boolean {
@@ -141,6 +190,12 @@ const fa1 = (value: number) => new Intl.NumberFormat("fa-IR", { maximumFractionD
 
 function chipText(field: Field, params: URLSearchParams): string {
   if (field.kind === "dates") return "";
+  if (field.kind === "daterange") {
+    const direction = field.direction?.options.find((option) => option.value === params.get(field.direction?.param ?? ""))?.label;
+    const after = params.get(field.after);
+    const before = params.get(field.before);
+    return [direction ?? "", after ? `از ${formatJalali(after)}` : "", before ? `تا ${formatJalali(before)}` : ""].filter(Boolean).join(" ");
+  }
   if (field.kind === "range") {
     const part = (param: string, prefix: string) => (params.get(param) ? `${prefix} ${fa1(Number(params.get(param)) / field.scale)}` : "");
     return [part(field.min, "از"), part(field.max, "تا")].filter(Boolean).join(" ");
@@ -185,6 +240,7 @@ const LEGACY_LABELS: Record<string, string> = {
   size: "سایز",
   category: "دسته‌بندی",
   city: "شهر",
+  cities: "شهر",
 };
 
 export type Chip = { key: string; label: string; aria: string; remove: Record<string, null> };
@@ -383,6 +439,9 @@ export function tierColors(code: string): [string, string] {
 
 export type OptionalColumns = { total: boolean; first: boolean; city: boolean };
 export const NO_OPTIONAL_COLUMNS: OptionalColumns = { total: false, first: false, city: false };
+
+/** Search box inside a dropdown once its list is longer than this. */
+export const SEARCH_THRESHOLD = 8;
 
 export const columnsKey = (userId: number | undefined) => `customer-list-columns:${userId ?? "anon"}`;
 
