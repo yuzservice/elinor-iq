@@ -130,7 +130,8 @@ Notes for the Product Architect / next task:
 
 ### 2026-11-04 — Customer 360 redesign (`feature/customer-360-redesign`, from `production`), checkpoints
 - Backend: `profile360.py` (value cards with tier-average comparison, purchase rhythm, taste, call header, timeline), `customers/<id>/timeline/`, call cards with stats/tags/purchase/attempt/follow-up, sales-agent redaction (email, national code, full address). Detail for the largest local customer (147 invoices): 474 ms cold, 301 ms warm; customers with 283 and 368 invoices: 175 and 138 ms cold.
-- Blocked: the reference `Customer360.dc.html` was not in the Product Architect temp folder (cleared when the app quit). UI waits for the file.
+- Reference saved as `docs/design/customer-360-prototype.html`. Frontend rebuilt to it (header, cards, taste, lazy tabs: timeline, invoices, product cards, call cards, profile); invoice rows add `payment` and `amount`. Re-timed after that: 356 ms cold / 223 ms warm, timeline 22 ms. Rules: `docs/business-rules/customer-360.md`.
+- Not merged; waiting for the owner's local review.
 
 ### 2026-11-03 — Customer filter v2 (`feature/customer-filter-v2`, from `production`)
 - Panel opens under its button (600 px), bottom sheet on phones; compact dropdowns with ✕ clear, search over 8 items, counts. «استان» + dependent «شهر» by id (old `cities` names still work), «تاریخ عضویت», «تغییر سطح اخیر», «خرید کالای مشخص»; ماه تولد and جنسیت are built but hidden (fill < 5%).

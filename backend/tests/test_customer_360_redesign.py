@@ -134,6 +134,22 @@ def test_timeline_order_type_filter_and_pages():
 
 
 @pytest.mark.django_db
+def test_invoice_rows_carry_payment_and_signed_amount():
+    from apps.customers.detail import purchase_history
+
+    customer = _customer(1)
+    product = Product.objects.create(source_id=1, title="مانتو")
+    order = _order(customer, 2_000_000, days=4)
+    OrderItem.objects.create(source_id=next(_ids), order=order, product=product, quantity=1, amount=2_000_000)
+    sale = _pos(customer, 700_000, days=2, kind="both", digipay_cashier_amount=5)
+    PosSaleItem.objects.create(source_id=next(_ids), pos_sale=sale, product=product, quantity=1, amount=200_000, type="refund")
+    rows = purchase_history(customer)["results"]
+    assert [(row["kind"], row["payment"], row["amount"]) for row in rows] == [("pos", "دیجی‌پی", 500_000), ("online", "درگاه آنلاین", 2_000_000)]
+    events = timeline(customer, "invoice")["results"]
+    assert [(event["payment"], event["amount"], event["products"]) for event in events] == [("دیجی‌پی", 500_000, ["کالا", "مانتو"]), ("درگاه آنلاین", 2_000_000, ["مانتو"])]
+
+
+@pytest.mark.django_db
 def test_sales_agent_payload_hides_email_address_and_national_code(db):
     agent = get_user_model().objects.create_user(username="ag", password="secret-pass", role="sales_agent")
     customer = _customer(1, email="a@example.com", national_code="0012345678")

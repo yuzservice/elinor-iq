@@ -185,6 +185,45 @@ def customer_taste(customer):
     }
 
 
+def invoice_payments(order_ids, sale_ids):
+    """Payment label per invoice: {("online", pk) | ("pos", pk): label}. Same rules as the taste row."""
+    from apps.sales.models import Order, PosSale
+
+    gateways = dict(
+        OnlinePayment.objects.filter(status="success", invoice__status="success", invoice__order_id__in=order_ids)
+        .values_list("invoice__order_id", "gateway")
+    )
+    labels = {
+        ("online", pk): "شاپینو" if shopino else ONLINE_GATEWAYS.get(gateways.get(pk), "درگاه آنلاین")
+        for pk, shopino in Order.objects.filter(pk__in=order_ids).values_list("pk", "is_shopino")
+    }
+    for pk, *tenders in PosSale.objects.filter(pk__in=sale_ids).values_list("pk", *[field for field, _label in POS_TENDERS]):
+        labels[("pos", pk)] = next((name for (_field, name), amount in zip(POS_TENDERS, tenders) if amount and amount > 0), None)
+    return labels
+
+
+def pos_amounts(sale_ids):
+    """Signed item-line total per POS sale, as in CustomerMetrics."""
+    return dict(
+        PosSaleItem.objects.filter(pos_sale_id__in=sale_ids, deleted_at__isnull=True)
+        .values("pos_sale_id")
+        .annotate(total=Sum(_signed_line_sql()))
+        .values_list("pos_sale_id", "total")
+    )
+
+
+def invoice_products(order_ids, sale_ids):
+    """Product titles per invoice, in line order: {("online", pk) | ("pos", pk): [title, ...]}."""
+    from apps.sales.models import OrderItem
+
+    products = {}
+    for pk, product, title in OrderItem.objects.filter(order_id__in=order_ids).order_by("id").values_list("order_id", "product__title", "title"):
+        products.setdefault(("online", pk), []).append(product or title or "کالا")
+    for pk, product in PosSaleItem.objects.filter(pos_sale_id__in=sale_ids, deleted_at__isnull=True).order_by("id").values_list("pos_sale_id", "product__title"):
+        products.setdefault(("pos", pk), []).append(product or "کالا")
+    return products
+
+
 # --- Call header -------------------------------------------------------------------------------
 
 
@@ -246,12 +285,9 @@ def timeline(customer, kind="all", page=1, per_page=TIMELINE_PER_PAGE):
     sales = {row.pk: row for row in PosSale.objects.filter(pk__in=by_kind.get(2, [])).only("source_id", "sales_line", "type", "is_cancelled", "deleted_at", "discount_amount", "created_at")}
     logs = {row.pk: row for row in CallLog.objects.filter(pk__in=by_kind.get(3, [])).select_related("agent", "program", "form_version")}
     tier_rows = {row.pk: row for row in CustomerTierHistory.objects.filter(pk__in=by_kind.get(4, []))}
-    pos_amounts = dict(
-        PosSaleItem.objects.filter(pos_sale_id__in=by_kind.get(2, []), deleted_at__isnull=True)
-        .values("pos_sale_id")
-        .annotate(total=Sum(_signed_line_sql()))
-        .values_list("pos_sale_id", "total")
-    )
+    sale_amounts = pos_amounts(by_kind.get(2, []))
+    payments = invoice_payments(by_kind.get(1, []), by_kind.get(2, []))
+    products = invoice_products(by_kind.get(1, []), by_kind.get(2, []))
     qualifying_online = set(qualifying_online_orders(Order.objects.filter(pk__in=by_kind.get(1, []))).values_list("pk", flat=True))
     qualifying_pos = set(qualifying_pos_sales(PosSale.objects.filter(pk__in=by_kind.get(2, []))).values_list("pk", flat=True))
 
@@ -260,10 +296,10 @@ def timeline(customer, kind="all", page=1, per_page=TIMELINE_PER_PAGE):
         ref = row["ref"]
         if row["kind"] == 1:
             order = orders[ref]
-            events.append({"type": "invoice", "at": order.created_at, "channel": "online", "branch": BRANCH_LABELS[SalesLine.ONLINE], "source_id": order.source_id, "amount": order.total_amount, "discount_amount": order.discount_amount, "qualifying": ref in qualifying_online, "status": order.status})
+            events.append({"type": "invoice", "at": order.created_at, "channel": "online", "branch": BRANCH_LABELS[SalesLine.ONLINE], "source_id": order.source_id, "amount": order.total_amount, "discount_amount": order.discount_amount, "qualifying": ref in qualifying_online, "status": order.status, "payment": payments.get(("online", ref)), "products": products.get(("online", ref), [])})
         elif row["kind"] == 2:
             sale = sales[ref]
-            events.append({"type": "invoice", "at": sale.created_at, "channel": "pos", "branch": BRANCH_LABELS.get(sale.sales_line, sale.sales_line), "source_id": sale.source_id, "amount": int(pos_amounts.get(ref) or 0), "discount_amount": sale.discount_amount, "qualifying": ref in qualifying_pos, "status": sale.type})
+            events.append({"type": "invoice", "at": sale.created_at, "channel": "pos", "branch": BRANCH_LABELS.get(sale.sales_line, sale.sales_line), "source_id": sale.source_id, "amount": int(sale_amounts.get(ref) or 0), "discount_amount": sale.discount_amount, "qualifying": ref in qualifying_pos, "status": sale.type, "payment": payments.get(("pos", ref)), "products": products.get(("pos", ref), [])})
         elif row["kind"] == 3:
             events.append({"type": "call", "at": logs[ref].created_at, "call": log_payload(logs[ref])})
         else:

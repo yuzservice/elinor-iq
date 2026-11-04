@@ -1,3 +1,4 @@
+import { formatJalali, toFaDigits } from "../../lib/dates";
 import { formatNumber } from "../../lib/format";
 import type { AnswerEntry, Answers, FormField, FormOutcome } from "./types";
 
@@ -59,6 +60,17 @@ export function answerSummary(answers: Record<string, AnswerEntry>): string {
       return `${entry.title}: ${typeof entry.value === "number" ? formatNumber(entry.value) : String(entry.value)}`;
     })
     .join("؛ ");
+}
+
+/** One answer as shown on a call card: toggle بله/خیر, rating «۴ از ۵», dates in Jalali. */
+export function answerValue(entry: AnswerEntry): string {
+  if (entry.labels?.length) return entry.labels.join("، ");
+  if (entry.type === "toggle") return entry.value ? "بله" : "خیر";
+  if (entry.value === undefined || entry.value === null || entry.value === "") return "—";
+  if (entry.type === "rating") return `${formatNumber(Number(entry.value))} از ۵`;
+  if (entry.type === "date") return formatJalali(String(entry.value));
+  if (typeof entry.value === "number") return formatNumber(entry.value);
+  return toFaDigits(String(entry.value));
 }
 
 /** Raw answer values from a stored snapshot, for editing a log. */

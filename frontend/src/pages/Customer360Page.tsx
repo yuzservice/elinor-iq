@@ -1,667 +1,413 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Badge, CustomerNameCell, Pagination, StatusBadge } from "../components/ui";
+import { Pagination } from "../components/ui";
 import { EmptyState, ErrorState, Skeleton } from "../components/Table";
-import { joinFacts, profileValue, salesLineTone } from "../features/customers/customer360Display";
-import { useApi } from "../hooks/useApi";
-import { useTiers } from "../hooks/useTiers";
-import { useAuth } from "../hooks/useAuth";
+import { amountText, compactAmount, daysAgo, phoneGroups, tierCompareText } from "../features/customers/customer360Display";
+import { channelCell, daysSince, tierColors } from "../features/customers/customerListUrl";
 import { InternalAccountBanner, InternalAccountMenu } from "../features/customers/InternalAccountPanel";
-import { TierBadge } from "../features/customers/tierDisplay";
-import { INCOMPLETE_LABEL, customerDisplayName } from "../lib/customerDisplay";
-import { formatDate, formatDateLong, formatMobile, formatNumber, formatToman } from "../lib/format";
+import { CustomerCallBadges, CustomerCallsTab, TagPill } from "../features/calls/CustomerCalls";
+import { dueLabel } from "../features/calls/callForm";
+import { Chip } from "../features/calls/ui";
+import { useApi } from "../hooks/useApi";
+import { useAuth } from "../hooks/useAuth";
+import { customerDisplayName } from "../lib/customerDisplay";
+import { formatJalali, toFaDigits } from "../lib/dates";
+import { formatDate, formatNumber, formatToman } from "../lib/format";
+import { callsService } from "../services/calls";
 import { customersService } from "../services/customers";
-import { CustomerCallBadges, CustomerCallsTab } from "../features/calls/CustomerCalls";
-import type { Customer360, CustomerProductHistory, CustomerPurchase } from "../types";
+import type { Customer360, CustomerProductHistory, CustomerPurchase, TimelineEvent, TimelineKind } from "../types";
 
-type TabKey = "purchases" | "products" | "profile" | "addresses" | "discounts" | "calls";
-type PurchaseKindFilter = "all" | "online" | "pos" | "cancelled";
+// Layout and copy: docs/design/customer-360-prototype.html. Rules: docs/business-rules/customer-360.md.
 
-function getInitials(name: string) {
-  if (!name || name === "مشتری بدون نام") return "EL";
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-  return name.slice(0, 2).toUpperCase();
-}
+type TabKey = "activity" | "invoices" | "items" | "calls" | "profile";
 
-function getTierPill(data: Customer360, summary?: string) {
-  if (data.is_operator) {
-    return (
-      <span className="px-2.5 py-1 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold text-xs border border-amber-500/30">
-        {data.operator_label || "اپراتور"}
-      </span>
-    );
-  }
-  if (!data.tier_code) return null;
-  return (
-    <span title={summary}>
-      <TierBadge code={data.tier_code} label={data.tier_label} channelLabel={data.tier_channel_label} className="px-3 text-xs" />
-    </span>
-  );
-}
-
-const LINE_COLORS: Record<string, string> = {
-  ONLINE: "bg-accent",
-  SARI: "bg-emerald-500",
-  GORGAN: "bg-amber-500",
-  CAPRI: "bg-purple-500",
-};
+const CARD = "rounded-[18px] border border-line bg-surface";
+const MUT = "text-[12.5px] text-muted";
+const GHOST = "inline-flex min-h-[38px] cursor-pointer items-center rounded-[10px] border border-slate-300 bg-transparent px-[13px] text-[12.5px] text-slate-600 dark:border-white/[0.14] dark:text-slate-300";
+const UP = "text-[var(--delta-up)]";
+const DOWN = "text-[var(--delta-down)]";
+const WARN = "text-amber-700 dark:text-amber-400";
+const INFO = "text-blue-600 dark:text-blue-300";
 
 export function Customer360Page() {
   const { id } = useParams();
-  const { tiers } = useTiers();
-  const [tab, setTab] = useState<TabKey>("purchases");
-  const [openKey, setOpenKey] = useState<string | null>(null);
-  const [purchaseFilter, setPurchaseFilter] = useState<PurchaseKindFilter>("all");
-  const [historyPage, setHistoryPage] = useState(1);
-  const [history, setHistory] = useState<Customer360["purchases"] | null>(null);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [products, setProducts] = useState<CustomerProductHistory[] | null>(null);
-  const [productsLoading, setProductsLoading] = useState(false);
-  const [productsError, setProductsError] = useState(false);
-  const [productRetry, setProductRetry] = useState(0);
-  const { data, loading, error, setData } = useApi(() => customersService.detail(Number(id)), [id]);
+  return <Customer360View key={id} sourceId={Number(id)} />;
+}
+
+function Customer360View({ sourceId }: { sourceId: number }) {
   const { user } = useAuth();
   const canManage = Boolean(user?.can_manage_platform);
+  const isAgent = user?.role === "sales_agent";
+  const [tab, setTab] = useState<TabKey>("activity");
+  const [opened, setOpened] = useState<Set<TabKey>>(() => new Set(["activity"]));
+  const [productCount, setProductCount] = useState<number | null>(null);
+  const [callsReload, setCallsReload] = useState(0);
+  const { data, loading, error, setData } = useApi(() => customersService.detail(sourceId), [sourceId]);
+  const { data: calls } = useApi(() => callsService.customerCalls(sourceId), [sourceId, callsReload]);
   const reloadDetail = () => {
-    customersService
-      .detail(Number(id))
-      .then(setData)
-      .catch(() => undefined);
+    customersService.detail(sourceId).then(setData).catch(() => undefined);
   };
-
-  useEffect(() => {
-    setTab("purchases");
-    setOpenKey(null);
-    setPurchaseFilter("all");
-    setHistoryPage(1);
-    setHistory(null);
-    setProducts(null);
-    setProductsError(false);
-    setProductRetry(0);
-  }, [id]);
-
-  useEffect(() => {
-    if (!id) return;
-    if (historyPage === 1) {
-      if (data?.purchases) setHistory(data.purchases);
-      return;
-    }
-    let cancelled = false;
-    setHistoryLoading(true);
-    customersService
-      .purchases(Number(id), historyPage)
-      .then((payload) => {
-        if (!cancelled) setHistory(payload);
-      })
-      .finally(() => {
-        if (!cancelled) setHistoryLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [id, historyPage, data]);
-
-  useEffect(() => {
-    if (!id || tab !== "products") return;
-    if (products && !productsError) return;
-    let cancelled = false;
-    setProductsLoading(true);
-    setProductsError(false);
-    customersService
-      .products(Number(id))
-      .then((payload) => {
-        if (!cancelled) setProducts(payload.results);
-      })
-      .catch(() => {
-        if (!cancelled) setProductsError(true);
-      })
-      .finally(() => {
-        if (!cancelled) setProductsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [id, tab, productRetry, products, productsError]);
+  const pick = (key: TabKey) => {
+    setTab(key);
+    setOpened((current) => new Set(current).add(key));
+  };
 
   if (loading) {
     return (
-      <div className="space-y-5">
-        <Skeleton className="h-8 w-52 rounded-xl" />
-        <Skeleton className="h-56 w-full rounded-3xl" />
-        <Skeleton className="h-12 w-full rounded-2xl" />
-        <Skeleton className="h-80 w-full rounded-3xl" />
+      <div className="space-y-3.5">
+        <Skeleton className="h-10 w-52 rounded-xl" />
+        <Skeleton className="h-32 w-full rounded-[18px]" />
+        <Skeleton className="h-28 w-full rounded-[18px]" />
+        <Skeleton className="h-80 w-full rounded-[18px]" />
       </div>
     );
   }
   if (error || !data) return <ErrorState />;
 
-  const display = customerDisplayName(data);
-  const purchases = history || data.purchases;
-  const initials = getInitials(display.name);
-  const totalSalesLinePurchases = data.sales_lines.reduce((acc, item) => acc + (item.purchase_count || 0), 0);
-
-  const tabs: ReadonlyArray<{ key: TabKey; label: string; count?: number }> = [
-    { key: "purchases", label: "سوابق خرید و فاکتورها", count: purchases.total },
-    { key: "products", label: "کمد لباس و کالاها", count: products ? products.length : undefined },
-    { key: "profile", label: "مشخصات هویتی" },
-    { key: "addresses", label: "نشانی‌ها", count: data.addresses.length },
-    { key: "discounts", label: "تخفیف‌ها", count: data.discounts.length },
-    { key: "calls", label: "تماس‌ها" },
+  const tabs: { key: TabKey; label: string }[] = [
+    { key: "activity", label: "فعالیت‌ها" },
+    { key: "invoices", label: `فاکتورها (${formatNumber(data.purchases.total)})` },
+    { key: "items", label: productCount === null ? "کالاها" : `کالاها (${formatNumber(productCount)})` },
+    { key: "calls", label: calls?.stats ? `تماس‌ها (${formatNumber(calls.stats.total)})` : "تماس‌ها" },
+    { key: "profile", label: "مشخصات" },
   ];
+  // Mounted on first open and kept, so switching back does not refetch.
+  const panel = (key: TabKey, node: ReactNode) => (opened.has(key) ? <div hidden={tab !== key}>{node}</div> : null);
 
   return (
-    <div className="space-y-5">
-      <CustomerCallBadges sourceId={Number(id)} />
-      {/* ============================================================== */}
-      {/* 1. MINIMAL BREADCRUMB & QUICK NAVIGATION                       */}
-      {/* ============================================================== */}
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-2 text-muted">
-          <Link
-            to="/customers?tab=list"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-elevated border border-line text-ink hover:border-accent transition-colors font-semibold"
-          >
-            <span>→</span>
-            <span>بازگشت به لیست مشتریان</span>
-          </Link>
-          <span className="text-faint">/</span>
-          <span className="text-ink font-bold truncate max-w-[200px] sm:max-w-none">{display.name}</span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="px-2.5 py-1 rounded-xl bg-elevated border border-line text-muted font-mono text-[11px] ltr-iso">
-            #EL-{data.id}
-          </span>
-          {canManage ? <InternalAccountMenu data={data} onChanged={reloadDetail} /> : null}
-          <Badge tone={data.status_label === "فعال" ? "sage" : "neutral"}>
-            {data.status_label || "وضعیت ثبت نشده"}
-          </Badge>
-        </div>
+    <div className="mx-auto flex max-w-[1280px] flex-col gap-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-2.5">
+        <Link to="/customers?tab=list" className={GHOST}>
+          بازگشت به لیست مشتریان
+        </Link>
+        {canManage ? <InternalAccountMenu data={data} onChanged={reloadDetail} /> : null}
       </div>
-
       {canManage ? <InternalAccountBanner data={data} onChanged={reloadDetail} /> : null}
 
-      {/* ============================================================== */}
-      {/* 2. HERO 360 IDENTITY & OMNICHANNEL BENTO CARD                  */}
-      {/* ============================================================== */}
-      <section className="bento-card p-5 sm:p-6 glass-rim shadow-soft space-y-5">
-        {/* Top Row: Avatar, Identity, Badges & Quick Contact/Dates */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
-          <div className="flex items-start sm:items-center gap-4">
-            <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-tr from-accent to-indigo-600 flex items-center justify-center font-black text-white text-lg sm:text-xl shadow-md shrink-0">
-              {initials}
-            </div>
-            <div className="space-y-1.5 min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-black tracking-tight text-ink">
-                  <CustomerNameCell name={display.name} fallback={display.fallback} sourceId={data.id} />
-                </h1>
-                {getTierPill(data, tiers.find((tier) => tier.code === data.tier_code)?.summary)}
-                {data.is_operator ? (
-                  <Badge tone="warning">{data.operator_label}</Badge>
-                ) : (
-                  <Badge tone={data.is_purchasing ? "sage" : "neutral"}>{data.purchase_behavior_label}</Badge>
-                )}
-                {data.channel !== "none" ? <Badge tone="accent">{data.channel_label}</Badge> : null}
-                {data.incomplete ? <Badge tone="warning">{INCOMPLETE_LABEL}</Badge> : null}
-              </div>
+      <Header data={data} calls={calls} onCallsChanged={() => setCallsReload((value) => value + 1)} />
+      <ValueCards data={data} />
+      <TasteRow data={data} />
 
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-                <span className="font-mono font-semibold text-ink ltr-iso">
-                  {data.mobile ? formatMobile(data.mobile) : INCOMPLETE_LABEL}
-                </span>
-                {data.email && (
-                  <>
-                    <span className="text-faint">•</span>
-                    <span className="ltr-iso">{data.email}</span>
-                  </>
-                )}
-                {data.profile.birth_date && (
-                  <>
-                    <span className="text-faint">•</span>
-                    <span>
-                      زادروز: <strong className="text-ink">{formatDate(data.profile.birth_date)}</strong>
-                    </span>
-                  </>
-                )}
-                {data.addresses?.[0]?.city && (
-                  <>
-                    <span className="text-faint">•</span>
-                    <span>{data.addresses[0].city}</span>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Right Pill Box: First & Last Purchase Timestamps */}
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3 bg-elevated p-3 rounded-2xl border border-line text-xs shrink-0">
-            <div className="px-2 sm:px-3 border-l border-line">
-              <span className="text-[10px] text-muted block">اولین خرید ثبت‌شده</span>
-              <span className="font-bold text-ink tabular mt-0.5 block">
-                {data.first_purchase_at ? formatDateLong(data.first_purchase_at) : "ثبت نشده"}
-              </span>
-            </div>
-            <div className="px-2 sm:px-3">
-              <span className="text-[10px] text-muted block">آخرین خرید ثبت‌شده</span>
-              <span className="font-bold text-accent tabular mt-0.5 block">
-                {data.last_purchase_at ? formatDateLong(data.last_purchase_at) : "ثبت نشده"}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Middle Row: 4 Clean KPI Metric Boxes */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-4 border-t border-line text-xs">
-          <div className="bg-elevated p-3.5 rounded-2xl border border-line">
-            <span className="text-muted block text-[11px]">مجموع دفعات خرید</span>
-            <div className="text-xl sm:text-2xl font-black text-ink tabular mt-1">
-              {formatNumber(data.purchase_count)} <span className="text-xs font-normal text-muted">فاکتور</span>
-            </div>
-            <div className="text-[10px] text-muted mt-1">
-              {formatNumber(data.online_count)} آنلاین • {formatNumber(data.pos_count)} حضوری
-            </div>
-          </div>
-
-          <div className="bg-elevated p-3.5 rounded-2xl border border-line">
-            <span className="text-muted block text-[11px]">کل اقلام خریداری‌شده</span>
-            <div className="text-xl sm:text-2xl font-black text-ink tabular mt-1">
-              {formatNumber(data.items_sold)} <span className="text-xs font-normal text-muted">قلم کالا</span>
-            </div>
-            <div className="text-[10px] text-muted mt-1">
-              میانگین هر فاکتور:{" "}
-              <strong className="text-ink tabular">
-                {data.purchase_count > 0 ? (data.items_sold / data.purchase_count).toFixed(1) : "۰"} قلم
-              </strong>
-            </div>
-          </div>
-
-          <div className="bg-elevated p-3.5 rounded-2xl border border-line">
-            <span className="text-muted block text-[11px]">خطوط فروش فعال</span>
-            <div className="text-xl sm:text-2xl font-black text-ink tabular mt-1">
-              {formatNumber(data.sales_line_count)} <span className="text-xs font-normal text-muted">از ۴ کانال</span>
-            </div>
-            <div className="text-[10px] text-accent font-semibold mt-1">
-              {data.channel === "both"
-                ? "مشتری دوکاناله (Omnichannel)"
-                : data.channel === "online"
-                ? "خریدار صرفاً آنلاین"
-                : data.channel === "physical"
-                ? "خریدار شعب حضوری"
-                : "بدون سابقه خرید"}
-            </div>
-          </div>
-
-          <div className="bg-elevated p-3.5 rounded-2xl border border-line">
-            <span className="text-muted block text-[11px]">تخفیف‌ها و آدرس‌ها</span>
-            <div className="text-xl sm:text-2xl font-black text-ink tabular mt-1">
-              {formatNumber(data.discounts.length)} <span className="text-xs font-normal text-muted">تخفیف</span>
-            </div>
-            <div className="text-[10px] text-muted mt-1">
-              نشانی‌های ثبت‌شده: <strong className="text-ink tabular">{formatNumber(data.addresses.length)} مورد</strong>
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom Row: Omnichannel Sales Line Breakdown & Visual Distribution Bar */}
-        <div className="pt-4 border-t border-line space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-            <span className="text-muted font-medium">توزیع خرید بین کانال آنلاین و شعب حضوری</span>
-            {totalSalesLinePurchases > 0 && (
-              <div className="h-2 w-full sm:w-64 rounded-full bg-elevated overflow-hidden flex border border-line/60">
-                {data.sales_lines.map((line) => {
-                  const pct = totalSalesLinePurchases > 0 ? (line.purchase_count / totalSalesLinePurchases) * 100 : 0;
-                  if (pct <= 0) return null;
-                  return (
-                    <div
-                      key={line.key}
-                      style={{ width: `${pct}%` }}
-                      className={LINE_COLORS[line.key] || "bg-accent"}
-                      title={`${line.label}: ${formatNumber(line.purchase_count)} خرید`}
-                    />
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-            {data.sales_lines.map((line) => {
-              const pct =
-                totalSalesLinePurchases > 0 ? Math.round((line.purchase_count / totalSalesLinePurchases) * 100) : 0;
-              return (
-                <div
-                  key={line.key}
-                  className={`rounded-2xl px-3.5 py-2.5 border transition-colors ${
-                    line.used
-                      ? "bg-elevated border-line"
-                      : "bg-elevated/40 border-line/50 opacity-65"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <Badge tone={salesLineTone(line.key)}>{line.label}</Badge>
-                    <span className="tabular text-sm font-black text-ink">
-                      {formatNumber(line.purchase_count)}
-                    </span>
-                  </div>
-                  <div className="mt-1.5 flex items-center justify-between text-[10px] text-muted">
-                    <span>{line.used ? "استفاده شده" : "بدون خرید"}</span>
-                    {line.used && <span className="tabular font-semibold">{formatNumber(pct)}٪</span>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* Subtle Contextual Note */}
-      <p className="text-[11px] leading-5 text-muted px-1">
-        {data.is_operator
-          ? "ℹ️ این حساب دفتر ثبت سفارش است. سفارش‌ها و مبلغ‌شان در فروش می‌مانند و در سطح‌بندی و شمارش مشتری حساب نمی‌شوند. نام گیرنده کنار هر سفارش آنلاین آمده است."
-          : "ℹ️ تعداد خرید با تعریف لیست مشتریان یکسان است. در سوابق زیر، مبلغ سفارش‌های آنلاین و ریزاقلام تمامی خریدهای آنلاین و حضوری قابل مشاهده است."}
-      </p>
-
-      {/* ============================================================== */}
-      {/* 3. SEGMENTED NAVIGATION TABS                                   */}
-      {/* ============================================================== */}
-      <div
-        role="tablist"
-        aria-label="بخش‌های شناسنامه مشتری"
-        className="flex items-center gap-1.5 overflow-x-auto no-scrollbar bg-elevated p-1.5 rounded-2xl border border-line text-xs"
-      >
+      <nav aria-label="بخش‌های صفحه مشتری" className="mt-1.5 flex flex-wrap items-center gap-x-[22px] border-b border-line">
         {tabs.map((item) => {
-          const active = tab === item.key;
+          const on = tab === item.key;
           return (
             <button
               key={item.key}
               type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => setTab(item.key)}
-              className={`px-3.5 py-2 rounded-xl whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
-                active
-                  ? "bg-accent text-on-accent font-bold shadow-xs"
-                  : "text-muted hover:text-ink hover:bg-surface/60 font-medium"
-              }`}
-            >
-              <span>{item.label}</span>
-              {item.count !== undefined && (
-                <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] tabular ${
-                    active ? "bg-white/20 text-white" : "bg-surface text-muted border border-line"
-                  }`}
-                >
-                  {formatNumber(item.count)}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ============================================================== */}
-      {/* 4. TAB CONTENTS                                                */}
-      {/* ============================================================== */}
-      <div>
-        {tab === "purchases" ? (
-          <PurchaseHistory
-            purchases={purchases}
-            loading={historyLoading}
-            openKey={openKey}
-            filter={purchaseFilter}
-            onFilterChange={setPurchaseFilter}
-            onToggle={setOpenKey}
-            onPageChange={setHistoryPage}
-          />
-        ) : null}
-
-        {tab === "products" ? (
-          productsLoading || products === null ? (
-            productsError ? (
-              <ErrorState onRetry={() => setProductRetry((value) => value + 1)} />
-            ) : (
-              <Skeleton className="h-64 rounded-3xl" />
-            )
-          ) : (
-            <ProductHistory products={products} />
-          )
-        ) : null}
-
-        {tab === "profile" ? <ProfileTab data={data} displayName={display.name} /> : null}
-        {tab === "addresses" ? <AddressTab addresses={data.addresses} /> : null}
-        {tab === "discounts" ? <DiscountTab discounts={data.discounts} /> : null}
-        {tab === "calls" ? <CustomerCallsTab sourceId={Number(id)} /> : null}
-      </div>
-    </div>
-  );
-}
-
-function PurchaseHistory({
-  purchases,
-  loading,
-  openKey,
-  filter,
-  onFilterChange,
-  onToggle,
-  onPageChange,
-}: {
-  purchases: Customer360["purchases"];
-  loading: boolean;
-  openKey: string | null;
-  filter: PurchaseKindFilter;
-  onFilterChange: (next: PurchaseKindFilter) => void;
-  onToggle: (key: string | null) => void;
-  onPageChange: (page: number) => void;
-}) {
-  const filteredResults = useMemo(() => {
-    if (filter === "all") return purchases.results;
-    if (filter === "online") return purchases.results.filter((r) => r.kind === "online");
-    if (filter === "pos") return purchases.results.filter((r) => r.kind === "pos");
-    return purchases.results.filter((r) => r.is_cancelled || r.type === "refund");
-  }, [purchases.results, filter]);
-
-  if (!purchases.total) {
-    return <EmptyState title="خریدی برای این مشتری ثبت نشده است." body="ثبت‌نام به‌معنای خرید نیست." />;
-  }
-
-  return (
-    <div className="bento-card p-4 sm:p-6 glass-rim shadow-soft space-y-4">
-      {/* Header & Quick Filter Pills */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-sm sm:text-base font-extrabold text-ink">سوابق فاکتورها و خریدها</h3>
-          <p className="text-[11px] text-muted mt-0.5">
-            برای مشاهده ریزاقلام، رنگ و سایز هر خرید روی ردیف مورد نظر کلیک کنید
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          {(
-            [
-              { key: "all", label: `همه (${formatNumber(purchases.total)})` },
-              { key: "online", label: "آنلاین" },
-              { key: "pos", label: "حضوری (POS)" },
-              { key: "cancelled", label: "مرجوعی / لغوشده" },
-            ] as const
-          ).map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => onFilterChange(item.key)}
-              className={`px-2.5 py-1 rounded-xl text-[11px] font-semibold transition-all cursor-pointer ${
-                filter === item.key
-                  ? "bg-accent text-on-accent"
-                  : "bg-elevated text-muted border border-line hover:text-ink"
+              aria-pressed={on}
+              onClick={() => pick(item.key)}
+              className={`-mb-px min-h-[44px] cursor-pointer border-b-2 bg-transparent px-0.5 text-sm ${
+                on ? "border-blue-500 font-semibold text-ink dark:border-blue-400" : "border-transparent text-muted"
               }`}
             >
               {item.label}
             </button>
-          ))}
-          {loading && <span className="text-[11px] text-accent mr-1">در حال بارگذاری...</span>}
-        </div>
-      </div>
+          );
+        })}
+      </nav>
 
-      {filteredResults.length === 0 ? (
-        <div className="py-8 text-center text-xs text-muted">
-          در این صفحه موردی با فیلتر انتخاب‌شده وجود ندارد.
-        </div>
-      ) : (
-        <>
-          {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-right text-xs">
-              <thead>
-                <tr className="text-muted border-b border-line font-semibold">
-                  <th className="py-3 px-3">تاریخ</th>
-                  <th className="py-3 px-3">خط فروش</th>
-                  <th className="py-3 px-3">شناسه</th>
-                  <th className="py-3 px-3">گیرنده</th>
-                  <th className="py-3 px-3">نوع</th>
-                  <th className="py-3 px-3">اقلام</th>
-                  <th className="py-3 px-3">وضعیت</th>
-                  <th className="py-3 px-3">مبلغ</th>
-                  <th className="py-3 px-3 text-center">جزئیات</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {filteredResults.map((row) => {
-                  const open = openKey === row.key;
-                  return (
-                    <Fragment key={row.key}>
-                      <tr
-                        className="hover:bg-hover transition-colors cursor-pointer"
-                        onClick={() => onToggle(open ? null : row.key)}
-                      >
-                        <td className="px-3 py-3 text-muted font-mono">{formatDate(row.created_at)}</td>
-                        <td className="px-3 py-3">
-                          <Badge tone={salesLineTone(row.sales_line)}>{row.sales_line_label}</Badge>
-                        </td>
-                        <td className="ltr-iso px-3 py-3 tabular font-mono text-muted">#{row.source_id}</td>
-                        <td className="px-3 py-3 text-ink">{row.receiver || "—"}</td>
-                        <td className="px-3 py-3 text-muted">{row.type_label}</td>
-                        <td className="px-3 py-3 tabular font-bold text-ink">{formatNumber(row.item_count)} قلم</td>
-                        <td className="px-3 py-3">
-                          {row.kind === "online" ? (
-                            <StatusBadge status={row.status} label={row.status_label} />
-                          ) : (
-                            <Badge tone={row.type === "refund" || row.is_cancelled ? "rose" : "sage"}>
-                              {row.status_label}
-                            </Badge>
-                          )}
-                        </td>
-                        <td className="px-3 py-3 tabular font-bold text-ink">
-                          {row.value_kind === "online_total" ? formatToman(row.value) : "—"}
-                        </td>
-                        <td className="px-3 py-3 text-center">
-                          <button
-                            type="button"
-                            className="text-xs font-bold text-accent hover:underline"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              onToggle(open ? null : row.key);
-                            }}
-                          >
-                            {open ? "بستن ▴" : "مشاهده جزئیات ▾"}
-                          </button>
-                        </td>
-                      </tr>
-                      {open ? (
-                        <tr>
-                          <td colSpan={9} className="bg-elevated/60 px-4 py-3.5">
-                            <PurchaseDetail purchase={row} />
-                          </td>
-                        </tr>
-                      ) : null}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile Cards View */}
-          <div className="md:hidden space-y-2.5">
-            {filteredResults.map((row) => {
-              const open = openKey === row.key;
-              return (
-                <div
-                  key={row.key}
-                  className="rounded-2xl border border-line bg-elevated/60 p-3.5 space-y-2.5 text-xs"
-                >
-                  <div
-                    className="flex items-center justify-between cursor-pointer"
-                    onClick={() => onToggle(open ? null : row.key)}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Badge tone={salesLineTone(row.sales_line)}>{row.sales_line_label}</Badge>
-                      <span className="font-mono text-muted ltr-iso">#{row.source_id}</span>
-                    </div>
-                    <span className="font-mono text-[11px] text-muted">{formatDate(row.created_at)}</span>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2 border-t border-line/60">
-                    <div>
-                      <span className="text-[10px] text-muted block">تعداد و مبلغ:</span>
-                      <span className="font-bold text-ink tabular">
-                        {formatNumber(row.item_count)} قلم
-                        {row.value_kind === "online_total" ? ` • ${formatToman(row.value)}` : ""}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {row.kind === "online" ? (
-                        <StatusBadge status={row.status} label={row.status_label} />
-                      ) : (
-                        <Badge tone={row.type === "refund" || row.is_cancelled ? "rose" : "sage"}>
-                          {row.status_label}
-                        </Badge>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => onToggle(open ? null : row.key)}
-                        className="text-accent font-bold text-[11px]"
-                      >
-                        {open ? "بستن ▴" : "ریزاقلام ▾"}
-                      </button>
-                    </div>
-                  </div>
-
-                  {open && (
-                    <div className="pt-2 border-t border-line">
-                      <PurchaseDetail purchase={row} />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </>
-      )}
-
-      <Pagination page={purchases.page} total={purchases.total} perPage={purchases.per_page} onChange={onPageChange} />
+      {panel("activity", <ActivityTab sourceId={sourceId} />)}
+      {panel("invoices", <InvoicesTab sourceId={sourceId} first={data.purchases} />)}
+      {panel("items", <ItemsTab sourceId={sourceId} onCount={setProductCount} />)}
+      {panel("calls", <CustomerCallsTab sourceId={sourceId} />)}
+      {panel("profile", <ProfileTab data={data} isAgent={isAgent} />)}
     </div>
   );
 }
 
-function PurchaseDetail({ purchase }: { purchase: CustomerPurchase }) {
-  if (!purchase.items.length) {
-    return <div className="text-xs text-muted">اقلامی برای این سابقه ثبت نشده است.</div>;
+// --- Header ----------------------------------------------------------------------------------
+
+function TierBadge({ data }: { data: Customer360 }) {
+  if (data.is_operator) {
+    return <span className="rounded-full bg-amber-500/15 px-[11px] py-[3px] text-[12.5px] text-amber-700 dark:text-amber-400">{data.operator_label || "اپراتور"}</span>;
   }
+  if (!data.tier_code) return null;
+  const [dark, light] = tierColors(data.tier_code);
+  const style = { "--tier-dark": dark, "--tier-light": light, "--tier-dark-bg": `${dark}26`, "--tier-light-bg": `${light}1a` } as CSSProperties;
   return (
-    <div className="rounded-2xl border border-line bg-surface p-3.5 space-y-2.5">
-      <div className="flex items-center justify-between text-xs font-bold text-ink">
-        <span>اقلام فاکتور #{purchase.source_id}</span>
-        {purchase.discount_amount > 0 && (
-          <span className="text-emerald-600 dark:text-emerald-400 font-normal">
-            تخفیف فاکتور: <strong>{formatToman(purchase.discount_amount)}</strong>
+    <span style={style} className="rounded-full bg-[var(--tier-light-bg)] px-[11px] py-[3px] text-[12.5px] text-[var(--tier-light)] dark:bg-[var(--tier-dark-bg)] dark:text-[var(--tier-dark)]">
+      {data.tier_label}
+      {data.tier_channel_label ? ` (${data.tier_channel_label})` : ""}
+    </span>
+  );
+}
+
+function Header({ data, calls, onCallsChanged }: { data: Customer360; calls: Awaited<ReturnType<typeof callsService.customerCalls>> | null; onCallsChanged: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const display = customerDisplayName(data);
+  const channel = channelCell(data.channel, []);
+  const { tags, followup_at, last_call } = data.calls_header;
+  const copy = () => {
+    navigator.clipboard?.writeText(data.mobile).then(() => setCopied(true), () => undefined);
+  };
+  const hasBadges = tags.length > 0 || followup_at || calls?.status?.do_not_call || calls?.status?.dnc_cleared_at;
+  return (
+    <section className={`${CARD} flex flex-wrap items-center justify-between gap-x-6 gap-y-3.5 px-5 py-[18px]`}>
+      <div className="flex min-w-0 flex-[1_1_340px] flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h1 className="m-0 text-[22px] font-extrabold text-ink">{display.name}</h1>
+          <TierBadge data={data} />
+          {channel.color ? (
+            <span className="rounded-full px-[11px] py-[3px] text-[12.5px]" style={{ background: `color-mix(in srgb, ${channel.color} 16%, transparent)`, color: channel.color }}>
+              {channel.text}
+            </span>
+          ) : null}
+        </div>
+        {hasBadges ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {tags.map((tag) => (
+              <TagPill key={tag.id} tag={tag} />
+            ))}
+            {followup_at ? <span className={`rounded-full border border-blue-500/50 px-2.5 py-[3px] text-xs ${INFO}`}>پیگیری باز: {dueLabel(followup_at).text}</span> : null}
+            <CustomerCallBadges sourceId={data.id} status={calls?.status ?? null} onChanged={onCallsChanged} />
+          </div>
+        ) : null}
+        {last_call ? (
+          <span className={MUT}>
+            آخرین تماس: {last_call.outcome_title}، {daysAgo(daysSince(last_call.at))}، {last_call.agent}
           </span>
-        )}
+        ) : null}
       </div>
+      {data.mobile ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <a href={`tel:${data.mobile}`} dir="ltr" className="inline-flex min-h-[46px] items-center rounded-xl bg-blue-500 px-[18px] text-[15px] font-semibold text-white no-underline">
+            {phoneGroups(data.mobile)}
+          </a>
+          <button type="button" className={`${GHOST} min-h-[46px]`} onClick={copy}>
+            {copied ? "کپی شد" : "کپی شماره"}
+          </button>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+// --- Value cards and taste ---------------------------------------------------------------------
+
+function Kpi({ label, amount, unit, note, noteClass = "text-muted" }: { label: string; amount: string; unit: string; note?: string | null; noteClass?: string }) {
+  return (
+    <div className={`${CARD} flex flex-col gap-[5px] px-[18px] py-[15px]`}>
+      <span className="text-[13px] text-slate-600 dark:text-slate-300">{label}</span>
+      <span className="flex items-baseline gap-[5px]">
+        <span className="text-[26px] font-extrabold tracking-[-0.5px] tabular">{amount}</span>
+        {unit ? <span className={MUT}>{unit}</span> : null}
+      </span>
+      {note ? <span className={`text-[12.5px] ${noteClass}`}>{note}</span> : null}
+    </div>
+  );
+}
+
+const SIGN_CLASS = (sign: number) => (sign > 0 ? UP : sign < 0 ? DOWN : "text-muted");
+
+function ValueCards({ data }: { data: Customer360 }) {
+  const value = data.value;
+  const total = compactAmount(value.total_amount);
+  const basket = compactAmount(value.avg_basket);
+  const tier = value.comparison?.tier_label ?? "";
+  const totalNote = value.comparison ? tierCompareText(value.comparison.total_percent, tier) : null;
+  const basketNote = value.comparison ? tierCompareText(value.comparison.basket_percent, tier) : null;
+  return (
+    <section aria-label="ارزش مشتری" className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
+      <Kpi label="مجموع خرید" amount={total.value} unit={total.unit ? `${total.unit} تومان` : "تومان"} note={totalNote?.text} noteClass={SIGN_CLASS(totalNote?.sign ?? 0)} />
+      <Kpi label="میانگین سبد خرید" amount={basket.value} unit={basket.value === "—" ? "" : basket.unit ? `${basket.unit} تومان` : "تومان"} note={basketNote?.text} noteClass={SIGN_CLASS(basketNote?.sign ?? 0)} />
+      <Kpi label="تعداد فاکتور" amount={formatNumber(value.invoice_count)} unit="فاکتور" note={`${formatNumber(value.pos_count)} حضوری، ${formatNumber(value.online_count)} آنلاین`} />
+      <Kpi
+        label="آخرین خرید"
+        amount={value.days_since_last == null ? "—" : formatNumber(value.days_since_last)}
+        unit={value.days_since_last == null ? "" : "روز پیش"}
+        note={value.usual_gap_days == null ? null : `معمولاً هر ${formatNumber(value.usual_gap_days)} روز خرید می‌کند`}
+        noteClass={value.overdue ? WARN : "text-muted"}
+      />
+    </section>
+  );
+}
+
+function TasteRow({ data }: { data: Customer360 }) {
+  const taste = data.taste;
+  const items: [string, string | null][] = [
+    ["دسته محبوب", taste.category],
+    ["سایز", taste.size],
+    ["رنگ", taste.color],
+    ["شعبه", taste.branch],
+    ["پرداخت", taste.payment],
+    ["خرید با تخفیف", taste.discount_percent == null ? null : `${formatNumber(taste.discount_percent)}٪`],
+  ];
+  return (
+    <section aria-label="سلیقه مشتری" className={`${CARD} grid grid-cols-[repeat(auto-fit,minmax(130px,1fr))] gap-x-[18px] gap-y-3 px-[18px] py-3.5`}>
+      {items.map(([label, value]) => (
+        <div key={label} className="flex flex-col gap-[3px]">
+          <span className={MUT}>{label}</span>
+          <span className="text-sm font-semibold">{value || "—"}</span>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+// --- Activity --------------------------------------------------------------------------------
+
+const DOTS = { invoice: "#34d399", call: "#60a5fa", tier: "#fbbf24", discount: "#c084fc" } as const;
+const FILTERS: [TimelineKind, string][] = [
+  ["all", "همه"],
+  ["invoice", "فاکتور"],
+  ["call", "تماس"],
+  ["tier", "سطح"],
+  ["discount", "تخفیف"],
+];
+const TIER_REASONS: Record<string, string> = {
+  daily: "به‌روزرسانی روزانه",
+  activation: "فعال‌سازی قوانین جدید",
+  manual: "تغییر دستی",
+  sync: "همگام‌سازی",
+  baseline: "سطح‌بندی اولیه",
+};
+
+type ActivityRow = { key: string; dot: keyof typeof DOTS; title: string; detail: string; at: string };
+
+function invoicePlace(event: Extract<TimelineEvent, { type: "invoice" }>) {
+  return event.channel === "online" ? "آنلاین" : `فروشگاه ${event.branch}`;
+}
+
+/** One timeline event as rows; an invoice with a discount also gets its own discount row. */
+export function activityRows(event: TimelineEvent, kind: TimelineKind): ActivityRow[] {
+  if (event.type === "call") {
+    const call = event.call;
+    return [{ key: `call-${call.id}`, dot: "call", title: `تماس: ${call.outcome_title}`, detail: [call.agent, call.connected ? call.note : ""].filter(Boolean).join(". "), at: event.at }];
+  }
+  if (event.type === "tier") {
+    const title = event.to ? `تغییر سطح به ${event.to}` : `خروج از سطح ${event.from ?? ""}`;
+    const reason = TIER_REASONS[event.reason] ?? event.reason;
+    const detail = [event.from && event.to ? `از ${event.from}` : "", reason ? `با ${reason}` : ""].filter(Boolean).join(" ");
+    return [{ key: `tier-${event.at}`, dot: "tier", title, detail: detail ? `${detail}.` : "", at: event.at }];
+  }
+  const key = `${event.channel}-${event.source_id}`;
+  const place = invoicePlace(event);
+  const rows: ActivityRow[] = [];
+  if (kind !== "discount") {
+    const status = event.status === "refund" ? " (مرجوعی)" : event.qualifying ? "" : " (لغوشده)";
+    const products = [...new Set(event.products)];
+    const lines = event.products.length ? `${formatNumber(event.products.length)} قلم: ${products.join("، ")}.` : "";
+    const payment = event.payment ? `پرداخت با ${event.payment}.` : "";
+    rows.push({ key, dot: "invoice", title: `فاکتور ${place}، ${amountText(event.amount)}${status}`, detail: [lines, payment].filter(Boolean).join(" "), at: event.at });
+  }
+  if (event.discount_amount > 0 && kind !== "invoice") {
+    rows.push({ key: `${key}-discount`, dot: "discount", title: `استفاده از تخفیف ${amountText(event.discount_amount)}`, detail: `روی فاکتور ${place} ${amountText(event.amount)}ی.`, at: event.at });
+  }
+  return rows;
+}
+
+function ActivityTab({ sourceId }: { sourceId: number }) {
+  const [kind, setKind] = useState<TimelineKind>("all");
+  const [page, setPage] = useState(1);
+  const { data, loading, error } = useApi(() => customersService.timeline(sourceId, kind, page), [sourceId, kind, page]);
+  const rows = data ? data.results.flatMap((event) => activityRows(event, kind)) : [];
+  return (
+    <section className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {FILTERS.map(([key, label]) => (
+          <Chip
+            key={key}
+            on={kind === key}
+            onClick={() => {
+              setKind(key);
+              setPage(1);
+            }}
+          >
+            {label}
+          </Chip>
+        ))}
+      </div>
+      {error ? (
+        <ErrorState />
+      ) : loading && !data ? (
+        <Skeleton className="h-64 rounded-[18px]" />
+      ) : !rows.length ? (
+        <p className={MUT}>رویدادی ثبت نشده است.</p>
+      ) : (
+        <div className={`${CARD} flex flex-col px-[18px] py-2`}>
+          {rows.map((row) => (
+            <div key={row.key} className="grid grid-cols-[14px_minmax(0,1fr)_auto] gap-3 border-b border-black/[0.06] py-3 last:border-b-0 dark:border-white/[0.05]">
+              <span className="mt-1.5 h-[9px] w-[9px] rounded-full" style={{ background: DOTS[row.dot] }} />
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <span className="text-[13.5px] font-semibold">{row.title}</span>
+                {row.detail ? <span className={`${MUT} leading-[1.7]`}>{row.detail}</span> : null}
+              </div>
+              <span className={`${MUT} whitespace-nowrap`}>{daysAgo(daysSince(row.at))}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {data ? <Pagination page={page} total={data.total} perPage={data.per_page} onChange={setPage} /> : null}
+    </section>
+  );
+}
+
+// --- Invoices --------------------------------------------------------------------------------
+
+function InvoicesTab({ sourceId, first }: { sourceId: number; first: Customer360["purchases"] }) {
+  const [page, setPage] = useState(1);
+  const [open, setOpen] = useState<string | null>(null);
+  const { data, loading } = useApi(() => (page === 1 ? Promise.resolve(first) : customersService.purchases(sourceId, page)), [sourceId, page, first]);
+  const purchases = data ?? first;
+  if (!purchases.total) return <EmptyState title="خریدی برای این مشتری ثبت نشده است." body="ثبت‌نام به‌معنای خرید نیست." />;
+  return (
+    <section className="flex flex-col">
+      <div className={`${CARD} overflow-x-auto px-2.5 py-1`}>
+        <table className={`w-full min-w-[640px] border-collapse text-[13px] ${loading ? "opacity-60" : ""}`}>
+          <thead>
+            <tr>
+              {["شماره", "تاریخ", "کانال", "پرداخت", "اقلام", "مبلغ", "وضعیت"].map((column) => (
+                <th key={column} scope="col" className="whitespace-nowrap px-2.5 py-2 text-right font-medium text-muted">
+                  {column}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {purchases.results.map((row) => {
+              const expanded = open === row.key;
+              const warn = row.is_cancelled || (row.kind === "pos" && row.type !== "sell");
+              return (
+                <Fragment key={row.key}>
+                  <tr className="cursor-pointer border-t border-black/[0.06] hover:bg-hover dark:border-white/[0.06]" aria-expanded={expanded} onClick={() => setOpen(expanded ? null : row.key)}>
+                    <td className="whitespace-nowrap p-2.5 font-semibold" dir="ltr" style={{ textAlign: "right" }}>
+                      {toFaDigits(`${row.kind === "pos" ? "P" : "O"}-${row.source_id}`)}
+                    </td>
+                    <td className="whitespace-nowrap p-2.5">{formatDate(row.created_at)}</td>
+                    <td className="whitespace-nowrap p-2.5">{row.kind === "online" ? "آنلاین" : `فروشگاه ${row.sales_line_label}`}</td>
+                    <td className={`whitespace-nowrap p-2.5 ${MUT}`}>{row.payment ?? "—"}</td>
+                    <td className="whitespace-nowrap p-2.5">{formatNumber(row.item_count)}</td>
+                    <td className="whitespace-nowrap p-2.5 font-semibold">{amountText(row.amount, false)}</td>
+                    <td className={`whitespace-nowrap p-2.5 ${warn ? WARN : UP}`}>{row.status_label}</td>
+                  </tr>
+                  {expanded ? (
+                    <tr>
+                      <td colSpan={7} className="px-2.5 pb-3">
+                        <PurchaseDetail purchase={row} />
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <Pagination page={purchases.page} total={purchases.total} perPage={purchases.per_page} onChange={setPage} />
+    </section>
+  );
+}
+
+function PurchaseDetail({ purchase }: { purchase: CustomerPurchase }) {
+  if (!purchase.items.length) return <div className={MUT}>اقلامی برای این سابقه ثبت نشده است.</div>;
+  return (
+    <div className="rounded-xl border border-line bg-elevated p-3">
+      {purchase.discount_amount > 0 ? <div className={`mb-2 text-xs ${UP}`}>تخفیف فاکتور: {formatToman(purchase.discount_amount)}</div> : null}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[540px] text-xs">
           <thead>
-            <tr className="text-right text-[11px] text-muted border-b border-line/70">
+            <tr className="border-b border-line text-right text-[11px] text-muted">
               {["محصول", "تنوع", "تعداد", "رنگ", "سایز", "مبلغ قلم", "تخفیف قلم"].map((column) => (
                 <th key={column} className="px-2 py-2 font-medium">
                   {column}
@@ -669,7 +415,7 @@ function PurchaseDetail({ purchase }: { purchase: CustomerPurchase }) {
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-line/50">
+          <tbody className="divide-y divide-black/[0.06] dark:divide-white/[0.06]">
             {purchase.items.map((item) => (
               <tr key={item.id}>
                 <td className="px-2 py-2 font-semibold text-ink">
@@ -677,13 +423,11 @@ function PurchaseDetail({ purchase }: { purchase: CustomerPurchase }) {
                   {item.type_label ? <div className="mt-0.5 text-[10px] text-muted">{item.type_label}</div> : null}
                 </td>
                 <td className="px-2 py-2 text-muted">{item.variant || "—"}</td>
-                <td className="px-2 py-2 tabular font-bold">{formatNumber(item.quantity)}</td>
+                <td className="px-2 py-2 tabular">{formatNumber(item.quantity)}</td>
                 <td className="px-2 py-2 text-muted">{item.color || "—"}</td>
-                <td className="px-2 py-2 text-muted font-mono">{item.size || "—"}</td>
-                <td className="px-2 py-2 tabular font-semibold">{formatToman(item.amount)}</td>
-                <td className="px-2 py-2 tabular text-muted">
-                  {item.discount_amount ? formatToman(item.discount_amount) : "—"}
-                </td>
+                <td className="px-2 py-2 text-muted">{item.size || "—"}</td>
+                <td className="px-2 py-2 tabular">{formatToman(item.amount)}</td>
+                <td className="px-2 py-2 tabular text-muted">{item.discount_amount ? formatToman(item.discount_amount) : "—"}</td>
               </tr>
             ))}
           </tbody>
@@ -693,245 +437,80 @@ function PurchaseDetail({ purchase }: { purchase: CustomerPurchase }) {
   );
 }
 
-function ProductHistory({ products }: { products: CustomerProductHistory[] }) {
-  const [query, setQuery] = useState("");
+// --- Items -----------------------------------------------------------------------------------
 
-  const styleSummary = useMemo(() => {
-    const sizes = new Map<string, number>();
-    const colors = new Map<string, number>();
-    for (const item of products) {
-      for (const s of item.sizes) {
-        if (s) sizes.set(s, (sizes.get(s) || 0) + item.total_quantity);
-      }
-      for (const c of item.colors) {
-        if (c) colors.set(c, (colors.get(c) || 0) + item.total_quantity);
-      }
-    }
-    const topSizes = [...sizes.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
-    const topColors = [...colors.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
-    return { topSizes, topColors };
-  }, [products]);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return products;
-    return products.filter(
-      (p) =>
-        p.product.toLowerCase().includes(q) ||
-        p.colors.some((c) => c.toLowerCase().includes(q)) ||
-        p.sizes.some((s) => s.toLowerCase().includes(q)),
-    );
-  }, [products, query]);
-
-  if (!products.length) {
-    return <EmptyState title="محصول خریداری‌شده‌ای برای این مشتری نیست." />;
-  }
-
+function ItemsTab({ sourceId, onCount }: { sourceId: number; onCount: (count: number) => void }) {
+  const [retry, setRetry] = useState(0);
+  const { data, loading, error } = useApi(() => customersService.products(sourceId), [sourceId, retry]);
+  useEffect(() => {
+    if (data) onCount(data.results.length);
+  }, [data, onCount]);
+  if (error) return <ErrorState onRetry={() => setRetry((value) => value + 1)} />;
+  if (loading || !data) return <Skeleton className="h-48 rounded-[18px]" />;
+  if (!data.results.length) return <EmptyState title="محصول خریداری‌شده‌ای برای این مشتری نیست." />;
   return (
-    <div className="space-y-4">
-      {/* Wardrobe Style & Size DNA Summary Cards */}
-      {(styleSummary.topSizes.length > 0 || styleSummary.topColors.length > 0) && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-          <div className="bento-card p-4 glass-rim shadow-soft space-y-2">
-            <span className="text-xs font-extrabold text-ink block">📏 سایزهای پرتکرار مشتری</span>
-            <div className="flex flex-wrap gap-1.5">
-              {styleSummary.topSizes.map(([sz, count]) => (
-                <span
-                  key={sz}
-                  className="px-2.5 py-1 rounded-xl bg-accent/15 text-accent border border-accent/25 text-xs font-mono font-bold"
-                >
-                  {sz} <span className="text-[10px] font-sans opacity-80">({formatNumber(count)} عدد)</span>
-                </span>
-              ))}
-            </div>
+    <section className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-2.5">
+      {data.results.map((row: CustomerProductHistory) => {
+        const facts = [row.sizes.length ? `سایز ${row.sizes.join("، ")}` : "", row.colors.join("، ")].filter(Boolean).join("، ");
+        return (
+          <div key={`${row.product}-${row.last_purchase_at}`} className={`${CARD} flex flex-col gap-1 px-[15px] py-[13px]`}>
+            <span className="text-[13.5px] font-semibold">{row.product}</span>
+            <span className={MUT}>{facts || "—"}</span>
+            <span className={MUT}>
+              {formatNumber(row.purchase_count)} بار خرید، آخرین: {daysAgo(daysSince(row.last_purchase_at))}
+            </span>
           </div>
-
-          <div className="bento-card p-4 glass-rim shadow-soft space-y-2">
-            <span className="text-xs font-extrabold text-ink block">🎨 پالت رنگ‌های محبوب</span>
-            <div className="flex flex-wrap gap-1.5">
-              {styleSummary.topColors.map(([clr, count]) => (
-                <span
-                  key={clr}
-                  className="px-2.5 py-1 rounded-xl bg-elevated border border-line text-ink text-xs font-semibold"
-                >
-                  {clr} <span className="text-[10px] text-muted">({formatNumber(count)} عدد)</span>
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Products Table Card */}
-      <div className="bento-card p-4 sm:p-6 glass-rim shadow-soft space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="text-sm sm:text-base font-extrabold text-ink">کمد لباس و تاریخچه کالاها</h3>
-            <p className="text-[11px] text-muted mt-0.5">مرتب‌شده بر اساس بیشترین تعداد خرید</p>
-          </div>
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="جستجوی نام کالا، رنگ یا سایز..."
-            className="w-full sm:w-64 px-3 py-1.5 rounded-xl bg-elevated border border-line text-xs text-ink placeholder:text-muted focus:outline-none focus:border-accent"
-          />
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
-            <thead>
-              <tr className="text-muted border-b border-line font-semibold">
-                <th className="py-2.5 px-3">محصول</th>
-                <th className="py-2.5 px-3">تعداد کل</th>
-                <th className="py-2.5 px-3">دفعات خرید</th>
-                <th className="py-2.5 px-3">آخرین خرید</th>
-                <th className="py-2.5 px-3">رنگ‌ها</th>
-                <th className="py-2.5 px-3">سایزها</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {filtered.map((row) => (
-                <tr key={`${row.product}-${row.last_purchase_at}`} className="hover:bg-hover transition-colors">
-                  <td className="px-3 py-3 font-bold text-ink">{row.product}</td>
-                  <td className="px-3 py-3 tabular font-bold text-accent">{formatNumber(row.total_quantity)} عدد</td>
-                  <td className="px-3 py-3 tabular">{formatNumber(row.purchase_count)} فاکتور</td>
-                  <td className="px-3 py-3 text-muted font-mono">{formatDate(row.last_purchase_at)}</td>
-                  <td className="px-3 py-3 text-muted">{joinFacts(row.colors)}</td>
-                  <td className="px-3 py-3 text-muted font-mono">{joinFacts(row.sizes)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+        );
+      })}
+    </section>
   );
 }
 
-function ProfileTab({ data, displayName }: { data: Customer360; displayName: string }) {
-  const rows: ReadonlyArray<{ label: string; value: string; ltr?: boolean }> = [
-    { label: "نام و نام خانوادگی", value: displayName },
-    { label: "شماره موبایل", value: data.mobile ? formatMobile(data.mobile) : INCOMPLETE_LABEL, ltr: true },
-    { label: "ایمیل", value: profileValue(data.email), ltr: true },
-    { label: "وضعیت حساب", value: profileValue(data.status_label) },
-    { label: "جنسیت", value: profileValue(data.profile.gender_label || data.profile.gender) },
-    { label: "کد ملی", value: profileValue(data.profile.national_code), ltr: true },
-    { label: "تاریخ تولد", value: data.profile.birth_date ? formatDate(data.profile.birth_date) : "ثبت نشده" },
-    { label: "سطح باشگاه", value: profileValue(data.profile.club_level) },
-    { label: "شماره کارت", value: profileValue(data.profile.card_number), ltr: true },
-    { label: "تاریخ ایجاد در منبع", value: data.profile.created_at ? formatDate(data.profile.created_at) : "ثبت نشده" },
-    { label: "آخرین به‌روزرسانی منبع", value: data.profile.updated_at ? formatDate(data.profile.updated_at) : "ثبت نشده" },
-  ];
+// --- Profile ---------------------------------------------------------------------------------
 
+function ProfileCard({ title, rows }: { title: string; rows: [string, string, boolean?][] }) {
   return (
-    <div className="bento-card p-5 sm:p-6 glass-rim shadow-soft">
-      <h3 className="text-sm sm:text-base font-extrabold text-ink mb-4">اطلاعات هویتی و پرونده باشگاه</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {rows.map((item) => (
-          <div
-            key={item.label}
-            className="flex items-center justify-between gap-4 p-3 rounded-2xl bg-elevated border border-line text-xs"
-          >
-            <span className="text-muted font-medium">{item.label}</span>
-            <span className={`font-bold text-ink ${item.ltr ? "ltr-iso tabular font-mono" : ""}`}>
-              {item.value}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function AddressTab({ addresses }: { addresses: Customer360["addresses"] }) {
-  if (!addresses.length) {
-    return <EmptyState title="آدرسی برای این مشتری ثبت نشده است." />;
-  }
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {addresses.map((address, index) => (
-        <div
-          key={`${address.postal_code}-${index}`}
-          className="bento-card p-5 glass-rim shadow-soft space-y-3 text-xs"
-        >
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5">
-              <span className="px-2.5 py-1 rounded-xl bg-accent/15 text-accent font-bold">
-                {profileValue(address.province)}
-              </span>
-              <span className="px-2.5 py-1 rounded-xl bg-elevated border border-line text-ink font-bold">
-                {profileValue(address.city)}
-              </span>
-            </div>
-            <span className="text-[11px] text-muted font-mono ltr-iso">
-              کد پستی: {profileValue(address.postal_code)}
-            </span>
-          </div>
-
-          <p className="text-ink leading-6 bg-elevated p-3 rounded-xl border border-line">
-            {profileValue(address.address)}
-          </p>
-
-          <div className="flex items-center justify-between text-[11px] text-muted pt-1">
-            <span>
-              تحویل‌گیرنده: <strong className="text-ink">{profileValue(address.recipient_name)}</strong>
-            </span>
-            <span className="font-mono ltr-iso">{profileValue(address.recipient_mobile)}</span>
-          </div>
+    <div className={`${CARD} flex flex-col gap-[9px] px-[18px] py-4`}>
+      <h2 className="m-0 text-sm font-semibold text-slate-700 dark:text-slate-200">{title}</h2>
+      {rows.map(([label, value, ltr]) => (
+        <div key={label} className="flex flex-wrap items-center justify-between gap-3 text-[13px]">
+          <span className={MUT}>{label}</span>
+          <span dir={ltr ? "ltr" : undefined}>{value}</span>
         </div>
       ))}
     </div>
   );
 }
 
-function DiscountTab({ discounts }: { discounts: Customer360["discounts"] }) {
-  if (!discounts.length) {
-    return <EmptyState title="تخفیف ثبت‌شده‌ای برای این مشتری نیست." />;
+function ProfileTab({ data, isAgent }: { data: Customer360; isAgent: boolean }) {
+  const display = customerDisplayName(data);
+  const identity: [string, string, boolean?][] = [
+    ["نام", display.name],
+    ["موبایل", data.mobile ? phoneGroups(data.mobile) : "—", true],
+    ["زادروز", data.profile.birth_date ? formatJalali(data.profile.birth_date) : "—"],
+    ["جنسیت", data.profile.gender_label || "—"],
+  ];
+  if (!isAgent) {
+    identity.push(["ایمیل", data.email || "—", true], ["کد ملی", data.profile.national_code ? toFaDigits(data.profile.national_code) : "—", true]);
   }
-
-  const totalDiscount = discounts.reduce((sum, row) => sum + (row.discount_amount || 0), 0);
-
+  const city = data.addresses.find((row) => row.city)?.city;
+  const addresses: [string, string][] = isAgent
+    ? [
+        ["شهر", city || "—"],
+        ["نشانی کامل", "فقط برای مدیر"],
+      ]
+    : data.addresses.map((row, index) => [row.city || row.province || `نشانی ${formatNumber(index + 1)}`, row.address || "—"]);
+  const last = data.discounts[0];
+  const discounts: [string, string][] = [
+    ["خرید با تخفیف", data.taste.discount_percent == null ? "—" : `${formatNumber(data.taste.discount_percent)}٪ از فاکتورها`],
+    ["آخرین تخفیف", last ? `${amountText(last.discount_amount)}، ${daysAgo(daysSince(last.created_at))}` : "—"],
+    ["مجموع تخفیف", amountText(data.discounts.reduce((sum, row) => sum + (row.discount_amount || 0), 0))],
+  ];
   return (
-    <div className="bento-card p-4 sm:p-6 glass-rim shadow-soft space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-sm sm:text-base font-extrabold text-ink">سوابق استفاده از تخفیف</h3>
-          <p className="text-[11px] text-muted mt-0.5">تمامی سفارش‌های آنلاین و حضوری دارای مبلغ تخفیف</p>
-        </div>
-        <div className="px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 text-xs font-bold tabular">
-          مجموع تخفیف دریافتی: {formatToman(totalDiscount)}
-        </div>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full text-right text-xs">
-          <thead>
-            <tr className="text-muted border-b border-line font-semibold">
-              <th className="py-2.5 px-3">تاریخ</th>
-              <th className="py-2.5 px-3">خط فروش</th>
-              <th className="py-2.5 px-3">شناسه فاکتور</th>
-              <th className="py-2.5 px-3">وضعیت</th>
-              <th className="py-2.5 px-3">مبلغ تخفیف</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {discounts.map((row) => (
-              <tr key={`${row.kind}-${row.source_id}`} className="hover:bg-hover transition-colors">
-                <td className="px-3 py-3 text-muted font-mono">{formatDate(row.created_at)}</td>
-                <td className="px-3 py-3">
-                  <Badge tone={salesLineTone(row.sales_line)}>{row.sales_line_label}</Badge>
-                </td>
-                <td className="ltr-iso px-3 py-3 tabular font-mono">#{row.source_id}</td>
-                <td className="px-3 py-3 text-muted">{row.status_label}</td>
-                <td className="px-3 py-3 tabular font-bold text-emerald-600 dark:text-emerald-400">
-                  {formatToman(row.discount_amount)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <section className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-3">
+      <ProfileCard title="هویت" rows={identity} />
+      <ProfileCard title={isAgent ? "نشانی‌ها" : `نشانی‌ها (${formatNumber(data.addresses.length)})`} rows={addresses.length ? addresses : [["نشانی", "—"]]} />
+      <ProfileCard title={`تخفیف‌ها (${formatNumber(data.discounts.length)})`} rows={discounts} />
+    </section>
   );
 }
