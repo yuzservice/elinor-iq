@@ -237,3 +237,99 @@ def test_facet_filters_and_options(auth_api):
     assert _rows(auth_api, "discount=no" + query) == [2]  # purchasers only; 3 has no purchase
     options = auth_api.get("/api/customers/list-options/").data
     assert options["sizes"] == ["M"] and options["categories"] == ["مانتو"] and set(options["cities"]) == {"ساری", "گرگان"}
+
+
+# --- Filter v2: geo, products, profile, tier change ------------------------------------------------
+
+
+@pytest.fixture
+def geo(db):
+    from apps.customers.models import City, CustomerAddress, Province
+
+    maz, gol = Province.objects.create(source_id=1, name="مازندران"), Province.objects.create(source_id=2, name="گلستان")
+    sari, babol = City.objects.create(source_id=1, province=maz, name="ساری"), City.objects.create(source_id=2, province=maz, name="بابل")
+    gorgan = City.objects.create(source_id=3, province=gol, name="گرگان")
+    a, b, c = _customer(1), _customer(2), _customer(3)
+    CustomerAddress.objects.create(source_id=1, customer=a, city=sari, city_name="ساری")
+    CustomerAddress.objects.create(source_id=2, customer=b, city=gorgan, city_name="گرگان")
+    refresh_customer_metrics()
+    return {"maz": maz, "gol": gol, "sari": sari, "babol": babol, "gorgan": gorgan, "customers": (a, b, c)}
+
+
+@pytest.mark.django_db
+def test_province_and_city_filters_match_the_old_city_names(auth_api, geo):
+    query = "&sort=name&dir=asc"
+    assert _rows(auth_api, f"provinces={geo['maz'].pk}" + query) == [1]
+    assert _rows(auth_api, f"provinces={geo['maz'].pk},{geo['gol'].pk}" + query) == [1, 2]
+    assert _rows(auth_api, f"city_ids={geo['gorgan'].pk}" + query) == [2]
+    assert _rows(auth_api, "cities=گرگان" + query) == _rows(auth_api, f"city_ids={geo['gorgan'].pk}" + query)  # old name param
+
+
+@pytest.mark.django_db
+def test_geo_options_are_dependent_counted_and_zero_last(auth_api, geo):
+    options = auth_api.get("/api/customers/list-options/").data
+    provinces = {row["name"]: row["count"] for row in options["provinces"]}
+    assert provinces == {"مازندران": 1, "گلستان": 1}
+    cities = options["cities_by_id"]
+    assert [row["name"] for row in cities][-1] == "بابل"  # zero customers last
+    assert {row["name"] for row in cities if row["province_id"] == geo["maz"].pk} == {"ساری", "بابل"}
+    assert options["fill_rates"]["address"] == pytest.approx(66.7)
+
+
+@pytest.mark.django_db
+def test_birth_month_jalali_stored_and_gregorian(auth_api):
+    from datetime import date
+
+    stored = _customer(1, birth_date=date(1378, 12, 29))  # synced Jalali date: Esfand
+    farvardin = _customer(2, birth_date=date(2000, 3, 21))  # Gregorian 1379/01/02
+    esfand = _customer(3, birth_date=date(2000, 3, 19))  # Gregorian 1378/12/29
+    _customer(4)
+    refresh_customer_metrics()
+    assert CustomerMetrics.objects.get(customer=stored).birth_month == 12
+    assert CustomerMetrics.objects.get(customer=farvardin).birth_month == 1
+    assert CustomerMetrics.objects.get(customer=esfand).birth_month == 12
+    assert _rows(auth_api, "birth_months=12&sort=name&dir=asc") == [1, 3]
+    assert _rows(auth_api, "birth_months=1,12&sort=name&dir=asc") == [1, 2, 3]
+
+
+@pytest.mark.django_db
+def test_gender_joined_and_products(auth_api):
+    from apps.products.models import Product
+
+    a = _customer(1, gender="female", created_at_source=timezone.now() - timedelta(days=400))
+    b = _customer(2, gender="male", created_at_source=timezone.now() - timedelta(days=10))
+    shoe, bag = Product.objects.create(source_id=1, title="کفش چرم"), Product.objects.create(source_id=2, title="کیف")
+    order = _order(a)
+    OrderItem.objects.create(source_id=next(_ids), order=order, product=shoe, quantity=1, amount=1)
+    canceled = _order(b, status="canceled")
+    OrderItem.objects.create(source_id=next(_ids), order=canceled, product=bag, quantity=1, amount=1)  # not qualifying
+    sale = _pos(b)
+    PosSaleItem.objects.filter(pos_sale=sale).update(product=shoe)
+    refresh_customer_metrics()
+    query = "&sort=name&dir=asc"
+    assert _rows(auth_api, "genders=female" + query) == [1]
+    since = (timezone.localdate() - timedelta(days=30)).isoformat()
+    assert _rows(auth_api, f"joined_after={since}" + query) == [2]
+    assert _rows(auth_api, f"joined_before={since}" + query) == [1]
+    assert _rows(auth_api, f"products={shoe.pk}" + query) == [1, 2]
+    assert _rows(auth_api, f"products={bag.pk}" + query) == []
+    found = auth_api.get("/api/customers/list-products/?q=کفش").data["results"]
+    assert found == [{"id": shoe.pk, "title": "کفش چرم"}]
+    assert auth_api.get("/api/customers/list-products/?q=ک").data["results"] == []  # too short
+    assert auth_api.get(f"/api/customers/list-products/?ids={bag.pk}").data["results"][0]["title"] == "کیف"
+
+
+@pytest.mark.django_db
+def test_tier_change_direction_and_range(auth_api):
+    from apps.customers.models import CustomerTierHistory
+
+    up, down, entered, left, old = (_customer(n) for n in range(1, 6))
+    now = timezone.now()
+    for customer, previous, new, days in ((up, "SILVER", "GOLD_1", 3), (down, "VIP", "BRONZE_1", 3), (entered, None, "BRONZE_3", 3), (left, "SILVER", None, 3), (old, "SILVER", "VIP", 90)):
+        CustomerTierHistory.objects.create(customer=customer, previous_tier_code=previous, tier_code=new, reason="daily", changed_at=now - timedelta(days=days))
+    since = (timezone.localdate() - timedelta(days=30)).isoformat()
+    query = "&sort=name&dir=asc"
+    assert _rows(auth_api, "tier_change=up" + query) == [1, 3, 5]
+    assert _rows(auth_api, f"tier_change=up&tier_change_after={since}" + query) == [1, 3]
+    assert _rows(auth_api, f"tier_change=down&tier_change_after={since}" + query) == [2, 4]
+    assert _rows(auth_api, f"tier_change=up&tier_change_before={since}" + query) == [5]

@@ -8,8 +8,10 @@ import {
   channelCell,
   compareNote,
   currentPage,
+  clearCategory,
   currentSort,
   dateRows,
+  dependentOptions,
   filterOptions,
   filterParams,
   hasFilters,
@@ -29,7 +31,10 @@ const categories = buildCategories({
   tiers: [{ value: "VIP", label: "VIP" }, { value: "GOLD_1", label: "طلایی ۱" }],
   callResults: [{ value: "علاقه‌مند", label: "علاقه‌مند" }],
   callTags: [{ value: "1", label: "فرصت فروش" }],
-  cities: ["ساری"],
+  provinces: [{ value: "1", label: "مازندران", count: 5 }, { value: "2", label: "گلستان", count: 3 }],
+  citiesById: [{ value: "10", label: "ساری", group: "1" }, { value: "11", label: "بابل", group: "1" }, { value: "20", label: "گرگان", group: "2" }],
+  products: [{ value: "7", label: "کفش چرم" }],
+  fillRates: { birth_month: 0.7, gender: 0.9, joined: 99.6, tier_change: 72.9 },
   categories: ["مانتو"],
   sizes: ["M"],
 });
@@ -43,8 +48,8 @@ describe("customer list URL", () => {
   });
 
   it("changes a filter, returns to page 1 and removes empty values", () => {
-    const next = withChanges(url("page=4&tier=VIP"), { tier: null, cities: "ساری" });
-    expect(next.toString()).toBe(new URLSearchParams("cities=ساری").toString());
+    const next = withChanges(url("page=4&tier=VIP"), { tier: null, city_ids: "10" });
+    expect(next.toString()).toBe(new URLSearchParams("city_ids=10").toString());
   });
 
   it("replaces filters but keeps the tab and sort", () => {
@@ -125,9 +130,42 @@ describe("dropdowns", () => {
     expect(filterOptions(options, " ")).toHaveLength(3);
   });
 
-  it("only city, category and size are searchable", () => {
-    const searchable = categories.flatMap((category) => category.fields).filter((field) => "searchable" in field && field.searchable).map((field) => field.key);
-    expect(searchable).toEqual(["city", "cat", "size"]);
+});
+
+describe("filter v2 fields", () => {
+  const fields = categories.flatMap((category) => category.fields);
+  const field = (key: string) => fields.find((item) => item.key === key)!;
+
+  it("hides filters whose data is filled for under 5% of customers", () => {
+    expect(fields.map((item) => item.key)).not.toContain("birth");
+    expect(fields.map((item) => item.key)).not.toContain("gender");
+    expect(fields.map((item) => item.key)).toEqual(expect.arrayContaining(["joined", "tierChange", "province", "city", "products"]));
+    const before = buildCategories({ tiers: [], callResults: [], callTags: [], categories: [], sizes: [] });
+    expect(before.flatMap((category) => category.fields).map((item) => item.key)).not.toContain("joined"); // rates not loaded yet
+  });
+
+  it("lists only the cities of the selected provinces", () => {
+    expect(dependentOptions(field("city"), url("provinces=2")).map((option) => option.label)).toEqual(["گرگان"]);
+    expect(dependentOptions(field("city"), url("provinces=1,2"))).toHaveLength(3);
+    expect(dependentOptions(field("city"), url(""))).toHaveLength(3);
+  });
+
+  it("builds chips for the new filters and keeps the old city-name param", () => {
+    const labels = activeChips(categories, url("provinces=1&city_ids=10&products=7&tier_change=up&tier_change_after=2026-03-21&joined_before=2026-03-21&cities=ساری")).map((chip) => chip.label);
+    expect(labels).toEqual([
+      "استان: مازندران",
+      "شهر: ساری",
+      "تاریخ عضویت: تا ۱۴۰۵/۰۱/۰۱",
+      "تغییر سطح اخیر: ارتقا از ۱۴۰۵/۰۱/۰۱",
+      "خرید کالای مشخص: کفش چرم",
+      "شهر: ساری",
+    ]);
+  });
+
+  it("clears a whole category", () => {
+    const cleared = clearCategory(categories[0]);
+    expect(Object.keys(cleared)).toEqual(expect.arrayContaining(["tier", "provinces", "city_ids", "joined_after", "tier_change", "tier_change_before"]));
+    expect(Object.values(cleared).every((value) => value === null)).toBe(true);
   });
 });
 

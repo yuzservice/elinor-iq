@@ -19,6 +19,14 @@ Requests with `dir` are the redesigned list: sort on metrics, internal accounts 
 - `ids`: selected source ids, for export.
 - The panel sets dates only through `last_after/before` and `first_after/before` (inclusive Tehran days). `last_days`/`first_days` come from presets, old URLs, saved views and call lists, and stay rolling.
 
+## Filter v2 (2026-11-03)
+- `provinces`, `city_ids` (ids, from addresses linked to the synced City table; customers without a linked address never match). Options: active Province/City rows with customer counts from metrics (internal accounts excluded), zero last, cached for the day. `cities` (names) still works.
+- `products` (ids): qualifying online and POS items. `list-products/?q=` returns the top 20 title matches (two characters minimum); `?ids=` returns titles for chips.
+- `birth_months` (Jalali 1-12): synced birth dates are Jalali values stored in a date column (year 13xx), so their month is used as is; Gregorian dates are converted.
+- `genders`, `joined_after`/`joined_before` (`created_at_source`).
+- `tier_change=up|down` with `tier_change_after`/`tier_change_before`: a change in `CustomerTierHistory` to a higher (lower) tier by the active rule order; no tier ranks lowest, so entering a tier is up and losing one is down.
+- `list-options` returns fill rates; the panel hides a filter whose data covers under 5% of customers.
+
 ## Summary and sorting
 - `list-summary/`: count, total amount, basket = total / invoices, average invoice count, share of all customers, overall baselines (internal accounts excluded). Cached 5 minutes per (filters, day).
 - Averages cover everyone in the result, customers with no purchase included.

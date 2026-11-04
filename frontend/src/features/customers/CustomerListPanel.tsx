@@ -18,6 +18,8 @@ import {
   PRESETS,
   activeChips,
   ariaSort,
+  clearCategory,
+  dependentOptions,
   basketBar,
   buildCategories,
   categoryCount,
@@ -46,11 +48,13 @@ import {
   type Category,
   type DatePrefix,
   type Field,
+  type Option,
   type OptionalColumns,
   type SortKey,
 } from "./customerListUrl";
 
 const PER_PAGE = 20;
+const PANEL_WIDTH = 600;
 const DEBOUNCE_MS = 300;
 const CARD = "rounded-[18px] border border-line bg-surface";
 const MUTED = "text-[12.5px] text-muted";
@@ -107,20 +111,47 @@ export function CustomerListPanel({ canManage, onEditTierRules }: Props) {
   const canManageCalls = Boolean(user?.can_manage_calls);
 
   const options = useApi(() => customersService.listOptions(), []);
+  // Titles of products in the URL (chips) and of products found while searching.
+  const [productLabels, setProductLabels] = useState<Record<string, string>>({});
+  const productIds = params.get("products") ?? "";
+  useEffect(() => {
+    const missing = splitList(productIds).filter((id) => !(id in productLabels));
+    if (!missing.length) return;
+    customersService
+      .listProducts({ ids: missing.join(",") })
+      .then((data) => setProductLabels((prev) => ({ ...prev, ...Object.fromEntries(data.results.map((row) => [String(row.id), row.title])) })))
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productIds]);
   const categories = useMemo(
     () =>
       buildCategories({
         tiers: tiers.map((tier) => ({ value: tier.code, label: tier.title })),
         callResults: (options.data?.call_results ?? []).map((value) => ({ value, label: value })),
         callTags: (options.data?.call_tags ?? []).map((tag) => ({ value: String(tag.id), label: tag.title })),
-        cities: options.data?.cities ?? [],
         categories: options.data?.categories ?? [],
         sizes: options.data?.sizes ?? [],
+        provinces: (options.data?.provinces ?? []).map((row) => ({ value: String(row.id), label: row.name, count: row.count })),
+        citiesById: (options.data?.cities_by_id ?? []).map((row) => ({ value: String(row.id), label: row.name, count: row.count, group: String(row.province_id) })),
+        products: Object.entries(productLabels).map(([value, label]) => ({ value, label })),
+        fillRates: options.data?.fill_rates,
       }),
-    [tiers, options.data],
+    [tiers, options.data, productLabels],
   );
 
   const [panel, setPanel] = useState<string | null>(null);
+  const [panelRight, setPanelRight] = useState(0);
+  const openPanel = (key: string, anchor: HTMLElement) => {
+    if (panel === key) {
+      setPanel(null);
+      return;
+    }
+    // Desktop: the panel opens under its button, kept inside the toolbar.
+    const box = toolbarRef.current?.getBoundingClientRect();
+    const rect = anchor.getBoundingClientRect();
+    if (box) setPanelRight(Math.max(0, Math.min(box.right - rect.right, box.width - Math.min(PANEL_WIDTH, box.width))));
+    setPanel(key);
+  };
   const [selected, setSelected] = useState<number[]>([]);
   const [retry, setRetry] = useState(0);
   const [message, setMessage] = useState("");
@@ -240,7 +271,8 @@ export function CustomerListPanel({ canManage, onEditTierRules }: Props) {
 
       <CustomerOverview canManage={canManage} onEditTierRules={onEditTierRules} onRefreshTiers={handleRefreshTiers} refreshingTiers={refreshingTiers} />
 
-      <section ref={toolbarRef} className={`${CARD} relative z-[5] flex flex-col gap-2.5 px-3.5 py-3`}>
+      {/* Open: above the mobile dock, so the bottom sheet is not covered. */}
+      <section ref={toolbarRef} className={`${CARD} relative ${panel ? "z-[70]" : "z-[5]"} flex flex-col gap-2.5 px-3.5 py-3`}>
         <div className="flex flex-wrap items-center gap-2">
           <span className="relative flex max-w-[320px] flex-[1_1_220px]">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" className="absolute right-3 top-3 text-faint">
@@ -257,25 +289,42 @@ export function CustomerListPanel({ canManage, onEditTierRules }: Props) {
             />
           </span>
           {categories.map((category) => (
-            <CategoryButton key={category.key} label={category.label} count={categoryCount(category, params)} open={panel === category.key} onClick={() => setPanel(panel === category.key ? null : category.key)} />
+            <CategoryButton key={category.key} label={category.label} count={categoryCount(category, params)} open={panel === category.key} onClick={(event) => openPanel(category.key, event.currentTarget)} />
           ))}
-          <CategoryButton label="میان‌برها و نماها" count={0} open={panel === "views"} quiet onClick={() => setPanel(panel === "views" ? null : "views")} />
+          <CategoryButton label="میان‌برها و نماها" count={0} open={panel === "views"} quiet onClick={(event) => openPanel("views", event.currentTarget)} />
         </div>
 
         {panel ? (
-          <div className="absolute inset-x-0 top-[calc(100%+6px)] z-20 flex max-h-[72vh] flex-col gap-3.5 overflow-y-auto rounded-2xl border border-slate-300/70 bg-elevated p-[18px] shadow-2xl dark:border-white/[0.14]">
-            {panel === "views" ? (
-              <ViewsPanel params={params} onApply={applyFilters} />
-            ) : (
-              <FieldsPanel category={categories.find((item) => item.key === panel) as Category} params={params} change={change} />
-            )}
-            <div className="flex flex-wrap items-center justify-between gap-1.5 border-t border-line pt-3">
-              <span className={MUTED}>{list.loading ? "در حال شمارش..." : `${formatNumber(total)} مشتری با این فیلترها`}</span>
-              <button type="button" onClick={() => setPanel(null)} className="min-h-[38px] cursor-pointer rounded-[10px] border-0 bg-accent px-[18px] text-[13px] font-semibold text-on-accent">
-                نمایش نتیجه
-              </button>
+          <>
+            <div aria-hidden="true" className="fixed inset-0 z-[55] bg-black/40 sm:hidden" onClick={() => setPanel(null)} />
+            <div
+              role="dialog"
+              aria-label={panel === "views" ? "میان‌برها و نماها" : categories.find((item) => item.key === panel)?.label}
+              style={{ "--panel-right": `${panelRight}px` } as CSSProperties}
+              className="fixed inset-x-0 bottom-0 z-[60] flex max-h-[85vh] flex-col rounded-t-2xl border border-slate-300/70 bg-elevated shadow-2xl dark:border-white/[0.14] sm:absolute sm:bottom-auto sm:left-auto sm:right-[var(--panel-right)] sm:top-[calc(100%+6px)] sm:z-20 sm:max-h-[72vh] sm:w-[min(600px,100%)] sm:rounded-2xl"
+            >
+              <div className="overflow-y-auto p-4">
+                {panel === "views" ? (
+                  <ViewsPanel params={params} onApply={applyFilters} />
+                ) : (
+                  <FieldsPanel category={categories.find((item) => item.key === panel) as Category} params={params} change={change} onProductLabels={(labels) => setProductLabels((prev) => ({ ...prev, ...labels }))} />
+                )}
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-2.5">
+                <span className={MUTED}>{list.loading ? "در حال شمارش..." : `${formatNumber(total)} مشتری با این فیلترها`}</span>
+                <span className="flex items-center gap-1.5">
+                  {panel !== "views" ? (
+                    <button type="button" onClick={() => change(clearCategory(categories.find((item) => item.key === panel) as Category))} className="min-h-9 cursor-pointer border-0 bg-transparent px-2 text-[12.5px] text-blue-600 dark:text-blue-300">
+                      پاک کردن این دسته
+                    </button>
+                  ) : null}
+                  <button type="button" onClick={() => setPanel(null)} className="min-h-9 cursor-pointer rounded-[10px] border-0 bg-accent px-4 text-[13px] font-semibold text-on-accent">
+                    نمایش نتیجه
+                  </button>
+                </span>
+              </div>
             </div>
-          </div>
+          </>
         ) : null}
 
         {chips.length ? (
@@ -380,7 +429,7 @@ function goToPage(setParams: ReturnType<typeof useSearchParams>[1], params: URLS
   setParams(next);
 }
 
-function CategoryButton({ label, count, open, quiet, onClick }: { label: string; count: number; open: boolean; quiet?: boolean; onClick: () => void }) {
+function CategoryButton({ label, count, open, quiet, onClick }: { label: string; count: number; open: boolean; quiet?: boolean; onClick: (event: MouseEvent<HTMLButtonElement>) => void }) {
   return (
     <button
       type="button"
@@ -397,39 +446,126 @@ function CategoryButton({ label, count, open, quiet, onClick }: { label: string;
   );
 }
 
-function FieldsPanel({ category, params, change }: { category: Category; params: URLSearchParams; change: (changes: Record<string, string | null>) => void }) {
+function FieldsPanel({ category, params, change, onProductLabels }: {
+  category: Category;
+  params: URLSearchParams;
+  change: (changes: Record<string, string | null>) => void;
+  onProductLabels: (labels: Record<string, string>) => void;
+}) {
   return (
-    <div className="grid grid-cols-1 gap-x-7 gap-y-[18px] md:grid-cols-2">
-      {category.fields.map((field) => (
-        <div key={field.key} className={`flex flex-col gap-2 ${field.kind === "dates" ? "md:col-span-2" : ""}`}>
-          <span className={LABEL} id={`filter-${field.key}`}>{field.label}</span>
-          <FieldInput field={field} params={params} change={change} />
-        </div>
-      ))}
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {category.fields.map((field) => {
+        const wide = field.kind === "dates" || field.kind === "daterange" || field.kind === "range";
+        const note = "note" in field && field.note ? field.note : null;
+        return (
+          <div key={field.key} className={`flex min-w-0 flex-col gap-1.5 ${wide ? "sm:col-span-2" : "max-w-[240px] sm:max-w-none"}`}>
+            <span className="text-[12px] font-semibold text-muted" id={`filter-${field.key}`}>{field.label}</span>
+            <div className={wide ? "" : "max-w-[240px]"}>
+              <FieldInput field={field} params={params} change={change} onProductLabels={onProductLabels} />
+            </div>
+            {note && field.key === "city" ? <span id={`filter-${field.key}-note`} className="text-[11.5px] text-faint">{note}</span> : null}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function FieldInput({ field, params, change }: { field: Field; params: URLSearchParams; change: (changes: Record<string, string | null>) => void }) {
+const CONTROL = "min-h-9 rounded-[10px] border border-slate-300/70 bg-surface px-2.5 text-[13px] text-ink outline-none focus:border-accent dark:border-white/[0.12]";
+
+function FieldInput({ field, params, change, onProductLabels }: {
+  field: Field;
+  params: URLSearchParams;
+  change: (changes: Record<string, string | null>) => void;
+  onProductLabels: (labels: Record<string, string>) => void;
+}) {
   if (field.kind === "range") {
     const shown = (param: string) => (params.get(param) ? String(Number(params.get(param)) / field.scale) : "");
     const set = (param: string, value: string) => change({ [param]: value === "" ? null : String(Math.round(Number(value) * field.scale)) });
     return (
       <div className="flex flex-nowrap items-center gap-1.5">
-        <input className={`${INPUT} w-[88px] bg-surface`} type="number" min="0" step="any" aria-label={`${field.label} از`} placeholder="از" value={shown(field.min)} onChange={(event) => set(field.min, event.target.value)} />
-        <input className={`${INPUT} w-[88px] bg-surface`} type="number" min="0" step="any" aria-label={`${field.label} تا`} placeholder="تا" value={shown(field.max)} onChange={(event) => set(field.max, event.target.value)} />
+        <input className={`${CONTROL} w-[96px]`} type="number" min="0" step="any" aria-label={`${field.label} از`} placeholder="از" value={shown(field.min)} onChange={(event) => set(field.min, event.target.value)} />
+        <input className={`${CONTROL} w-[96px]`} type="number" min="0" step="any" aria-label={`${field.label} تا`} placeholder="تا" value={shown(field.max)} onChange={(event) => set(field.max, event.target.value)} />
         <span className={MUTED}>{field.unit}</span>
       </div>
     );
   }
   if (field.kind === "dates") return <DateRows params={params} change={change} />;
+  if (field.kind === "daterange") {
+    return (
+      <div className="flex flex-wrap items-center gap-1.5">
+        {field.direction ? (
+          <select
+            aria-label={field.label}
+            value={params.get(field.direction.param) ?? ""}
+            onChange={(event) => change({ [field.direction?.param as string]: event.target.value || null })}
+            className={CONTROL}
+          >
+            <option value="">انتخاب</option>
+            {field.direction.options.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        ) : null}
+        <span className={MUTED}>از</span>
+        <JalaliDateField compact allowEmpty emptyLabel="از تاریخ" value={params.get(field.after) ?? ""} onChange={(iso) => change({ [field.after]: iso })} />
+        <span className={MUTED}>تا</span>
+        <JalaliDateField compact allowEmpty emptyLabel="تا تاریخ" value={params.get(field.before) ?? ""} onChange={(iso) => change({ [field.before]: iso })} />
+      </div>
+    );
+  }
+  if (field.kind === "products") return <ProductPicker field={field} params={params} change={change} onProductLabels={onProductLabels} />;
   return (
     <MultiSelect
       label={field.label}
-      options={field.options}
+      options={dependentOptions(field, params)}
       selected={splitList(params.get(field.param))}
       single={field.kind === "single"}
-      searchable={field.searchable}
+      describedBy={"note" in field && field.note && field.key === "city" ? `filter-${field.key}-note` : undefined}
+      onChange={(values) => change({ [field.param]: values.join(",") || null })}
+    />
+  );
+}
+
+/** Debounced product search (top 20); selected titles stay listed so they can be unticked. */
+function ProductPicker({ field, params, change, onProductLabels }: {
+  field: Extract<Field, { kind: "products" }>;
+  params: URLSearchParams;
+  change: (changes: Record<string, string | null>) => void;
+  onProductLabels: (labels: Record<string, string>) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [found, setFound] = useState<Option[]>([]);
+  useEffect(() => {
+    if (query.trim().length < 2) {
+      setFound([]);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      customersService
+        .listProducts({ q: query.trim() }, controller.signal)
+        .then((data) => {
+          setFound(data.results.map((row) => ({ value: String(row.id), label: row.title })));
+          onProductLabels(Object.fromEntries(data.results.map((row) => [String(row.id), row.title])));
+        })
+        .catch(() => undefined);
+    }, DEBOUNCE_MS);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
+  const selected = splitList(params.get(field.param));
+  const selectedOptions = field.options.filter((option) => selected.includes(option.value));
+  const options = [...selectedOptions, ...found.filter((option) => !selected.includes(option.value))];
+  return (
+    <MultiSelect
+      label={field.label}
+      options={options}
+      selected={selected}
+      onQuery={setQuery}
       onChange={(values) => change({ [field.param]: values.join(",") || null })}
     />
   );
@@ -459,7 +595,7 @@ function DateRows({ params, change }: { params: URLSearchParams; change: (change
               aria-label="نوع تاریخ"
               value={prefix}
               onChange={(event) => switchType(prefix, event.target.value as DatePrefix)}
-              className={`${INPUT} bg-surface`}
+              className={CONTROL}
             >
               {DATE_TYPES.map((type) => (
                 <option key={type.value} value={type.value} disabled={type.value !== prefix && shown.includes(type.value)}>
