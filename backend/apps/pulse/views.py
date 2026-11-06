@@ -1,7 +1,6 @@
 """Elinor Pulse API. Read-only except the task tick. Explicit fields only: never source_payload or purchase_price."""
 
 import os
-from urllib.parse import urlparse
 from datetime import date, timedelta
 
 from django.conf import settings
@@ -71,17 +70,21 @@ def _cards(data, posts):
 
 
 def _cover_status():
+    from .media import STATUS_EXPIRED, STATUS_SKIPPED, relay_configured
+
     counts = dict(IgMediaAsset.objects.filter(kind=IgMediaAsset.KIND_COVER).values_list("status").annotate(n=Count("pk")))
     last_failed = (
         IgMediaAsset.objects.filter(kind=IgMediaAsset.KIND_COVER, status=IgMediaAsset.STATUS_FAILED)
-        .exclude(error="").order_by("-pk").values("source_url", "error").first()
+        .exclude(error="").order_by("-pk").values_list("error", flat=True).first()
     )
     return {
         "ok": counts.get(IgMediaAsset.STATUS_OK, 0),
-        "waiting": counts.get(IgMediaAsset.STATUS_PENDING, 0),
+        "pending": counts.get(IgMediaAsset.STATUS_PENDING, 0),
         "failed": counts.get(IgMediaAsset.STATUS_FAILED, 0),
-        "last_error": last_failed["error"] if last_failed else "",
-        "last_error_host": urlparse(last_failed["source_url"]).hostname if last_failed else None,
+        "expired": counts.get(STATUS_EXPIRED, 0),
+        "skipped": counts.get(STATUS_SKIPPED, 0),
+        "relay_configured": relay_configured(),
+        "last_relay_error": last_failed or "",
     }
 
 

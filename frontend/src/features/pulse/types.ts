@@ -6,7 +6,7 @@ export type PulseStatus = {
   hours_since_sync: number | null;
   stale: boolean;
   last_error: string;
-  covers: { ok: number; waiting: number; failed: number; last_error: string; last_error_host: string | null };
+  covers: { ok: number; pending: number; failed: number; expired: number; skipped: number; relay_configured: boolean; last_relay_error: string };
   has_data: boolean;
   ai_enabled: boolean;
   handle: string;

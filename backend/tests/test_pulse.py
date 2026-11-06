@@ -38,7 +38,8 @@ _ids = iter(range(700_000, 799_999))
 def pulse_on(settings, tmp_path):
     settings.PULSE_ENABLED = True
     settings.PULSE_MEDIA_ROOT = str(tmp_path)
-    settings.PULSE_MEDIA_PROXY = ""
+    settings.PULSE_COVER_RELAY_URL = ""
+    settings.PULSE_COVER_RELAY_TOKEN = ""
     settings.ZERNIO_API_KEY = "test-key"
     settings.ZERNIO_ACCOUNT_ID = "acc-1"
     return settings
@@ -193,13 +194,13 @@ def _client(items):
 
 
 @pytest.mark.django_db
-def test_sync_upserts_on_shortcode_and_waits_for_blocked_covers(pulse_on, monkeypatch):
+def test_sync_upserts_on_shortcode_and_never_downloads_non_meta_covers(pulse_on, monkeypatch):
     downloads = []
-    monkeypatch.setattr(media, "download", lambda url, path, session=None: downloads.append(url) or f"{path}.jpg")
+    monkeypatch.setattr(media, "download", lambda url, path, session=None, relay=False: downloads.append((url, relay)) or f"{path}.jpg")
     zernio_cover = "https://media.zernio.com/covers/B.jpg"
     first = sync.run_sync(client=_client([_item("A"), _item("B", cover=zernio_cover)]))
-    assert first["created"] == 2 and first["covers_ok"] == 1 and first["covers_waiting"] == 1
-    assert downloads == [zernio_cover]  # the Meta CDN cover waits: no proxy configured
+    assert first["created"] == 2 and first["covers_ok"] == 0 and downloads == []  # no relay configured, Zernio URL ignored
+    assert IgMediaAsset.objects.get(key="B").status == media.STATUS_SKIPPED
     second = sync.run_sync(client=_client([_item("A", views=900), _item("B", cover=zernio_cover)]))
     assert second["created"] == 0 and second["updated"] == 2
     post = IgPost.objects.get(shortcode="A")
@@ -209,14 +210,14 @@ def test_sync_upserts_on_shortcode_and_waits_for_blocked_covers(pulse_on, monkey
     assert IgMediaAsset.objects.count() == 2
     assert pulse_on.ZERNIO_ACCOUNT_ID == IgPost.objects.first().account.zernio_account_id
     assert IgPost.objects.first().account.followers_count == 899508
-    pulse_on.PULSE_MEDIA_PROXY = "http://proxy.test:3128"
-    sync.run_sync(client=_client([_item("A")]))
-    assert downloads[-1].startswith("https://scontent")  # with a proxy the Meta cover is fetched
+    pulse_on.PULSE_COVER_RELAY_URL, pulse_on.PULSE_COVER_RELAY_TOKEN = "https://relay.test", "secret-token"
+    third = sync.run_sync(client=_client([_item("A")]))  # the same run fetches the Meta cover through the relay
+    assert third["covers_ok"] == 1 and downloads == [("https://scontent-lhr6-1.cdninstagram.com/v/A.jpg", True)]
 
 
 @pytest.mark.django_db
 def test_sync_replaces_csv_post_and_keeps_zernio_data_on_reimport(pulse_on, monkeypatch):
-    monkeypatch.setattr(media, "download", lambda url, path, session=None: f"{path}.jpg")
+    monkeypatch.setattr(media, "download", lambda url, path, session=None, relay=False: f"{path}.jpg")
     sync.import_csv(CSV_PATH)
     live = _item("DfZPAV2DW03", published="2026-11-06T09:00:00.000Z", views=198018)
     live["platformPostUrl"] = "https://www.instagram.com/p/DfZPAV2DW03/"
@@ -266,7 +267,7 @@ def test_due_checks(pulse_on):
 
 @pytest.mark.django_db
 def test_unmatched_code_links_once_its_product_appears(pulse_on, monkeypatch):
-    monkeypatch.setattr(media, "download", lambda url, path, session=None: f"{path}.jpg")
+    monkeypatch.setattr(media, "download", lambda url, path, session=None, relay=False: f"{path}.jpg")
     sync.import_csv(CSV_PATH)
     _product("بلوز بافت نیم زیپ پلو زنانه 8504 | الینور", source_payload={"major_image": {"conversions": {"sm": "https://img.test/8504.jpg"}}, "purchase_price": 1})
     first = sync.run_match()
@@ -296,7 +297,7 @@ _WRITE = re.compile(r'^\s*(?:INSERT INTO|UPDATE|DELETE FROM|TRUNCATE)\s+"?([a-z_
 
 @pytest.mark.django_db
 def test_pulse_never_writes_core_tables(pulse_on, monkeypatch):
-    monkeypatch.setattr(media, "download", lambda url, path, session=None: f"{path}.jpg")
+    monkeypatch.setattr(media, "download", lambda url, path, session=None, relay=False: f"{path}.jpg")
     product = _product("کیف جیر دوتیکه 7130 | الینور", source_payload={"major_image": {"conversions": {"sm": "https://img.test/7130.jpg"}}})
     Variant.objects.create(source_id=next(_ids), product=product, price=1_399_000)
     before = list(Product.objects.values_list("id", "title", "synced_at")) + list(Variant.objects.values_list("id", "price"))

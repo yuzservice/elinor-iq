@@ -31,6 +31,5 @@ SKIP_FIX_DAYS = 3
 NO_SLIDE_DAYS = 7
 TOP_PRODUCTS = 10
 NEGLECT_DAYS = 14
-COVER_REFRESH_CAP = 30  # single-post Zernio reads per day for covers outside the sync window
 FULL_REFRESH_DAYS = 90  # pulse_sync --full
 TASK_PRIORITY = ("first_second", "repeat_winner", "night_posting", "no_slide", "neglected_product", "friday")

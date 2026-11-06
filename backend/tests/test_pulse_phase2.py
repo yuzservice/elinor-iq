@@ -429,46 +429,136 @@ def test_full_refresh_turns_csv_posts_into_zernio_posts_without_duplicates(pulse
     assert IgMediaAsset.objects.filter(kind=IgMediaAsset.KIND_COVER, key="DfZPAV2DW03").count() == 1
 
 
-@pytest.mark.django_db
-def test_cover_refresh_reads_single_posts_outside_the_window(pulse, monkeypatch):
-    from apps.pulse import media, sync
-    from tests.test_pulse import _item
+# --- Covers through the relay ---------------------------------------------------------------------
 
-    downloads = []
-    monkeypatch.setattr(media, "download", lambda url, path, session=None: downloads.append(url) or f"{path}.jpg")
-    pulse.ZERNIO_API_KEY, pulse.ZERNIO_ACCOUNT_ID = "k", "acc-1"
-    now = timezone.now()
-    old = _post(at=now - timedelta(days=40), zid="z-old", now=now)
-    inside = _post(at=now - timedelta(days=5), zid="z-new", now=now)
-    meta = "https://scontent-lhr6-1.cdninstagram.com/v/x.jpg"
-    for post in (old, inside):
-        media.queue(IgMediaAsset.KIND_COVER, post.shortcode, meta)
-    single = _item(old.shortcode, published=(now - timedelta(days=40)).isoformat(), cover="https://storage.zernio.test/covers/x.jpg")
-    single["postId"] = single.pop("_id")
-    single["platformAnalytics"] = single.pop("platforms")
-    single["platformPostUrl"] = f"https://www.instagram.com/p/{old.shortcode}/"
-    session = FakeSession([FakeResponse(200, single)])
-    client = ZernioClient(api_key="k", base_url="https://z/api", session=session, sleep=lambda s: None)
-    counts = sync.run_cover_refresh(client=client, now=now)
-    assert (counts["checked"], counts["changed"], counts["covers_ok"]) == (1, 1, 1)
-    assert session.calls[0][1] == {"postId": "z-old"}  # only the post outside the window
-    assert downloads == ["https://storage.zernio.test/covers/x.jpg"]
-    assert IgMediaAsset.objects.get(key=old.shortcode).status == IgMediaAsset.STATUS_OK
-    assert sync.run_cover_refresh(client=client, now=now + timedelta(hours=1))["checked"] == 0  # once a day
+import logging  # noqa: E402
+
+from apps.pulse import covers, media  # noqa: E402
+
+META = "https://scontent-lhr6-1.cdninstagram.com/v/t51/cover.jpg?stp=x&oe={oe}"
+
+
+def _oe(delta):
+    return format(int((timezone.now() + delta).timestamp()), "X")
+
+
+class ImageResponse:
+    status_code = 200
+    headers = {"Content-Type": "image/jpeg"}
+    text = ""
+
+    def iter_content(self, size):
+        yield b"\xff\xd8jpeg-bytes"
+
+
+class RelaySession:
+    def __init__(self, response=None):
+        self.calls, self.response = [], response or ImageResponse()
+
+    def get(self, url, params=None, headers=None, timeout=None, stream=False):
+        self.calls.append({"url": url, "params": params, "headers": headers})
+        return self.response
+
+
+@pytest.fixture
+def relay(pulse):
+    pulse.PULSE_COVER_RELAY_URL, pulse.PULSE_COVER_RELAY_TOKEN = "https://relay.test", "tok-SECRET-123"
+    return pulse
+
+
+@pytest.mark.django_db
+def test_meta_cover_goes_through_relay_with_token_header_only(relay, tmp_path, caplog):
+    caplog.set_level(logging.DEBUG)
+    post = _post(50)
+    url = META.format(oe=_oe(timedelta(days=2)))
+    media.queue(IgMediaAsset.KIND_COVER, post.shortcode, url)
+    session = RelaySession()
+    sleeps = []
+    assert media.fetch_pending(IgMediaAsset.KIND_COVER, "covers", session=session, sleep=sleeps.append) == (1, 0, 0)
+    call = session.calls[0]
+    assert call["url"] == "https://relay.test/" and call["params"] == {"url": url}
+    assert call["headers"] == {"X-Relay-Token": "tok-SECRET-123"}
+    assert "tok-SECRET-123" not in call["url"] + str(call["params"]) and "tok-SECRET-123" not in caplog.text
+    asset = IgMediaAsset.objects.get(key=post.shortcode)
+    assert asset.status == "ok" and (tmp_path / asset.path).read_bytes().startswith(b"\xff\xd8")
+    bad = RelaySession(type("R", (), {"status_code": 403, "headers": {}, "text": "forbidden"})())
+    media.queue(IgMediaAsset.KIND_COVER, "other12", url)
+    media.fetch_pending(IgMediaAsset.KIND_COVER, "covers", session=bad, sleep=lambda s: None)
+    failed = IgMediaAsset.objects.get(key="other12")
+    assert failed.status == "failed" and failed.error == "relay 403: forbidden" and "tok-SECRET" not in failed.error
+    assert _api("admin").get("/api/pulse/status/").json()["covers"]["last_relay_error"] == "relay 403: forbidden"
+
+
+@pytest.mark.django_db
+def test_relay_rate_limit_two_per_second(relay):
+    for index in range(3):
+        media.queue(IgMediaAsset.KIND_COVER, f"code{index}x", META.format(oe=_oe(timedelta(days=1))) + str(index))
+    sleeps = []
+    media.fetch_pending(IgMediaAsset.KIND_COVER, "covers", session=RelaySession(), sleep=sleeps.append)
+    assert len(sleeps) == 2 and all(0 < pause <= 0.5 for pause in sleeps)
+
+
+@pytest.mark.django_db
+def test_non_meta_cover_is_never_downloaded_and_keeps_the_meta_url(relay):
+    post = _post(50)
+    zernio = "https://storage.zernio.test/covers/x.jpg"
+    media.queue(IgMediaAsset.KIND_COVER, "onlyzernio", zernio)
+    assert IgMediaAsset.objects.get(key="onlyzernio").status == media.STATUS_SKIPPED
+    meta = META.format(oe=_oe(timedelta(days=1)))
+    media.queue(IgMediaAsset.KIND_COVER, post.shortcode, meta)
+    media.queue(IgMediaAsset.KIND_COVER, post.shortcode, zernio)  # later sync sees Zernio's copy
+    asset = IgMediaAsset.objects.get(key=post.shortcode)
+    assert asset.source_url == meta and asset.status == "pending"
+    session = RelaySession()
+    media.fetch_pending(IgMediaAsset.KIND_COVER, "covers", session=session, sleep=lambda s: None)
+    assert [call["params"]["url"] for call in session.calls] == [meta]
+
+
+@pytest.mark.django_db
+def test_expired_meta_link_stops_retries(relay):
+    media.queue(IgMediaAsset.KIND_COVER, "expired1", META.format(oe=_oe(-timedelta(hours=1))))
+    session = RelaySession()
+    assert media.fetch_pending(IgMediaAsset.KIND_COVER, "covers", session=session, sleep=lambda s: None) == (0, 0, 0)
+    assert session.calls == [] and IgMediaAsset.objects.get(key="expired1").status == media.STATUS_EXPIRED
+    assert media.fetch_pending(IgMediaAsset.KIND_COVER, "covers", session=session, sleep=lambda s: None) == (0, 0, 0)
+
+
+@pytest.mark.django_db
+def test_without_relay_covers_stay_pending_without_errors(pulse):
+    pulse.PULSE_COVER_RELAY_URL = pulse.PULSE_COVER_RELAY_TOKEN = ""
+    media.queue(IgMediaAsset.KIND_COVER, "waiting1", META.format(oe=_oe(timedelta(days=1))))
+    session = RelaySession()
+    assert media.fetch_pending(IgMediaAsset.KIND_COVER, "covers", session=session, sleep=lambda s: None) == (0, 0, 1)
+    asset = IgMediaAsset.objects.get(key="waiting1")
+    assert session.calls == [] and asset.status == "pending" and asset.error == ""
     status = _api("admin").get("/api/pulse/status/").json()["covers"]
-    assert (status["ok"], status["waiting"]) == (1, 1)
+    assert status["relay_configured"] is False and status["pending"] == 1
 
 
 @pytest.mark.django_db
-def test_cover_refresh_skips_meta_links_that_have_not_expired(pulse):
-    from apps.pulse import media, sync
+def test_cover_export_and_import_by_shortcode(pulse, tmp_path):
+    source_root, target_root = tmp_path / "src", tmp_path / "dst"
+    (source_root / "covers").mkdir(parents=True)
+    known, other = _post(50), _post(60)
+    for post in (known, other):
+        (source_root / "covers" / f"{post.shortcode}.jpg").write_bytes(post.shortcode.encode())
+        IgMediaAsset.objects.create(kind=IgMediaAsset.KIND_COVER, key=post.shortcode, path=f"covers/{post.shortcode}.jpg", status="ok")
+    pulse.PULSE_MEDIA_ROOT = str(source_root)
+    archive = str(tmp_path / "covers.tar.gz")
+    assert covers.export_covers(archive)["exported"] == 2
+    # Another environment: same posts known except `other`, and one cover already there.
+    IgMediaAsset.objects.all().delete()
+    other.delete()
+    (target_root / "covers").mkdir(parents=True)
+    pulse.PULSE_MEDIA_ROOT = str(target_root)
+    first = covers.import_covers(archive)
+    assert first == {"imported": 1, "kept": 0, "unknown": 1}
+    asset = IgMediaAsset.objects.get(key=known.shortcode)
+    assert asset.status == "ok" and (target_root / asset.path).read_bytes() == known.shortcode.encode()
+    (target_root / asset.path).write_bytes(b"newer local file")
+    assert covers.import_covers(archive) == {"imported": 0, "kept": 1, "unknown": 1}  # never overwrites
+    assert (target_root / asset.path).read_bytes() == b"newer local file"
+    folder = tmp_path / "folder"
+    covers.export_covers(str(folder))
+    assert sorted(path.name for path in folder.iterdir()) == [f"{known.shortcode}.jpg"]
 
-    pulse.ZERNIO_API_KEY, pulse.ZERNIO_ACCOUNT_ID = "k", "acc-1"
-    now = timezone.now()
-    post = _post(at=now - timedelta(days=40), zid="z-old", now=now)
-    future = format(int((now + timedelta(days=2)).timestamp()), "x")
-    media.queue(IgMediaAsset.KIND_COVER, post.shortcode, f"https://scontent.cdninstagram.com/v/x.jpg?oe={future.upper()}")
-    session = FakeSession([])
-    counts = sync.run_cover_refresh(client=ZernioClient(api_key="k", base_url="https://z/api", session=session, sleep=lambda s: None), now=now)
-    assert counts["checked"] == 0 and counts["not_expired"] == 1 and session.calls == []
-    assert media.meta_expires_at("https://x.test/a.jpg?oe=6AF38045") == 0x6AF38045

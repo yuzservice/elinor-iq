@@ -1,9 +1,15 @@
-"""Post covers and product thumbnails on the pulse_media volume. Best effort: a failure is recorded, never raised."""
+"""Post covers and product thumbnails on the pulse_media volume. Best effort: a failure is recorded, never raised.
+
+Covers (owner's decision, 2026-11-06): only Instagram's own CDN image, fetched through the Cloudflare relay
+(PULSE_COVER_RELAY_URL / _TOKEN) as soon as a post is seen. A Zernio-hosted or any other non-Meta cover URL is never
+downloaded. A Meta link expires (`oe`); after that, a post without a file keeps the fallback image for good.
+Product thumbnails keep the direct path to api.elinorboutique.com."""
 
 import logging
 import os
 import tempfile
-from urllib.parse import urlparse
+import time
+from urllib.parse import parse_qs, urlparse
 
 import requests
 from django.conf import settings
@@ -14,24 +20,23 @@ from .models import IgMediaAsset
 logger = logging.getLogger(__name__)
 
 MAX_BYTES = 5 * 1024 * 1024
-MAX_ATTEMPTS = 5  # per source URL
+MAX_ATTEMPTS = 5  # product thumbnails, per source URL; covers retry until their Meta link expires
 MAX_CONSECUTIVE_FAILURES = 3  # an unreachable host stops the batch instead of timing out on every file
+COVER_MIN_INTERVAL = 0.5  # at most 2 relay downloads per second
 TIMEOUT = (10, 30)
 EXTENSIONS = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
-# Instagram's CDN is filtered from the server (checked 2026-11-06). Without a proxy we wait until Zernio serves
-# the cover from its own storage, which it does once the Meta link expires.
 META_CDN_SUFFIXES = ("cdninstagram.com", "fbcdn.net")
+STATUS_EXPIRED = "expired"  # Meta link expired before a file was saved: fallback image for good
+STATUS_SKIPPED = "skipped"  # no Meta URL known, only a non-Meta one (never downloaded)
 
 
 def is_meta_cdn(url):
-    host = (urlparse(url).hostname or "").lower()
+    host = (urlparse(url or "").hostname or "").lower()
     return host.endswith(META_CDN_SUFFIXES)
 
 
 def meta_expires_at(url):
     """Unix time from Meta's `oe` parameter (hex), or None when the URL has none."""
-    from urllib.parse import parse_qs
-
     value = (parse_qs(urlparse(url or "").query).get("oe") or [""])[0]
     try:
         return int(value, 16) if value else None
@@ -39,20 +44,37 @@ def meta_expires_at(url):
         return None
 
 
-def can_fetch(url):
-    return bool(url) and (bool(settings.PULSE_MEDIA_PROXY) or not is_meta_cdn(url))
+def is_expired(url, now=None):
+    expires = meta_expires_at(url)
+    return expires is not None and expires <= (now or timezone.now()).timestamp()
 
 
-def _proxies(url):
-    proxy = settings.PULSE_MEDIA_PROXY
-    return {"http": proxy, "https": proxy} if proxy and is_meta_cdn(url) else None
+def relay_configured():
+    return bool(settings.PULSE_COVER_RELAY_URL and settings.PULSE_COVER_RELAY_TOKEN)
 
 
-def download(url, relative_path, session=requests):
-    """Write url to PULSE_MEDIA_ROOT/relative_path(+ext). Returns the relative path with extension."""
-    response = session.get(url, timeout=TIMEOUT, stream=True, proxies=_proxies(url))
+def _get(url, session, relay=False):
+    if relay:
+        # The token travels only in the header; never in the URL or an error message.
+        return session.get(
+            settings.PULSE_COVER_RELAY_URL.rstrip("/") + "/",
+            params={"url": url},
+            headers={"X-Relay-Token": settings.PULSE_COVER_RELAY_TOKEN},
+            timeout=TIMEOUT,
+            stream=True,
+        )
+    return session.get(url, timeout=TIMEOUT, stream=True)
+
+
+def download(url, relative_path, session=requests, relay=False):
+    """Write the image to PULSE_MEDIA_ROOT/relative_path(+ext). Returns the relative path with extension."""
+    try:
+        response = _get(url, session, relay)
+    except requests.RequestException as exc:
+        raise ValueError(f"{'relay' if relay else 'download'} unreachable: {type(exc).__name__}") from None
     if response.status_code != 200:
-        raise ValueError(f"HTTP {response.status_code}")
+        detail = (getattr(response, "text", "") or "")[:80].strip()
+        raise ValueError(f"{'relay' if relay else 'HTTP'} {response.status_code}{': ' + detail if detail else ''}")
     content_type = (response.headers.get("Content-Type") or "").split(";")[0].strip().lower()
     if content_type not in EXTENSIONS:
         raise ValueError(f"not an image: {content_type or 'unknown'}")
@@ -76,41 +98,80 @@ def download(url, relative_path, session=requests):
     return relative
 
 
+_LOGGED_HOSTS = set()
+
+
 def _log_new_host(kind, url):
-    """Log each non-Meta cover host once, so we learn where Zernio stores re-hosted covers."""
+    """Log each non-Meta cover host once per run, so we learn where Zernio stores re-hosted covers."""
     host = (urlparse(url).hostname or "").lower()
-    if not host or is_meta_cdn(url):
+    if not host or is_meta_cdn(url) or host in _LOGGED_HOSTS:
         return
-    if not IgMediaAsset.objects.filter(kind=kind, source_url__contains=f"//{host}/").exists():
-        logger.warning("Pulse: first %s URL on host %s", kind, host)
+    _LOGGED_HOSTS.add(host)
+    logger.warning("Pulse: %s URL on non-Meta host %s (never downloaded)", kind, host)
 
 
 def queue(kind, key, url):
-    """Remember the newest source URL; a changed URL makes a failed asset worth retrying."""
-    if url and kind == IgMediaAsset.KIND_COVER:
-        _log_new_host(kind, url)
-    asset, created = IgMediaAsset.objects.get_or_create(kind=kind, key=key, defaults={"source_url": url or ""})
-    if not created and url and asset.source_url != url and asset.status != IgMediaAsset.STATUS_OK:
-        asset.source_url, asset.status, asset.attempts = url, IgMediaAsset.STATUS_PENDING, 0
-        asset.save(update_fields=["source_url", "status", "attempts"])
+    """Remember where to fetch an asset from.
+
+    Covers keep the newest Meta URL only: a non-Meta URL never replaces it and is never downloaded."""
+    if kind != IgMediaAsset.KIND_COVER:
+        asset, created = IgMediaAsset.objects.get_or_create(kind=kind, key=key, defaults={"source_url": url or ""})
+        if not created and url and asset.source_url != url and asset.status != IgMediaAsset.STATUS_OK:
+            asset.source_url, asset.status, asset.attempts = url, IgMediaAsset.STATUS_PENDING, 0
+            asset.save(update_fields=["source_url", "status", "attempts"])
+        return asset
+
+    asset, _ = IgMediaAsset.objects.get_or_create(kind=kind, key=key)
+    if asset.status == IgMediaAsset.STATUS_OK or not url:
+        return asset
+    if is_meta_cdn(url):
+        if asset.source_url != url:
+            asset.source_url, asset.status, asset.attempts, asset.error = url, IgMediaAsset.STATUS_PENDING, 0, ""
+            asset.save(update_fields=["source_url", "status", "attempts", "error"])
+        return asset
+    _log_new_host(kind, url)
+    if not is_meta_cdn(asset.source_url):
+        asset.status, asset.error = STATUS_SKIPPED, f"non-Meta cover URL ignored ({urlparse(url).hostname})"
+        asset.save(update_fields=["status", "error"])
     return asset
 
 
-def fetch_pending(kind, folder, limit=200, session=requests):
-    """Download pending assets of one kind. Returns (ok, failed, waiting)."""
+def fetch_pending(kind, folder, limit=200, session=requests, sleep=time.sleep, now=None):
+    """Download pending assets of one kind. Returns (ok, failed, waiting).
+
+    Covers: Meta URLs only, through the relay, at most 2 per second; an expired link becomes STATUS_EXPIRED; without a
+    relay they simply stay pending (no error)."""
     ok = failed = waiting = streak = 0
-    pending = (
-        IgMediaAsset.objects.filter(kind=kind, attempts__lt=MAX_ATTEMPTS)
-        .exclude(status=IgMediaAsset.STATUS_OK)
-        .order_by("id")[:limit]
-    )
-    for asset in pending:
-        if not can_fetch(asset.source_url):
+    pending = IgMediaAsset.objects.filter(kind=kind, status__in=[IgMediaAsset.STATUS_PENDING, IgMediaAsset.STATUS_FAILED])
+    if kind == IgMediaAsset.KIND_COVER:
+        relay = relay_configured()
+        last = 0.0
+    else:
+        relay = False
+        pending = pending.filter(attempts__lt=MAX_ATTEMPTS)
+    pending = pending.order_by("id")
+    for asset in pending[:limit] if limit else pending:
+        if kind == IgMediaAsset.KIND_COVER:
+            if not is_meta_cdn(asset.source_url):
+                waiting += 1
+                continue
+            if is_expired(asset.source_url, now):
+                asset.status, asset.error = STATUS_EXPIRED, "Meta link expired before download"
+                asset.save(update_fields=["status", "error"])
+                continue
+            if not relay:
+                waiting += 1
+                continue
+            pause = COVER_MIN_INTERVAL - (time.monotonic() - last)
+            if pause > 0:
+                sleep(pause)
+            last = time.monotonic()
+        elif not asset.source_url:
             waiting += 1
             continue
         asset.attempts += 1
         try:
-            asset.path = download(asset.source_url, f"{folder}/{asset.key}", session=session)
+            asset.path = download(asset.source_url, f"{folder}/{asset.key}", session=session, relay=relay)
             asset.status, asset.error, asset.fetched_at = IgMediaAsset.STATUS_OK, "", timezone.now()
             ok += 1
             streak = 0

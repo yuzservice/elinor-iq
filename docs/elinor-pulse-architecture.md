@@ -1,8 +1,8 @@
 # Elinor Pulse: architecture (Phase 0)
 
 Status: Phase 0 approved 2026-11-06 (cover option C). Phase 1 (data and sync) committed on `feature/elinor-pulse`
-(`f75c398`). Phase 2 committed (`e161e14`). Phase 2.1 (corrections) on the same branch, uncommitted, not merged.
-§12 lists what Phase 1 decided or changed; §13 is Phase 2; §14 is Phase 2.1.
+(`f75c398`). Phase 2 committed (`e161e14`), Phase 2.1 corrections committed (`1f671e9`). Covers through the Cloudflare relay
+(§15) on the same branch, uncommitted, not merged. §12 = Phase 1 changes; §13 = Phase 2; §14 = Phase 2.1; §15 = relay.
 Spec: `elinor-instagram/docs/product-spec.md` (draft 1.1) and `fit-gap-elinor-iq-2026-11-06.md` (decisions in §5.1).
 Labels: **[V]** verified in code, data or a live read-only Zernio call on 2026-11-06 · **[A]** assumed, not verified.
 
@@ -170,7 +170,8 @@ starts on the next deploy and idles while `PULSE_ENABLED` is off.
 | `ZERNIO_API_BASE_URL` | `https://zernio.com/api` | Extra, so a proxy or another host needs no code change |
 | `PULSE_MEDIA_ROOT` | `/pulse-media` | Volume path |
 | `PULSE_SYNC_INTERVAL_SECONDS` | `900` | Loop tick; jobs still obey `--if-due` |
-| `PULSE_MEDIA_PROXY` | empty | HTTPS proxy used only for covers on the Meta CDN (option C) |
+| `PULSE_COVER_RELAY_URL` | empty | Cloudflare Worker that fetches Instagram CDN covers (§15) |
+| `PULSE_COVER_RELAY_TOKEN` | empty | Sent only as the `X-Relay-Token` header; never in a URL or a log |
 | `PULSE_HANDLE` | `elinor_boutique` | Account handle (extra; no need to set it) |
 
 Empty examples go into `.env.example`. `.env` is not read or changed by the engineer.
@@ -338,7 +339,7 @@ Real run 2026-11-06: 101 posts in 3 requests; 21 CSV-only posts became Zernio po
 1 post created: `DfaQS0sGz4j`, a reel published 2026-11-06 22:00 Tehran, after the CSV export and the previous sync.
 All 101 posts are now `source = zernio` (2026-09-29 to 2026-11-06).
 
-**Covers.** `pulse_refresh_covers --if-due` (daily, in `pulse-scheduler`): for covers still waiting or failed whose
+**Covers (superseded by §15: the command below was removed).** `pulse_refresh_covers --if-due` (daily, in `pulse-scheduler`): for covers still waiting or failed whose
 post is outside the 30-day window, one single-post read (`GET /v1/analytics?postId=`, verified response shape:
 `postId`, `platformAnalytics`, `thumbnailUrl`) refreshes the URL; at most `COVER_REFRESH_CAP` (30) reads per run,
 1 request per second. A Meta link whose `oe` expiry is still in the future is skipped, because Zernio re-hosts only
@@ -346,4 +347,40 @@ after it lapses. The first time a non-Meta cover host appears it is logged (warn
 returns `covers {ok, waiting, failed, last_error, last_error_host}`. No proxy. Real state 2026-11-06: 101 covers
 waiting, 0 ok, 0 failed; the Meta links expire around 2026-11-11 00:00 to 03:00 Tehran. Whether Zernio's storage
 host is reachable from the Iran server is not known yet [A]: watch `covers.failed` and `last_error_host` after 11-11.
+
+## 15. Covers through the Cloudflare relay (owner's decision, 2026-11-06)
+
+Covers come only from Instagram's own CDN, fetched through a Cloudflare Worker relay
+(`https://elinor-cover.yuzservicegroup.workers.dev`; code `elinor-instagram/docs/cover-relay/worker.js`), as soon as a
+post is seen. A Zernio-hosted (or any non-Meta) cover URL is never downloaded. Replaces option C: `PULSE_MEDIA_PROXY`
+and `pulse_refresh_covers` (which only fetched Zernio's re-hosted URLs) are removed. `IgMediaAsset.url_checked_at`
+(`pulse.0003`) stays in the table, unused.
+
+**Relay contract.** `GET {PULSE_COVER_RELAY_URL}/?url=<encoded Meta CDN URL>` with header `X-Relay-Token`; 200 image,
+403 bad token, 400 host not allowed, 502 upstream. Only `*.cdninstagram.com` / `*.fbcdn.net`, https, at most 5 MB.
+Worker note (not changed): it follows redirects without re-checking the final host; low risk on Cloudflare.
+
+**Behaviour (`media.py`).**
+- A cover asset keeps the newest Meta URL. A non-Meta URL never replaces it; with no Meta URL known the asset is
+  `skipped` («non-Meta cover URL ignored (host)»). Each non-Meta host is logged once per run.
+- `pulse_sync` downloads new Meta covers in the same run (at most 2 per second, 3 consecutive failures stop the batch).
+- A failed download is retried on later runs while the link's `oe` (hex Unix time) is in the future. After expiry
+  without a file the asset becomes `expired` and the post keeps the fallback (first product's `sm`, else the gradient).
+- Relay not configured: covers stay `pending`, no error.
+- `pulse_fetch_covers`: download every pending cover now.
+- Files are kept as delivered (no resizing). Real average about 630 KB (2086×3702 JPEG ≈ 427 KB). A resized copy is not
+  added; if the grid feels slow on phones, a later option is a 600 px copy (≈ 60 to 80 KB each) [A], which needs Pillow
+  (a new dependency) or resizing on the relay.
+- `GET /api/pulse/status` → `covers {ok, pending, failed, expired, skipped, relay_configured, last_relay_error}`.
+
+**Moving covers to the server** (the server database is separate; the server can reach the relay, answered 403 without
+a token, ✅ 2026-11-06):
+1. Local: `docker compose exec -e PULSE_MEDIA_ROOT=<local media root> backend python manage.py pulse_export_covers /backups/pulse-covers.tar.gz`
+   (writes `<shortcode>.jpg` files into one tarball; under `./backups/` on the host).
+2. Copy the tarball to the server's `./backups/` folder (for example with `scp`).
+3. Server, after Pulse is deployed, `PULSE_ENABLED=true`, and one `pulse_sync --full` has created the posts:
+   `docker compose run --rm -v ./backups:/backups pulse-scheduler python manage.py pulse_import_covers /backups/pulse-covers.tar.gz`
+   (the command must run where `PULSE_MEDIA_ROOT` is the `pulse_media` volume, i.e. in `pulse-scheduler`).
+4. Import attaches each file by shortcode and marks it ok; unknown shortcodes are skipped; an existing ok file is never
+   overwritten; running it again changes nothing.
 

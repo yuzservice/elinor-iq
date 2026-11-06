@@ -128,7 +128,11 @@ Notes for the Product Architect / next task:
 
 ## 9. Log
 
-### 2026-11-06 — Elinor Pulse Phase 2.1 corrections (`feature/elinor-pulse`), uncommitted
+### 2026-11-06 — Elinor Pulse covers through the Cloudflare relay (`feature/elinor-pulse`), uncommitted
+- Covers only from Instagram's CDN via `PULSE_COVER_RELAY_URL` / `_TOKEN` (token only in a header); Zernio-hosted cover URLs are never downloaded; expired Meta links become `expired` (fallback image). Removed `PULSE_MEDIA_PROXY` and `pulse_refresh_covers`. New: `pulse_fetch_covers`, `pulse_export_covers`, `pulse_import_covers`; status shows ok / pending / failed / expired / skipped and relay errors.
+- Real local run: all 101 covers downloaded (65 MB on disk) in one `pulse_sync --full`; export `backups/pulse-covers-2026-11-06.tar.gz` (55 MB, 101 files). Server steps: architecture §15. Tests: Pulse 48 passed; Vitest 98 passed.
+
+### 2026-11-06 — Elinor Pulse Phase 2.1 corrections (`feature/elinor-pulse`), committed `1f671e9`, pushed
 - No score for fresh posts in generated text; star = most viewed with raw numbers; weakest and repeat_winner use non-fresh posts of the last 3 days (no repeat within 2 days, `pulse.0003`); same-age day comparison; «ارسال» for shares; clean post names; growth note with the first snapshot date.
 - `pulse_sync --full` ran on real data: 101 posts, 21 CSV-only posts became Zernio posts, missing post `DfaQS0sGz4j` (2026-11-06 22:00) imported. `pulse_refresh_covers` added; 101 covers waiting until the Meta links expire around 2026-11-11. Tests: Pulse 44 passed; Vitest 98 passed.
 

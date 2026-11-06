@@ -156,7 +156,9 @@ PULSE_ENABLED = os.environ.get("PULSE_ENABLED", "false").lower() in {"1", "true"
 PULSE_AI_ENABLED = os.environ.get("PULSE_AI_ENABLED", "false").lower() in {"1", "true", "yes"}
 PULSE_HANDLE = os.environ.get("PULSE_HANDLE", "elinor_boutique")
 PULSE_MEDIA_ROOT = os.environ.get("PULSE_MEDIA_ROOT", "/pulse-media")
-PULSE_MEDIA_PROXY = os.environ.get("PULSE_MEDIA_PROXY", "")
+# Cloudflare Worker that fetches Instagram CDN covers for the server (Instagram is filtered in Iran).
+PULSE_COVER_RELAY_URL = os.environ.get("PULSE_COVER_RELAY_URL", "")
+PULSE_COVER_RELAY_TOKEN = os.environ.get("PULSE_COVER_RELAY_TOKEN", "")
 ZERNIO_API_KEY = os.environ.get("ZERNIO_API_KEY", "")
 ZERNIO_ACCOUNT_ID = os.environ.get("ZERNIO_ACCOUNT_ID", "")
 ZERNIO_API_BASE_URL = os.environ.get("ZERNIO_API_BASE_URL", "https://zernio.com/api")
