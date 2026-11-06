@@ -44,6 +44,15 @@ html.dark {
   --chart-grid: rgba(255, 255, 255, 0.06);
   --chart-track: rgba(255, 255, 255, 0.08);
   --chart-bar-soft: rgba(59, 130, 246, 0.3);
+  /* Elinor Pulse only (docs/elinor-pulse-architecture.md) */
+  --pulse: #d9a066;
+  --pulse-strong: #e8b77f;
+  --pulse-soft: rgba(217, 160, 102, 0.14);
+  --pulse-ink: #1a1108;
+  --s-great: #10b981;
+  --s-good: #6ee7b7;
+  --s-mid: #f59e0b;
+  --s-bad: #f43f5e;
 }
 
 html[data-theme="light"],
@@ -85,6 +94,14 @@ html:not(.dark) {
   --chart-grid: rgba(15, 23, 42, 0.08);
   --chart-track: rgba(15, 23, 42, 0.08);
   --chart-bar-soft: rgba(37, 99, 235, 0.2);
+  --pulse: #a8692e;
+  --pulse-strong: #8a5321;
+  --pulse-soft: rgba(168, 105, 46, 0.1);
+  --pulse-ink: #ffffff;
+  --s-great: #059669;
+  --s-good: #34d399;
+  --s-mid: #d97706;
+  --s-bad: #e11d48;
 }
 
 html,
@@ -292,4 +309,13 @@ html:not(.dark) .glass-pill {
 ::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 999px;
+}
+
+/* Elinor Pulse motion: staggered card entrance, off under reduced motion. */
+@keyframes pulse-rise {
+  from { opacity: 0; transform: translateY(8px); }
+}
+.pulse-rise { animation: pulse-rise 0.45s both; }
+@media (prefers-reduced-motion: reduce) {
+  .pulse-rise { animation: none; }
 }

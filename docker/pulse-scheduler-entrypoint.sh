@@ -16,5 +16,7 @@ while true; do
   python manage.py pulse_sync --if-due || echo "Pulse sync failed; will retry next interval."
   python manage.py pulse_match_products --if-due || echo "Pulse product match failed; will retry next interval."
   python manage.py pulse_snapshot --if-due || echo "Pulse snapshot failed; will retry next interval."
+  python manage.py pulse_backfill_snapshots --if-due || echo "Pulse snapshot backfill failed; will retry next interval."
+  python manage.py pulse_daily_brief --if-due || echo "Pulse daily brief failed; will retry next interval."
   sleep "$interval"
 done

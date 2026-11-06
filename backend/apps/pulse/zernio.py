@@ -82,3 +82,9 @@ class ZernioClient:
         )
         values = (((data.get("metrics") or {}).get("reach") or {}).get("values")) or []
         return {row["date"]: row.get("value") for row in values if row.get("date")}
+
+    def post_timeline(self, post_id, from_date, to_date):
+        """Daily lifetime totals of one post: [{date, views, reach, likes, ...}]. Zernio keeps them from the day the
+        account was connected (2026-11-06 for @elinor_boutique), not before."""
+        data = self.get("/v1/analytics/post-timeline", {"postId": post_id, "fromDate": from_date, "toDate": to_date})
+        return [row for row in data.get("timeline") or [] if row.get("date") and row.get("platform", "instagram") == "instagram"]

@@ -60,6 +60,7 @@ class IgPost(PostMetrics):
     metrics_updated_at = models.DateTimeField(null=True, blank=True)
     source = models.CharField(max_length=16, default=SOURCE_ZERNIO)
     first_seen_at = models.DateTimeField(default=timezone.now)
+    timeline_backfilled_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "ig_posts"
@@ -71,9 +72,13 @@ class IgPost(PostMetrics):
 class IgPostSnapshot(PostMetrics):
     """The post's numbers for one Tehran day; only the first 30 days after publishing."""
 
+    SOURCE_DAILY = "daily"  # our own pulse_snapshot run
+    SOURCE_TIMELINE = "timeline"  # Zernio post-timeline backfill; never replaces a daily row
+
     post = models.ForeignKey(IgPost, on_delete=models.CASCADE, related_name="snapshots")
     date = models.DateField()
     captured_at = models.DateTimeField(default=timezone.now)
+    source = models.CharField(max_length=16, default=SOURCE_DAILY)
 
     class Meta:
         db_table = "ig_post_snapshots"
@@ -159,3 +164,32 @@ class IgSyncRun(models.Model):
     class Meta:
         db_table = "ig_sync_runs"
         indexes = [models.Index(fields=["job", "-started_at"], name="ig_sync_run_job_started")]
+
+
+class IgDailyBrief(models.Model):
+    """The morning brief for one Tehran day. source = "rules" until an AI layer exists."""
+
+    date = models.DateField(unique=True)
+    text = models.TextField()
+    source = models.CharField(max_length=16, default="rules")
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "ig_daily_briefs"
+
+
+class IgDailyTask(models.Model):
+    date = models.DateField()
+    position = models.PositiveSmallIntegerField()
+    rule = models.CharField(max_length=32)
+    title = models.CharField(max_length=300)
+    reason = models.CharField(max_length=500)
+    source = models.CharField(max_length=16, default="rules")
+    done = models.BooleanField(default=False)
+    done_by = models.ForeignKey("accounts.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    done_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "ig_daily_tasks"
+        ordering = ["date", "position"]
+        constraints = [models.UniqueConstraint(fields=["date", "position"], name="ig_daily_task_unique")]

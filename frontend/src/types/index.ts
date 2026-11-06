@@ -4,6 +4,7 @@ export type User = {
   role: string;
   can_manage_platform?: boolean;
   can_manage_calls?: boolean;
+  features?: { pulse?: boolean };
 };
 
 export type WindowMeta = {

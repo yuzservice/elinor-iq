@@ -128,6 +128,11 @@ Notes for the Product Architect / next task:
 
 ## 9. Log
 
+### 2026-11-06 — Elinor Pulse Phase 2 (`feature/elinor-pulse`), uncommitted
+- Gate passed: real `pulse_sync` (79 posts updated, 2 requests) and `pulse_snapshot` (74 posts, date 11-05) locally; 100 posts = 79 Zernio + 21 CSV-only.
+- Built: role `content` (`accounts.0004`, choices only), read-only `/api/pulse/` + task toggle, `me.features.pulse`, `/pulse` UI with 4 inner tabs and post/product sheets, rule-based brief and 3 tasks (`pulse_daily_brief`), post-timeline backfill (`pulse_backfill_snapshots`), `pulse.0002`. Tests: Pulse backend 37 passed; frontend 98 passed (full suite). Details and real-data findings: architecture §13.
+- Open (needs owner decision): brief sentence 1 compares fresh posts with full days; "weakest non-fresh post of yesterday" never exists; Zernio history starts 11-06, so backfill cannot fill older days.
+
 ### 2026-11-06 — Elinor Pulse Phase 0 + Phase 1 (`feature/elinor-pulse`, from `main` `d6e3ba9`), uncommitted
 - Architecture proposal `docs/elinor-pulse-architecture.md`: app `apps/pulse`, `ig_` tables, Zernio REST (`https://zernio.com/api`, verified with read-only calls), separate `pulse-scheduler`, `pulse_media` volume, no new dependencies. Parser probe on `posts_100.csv` matches 88 / 137 / 69.
 - Server checks: Zernio and `api.elinorboutique.com` reachable, Instagram CDN blocked; owner chose cover option C (wait for Zernio's copy, or `PULSE_MEDIA_PROXY`).

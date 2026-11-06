@@ -1,7 +1,8 @@
 # Elinor Pulse: architecture (Phase 0)
 
-Status: Phase 0 approved 2026-11-06 (cover option C). Phase 1 (data and sync) implemented on `feature/elinor-pulse`
-(from `main` `d6e3ba9`), uncommitted, not merged. §12 lists what Phase 1 decided or changed against this proposal.
+Status: Phase 0 approved 2026-11-06 (cover option C). Phase 1 (data and sync) committed on `feature/elinor-pulse`
+(`f75c398`). Phase 2 (API, UI, content role, rule-based texts) implemented on the same branch, uncommitted, not merged.
+§12 lists what Phase 1 decided or changed; §13 is Phase 2.
 Spec: `elinor-instagram/docs/product-spec.md` (draft 1.1) and `fit-gap-elinor-iq-2026-11-06.md` (decisions in §5.1).
 Labels: **[V]** verified in code, data or a live read-only Zernio call on 2026-11-06 · **[A]** assumed, not verified.
 
@@ -265,4 +266,51 @@ Instagram covers there after the Meta link expires is still [A]; the first post 
 - **Product name of a labelled code** («کدمحصول: 8504») is the line before it; `raw_line` stores that name line.
 - **CSV import never overwrites a post that Zernio already updated** (`source = zernio`).
 - **CSV fixture** copied into the repo for tests: `backend/tests/fixtures/pulse/posts_100.csv` (public post data only).
+
+## 13. Phase 2: read-only API, UI, `content` role, rule-based texts (2026-11-06)
+
+**Access.** `PULSE_ROLES` (`apps/pulse/permissions.py`) = super_admin, admin, content. `PulseAccess` answers 404 while
+`PULSE_ENABLED` is off and 403 for other roles. New role `content` (`accounts.0004`, choices only; `sqlmigrate` = no-op):
+`SalesAgentScopeMiddleware` limits it to `/api/auth/`, `/api/health/`, `/api/pulse/`. `GET /api/auth/me/` adds
+`features.pulse`. Frontend: nav item «پالس» only with `features.pulse`; content users see only «پالس» and land on `/pulse`;
+settings and the sidebar sales widget are hidden for them.
+
+**API (`/api/pulse/`).** `status/`, `home/`, `tasks/<id>/toggle/` (POST, the only write), `posts/` (kind all / reel /
+slide / brand, `from`, `to`, `hour`, `code`, sort new / score / saves / shares, 30 per page), `posts/<id>/`, `products/`,
+`products/<code>/`, `hours/?group=reel|all`, `media/<id>/` (authenticated file from `PULSE_MEDIA_ROOT`, path checked to
+stay inside it, `Cache-Control: private, max-age=86400`). Responses list fields explicitly; `source_payload` and
+`purchase_price` never leave the server (tested).
+
+**Definitions** (`rules.py` holds every threshold):
+- Groups: reel = `video` + `REELS`; everything else (carousel, image, FEED video) is the slide group.
+- Fresh = under 48 h; excluded from medians. Median = views of non-fresh posts of the group in the last 30 days, or
+  90 days when the group has fewer than 5. Score = views / median, 2 decimals; bands ≥ 1.5, ≥ 1.0, ≥ 0.7, below.
+- KPI cards: the 7 Tehran days ending yesterday vs the 7 before, by publication day; 14 daily points each.
+- Golden hours: non-fresh posts of the last 90 days, weekday (Saturday first) × Tehran hour, median score, faded under
+  3 posts; noon 11:00–14:59, night 18:00–23:59.
+- Products: weighted views and saves with `shares.py`; price = min(coalesce(final_price, price)) of non-deleted variants.
+
+**Jobs added to `pulse-scheduler`.** `pulse_backfill_snapshots --if-due` (daily) and `pulse_daily_brief --if-due`
+(after 08:00 Tehran; `--force` rebuilds and resets ticks). New tables `ig_daily_briefs` (one per day) and
+`ig_daily_tasks` (date × position, done, done_by, done_at); `ig_post_snapshots.source` (daily / timeline) and
+`ig_posts.timeline_backfilled_at` (`pulse.0002`).
+
+**Texts.** `texts.py` holds every Persian sentence (brief, tasks, autopsy). `fa()` converts digits and removes em dashes;
+tested on generated output. Autopsy is computed on read.
+
+**Findings on real data (2026-11-06), reported instead of silently changed:**
+- **Backfill cannot give history.** Zernio's post-timeline starts on 2026-11-06, the day the account was connected; a
+  post from 10-06 has one row (11-06). First run: 79 requests in 84 s, 72 rows created, 21 CSV-only posts skipped (no
+  Zernio id). Growth charts fill day by day from now on.
+- **Brief sentence 1 is unfair by design.** Yesterday's posts are under 48 h old but are compared with full-life daily
+  totals: «دیروز ۲ پست ... ۷۱٫۶ هزار بازدید ... ۶۲٪ کمتر از یک روز معمولی». It will almost always read as a drop.
+  Proposal: compare with older posts at the same age (from snapshots, once they exist) or drop the percentage.
+- **"Weakest non-fresh post of yesterday" never exists.** At 08:00 every post from yesterday is under 32 h old, so the
+  sentence is always skipped. Proposal: weakest non-fresh post of the last 3 days.
+- **Star of yesterday** is usually a fresh post with a low score (0.6× today). Shown with «در حال جمع شدن».
+- Today's tasks fired: first_second (skip 79 %), night_posting (12 of 16 reels at night; noon 73.1 k vs night 60.3 k),
+  neglected_product (29 days). The slide median uses the 90-day fallback (fewer than 5 slides in 30 days).
+- In the in-app preview browser the CSS animation clock stood still (`document.timeline.currentTime` = 0), so fade-ins
+  stayed at opacity 0 there; screenshots were taken with animations disabled from the console. Not seen as a code
+  issue; worth a glance on a real phone.
 

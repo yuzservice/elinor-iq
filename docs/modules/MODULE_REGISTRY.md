@@ -29,11 +29,11 @@ This registry catalogs the core architectural modules of ELINOR IQ V2. Each entr
   - `backend/apps/accounts/permissions.py`
   - `backend/apps/accounts/urls.py`
 - **Primary Database Models:**
-  - `User` (`users` table): Extends `AbstractUser`, defines custom roles: `ROLE_SUPER_ADMIN` (`super_admin`), `ROLE_ADMIN` (`admin`), `ROLE_MANAGER` (`manager`), `ROLE_ANALYST` (`analyst`), `ROLE_STAFF` (`staff`).
+  - `User` (`users` table): Extends `AbstractUser`, defines custom roles: `ROLE_SUPER_ADMIN` (`super_admin`), `ROLE_ADMIN` (`admin`), `ROLE_MANAGER` (`manager`), `ROLE_ANALYST` (`analyst`), `ROLE_STAFF` (`staff`), `ROLE_SALES_AGENT` (`sales_agent`, Call Center only), `ROLE_CONTENT` (`content`, Elinor Pulse only; `accounts.0004`, choices only). `middleware.py` (`SalesAgentScopeMiddleware`) enforces both scopes for every API.
 - **Important Services & APIs:**
   - `POST /api/auth/login/` (`login_view`): Authenticates credentials, establishes Django session.
   - `POST /api/auth/logout/` (`logout_view`): Flushes session.
-  - `GET /api/auth/me/` (`me`): Returns authenticated user profile, role, and permissions.
+  - `GET /api/auth/me/` (`me`): Returns authenticated user profile, role, and permissions; `features.pulse` is true when `PULSE_ENABLED` and the role is in `apps.pulse.permissions.PULSE_ROLES`.
   - `GET /api/auth/csrf/` (`csrf`): Generates CSRF cookie token for frontend bootstrapping.
   - `IsSuperAdmin`, `is_super_admin`: Permission class restricting privileged administrative endpoints.
 - **Frontend Entrypoints & Components:**
@@ -269,14 +269,16 @@ This registry catalogs the core architectural modules of ELINOR IQ V2. Each entr
 
 ---
 
-## 11. Elinor Pulse (`apps.pulse`), Instagram — Phase 1 (data and sync), behind `PULSE_ENABLED`
+## 11. Elinor Pulse (`apps.pulse`), Instagram — Phases 1–2, behind `PULSE_ENABLED`
 
-- **Status:** branch `feature/elinor-pulse`, not merged. No URLs, UI or AI code yet. Architecture: `docs/elinor-pulse-architecture.md`.
+- **Status:** branch `feature/elinor-pulse`, not merged. No AI code (`PULSE_AI_ENABLED` reserved). Architecture: `docs/elinor-pulse-architecture.md` (§13 = Phase 2).
 - **Models (all `ig_`):** `IgAccount`, `IgPost` (unique `shortcode`; latest metrics), `IgPostSnapshot` (post × Tehran day, first 30 days), `IgAccountDaily`, `IgProductCode` (code → `products.id`, no DB constraint), `IgPostProduct` (caption codes by `position`), `IgMediaAsset`, `IgSyncRun`.
 - **Backend:** `captions.py` (caption codes), `codes.py` (title code `(?<![0-9])([0-9]{4})\s*(?:\||$)`, rebuild), `shares.py` (2:1 weights, computed on read), `zernio.py` (read-only Zernio REST client), `media.py` (covers / thumbnails on the `pulse_media` volume; Meta CDN only through `PULSE_MEDIA_PROXY`), `sync.py` (jobs, `--if-due`, advisory lock, `ig_sync_runs`).
-- **Commands:** `pulse_import_csv <path>`, `pulse_sync --if-due` (3 h), `pulse_match_products --if-due` (after each sync), `pulse_snapshot --if-due` (daily after 00:30 Tehran). Run by the `pulse-scheduler` service (`docker/pulse-scheduler-entrypoint.sh`), never by the main scheduler.
+- **Commands:** `pulse_import_csv <path>`, `pulse_sync --if-due` (3 h), `pulse_match_products --if-due` (after each sync), `pulse_snapshot --if-due` (daily after 00:30 Tehran), `pulse_backfill_snapshots --if-due` (daily, Zernio post-timeline, never replaces our rows), `pulse_daily_brief --if-due` (after 08:00 Tehran). Run by the `pulse-scheduler` service (`docker/pulse-scheduler-entrypoint.sh`), never by the main scheduler.
+- **Phase 2 backend:** `rules.py` (all thresholds), `analytics.py` (groups, medians, scores, KPIs, golden hours, products, autopsy), `texts.py` (all Persian sentences), `brief.py` (6 task rules, brief), `backfill.py`, `permissions.py` (`PULSE_ROLES`, `PulseAccess`), `views.py` + `urls.py` (`/api/pulse/`: status, home, tasks toggle, posts, posts/<id>, products, products/<code>, hours, media/<id>). Models `IgDailyBrief`, `IgDailyTask` (`pulse.0002`).
+- **Frontend:** lazy route `/pulse` (`pages/PulsePage.tsx`), `features/pulse/` (`HomeTab`, `PostsTab`, `ProductsTab`, `HoursTab`, `Sheets`, `ui`, `format`, `types`), `services/pulse.ts`; Pulse tokens `--pulse*`, `--s-*` in `styles/index.css`; nav item «پالس» via `lib/nav.ts` (`features.pulse`).
 - **Isolation:** reads `products` / `variants` only; never calls the Elinor API; never writes core tables (tested).
-- **Tests:** `tests/test_pulse.py` (fixture `tests/fixtures/pulse/posts_100.csv`).
+- **Tests:** `tests/test_pulse.py` (fixture `tests/fixtures/pulse/posts_100.csv`), `tests/test_pulse_phase2.py`; frontend `features/pulse/format.test.ts`, `lib/nav.test.ts`.
 
 ---
 

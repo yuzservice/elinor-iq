@@ -11,15 +11,17 @@ import { ProductsPage } from "../pages/ProductsPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { authService } from "../services/auth";
 import { ThemeProvider } from "../theme/ThemeProvider";
-import { SALES_AGENT_ROLE } from "../lib/nav";
+import { CONTENT_ROLE, SALES_AGENT_ROLE } from "../lib/nav";
 import type { User } from "../types";
 
 const CallCenterPage = lazy(() => import("../pages/CallCenterPage").then((module) => ({ default: module.CallCenterPage })));
+const PulsePage = lazy(() => import("../pages/PulsePage").then((module) => ({ default: module.PulsePage })));
 
-/** Agents only reach /calls and Customer 360; the API enforces the same rule. */
+/** Agents only reach /calls and Customer 360, the content team only /pulse; the API enforces the same rules. */
 function AgentRedirect({ user }: { user: User }) {
   const { pathname } = useLocation();
   if (user.role === SALES_AGENT_ROLE && !/^\/(calls|customers\/\d+)/.test(pathname)) return <Navigate to="/calls" replace />;
+  if (user.role === CONTENT_ROLE && !pathname.startsWith("/pulse")) return <Navigate to="/pulse" replace />;
   return <AppShell />;
 }
 
@@ -91,6 +93,16 @@ export function App() {
                 </Suspense>
               }
             />
+            {user?.features?.pulse ? (
+              <Route
+                path="/pulse"
+                element={
+                  <Suspense fallback={<div className="p-8 text-sm text-muted">در حال دریافت اطلاعات...</div>}>
+                    <PulsePage />
+                  </Suspense>
+                }
+              />
+            ) : null}
           </Route>
           <Route path="*" element={<Navigate to={user ? "/" : "/login"} replace />} />
         </Routes>
