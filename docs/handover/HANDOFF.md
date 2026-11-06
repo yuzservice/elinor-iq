@@ -128,6 +128,11 @@ Notes for the Product Architect / next task:
 
 ## 9. Log
 
+### 2026-11-06 — Elinor Pulse Phase 0 + Phase 1 (`feature/elinor-pulse`, from `main` `d6e3ba9`), uncommitted
+- Architecture proposal `docs/elinor-pulse-architecture.md`: app `apps/pulse`, `ig_` tables, Zernio REST (`https://zernio.com/api`, verified with read-only calls), separate `pulse-scheduler`, `pulse_media` volume, no new dependencies. Parser probe on `posts_100.csv` matches 88 / 137 / 69.
+- Server checks: Zernio and `api.elinorboutique.com` reachable, Instagram CDN blocked; owner chose cover option C (wait for Zernio's copy, or `PULSE_MEDIA_PROXY`).
+- Phase 1 implemented, uncommitted: `apps/pulse` (8 `ig_` tables, migration `pulse.0001`), 4 `pulse_*` commands, `pulse-scheduler` service + `pulse_media` volume, `tests/test_pulse.py` (16 passed). Local: CSV 100 posts / 88 with codes; 132 of 137 codes matched (unmatched 1042, 1143, 5205, 7685, 9233). No Zernio key locally, so no real sync yet.
+
 ### 2026-11-04 — Customer 360 redesign (`feature/customer-360-redesign`, from `production`), checkpoints
 - Backend: `profile360.py` (value cards with tier-average comparison, purchase rhythm, taste, call header, timeline), `customers/<id>/timeline/`, call cards with stats/tags/purchase/attempt/follow-up, sales-agent redaction (email, national code, full address). Detail for the largest local customer (147 invoices): 474 ms cold, 301 ms warm; customers with 283 and 368 invoices: 175 and 138 ms cold.
 - Reference saved as `docs/design/customer-360-prototype.html`. Frontend rebuilt to it (header, cards, taste, lazy tabs: timeline, invoices, product cards, call cards, profile); invoice rows add `payment` and `amount`. Re-timed after that: 356 ms cold / 223 ms warm, timeline 22 ms. Rules: `docs/business-rules/customer-360.md`.

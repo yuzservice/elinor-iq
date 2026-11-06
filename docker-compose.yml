@@ -108,6 +108,25 @@ services:
     entrypoint: ["/scheduler-entrypoint.sh"]
     restart: unless-stopped
 
+  pulse-scheduler:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+    volumes:
+      - ./backend:/app
+      - ./docker/pulse-scheduler-entrypoint.sh:/pulse-scheduler-entrypoint.sh:ro
+      - pulse_media:/pulse-media
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "/pulse-scheduler-entrypoint.sh"]
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   frontend_node_modules:
+  pulse_media:

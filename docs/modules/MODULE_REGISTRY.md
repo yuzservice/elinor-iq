@@ -15,6 +15,7 @@ This registry catalogs the core architectural modules of ELINOR IQ V2. Each entr
 - [[CORE_HISTORICAL_IMPORT|Core Historical Import Documentation]]
 - [[SOURCE_DATABASE_DISCOVERY|Source Database Discovery Findings]]
 - [[SMART_DIRECT_INSTAGRAM|Smart Direct Instagram Integration Guide]] (historical; module retired in commit 3bc0a48)
+- [[elinor-pulse-architecture|Elinor Pulse architecture]] (Instagram dashboard, `apps.pulse`)
 
 ---
 
@@ -265,6 +266,17 @@ This registry catalogs the core architectural modules of ELINOR IQ V2. Each entr
 - **APIs (`/api/calls/`):** `tasks/`, `tasks/counts/`, `tasks/bulk/`, `tasks/<id>/`, `tasks/<id>/logs/`, `logs/<id>/`, `customers/<source_id>/`, `customers/<source_id>/clear-dnc/`, `lists/` (+ `<id>/` GET/PATCH/DELETE; POST `create_program`), `lists/excel/`, `programs/` (+ `preview/`, `activate/`, `status/`, `form/`, `form/publish/`), `settings/`, `tags/`, `agents/`, `reports/{sales,escalations,customers,answers,team}/`, `escalations/<id>/close/`.
 - **Frontend:** lazy route `/calls` (`pages/CallCenterPage.tsx`), `features/calls/` (`AgentPanel`, `CallFormFields`, `FormBuilder` lazy, `ProgramsPanel`, `ReportsPanel`, `SettingsPanel`, `CreateCallList`, `CustomerCalls`, `callsUrl.ts` for URL state), `services/calls.ts`; `?edit_list=` in `CustomerListPanel`.
 - **Tests:** `tests/test_call_center.py`, `features/calls/callForm.test.ts`. **Rules:** `docs/business-rules/call-center.md`.
+
+---
+
+## 11. Elinor Pulse (`apps.pulse`), Instagram — Phase 1 (data and sync), behind `PULSE_ENABLED`
+
+- **Status:** branch `feature/elinor-pulse`, not merged. No URLs, UI or AI code yet. Architecture: `docs/elinor-pulse-architecture.md`.
+- **Models (all `ig_`):** `IgAccount`, `IgPost` (unique `shortcode`; latest metrics), `IgPostSnapshot` (post × Tehran day, first 30 days), `IgAccountDaily`, `IgProductCode` (code → `products.id`, no DB constraint), `IgPostProduct` (caption codes by `position`), `IgMediaAsset`, `IgSyncRun`.
+- **Backend:** `captions.py` (caption codes), `codes.py` (title code `(?<![0-9])([0-9]{4})\s*(?:\||$)`, rebuild), `shares.py` (2:1 weights, computed on read), `zernio.py` (read-only Zernio REST client), `media.py` (covers / thumbnails on the `pulse_media` volume; Meta CDN only through `PULSE_MEDIA_PROXY`), `sync.py` (jobs, `--if-due`, advisory lock, `ig_sync_runs`).
+- **Commands:** `pulse_import_csv <path>`, `pulse_sync --if-due` (3 h), `pulse_match_products --if-due` (after each sync), `pulse_snapshot --if-due` (daily after 00:30 Tehran). Run by the `pulse-scheduler` service (`docker/pulse-scheduler-entrypoint.sh`), never by the main scheduler.
+- **Isolation:** reads `products` / `variants` only; never calls the Elinor API; never writes core tables (tested).
+- **Tests:** `tests/test_pulse.py` (fixture `tests/fixtures/pulse/posts_100.csv`).
 
 ---
 
