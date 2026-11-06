@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from datetime import datetime, time, timedelta
 
 from django.conf import settings
-from django.db import connection, transaction
+from django.db import connection, models, transaction
 from django.utils import timezone
 
 from apps.products.models import Product
@@ -24,6 +24,7 @@ JOB_SYNC = "sync"
 JOB_SNAPSHOT = "snapshot"
 JOB_MATCH = "match_products"
 JOB_IMPORT = "import_csv"
+JOB_COVERS = "cover_refresh"
 SYNC_EVERY = timedelta(hours=3)
 SNAPSHOT_AFTER = time(0, 30)  # Tehran
 POST_WINDOW_DAYS = 30  # metrics and snapshots cover each post's first 30 days
@@ -154,7 +155,9 @@ def _zernio_metrics(analytics):
 
 def upsert_zernio_post(owner, item):
     """One post of GET /v1/analytics. Returns (post, created) or (None, False) when it has no Instagram URL."""
-    platform = next((row for row in item.get("platforms") or [] if row.get("platform") == "instagram"), {})
+    # List rows carry `_id` + `platforms`; a single-post read (?postId=) carries `postId` + `platformAnalytics`.
+    platforms = item.get("platforms") or item.get("platformAnalytics") or []
+    platform = next((row for row in platforms if row.get("platform") == "instagram"), {})
     url = item.get("platformPostUrl") or platform.get("platformPostUrl") or ""
     shortcode = shortcode_from_url(url)
     if not shortcode:
@@ -163,7 +166,7 @@ def upsert_zernio_post(owner, item):
     defaults = {
         "account": owner,
         "ig_media_id": platform.get("platformPostId") or None,
-        "zernio_id": item.get("_id") or None,
+        "zernio_id": item.get("_id") or item.get("postId") or None,
         "url": url,
         "product_type": item.get("mediaProductType") or "",
         "media": item.get("mediaType") or "",
@@ -231,14 +234,15 @@ def _zernio_account_id(owner):
     return owner.zernio_account_id
 
 
-def run_sync(client=None):
-    """New posts and metrics of posts published in the last 30 days, then covers."""
+def run_sync(client=None, days=POST_WINDOW_DAYS):
+    """New posts and metrics of posts published in the last `days` days (30; 90 for the one-off --full), then covers."""
     client = client or ZernioClient()
     owner = account()
     today = timezone.now().date()
     items, accounts = client.instagram_posts(
-        _zernio_account_id(owner), (today - timedelta(days=POST_WINDOW_DAYS + 1)).isoformat(), today.isoformat()
+        _zernio_account_id(owner), (today - timedelta(days=days + 1)).isoformat(), today.isoformat()
     )
+    csv_before = set(IgPost.objects.filter(source=IgPost.SOURCE_CSV).values_list("shortcode", flat=True))
     created = updated = 0
     for item in items:
         post, was_created = upsert_zernio_post(owner, item)
@@ -251,8 +255,58 @@ def run_sync(client=None):
         owner.followers_updated_at = timezone.now()
         owner.save(update_fields=["followers_count", "followers_updated_at"])
     ok, failed, waiting = media.fetch_pending(IgMediaAsset.KIND_COVER, "covers")
-    return {"posts": len(items), "created": created, "updated": updated, "covers_ok": ok, "covers_failed": failed,
+    csv_after = set(IgPost.objects.filter(source=IgPost.SOURCE_CSV).values_list("shortcode", flat=True))
+    return {"days": days, "posts": len(items), "created": created, "updated": updated,
+            "csv_to_zernio": len(csv_before - csv_after), "covers_ok": ok, "covers_failed": failed,
             "covers_waiting": waiting, "requests": client.requests_made}
+
+
+def run_cover_refresh(client=None, now=None):
+    """Once a day: covers still waiting or failed for posts outside the sync window get a fresh thumbnailUrl from a
+    single-post read (Zernio serves its own copy once Meta's link expires). At most COVER_REFRESH_CAP reads."""
+    from .rules import COVER_REFRESH_CAP
+
+    client = client or ZernioClient()
+    now = now or timezone.now()
+    owner = account()
+    edge = now - timedelta(days=POST_WINDOW_DAYS + 1)
+    checked_before = now - timedelta(hours=20)
+    pending = (
+        IgMediaAsset.objects.filter(kind=IgMediaAsset.KIND_COVER)
+        .exclude(status=IgMediaAsset.STATUS_OK)
+        .filter(models.Q(url_checked_at__isnull=True) | models.Q(url_checked_at__lt=checked_before))
+        .order_by("url_checked_at", "pk")
+    )
+    posts = {p.shortcode: p for p in IgPost.objects.filter(published_at__lt=edge, shortcode__in=pending.values("key"))}
+    counts = {"checked": 0, "changed": 0, "errors": 0}
+    for asset in pending:
+        post = posts.get(asset.key)
+        post_id = post and (post.zernio_id or post.ig_media_id)
+        if not post_id:
+            continue
+        expires = media.meta_expires_at(asset.source_url)
+        if media.is_meta_cdn(asset.source_url) and expires and expires > now.timestamp():
+            counts["not_expired"] = counts.get("not_expired", 0) + 1  # Zernio only re-hosts after Meta's link lapses
+            continue
+        if counts["checked"] >= COVER_REFRESH_CAP:
+            break
+        counts["checked"] += 1
+        before = asset.source_url
+        try:
+            upsert_zernio_post(owner, client.get("/v1/analytics", {"postId": post_id}))
+        except (ZernioError, KeyError, ValueError) as exc:
+            counts["errors"] += 1
+            counts["last_error"] = str(exc)[:200]
+        IgMediaAsset.objects.filter(pk=asset.pk).update(url_checked_at=now)
+        asset.refresh_from_db()
+        counts["changed"] += asset.source_url != before
+    ok, failed, waiting = media.fetch_pending(IgMediaAsset.KIND_COVER, "covers")
+    return {**counts, "covers_ok": ok, "covers_failed": failed, "covers_waiting": waiting, "requests": client.requests_made}
+
+
+def cover_refresh_due(now=None):
+    last = last_success(JOB_COVERS)
+    return last is None or timezone.localtime(last.started_at).date() < timezone.localtime(now or timezone.now()).date()
 
 
 def run_snapshot(client=None, now=None):

@@ -128,7 +128,11 @@ Notes for the Product Architect / next task:
 
 ## 9. Log
 
-### 2026-11-06 — Elinor Pulse Phase 2 (`feature/elinor-pulse`), uncommitted
+### 2026-11-06 — Elinor Pulse Phase 2.1 corrections (`feature/elinor-pulse`), uncommitted
+- No score for fresh posts in generated text; star = most viewed with raw numbers; weakest and repeat_winner use non-fresh posts of the last 3 days (no repeat within 2 days, `pulse.0003`); same-age day comparison; «ارسال» for shares; clean post names; growth note with the first snapshot date.
+- `pulse_sync --full` ran on real data: 101 posts, 21 CSV-only posts became Zernio posts, missing post `DfaQS0sGz4j` (2026-11-06 22:00) imported. `pulse_refresh_covers` added; 101 covers waiting until the Meta links expire around 2026-11-11. Tests: Pulse 44 passed; Vitest 98 passed.
+
+### 2026-11-06 — Elinor Pulse Phase 2 (`feature/elinor-pulse`), committed `e161e14`, pushed
 - Gate passed: real `pulse_sync` (79 posts updated, 2 requests) and `pulse_snapshot` (74 posts, date 11-05) locally; 100 posts = 79 Zernio + 21 CSV-only.
 - Built: role `content` (`accounts.0004`, choices only), read-only `/api/pulse/` + task toggle, `me.features.pulse`, `/pulse` UI with 4 inner tabs and post/product sheets, rule-based brief and 3 tasks (`pulse_daily_brief`), post-timeline backfill (`pulse_backfill_snapshots`), `pulse.0002`. Tests: Pulse backend 37 passed; frontend 98 passed (full suite). Details and real-data findings: architecture §13.
 - Open (needs owner decision): brief sentence 1 compares fresh posts with full days; "weakest non-fresh post of yesterday" never exists; Zernio history starts 11-06, so backfill cannot fill older days.

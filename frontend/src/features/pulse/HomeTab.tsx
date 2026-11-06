@@ -137,11 +137,15 @@ export function HomeTab({ data, onOpenPost }: { data: PulseHome; onOpenPost: (id
             <Cover post={star} caption={false} />
             <div className="flex flex-col gap-1.5">
               <div className="text-[13px] font-bold leading-7">{postTitle(star.caption)}</div>
-              <div>
-                <ScoreBadge score={star.score} /> <span className={`text-[11px] ${FAINT}`}>برابر میانه‌ی {star.group === "reel" ? "ریل" : "اسلاید"}</span>
-              </div>
+              {star.fresh ? (
+                <div className="text-[11px] text-[var(--warning)]">پربازدیدترین پست دیروز؛ عددها هنوز بالا می‌روند</div>
+              ) : (
+                <div>
+                  <ScoreBadge score={star.score} /> <span className={`text-[11px] ${FAINT}`}>برابر میانه‌ی {star.group === "reel" ? "ریل" : "اسلاید"}</span>
+                </div>
+              )}
               <div className="text-xs text-muted">
-                {jalali(star.published_at, { weekday: "long" })} {clock(star)} · {fa(star.saves)} سیو · {fa(star.shares)} شیر
+                {jalali(star.published_at, { weekday: "long" })} {clock(star)} · {compact(star.views)} بازدید · {fa(star.saves)} سیو · {fa(star.shares)} ارسال
               </div>
               <span className="text-xs font-bold text-[var(--pulse)]">جزئیات و کالبدشکافی ←</span>
             </div>

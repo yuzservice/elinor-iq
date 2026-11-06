@@ -1,8 +1,8 @@
 # Elinor Pulse: architecture (Phase 0)
 
 Status: Phase 0 approved 2026-11-06 (cover option C). Phase 1 (data and sync) committed on `feature/elinor-pulse`
-(`f75c398`). Phase 2 (API, UI, content role, rule-based texts) implemented on the same branch, uncommitted, not merged.
-§12 lists what Phase 1 decided or changed; §13 is Phase 2.
+(`f75c398`). Phase 2 committed (`e161e14`). Phase 2.1 (corrections) on the same branch, uncommitted, not merged.
+§12 lists what Phase 1 decided or changed; §13 is Phase 2; §14 is Phase 2.1.
 Spec: `elinor-instagram/docs/product-spec.md` (draft 1.1) and `fit-gap-elinor-iq-2026-11-06.md` (decisions in §5.1).
 Labels: **[V]** verified in code, data or a live read-only Zernio call on 2026-11-06 · **[A]** assumed, not verified.
 
@@ -313,4 +313,37 @@ tested on generated output. Autopsy is computed on read.
 - In the in-app preview browser the CSS animation clock stood still (`document.timeline.currentTime` = 0), so fade-ins
   stayed at opacity 0 there; screenshots were taken with animations disabled from the console. Not seen as a code
   issue; worth a glance on a real phone.
+
+## 14. Phase 2.1: corrections (2026-11-06)
+
+Decisions: `elinor-instagram/docs/review-phase2-2026-11-06.md` §4, §6 and §7.
+
+**Fresh posts in generated text.** Yesterday's posts are 8 to 32 hours old at 08:00, so no generated sentence (brief,
+task, autopsy) gives a score or «N برابر» for a post under 48 h (tested).
+- Day sentence: yesterday's total vs the median of earlier days at the same age (`same_age_median`). A day counts only
+  when every post of that day has its publish-day snapshot; at least `SAME_AGE_MIN_DAYS` (5) days, otherwise the raw
+  total only. The publish-day snapshot is taken around 00:30, while yesterday's total is read at 08:00: about 8 more
+  hours of views, so the comparison slightly favours yesterday. Accepted.
+- Star: the most viewed post of yesterday, raw views and «ارسال», «عددها هنوز بالا می‌روند»; no score (brief and home card).
+- Weakest post: lowest score among non-fresh posts of the last `WEAK_DAYS` (3) days, only below 1.0.
+- Rule 2 (repeat_winner): best non-fresh post of the last `WINNER_DAYS` (3) days with score ≥ 1.5, not named by this rule
+  on either of the previous 2 days. `ig_daily_tasks.post` (nullable, `pulse.0003`) stores the post.
+- Wording: «ارسال» for shares everywhere (texts and UI). `texts.post_name` strips emojis, prices, labelled and trailing
+  product codes.
+- Growth chart: shown only when snapshots start in the post's first two days; otherwise «نمودار رشد از {date} ثبت
+  می‌شود», with the post's first snapshot date (or the first snapshot date of the account).
+
+**Full window.** `pulse_sync --full` reads 90 days once (idempotent, upsert on shortcode); the regular sync stays at 30.
+Real run 2026-11-06: 101 posts in 3 requests; 21 CSV-only posts became Zernio posts (ids, live metrics, cover URLs);
+1 post created: `DfaQS0sGz4j`, a reel published 2026-11-06 22:00 Tehran, after the CSV export and the previous sync.
+All 101 posts are now `source = zernio` (2026-09-29 to 2026-11-06).
+
+**Covers.** `pulse_refresh_covers --if-due` (daily, in `pulse-scheduler`): for covers still waiting or failed whose
+post is outside the 30-day window, one single-post read (`GET /v1/analytics?postId=`, verified response shape:
+`postId`, `platformAnalytics`, `thumbnailUrl`) refreshes the URL; at most `COVER_REFRESH_CAP` (30) reads per run,
+1 request per second. A Meta link whose `oe` expiry is still in the future is skipped, because Zernio re-hosts only
+after it lapses. The first time a non-Meta cover host appears it is logged (warning). `GET /api/pulse/status` now
+returns `covers {ok, waiting, failed, last_error, last_error_host}`. No proxy. Real state 2026-11-06: 101 covers
+waiting, 0 ok, 0 failed; the Meta links expire around 2026-11-11 00:00 to 03:00 Tehran. Whether Zernio's storage
+host is reachable from the Iran server is not known yet [A]: watch `covers.failed` and `last_error_host` after 11-11.
 

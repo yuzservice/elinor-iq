@@ -16,7 +16,7 @@ const SORTS = [
   ["new", "جدیدترین"],
   ["score", "امتیاز"],
   ["saves", "سیو"],
-  ["shares", "شیر"],
+  ["shares", "ارسال"],
 ] as const;
 
 export function PostGrid({ posts, onOpen, label }: { posts: PostCard[]; onOpen: (id: number) => void; label?: (post: PostCard) => string }) {

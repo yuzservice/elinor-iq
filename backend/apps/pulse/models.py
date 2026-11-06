@@ -143,6 +143,7 @@ class IgMediaAsset(models.Model):
     error = models.TextField(blank=True)
     attempts = models.PositiveIntegerField(default=0)
     fetched_at = models.DateTimeField(null=True, blank=True)
+    url_checked_at = models.DateTimeField(null=True, blank=True)  # last single-post Zernio read for a fresh URL
 
     class Meta:
         db_table = "ig_media_assets"
@@ -188,6 +189,7 @@ class IgDailyTask(models.Model):
     done = models.BooleanField(default=False)
     done_by = models.ForeignKey("accounts.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     done_at = models.DateTimeField(null=True, blank=True)
+    post = models.ForeignKey(IgPost, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")  # repeat_winner
 
     class Meta:
         db_table = "ig_daily_tasks"

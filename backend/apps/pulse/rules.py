@@ -17,14 +17,20 @@ KPI_DAYS = 7
 SPARK_DAYS = 14
 BRIEF_AFTER_HOUR = 8  # Tehran
 MAX_TASKS = 3
+SAME_AGE_MIN_DAYS = 5  # brief compares yesterday with earlier days at the same age only with this many days
+WEAK_DAYS = 3  # brief's weakest post: non-fresh posts of the last 3 days
 
 # Task rules (prompt §5): numbers they use.
 NIGHT_SHARE = 0.5  # more than half of last week's reels at night
 NIGHT_GAP = 0.10  # noon median beats night median by at least 10 %
 WINNER_SCORE = 1.5
+WINNER_DAYS = 3  # repeat_winner: best non-fresh post of the last 3 days
+WINNER_REPEAT_DAYS = 2  # never name a post this rule named on either of the previous 2 days
 SKIP_FIX = 78.0
 SKIP_FIX_DAYS = 3
 NO_SLIDE_DAYS = 7
 TOP_PRODUCTS = 10
 NEGLECT_DAYS = 14
+COVER_REFRESH_CAP = 30  # single-post Zernio reads per day for covers outside the sync window
+FULL_REFRESH_DAYS = 90  # pulse_sync --full
 TASK_PRIORITY = ("first_second", "repeat_winner", "night_posting", "no_slide", "neglected_product", "friday")

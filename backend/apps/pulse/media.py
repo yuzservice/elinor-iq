@@ -1,5 +1,6 @@
 """Post covers and product thumbnails on the pulse_media volume. Best effort: a failure is recorded, never raised."""
 
+import logging
 import os
 import tempfile
 from urllib.parse import urlparse
@@ -9,6 +10,8 @@ from django.conf import settings
 from django.utils import timezone
 
 from .models import IgMediaAsset
+
+logger = logging.getLogger(__name__)
 
 MAX_BYTES = 5 * 1024 * 1024
 MAX_ATTEMPTS = 5  # per source URL
@@ -23,6 +26,17 @@ META_CDN_SUFFIXES = ("cdninstagram.com", "fbcdn.net")
 def is_meta_cdn(url):
     host = (urlparse(url).hostname or "").lower()
     return host.endswith(META_CDN_SUFFIXES)
+
+
+def meta_expires_at(url):
+    """Unix time from Meta's `oe` parameter (hex), or None when the URL has none."""
+    from urllib.parse import parse_qs
+
+    value = (parse_qs(urlparse(url or "").query).get("oe") or [""])[0]
+    try:
+        return int(value, 16) if value else None
+    except ValueError:
+        return None
 
 
 def can_fetch(url):
@@ -62,8 +76,19 @@ def download(url, relative_path, session=requests):
     return relative
 
 
+def _log_new_host(kind, url):
+    """Log each non-Meta cover host once, so we learn where Zernio stores re-hosted covers."""
+    host = (urlparse(url).hostname or "").lower()
+    if not host or is_meta_cdn(url):
+        return
+    if not IgMediaAsset.objects.filter(kind=kind, source_url__contains=f"//{host}/").exists():
+        logger.warning("Pulse: first %s URL on host %s", kind, host)
+
+
 def queue(kind, key, url):
     """Remember the newest source URL; a changed URL makes a failed asset worth retrying."""
+    if url and kind == IgMediaAsset.KIND_COVER:
+        _log_new_host(kind, url)
     asset, created = IgMediaAsset.objects.get_or_create(kind=kind, key=key, defaults={"source_url": url or ""})
     if not created and url and asset.source_url != url and asset.status != IgMediaAsset.STATUS_OK:
         asset.source_url, asset.status, asset.attempts = url, IgMediaAsset.STATUS_PENDING, 0

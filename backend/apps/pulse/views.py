@@ -1,9 +1,11 @@
 """Elinor Pulse API. Read-only except the task tick. Explicit fields only: never source_payload or purchase_price."""
 
 import os
+from urllib.parse import urlparse
 from datetime import date, timedelta
 
 from django.conf import settings
+from django.db.models import Count, Min
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -12,7 +14,7 @@ from rest_framework.response import Response
 
 from . import analytics, rules
 from .analytics import group_of, kind_of, local
-from .models import IgDailyBrief, IgDailyTask, IgMediaAsset, IgPost, IgPostProduct, IgSyncRun
+from .models import IgDailyBrief, IgDailyTask, IgMediaAsset, IgPost, IgPostProduct, IgPostSnapshot, IgSyncRun
 from .permissions import PulseAccess
 from .shares import shares
 from .sync import JOB_SYNC, last_success
@@ -68,6 +70,21 @@ def _cards(data, posts):
     return [_post_card(data, post, thumbs.get(post.pk), codes.get(post.pk, [])) for post in posts]
 
 
+def _cover_status():
+    counts = dict(IgMediaAsset.objects.filter(kind=IgMediaAsset.KIND_COVER).values_list("status").annotate(n=Count("pk")))
+    last_failed = (
+        IgMediaAsset.objects.filter(kind=IgMediaAsset.KIND_COVER, status=IgMediaAsset.STATUS_FAILED)
+        .exclude(error="").order_by("-pk").values("source_url", "error").first()
+    )
+    return {
+        "ok": counts.get(IgMediaAsset.STATUS_OK, 0),
+        "waiting": counts.get(IgMediaAsset.STATUS_PENDING, 0),
+        "failed": counts.get(IgMediaAsset.STATUS_FAILED, 0),
+        "last_error": last_failed["error"] if last_failed else "",
+        "last_error_host": urlparse(last_failed["source_url"]).hostname if last_failed else None,
+    }
+
+
 def _status():
     last = last_success(JOB_SYNC)
     latest = IgSyncRun.objects.filter(job=JOB_SYNC).order_by("-started_at").first()
@@ -77,7 +94,7 @@ def _status():
         "hours_since_sync": round(age_hours, 1) if age_hours is not None else None,
         "stale": age_hours is None or age_hours > rules.STALE_HOURS,
         "last_error": latest.error if latest and latest.status == IgSyncRun.STATUS_FAILED else "",
-        "covers_waiting": IgMediaAsset.objects.filter(kind=IgMediaAsset.KIND_COVER).exclude(status=IgMediaAsset.STATUS_OK).count(),
+        "covers": _cover_status(),
         "has_data": IgPost.objects.exists(),
         "ai_enabled": settings.PULSE_AI_ENABLED,
         "handle": settings.PULSE_HANDLE,
@@ -98,6 +115,7 @@ def home(request):
     yesterday = today - timedelta(days=1)
     posts = [p for p in data.posts if local(p.published_at).date() == yesterday]
     cards = sorted(_cards(data, posts), key=lambda card: -(card["score"] or 0))
+    star = max(cards, key=lambda card: card["views"] or 0) if cards else None  # most viewed: yesterday's posts are fresh
     brief = IgDailyBrief.objects.filter(date=today).first()
     tasks = IgDailyTask.objects.filter(date=today).select_related("done_by")
     return Response({
@@ -106,7 +124,7 @@ def home(request):
         "kpis": analytics.kpis(data),
         "tasks": [{"id": t.pk, "title": t.title, "reason": t.reason, "rule": t.rule, "done": t.done,
                    "done_by": t.done_by.username if t.done_by else None, "done_at": t.done_at} for t in tasks],
-        "star": cards[0] if cards else None,
+        "star": star,
         "yesterday": cards,
         "medians": data.medians,
         "status": _status(),
@@ -187,11 +205,14 @@ def post_detail(request, post_id):
     weights = shares(len(codes))
     page = analytics.page_medians(data)
     first = local(post.published_at).date()
+    snaps = list(post.snapshots.order_by("date"))
     growth = [
         {"day": (snap.date - first).days, "date": snap.date.isoformat(), "views": snap.views}
-        for snap in post.snapshots.order_by("date")
+        for snap in snaps
         if 0 <= (snap.date - first).days < rules.MEDIAN_DAYS
     ]
+    # The chart needs the first days; otherwise the UI says from when growth is recorded.
+    first_snapshot = snaps[0].date if snaps else IgPostSnapshot.objects.aggregate(first=Min("date"))["first"]
     return Response({
         **card,
         "reach": post.reach, "likes": post.likes, "comments": post.comments, "follows": post.follows,
@@ -201,6 +222,8 @@ def post_detail(request, post_id):
         "page_medians": page,
         "skip_target": rules.SKIP_TARGET,
         "growth": growth,
+        "growth_complete": bool(growth) and growth[0]["day"] <= 1,
+        "tracking_since": first_snapshot.isoformat() if first_snapshot else None,
         "autopsy": analytics.autopsy(data, post, len(codes), page),
         "products": [
             {"position": position, "code": code, "line": line, "caption_price": price, "share": weights[position],

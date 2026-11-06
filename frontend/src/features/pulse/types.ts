@@ -6,7 +6,7 @@ export type PulseStatus = {
   hours_since_sync: number | null;
   stale: boolean;
   last_error: string;
-  covers_waiting: number;
+  covers: { ok: number; waiting: number; failed: number; last_error: string; last_error_host: string | null };
   has_data: boolean;
   ai_enabled: boolean;
   handle: string;
@@ -97,6 +97,8 @@ export type PostDetail = PostCard & {
   page_medians: { comments: number | null; shares: number | null; saves: number | null; skip: number | null };
   skip_target: number;
   growth: { day: number; date: string; views: number | null }[];
+  growth_complete: boolean;
+  tracking_since: string | null;
   autopsy: string;
   products: PostProduct[];
 };

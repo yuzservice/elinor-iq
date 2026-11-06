@@ -168,14 +168,20 @@ def test_rule_first_second():
 
 
 @pytest.mark.django_db
-def test_rule_repeat_winner():
+def test_rule_repeat_winner_uses_non_fresh_posts_of_three_days_and_never_repeats():
     _baseline()
-    yesterday_noon = NOW - timedelta(days=1)
-    _post(at=yesterday_noon, views=1400)
-    assert brief.rule_repeat_winner(analytics.load(NOW)) is None  # 1.4x
-    _post(at=yesterday_noon + timedelta(hours=1), views=2000, skip=39, caption="ریل قسطی اسنپ‌پی")
-    title, reason = brief.rule_repeat_winner(analytics.load(NOW))
-    assert "ریل قسطی اسنپ‌پی" in title and "۲ برابر" in reason and "۳۹٪" in reason
+    _post(at=NOW - timedelta(days=1), views=50_000)  # fresh yesterday post: ignored however big
+    assert brief.rule_repeat_winner(analytics.load(NOW)) is None
+    _post(96, views=40_000)  # 4 days old: outside the 3-day window
+    assert brief.rule_repeat_winner(analytics.load(NOW)) is None
+    winner = _post(60, views=2000, skip=39, caption="ریل قسطی اسنپ‌پی 😍")
+    title, reason, post_id = brief.rule_repeat_winner(analytics.load(NOW))
+    assert post_id == winner.pk and "«ریل قسطی اسنپ‌پی»" in title and "۲ برابر" in reason and "۳۹٪" in reason
+    IgDailyTask.objects.create(date=timezone.localdate(NOW) - timedelta(days=2), position=0, rule="repeat_winner",
+                               title="x", reason="y", post=winner)
+    assert brief.rule_repeat_winner(analytics.load(NOW)) is None  # named the day before yesterday
+    IgDailyTask.objects.all().update(date=timezone.localdate(NOW) - timedelta(days=3))
+    assert brief.rule_repeat_winner(analytics.load(NOW))[2] == winner.pk  # 3 days ago: may be named again
 
 
 @pytest.mark.django_db
@@ -230,7 +236,7 @@ def test_rule_friday():
 def test_tasks_priority_top_three_and_idempotent_brief(pulse):
     _baseline()
     _post(60, views=500, skip=85)  # first_second
-    _post(at=NOW - timedelta(days=1), views=5000, skip=40)  # repeat_winner
+    _post(55, views=5000, skip=40)  # repeat_winner (non-fresh, within 3 days)
     for days in range(1, 7):
         _post(at=NOW.replace(hour=17, minute=30) - timedelta(days=days), views=300)  # night_posting
     tasks = brief.tasks_for(analytics.load(NOW))
@@ -264,7 +270,7 @@ def test_generated_texts_have_no_em_dash_or_latin_digits(pulse):
     texts_out = [IgDailyBrief.objects.get().text] + [t.title + t.reason for t in IgDailyTask.objects.all()]
     texts_out += [analytics.autopsy(data, post, 3) for post in data.posts]
     for text in texts_out:
-        assert "—" not in text and not _LATIN_DIGIT.search(text), text
+        assert "—" not in text and not _LATIN_DIGIT.search(text) and "شیر" not in text, text
     assert texts.compact(221_000) == "۲۲۱ هزار" and texts.compact(1_240_000) == "۱٫۲ میلیون"
 
 
@@ -352,3 +358,117 @@ def test_backfill_is_idempotent_and_keeps_our_snapshots(pulse):
     assert second["posts"] == 0 and IgPostSnapshot.objects.filter(post=post).count() == 2
     third = run_backfill(client=client(), now=NOW + timedelta(days=1))
     assert third["created"] == 0 and IgPostSnapshot.objects.filter(post=post).count() == 2
+
+
+# --- Phase 2.1 --------------------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_fresh_posts_never_get_a_score_in_generated_text(pulse):
+    for days in range(5, 11):
+        _post(at=NOW.replace(hour=8, minute=30) - timedelta(days=days), views=1000, skip=60)  # older than 3 days
+    big = _post(at=NOW - timedelta(hours=20), views=90_000, shares=40, caption="شلوار بگ موهر🍂😍")
+    _post(at=NOW - timedelta(hours=22), views=300)
+    data = analytics.load(NOW)
+    text = brief.brief_text(data, brief.tasks_for(data))
+    assert "«شلوار بگ موهر»" in text and "هنوز بالا می‌روند" in text and "۴۰ ارسال" in text
+    assert "برابر" not in text and "×" not in text, text
+    assert "برابر" not in analytics.autopsy(data, big, 1)
+    for task in brief.tasks_for(data):
+        assert "شلوار بگ موهر" not in task[1] + task[2]
+
+
+@pytest.mark.django_db
+def test_weakest_post_is_non_fresh_from_last_three_days():
+    _baseline(views=1000)
+    _post(96, views=10, caption="خیلی قدیمی")  # 4 days: ignored
+    _post(30, views=10, caption="تازه")  # fresh: ignored
+    data = analytics.load(NOW)
+    assert brief._weakest_recent(data) == (None, None)
+    weak = _post(60, views=400, skip=82, caption="ریل ضعیف 2527")
+    score, post = brief._weakest_recent(analytics.load(NOW))
+    assert post == weak and score == 0.4
+    text = brief.brief_text(analytics.load(NOW), [])
+    assert "«ریل ضعیف»" in text and "۸۲٪" in text
+
+
+@pytest.mark.django_db
+def test_same_age_comparison_needs_five_days(pulse):
+    _post(at=NOW - timedelta(hours=20), views=6000)
+    assert "٪" not in brief.brief_text(analytics.load(NOW), []).split(".")[0]  # no history at the same age yet
+    for days in range(2, 7):
+        post = _post(at=NOW.replace(hour=8, minute=30) - timedelta(days=days), views=9999)
+        IgPostSnapshot.objects.create(post=post, date=analytics.local(post.published_at).date(), views=3000)
+    first = brief.brief_text(analytics.load(NOW), []).split(".")[0]
+    assert "۱۰۰٪ بیشتر" in first and "در همین سن" in first
+
+
+def test_post_name_strips_emoji_code_and_price():
+    assert texts.post_name("شلوار بگ موهر🍂😍") == "شلوار بگ موهر"
+    assert texts.post_name("بلوز دورس دایموند 2527") == "بلوز دورس دایموند"
+    assert texts.post_name("نیم بگ1143\nقیمت: 1,399,000✔️") == "نیم بگ"
+    assert texts.post_name("😍🫧\nپالتو یقه ایستاده 1616 قیمت: 3,999,000✔️") == "پالتو یقه ایستاده"
+    assert texts.post_name("کدمحصول : 5205\nکیف جیر") == "کیف جیر"
+
+
+@pytest.mark.django_db
+def test_full_refresh_turns_csv_posts_into_zernio_posts_without_duplicates(pulse, monkeypatch):
+    from apps.pulse import media, sync
+    from tests.test_pulse import CSV_PATH, _client, _item
+
+    monkeypatch.setattr(media, "download", lambda url, path, session=None: f"{path}.jpg")
+    pulse.ZERNIO_API_KEY, pulse.ZERNIO_ACCOUNT_ID = "k", "acc-1"
+    sync.import_csv(CSV_PATH)
+    old = _item("DfZPAV2DW03", published="2026-09-29T09:00:00.000Z", views=123_456)
+    old["platformPostUrl"] = "https://www.instagram.com/p/DfZPAV2DW03/"
+    first = sync.run_sync(client=_client([old]), days=90)
+    second = sync.run_sync(client=_client([old]), days=90)
+    post = IgPost.objects.get(shortcode="DfZPAV2DW03")
+    assert (first["csv_to_zernio"], second["csv_to_zernio"], first["days"]) == (1, 0, 90)
+    assert (post.source, post.views, post.zernio_id, IgPost.objects.count()) == ("zernio", 123_456, "z-DfZPAV2DW03", 100)
+    assert IgMediaAsset.objects.filter(kind=IgMediaAsset.KIND_COVER, key="DfZPAV2DW03").count() == 1
+
+
+@pytest.mark.django_db
+def test_cover_refresh_reads_single_posts_outside_the_window(pulse, monkeypatch):
+    from apps.pulse import media, sync
+    from tests.test_pulse import _item
+
+    downloads = []
+    monkeypatch.setattr(media, "download", lambda url, path, session=None: downloads.append(url) or f"{path}.jpg")
+    pulse.ZERNIO_API_KEY, pulse.ZERNIO_ACCOUNT_ID = "k", "acc-1"
+    now = timezone.now()
+    old = _post(at=now - timedelta(days=40), zid="z-old", now=now)
+    inside = _post(at=now - timedelta(days=5), zid="z-new", now=now)
+    meta = "https://scontent-lhr6-1.cdninstagram.com/v/x.jpg"
+    for post in (old, inside):
+        media.queue(IgMediaAsset.KIND_COVER, post.shortcode, meta)
+    single = _item(old.shortcode, published=(now - timedelta(days=40)).isoformat(), cover="https://storage.zernio.test/covers/x.jpg")
+    single["postId"] = single.pop("_id")
+    single["platformAnalytics"] = single.pop("platforms")
+    single["platformPostUrl"] = f"https://www.instagram.com/p/{old.shortcode}/"
+    session = FakeSession([FakeResponse(200, single)])
+    client = ZernioClient(api_key="k", base_url="https://z/api", session=session, sleep=lambda s: None)
+    counts = sync.run_cover_refresh(client=client, now=now)
+    assert (counts["checked"], counts["changed"], counts["covers_ok"]) == (1, 1, 1)
+    assert session.calls[0][1] == {"postId": "z-old"}  # only the post outside the window
+    assert downloads == ["https://storage.zernio.test/covers/x.jpg"]
+    assert IgMediaAsset.objects.get(key=old.shortcode).status == IgMediaAsset.STATUS_OK
+    assert sync.run_cover_refresh(client=client, now=now + timedelta(hours=1))["checked"] == 0  # once a day
+    status = _api("admin").get("/api/pulse/status/").json()["covers"]
+    assert (status["ok"], status["waiting"]) == (1, 1)
+
+
+@pytest.mark.django_db
+def test_cover_refresh_skips_meta_links_that_have_not_expired(pulse):
+    from apps.pulse import media, sync
+
+    pulse.ZERNIO_API_KEY, pulse.ZERNIO_ACCOUNT_ID = "k", "acc-1"
+    now = timezone.now()
+    post = _post(at=now - timedelta(days=40), zid="z-old", now=now)
+    future = format(int((now + timedelta(days=2)).timestamp()), "x")
+    media.queue(IgMediaAsset.KIND_COVER, post.shortcode, f"https://scontent.cdninstagram.com/v/x.jpg?oe={future.upper()}")
+    session = FakeSession([])
+    counts = sync.run_cover_refresh(client=ZernioClient(api_key="k", base_url="https://z/api", session=session, sleep=lambda s: None), now=now)
+    assert counts["checked"] == 0 and counts["not_expired"] == 1 and session.calls == []
+    assert media.meta_expires_at("https://x.test/a.jpg?oe=6AF38045") == 0x6AF38045

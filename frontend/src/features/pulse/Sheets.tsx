@@ -16,12 +16,15 @@ function Metric({ label, value, note }: { label: string; value: string; note?: s
   );
 }
 
-function Growth({ points }: { points: PostDetail["growth"] }) {
-  const values = points.filter((point) => point.views != null);
-  if (values.length < 2) {
+function Growth({ post }: { post: PostDetail }) {
+  const values = post.growth.filter((point) => point.views != null);
+  // No chart without the first days: say from when growth is recorded (date from the data).
+  if (!post.growth_complete || values.length < 2) {
     return (
       <div className="rounded-xl border border-line bg-elevated px-3 py-2.5 text-[11.5px] leading-7 text-muted">
-        {values.length ? `فعلاً ${fa(values.length)} روز ثبت شده؛ نمودار با اسنپ‌شات‌های روزانه پر می‌شود.` : "هنوز اسنپ‌شات روزانه‌ای برای این پست ثبت نشده است."}
+        {post.tracking_since
+          ? `نمودار رشد از ${jalali(`${post.tracking_since}T12:00:00+03:30`, { day: "numeric", month: "long" })} ثبت می‌شود.`
+          : "نمودار رشد با اولین اسنپ‌شات روزانه ثبت می‌شود."}
       </div>
     );
   }
@@ -96,7 +99,7 @@ export function PostSheetBody({ id, onOpenProduct }: { id: number; onOpenProduct
         <Metric label="نرخ تعامل" value={percent(post.er, 2)} />
         <Metric label="لایک" value={fa(post.likes)} />
         <Metric label="کامنت" value={fa(post.comments)} note={`میانه‌ی پیج ${fa(post.page_medians.comments)}`} />
-        <Metric label="شیر" value={fa(post.shares)} note={`میانه‌ی پیج ${fa(post.page_medians.shares)}`} />
+        <Metric label="ارسال" value={fa(post.shares)} note={`میانه‌ی پیج ${fa(post.page_medians.shares)}`} />
         <Metric label="سیو" value={fa(post.saves)} note={`میانه‌ی پیج ${fa(post.page_medians.saves)}`} />
         <Metric label="فالوی جدید" value={fa(post.follows)} />
         <Metric label="بازدید پروفایل" value={fa(post.profile_views)} />
@@ -105,7 +108,7 @@ export function PostSheetBody({ id, onOpenProduct }: { id: number; onOpenProduct
       </div>
 
       <SectionTitle>رشد بازدید در روزهای اول</SectionTitle>
-      <Growth points={post.growth} />
+      <Growth post={post} />
 
       {post.products.length ? (
         <>
