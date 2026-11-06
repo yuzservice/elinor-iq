@@ -143,7 +143,9 @@ class IgMediaAsset(models.Model):
     error = models.TextField(blank=True)
     attempts = models.PositiveIntegerField(default=0)
     fetched_at = models.DateTimeField(null=True, blank=True)
-    url_checked_at = models.DateTimeField(null=True, blank=True)  # last single-post Zernio read for a fresh URL
+    url_checked_at = models.DateTimeField(null=True, blank=True)  # unused since the relay (2026-11-06)
+    small_path = models.CharField(max_length=255, blank=True)  # 600 px list copy, relative to PULSE_MEDIA_ROOT
+    small_error = models.CharField(max_length=300, blank=True)  # last thumbnail failure; the original still works
 
     class Meta:
         db_table = "ig_media_assets"

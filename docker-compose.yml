@@ -27,6 +27,7 @@ services:
       - ./backups:/backups
       - ./source:/source:ro
       - ./docker/backend-entrypoint.sh:/entrypoint.sh:ro
+      - pulse_media:/pulse-media:ro  # Pulse covers: served read-only; only pulse-scheduler writes
     depends_on:
       postgres:
         condition: service_healthy

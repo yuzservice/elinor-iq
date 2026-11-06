@@ -35,13 +35,14 @@ export function SectionTitle({ children, note }: { children: ReactNode; note?: R
 }
 
 /** Post cover: stored cover or first product image, over a warm gradient placeholder. */
-export function Cover({ post, caption = true, className = "" }: { post: PostCard; caption?: boolean; className?: string }) {
+export function Cover({ post, caption = true, className = "", src }: { post: PostCard; caption?: boolean; className?: string; src?: string | null }) {
   const [failed, setFailed] = useState(false);
+  const image = src ?? post.thumb;
   const style = { background: coverGradient(post) } as CSSProperties;
   return (
     <div className={`relative flex aspect-[4/5] flex-col justify-end overflow-hidden rounded-[14px] p-2.5 text-white ${className}`} style={style}>
-      {post.thumb && !failed ? (
-        <img src={post.thumb} alt="" loading="lazy" onError={() => setFailed(true)} className="absolute inset-0 h-full w-full object-cover" />
+      {image && !failed ? (
+        <img src={image} alt="" loading="lazy" onError={() => setFailed(true)} className="absolute inset-0 h-full w-full object-cover" />
       ) : null}
       <div className="absolute inset-0 bg-gradient-to-b from-transparent from-35% to-black/75" />
       <span className="absolute start-2 top-2 rounded-full bg-black/45 px-2 py-0.5 text-[10px] backdrop-blur">

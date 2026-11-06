@@ -12,4 +12,5 @@ urlpatterns = [
     path("products/<str:code>/", views.product_detail),
     path("hours/", views.golden_hours),
     path("media/<int:asset_id>/", views.media),
+    path("media/<int:asset_id>/<str:size>/", views.media),
 ]

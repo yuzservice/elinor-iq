@@ -93,6 +93,7 @@ export type PostDetail = PostCard & {
   avg_watch_ms: number | null;
   is_ad: boolean;
   metrics_updated_at: string | null;
+  cover: string | null; // original cover; `thumb` is the 600 px list copy
   group_median: number | null;
   page_medians: { comments: number | null; shares: number | null; saves: number | null; skip: number | null };
   skip_target: number;

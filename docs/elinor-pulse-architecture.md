@@ -1,8 +1,8 @@
 # Elinor Pulse: architecture (Phase 0)
 
 Status: Phase 0 approved 2026-11-06 (cover option C). Phase 1 (data and sync) committed on `feature/elinor-pulse`
-(`f75c398`). Phase 2 committed (`e161e14`), Phase 2.1 corrections committed (`1f671e9`). Covers through the Cloudflare relay
-(§15) on the same branch, uncommitted, not merged. §12 = Phase 1 changes; §13 = Phase 2; §14 = Phase 2.1; §15 = relay.
+(`f75c398`). Phase 2 `e161e14`, Phase 2.1 `1f671e9`, relay `593a445` (all pushed). Phase 2.2 (media volume on the backend, small
+cover copies, §16) uncommitted, not merged. §12 = Phase 1 changes; §13 = Phase 2; §14 = Phase 2.1; §15 = relay; §16 = 2.2.
 Spec: `elinor-instagram/docs/product-spec.md` (draft 1.1) and `fit-gap-elinor-iq-2026-11-06.md` (decisions in §5.1).
 Labels: **[V]** verified in code, data or a live read-only Zernio call on 2026-11-06 · **[A]** assumed, not verified.
 
@@ -153,7 +153,8 @@ starts on the next deploy and idles while `PULSE_ENABLED` is off.
 ## 7. File volume
 
 - Named volume `pulse_media`, mounted at `PULSE_MEDIA_ROOT` (default `/pulse-media`).
-- Read-write only in `pulse-scheduler`. Phase 2 mounts it read-only into whatever serves it (nginx or the backend).
+- Read-write only in `pulse-scheduler`; mounted read-only on `backend` (`pulse_media:/pulse-media:ro`, Phase 2.2), which
+  serves files through `GET /api/pulse/media/<id>/` and `/sm/`. Pulse jobs that write media run in `pulse-scheduler`.
 - Layout: `covers/<shortcode>.jpg`, `products/<product_source_id>.jpg`.
 - Files are stored as downloaded (no resizing, so no Pillow). Estimate: about 1,000 covers a year at roughly 100–200 KB,
   i.e. well under 1 GB [A].
@@ -178,7 +179,8 @@ Empty examples go into `.env.example`. `.env` is not read or changed by the engi
 
 ## 9. Dependencies
 
-None. `requests` (already installed) covers Zernio and image downloads. The `anthropic` SDK is not added.
+`requests` (already installed) covers Zernio and image downloads. `Pillow==11.0.0` was added in Phase 2.2 (owner
+approved) for the 600 px cover copies. The `anthropic` SDK is not added.
 
 ## 10. Risks to the core system
 
@@ -373,14 +375,40 @@ Worker note (not changed): it follows redirects without re-checking the final ho
   (a new dependency) or resizing on the relay.
 - `GET /api/pulse/status` → `covers {ok, pending, failed, expired, skipped, relay_configured, last_relay_error}`.
 
-**Moving covers to the server** (the server database is separate; the server can reach the relay, answered 403 without
-a token, ✅ 2026-11-06):
-1. Local: `docker compose exec -e PULSE_MEDIA_ROOT=<local media root> backend python manage.py pulse_export_covers /backups/pulse-covers.tar.gz`
-   (writes `<shortcode>.jpg` files into one tarball; under `./backups/` on the host).
+**Moving covers to the server:** see §16 (updated steps).
+
+## 16. Phase 2.2: media reaches the user, small list copies (2026-11-06)
+
+**Bug fixed.** `pulse_media` was mounted only on `pulse-scheduler`, so the backend (which serves the files) had no
+`/pulse-media`: every cover would have 404-ed on the server. `backend` now mounts `pulse_media:/pulse-media:ro`
+(✅ `docker compose config`: `read_only: true`; writing in the container fails with "Read-only file system"). No backend
+API path writes media. Media lives only in the `pulse_media` volume; `./backups` holds database backups and transfer
+tarballs only. The Phase 2.1 duplicate `./backups/pulse-media` was removed after the import below.
+
+**Small copies.** After every cover download (same run) and every import, `media.make_small` writes
+`covers/<shortcode>.sm.jpg` (deterministic path next to the original, stored in the additive field
+`IgMediaAsset.small_path`, `pulse.0004`): 600 px wide, aspect ratio kept, EXIF orientation applied, JPEG quality 80,
+progressive, no metadata. A failure is written to `small_error`; the cover stays ok and the original is served.
+`pulse_make_small_covers` backfills missing copies (idempotent). Exports carry originals only.
+- API: lists (home, posts, products, product sheet) use `/api/pulse/media/<id>/sm/`; the post sheet gets `cover`
+  (original) and `thumb` (small) and shows the original. `sm/` falls back to the original when no copy exists; both
+  paths are checked to stay inside `PULSE_MEDIA_ROOT`.
+- Real numbers (local volume, ✅ 2026-11-06): 101 originals 57.4 MB (avg 568 KB); 101 small copies 5.6 MB (avg 55 KB,
+  9 to 133 KB). A list of 20 posts drops from about 11 MB to about 1.1 MB.
+
+**Moving covers to the server** (server database is separate; run after deploy, `PULSE_ENABLED=true` and one
+`pulse_sync --full` so the posts exist):
+1. Local export (originals only; the export reads the volume, so run it where the volume is mounted):
+   `docker compose run --rm --no-deps -v ./backups:/backups --entrypoint python pulse-scheduler manage.py pulse_export_covers /backups/pulse-covers.tar.gz`
+   The current export is `backups/pulse-covers-2026-11-06.tar.gz` (55 MB, 101 files).
 2. Copy the tarball to the server's `./backups/` folder (for example with `scp`).
-3. Server, after Pulse is deployed, `PULSE_ENABLED=true`, and one `pulse_sync --full` has created the posts:
-   `docker compose run --rm -v ./backups:/backups pulse-scheduler python manage.py pulse_import_covers /backups/pulse-covers.tar.gz`
-   (the command must run where `PULSE_MEDIA_ROOT` is the `pulse_media` volume, i.e. in `pulse-scheduler`).
-4. Import attaches each file by shortcode and marks it ok; unknown shortcodes are skipped; an existing ok file is never
-   overwritten; running it again changes nothing.
+3. Server: `docker compose run --rm --no-deps -v ./backups:/backups --entrypoint python pulse-scheduler manage.py pulse_import_covers /backups/pulse-covers-2026-11-06.tar.gz`
+   It writes into the `pulse_media` volume, makes the small copies, skips unknown shortcodes, never overwrites an ok
+   file; a second run changes nothing.
+4. Check `GET /api/pulse/status` → `covers.ok`.
+
+Locally the `pulse-scheduler` image build stalled on the network earlier, so the local import ran in a one-off container
+of the backend image (same Dockerfile) with `elinor-iq-v2_pulse_media` and `./backups` mounted: 101 imported, 101 small
+copies. The running local backend got Pillow with a one-time `pip install`; `docker compose build backend` (or the
+server's `update.sh`, which builds) bakes it into the image.
 

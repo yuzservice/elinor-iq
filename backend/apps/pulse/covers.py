@@ -11,7 +11,7 @@ import tarfile
 from django.conf import settings
 from django.utils import timezone
 
-from .media import EXTENSIONS
+from .media import EXTENSIONS, make_small
 from .models import IgMediaAsset, IgPost
 
 _NAME = re.compile(r"^([A-Za-z0-9_-]{5,64})(\.(?:jpg|png|webp))$")
@@ -58,7 +58,7 @@ def _entries(source):
 def import_covers(source):
     """Attach exported cover files to posts by shortcode. Idempotent."""
     root = settings.PULSE_MEDIA_ROOT
-    counts = {"imported": 0, "kept": 0, "unknown": 0}
+    counts = {"imported": 0, "kept": 0, "unknown": 0, "small": 0}
     known = set(IgPost.objects.values_list("shortcode", flat=True))
     for name, reader in _entries(source):
         shortcode, ext = _NAME.match(name).groups()
@@ -76,6 +76,21 @@ def import_covers(source):
             shutil.copyfileobj(handle, out)
         os.replace(target + ".part", target)
         asset.path, asset.status, asset.error, asset.fetched_at = relative, IgMediaAsset.STATUS_OK, "", timezone.now()
-        asset.save(update_fields=["path", "status", "error", "fetched_at"])
+        asset.small_path = ""
+        asset.save(update_fields=["path", "status", "error", "fetched_at", "small_path"])
         counts["imported"] += 1
+        counts["small"] += make_small(asset)
+    return counts
+
+
+def make_missing_small_covers():
+    """Backfill the 600 px copy for every ok cover that has none. Idempotent."""
+    counts = {"created": 0, "had": 0, "failed": 0}
+    for asset in IgMediaAsset.objects.filter(kind=IgMediaAsset.KIND_COVER, status=IgMediaAsset.STATUS_OK).order_by("pk"):
+        if asset.small_path and os.path.isfile(os.path.join(settings.PULSE_MEDIA_ROOT, asset.small_path)):
+            counts["had"] += 1
+        elif make_small(asset):
+            counts["created"] += 1
+        else:
+            counts["failed"] += 1
     return counts

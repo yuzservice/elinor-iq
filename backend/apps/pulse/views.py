@@ -23,8 +23,11 @@ POST_SORTS = {"new": lambda p, s: -p.published_at.timestamp(), "score": lambda p
               "saves": lambda p, s: -(p.saves or 0), "shares": lambda p, s: -(p.shares or 0)}
 
 
-def _media_url(asset_id):
-    return f"/api/pulse/media/{asset_id}/" if asset_id else None
+def _media_url(asset_id, small=False):
+    """Lists use the 600 px copy (`sm/`, falls back to the original server-side); the post sheet uses the original."""
+    if not asset_id:
+        return None
+    return f"/api/pulse/media/{asset_id}/sm/" if small else f"/api/pulse/media/{asset_id}/"
 
 
 def _post_card(data, post, thumb, codes=None):
@@ -52,7 +55,7 @@ def _post_card(data, post, thumb, codes=None):
         "fresh": data.fresh(post),
         "brand": post.is_brand_content,
         "codes": codes if codes is not None else [],
-        "thumb": _media_url(thumb),
+        "thumb": _media_url(thumb, small=True),
     }
 
 
@@ -203,6 +206,7 @@ def post_detail(request, post_id):
     if post is None:
         raise Http404
     card = _cards(data, [post])[0]
+    cover_id = analytics.thumbs_for([post]).get(post.pk)
     codes = list(IgPostProduct.objects.filter(post=post).order_by("position").values_list("position", "raw_code", "raw_line", "caption_price"))
     info = analytics.product_info({code for _, code, _, _ in codes})
     weights = shares(len(codes))
@@ -221,6 +225,7 @@ def post_detail(request, post_id):
         "reach": post.reach, "likes": post.likes, "comments": post.comments, "follows": post.follows,
         "profile_views": post.profile_views, "er": post.er, "avg_watch_ms": post.avg_watch_ms,
         "is_ad": post.is_ad, "metrics_updated_at": post.metrics_updated_at,
+        "cover": _media_url(cover_id),
         "group_median": data.medians.get(group_of(post)),
         "page_medians": page,
         "skip_target": rules.SKIP_TARGET,
@@ -233,7 +238,7 @@ def post_detail(request, post_id):
              "weighted_views": round((post.views or 0) * weights[position]),
              "matched": code in info, "title": (info.get(code) or {}).get("title"),
              "price": (info.get(code) or {}).get("price"), "dupes": (info.get(code) or {}).get("dupes"),
-             "thumb": _media_url((info.get(code) or {}).get("thumb"))}
+             "thumb": _media_url((info.get(code) or {}).get("thumb"), small=True)}
             for position, code, line, price in codes
         ],
     })
@@ -241,7 +246,7 @@ def post_detail(request, post_id):
 
 def _product_row(row):
     return {
-        "code": row["code"], "title": row.get("title"), "price": row.get("price"), "thumb": _media_url(row.get("thumb")),
+        "code": row["code"], "title": row.get("title"), "price": row.get("price"), "thumb": _media_url(row.get("thumb"), small=True),
         "dupes": row.get("dupes"), "posts": row["posts"], "primary_posts": row["primary_posts"],
         "weighted_views": row["views"], "weighted_saves": row["saves"], "best": row["best"], "line": row["line"],
     }
@@ -285,13 +290,19 @@ def golden_hours(request):
     return Response(analytics.hours(analytics.load(), None if group == "all" else "reel"))
 
 
+def _inside_root(relative):
+    root = os.path.realpath(settings.PULSE_MEDIA_ROOT)
+    path = os.path.realpath(os.path.join(root, relative or ""))
+    return path if relative and path.startswith(root + os.sep) and os.path.isfile(path) else None
+
+
 @api_view(["GET"])
 @permission_classes([PulseAccess])
-def media(request, asset_id):
+def media(request, asset_id, size=None):
     asset = get_object_or_404(IgMediaAsset, pk=asset_id, status=IgMediaAsset.STATUS_OK)
-    root = os.path.realpath(settings.PULSE_MEDIA_ROOT)
-    path = os.path.realpath(os.path.join(root, asset.path))
-    if not path.startswith(root + os.sep) or not os.path.isfile(path):
+    # `sm/` serves the 600 px copy when it exists, otherwise the original: never nothing.
+    path = (size == "sm" and _inside_root(asset.small_path)) or _inside_root(asset.path)
+    if not path:
         raise Http404
     response = FileResponse(open(path, "rb"))
     response["Cache-Control"] = "private, max-age=86400"

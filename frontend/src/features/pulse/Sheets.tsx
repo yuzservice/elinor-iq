@@ -50,7 +50,7 @@ export function PostSheetBody({ id, onOpenProduct }: { id: number; onOpenProduct
   return (
     <div>
       <div className="grid grid-cols-[110px_1fr] items-start gap-3.5">
-        <Cover post={post} caption={false} />
+        <Cover post={post} caption={false} src={post.cover ?? post.thumb} />
         <div>
           <div className="text-[15px] font-extrabold leading-7">{postTitle(post.caption, 90)}</div>
           <div className="my-1 text-xs text-muted">

@@ -1,4 +1,5 @@
 import importlib
+import os
 import re
 from datetime import datetime, timedelta
 from datetime import timezone as dt_timezone
@@ -552,13 +553,102 @@ def test_cover_export_and_import_by_shortcode(pulse, tmp_path):
     (target_root / "covers").mkdir(parents=True)
     pulse.PULSE_MEDIA_ROOT = str(target_root)
     first = covers.import_covers(archive)
-    assert first == {"imported": 1, "kept": 0, "unknown": 1}
+    assert first == {"imported": 1, "kept": 0, "unknown": 1, "small": 0}  # fake bytes: no small copy, cover still ok
     asset = IgMediaAsset.objects.get(key=known.shortcode)
     assert asset.status == "ok" and (target_root / asset.path).read_bytes() == known.shortcode.encode()
     (target_root / asset.path).write_bytes(b"newer local file")
-    assert covers.import_covers(archive) == {"imported": 0, "kept": 1, "unknown": 1}  # never overwrites
+    assert covers.import_covers(archive) == {"imported": 0, "kept": 1, "unknown": 1, "small": 0}  # never overwrites
     assert (target_root / asset.path).read_bytes() == b"newer local file"
     folder = tmp_path / "folder"
     covers.export_covers(str(folder))
     assert sorted(path.name for path in folder.iterdir()) == [f"{known.shortcode}.jpg"]
 
+
+
+# --- Phase 2.2: small list copies -------------------------------------------------------------------
+
+from io import BytesIO  # noqa: E402
+
+from PIL import Image  # noqa: E402
+
+
+def _jpeg(width=2086, height=3702, orientation=None):
+    image = Image.new("RGB", (width, height), (200, 120, 60))
+    buffer = BytesIO()
+    if orientation:
+        exif = Image.Exif()
+        exif[0x0112] = orientation  # Orientation
+        exif[0x010F] = "Camera"  # Make
+        image.save(buffer, "JPEG", exif=exif.tobytes())
+    else:
+        image.save(buffer, "JPEG")
+    return buffer.getvalue()
+
+
+def _cover(tmp_path, shortcode, data):
+    (tmp_path / "covers").mkdir(exist_ok=True)
+    (tmp_path / "covers" / f"{shortcode}.jpg").write_bytes(data)
+    return IgMediaAsset.objects.create(kind=IgMediaAsset.KIND_COVER, key=shortcode, path=f"covers/{shortcode}.jpg", status="ok")
+
+
+@pytest.mark.django_db
+def test_small_copy_is_600px_keeps_ratio_strips_exif_and_is_made_once(pulse, tmp_path):
+    asset = _cover(tmp_path, "abc12", _jpeg())
+    assert media.make_small(asset)
+    asset.refresh_from_db()
+    assert asset.small_path == "covers/abc12.sm.jpg" and asset.small_error == ""
+    with Image.open(tmp_path / asset.small_path) as small:
+        assert small.width == 600 and small.height == round(3702 * 600 / 2086)
+        assert not small.getexif() and "exif" not in small.info and small.info.get("progressive") == 1
+    stamp = (tmp_path / asset.small_path).stat().st_mtime_ns
+    assert covers.make_missing_small_covers() == {"created": 0, "had": 1, "failed": 0}
+    assert (tmp_path / asset.small_path).stat().st_mtime_ns == stamp
+    rotated = _cover(tmp_path, "rot90", _jpeg(800, 400, orientation=6))  # EXIF: rotate 90 degrees
+    media.make_small(rotated)
+    with Image.open(tmp_path / IgMediaAsset.objects.get(key="rot90").small_path) as small:
+        assert (small.width, small.height) == (400, 800) and not small.getexif()
+
+
+@pytest.mark.django_db
+def test_failed_small_copy_keeps_the_cover_ok(pulse, tmp_path):
+    asset = _cover(tmp_path, "broken1", b"not an image")
+    assert media.make_small(asset) is False
+    asset.refresh_from_db()
+    assert asset.status == "ok" and asset.small_path == "" and asset.small_error
+    assert covers.make_missing_small_covers() == {"created": 0, "had": 0, "failed": 1}
+
+
+@pytest.mark.django_db
+def test_import_makes_small_copies_and_reimport_changes_nothing(pulse, tmp_path):
+    post = _post(50)
+    folder = tmp_path / "export"
+    folder.mkdir()
+    (folder / f"{post.shortcode}.jpg").write_bytes(_jpeg(1200, 1500))
+    pulse.PULSE_MEDIA_ROOT = str(tmp_path / "media")
+    assert covers.import_covers(str(folder)) == {"imported": 1, "kept": 0, "unknown": 0, "small": 1}
+    asset = IgMediaAsset.objects.get(key=post.shortcode)
+    assert asset.small_path.endswith(".sm.jpg") and (tmp_path / "media" / asset.small_path).is_file()
+    assert covers.import_covers(str(folder)) == {"imported": 0, "kept": 1, "unknown": 0, "small": 0}
+    exported = covers.export_covers(str(tmp_path / "again"))
+    assert exported["exported"] == 1 and not any(name.endswith(".sm.jpg") for name in os.listdir(tmp_path / "again"))
+
+
+@pytest.mark.django_db
+def test_lists_use_small_copy_detail_has_both_and_sm_falls_back(pulse, tmp_path):
+    post = _post(50)
+    with_small = _cover(tmp_path, post.shortcode, _jpeg(1200, 1500))
+    media.make_small(with_small)
+    client = _api("admin")
+    card = client.get("/api/pulse/posts/").json()["results"][0]
+    assert card["thumb"] == f"/api/pulse/media/{with_small.pk}/sm/"
+    detail = client.get(f"/api/pulse/posts/{post.pk}/").json()
+    assert detail["cover"] == f"/api/pulse/media/{with_small.pk}/" and detail["thumb"].endswith("/sm/")
+    small = b"".join(client.get(card["thumb"]).streaming_content)
+    original = b"".join(client.get(detail["cover"]).streaming_content)
+    assert len(small) < len(original)
+    no_small = _cover(tmp_path, "nosmall1", _jpeg(300, 400))
+    assert b"".join(client.get(f"/api/pulse/media/{no_small.pk}/sm/").streaming_content) == (tmp_path / "covers" / "nosmall1.jpg").read_bytes()
+    IgMediaAsset.objects.filter(pk=no_small.pk).update(small_path="../../etc/passwd")
+    assert b"".join(client.get(f"/api/pulse/media/{no_small.pk}/sm/").streaming_content) == (tmp_path / "covers" / "nosmall1.jpg").read_bytes()
+    assert APIClient().get(f"/api/pulse/media/{with_small.pk}/sm/").status_code in (401, 403)
+    assert _api("sales_agent").get(f"/api/pulse/media/{with_small.pk}/").status_code == 403

@@ -128,7 +128,11 @@ Notes for the Product Architect / next task:
 
 ## 9. Log
 
-### 2026-11-06 — Elinor Pulse covers through the Cloudflare relay (`feature/elinor-pulse`), uncommitted
+### 2026-11-06 — Elinor Pulse Phase 2.2: media served, small covers (`feature/elinor-pulse`), uncommitted
+- Fixed: `backend` mounts `pulse_media:/pulse-media:ro` (covers were invisible to the API). Covers moved into the volume with `pulse_import_covers` (101 ok); duplicate `backups/pulse-media` removed; tarball kept.
+- 600 px list copies (`Pillow==11.0.0`, `pulse.0004`): 101 made, avg 55 KB vs 568 KB originals. Lists use `/sm/`, the post sheet the original. Tests: Pulse 52 passed; Vitest 98 passed. Server steps: architecture §16.
+
+### 2026-11-06 — Elinor Pulse covers through the Cloudflare relay (`feature/elinor-pulse`), committed `593a445`, pushed
 - Covers only from Instagram's CDN via `PULSE_COVER_RELAY_URL` / `_TOKEN` (token only in a header); Zernio-hosted cover URLs are never downloaded; expired Meta links become `expired` (fallback image). Removed `PULSE_MEDIA_PROXY` and `pulse_refresh_covers`. New: `pulse_fetch_covers`, `pulse_export_covers`, `pulse_import_covers`; status shows ok / pending / failed / expired / skipped and relay errors.
 - Real local run: all 101 covers downloaded (65 MB on disk) in one `pulse_sync --full`; export `backups/pulse-covers-2026-11-06.tar.gz` (55 MB, 101 files). Server steps: architecture §15. Tests: Pulse 48 passed; Vitest 98 passed.
 

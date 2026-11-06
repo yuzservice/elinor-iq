@@ -28,6 +28,8 @@ EXTENSIONS = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 META_CDN_SUFFIXES = ("cdninstagram.com", "fbcdn.net")
 STATUS_EXPIRED = "expired"  # Meta link expired before a file was saved: fallback image for good
 STATUS_SKIPPED = "skipped"  # no Meta URL known, only a non-Meta one (never downloaded)
+SMALL_WIDTH = 600  # list copy of a cover: 600 px wide, JPEG quality 80, progressive, no metadata
+SMALL_QUALITY = 80
 
 
 def is_meta_cdn(url):
@@ -99,6 +101,37 @@ def download(url, relative_path, session=requests, relay=False):
 
 
 _LOGGED_HOSTS = set()
+
+
+def small_path_for(path):
+    """covers/<shortcode>.jpg -> covers/<shortcode>.sm.jpg (deterministic, next to the original)."""
+    return os.path.splitext(path)[0] + ".sm.jpg"
+
+
+def make_small(asset):
+    """Write the 600 px list copy of a downloaded cover and store its path. Failure is noted on `small_error` only;
+    the cover stays ok and the original is still served. Returns True when a copy exists afterwards."""
+    from PIL import Image, ImageOps
+
+    root = settings.PULSE_MEDIA_ROOT
+    relative = small_path_for(asset.path)
+    target = os.path.join(root, relative)
+    if asset.small_path == relative and os.path.isfile(target):
+        return True
+    try:
+        with Image.open(os.path.join(root, asset.path)) as image:
+            image = ImageOps.exif_transpose(image).convert("RGB")
+            if image.width > SMALL_WIDTH:
+                image = image.resize((SMALL_WIDTH, round(image.height * SMALL_WIDTH / image.width)), Image.LANCZOS)
+            temp = target + ".part"
+            image.save(temp, "JPEG", quality=SMALL_QUALITY, progressive=True, optimize=True)  # no exif= : metadata dropped
+        os.replace(temp, target)
+        asset.small_path, asset.small_error = relative, ""
+    except Exception as exc:  # noqa: BLE001 - recorded on the asset, original unaffected
+        logger.warning("Pulse: small copy failed for %s: %s", asset.key, exc)
+        asset.small_path, asset.small_error = "", str(exc)[:300]
+    asset.save(update_fields=["small_path", "small_error"])
+    return bool(asset.small_path)
 
 
 def _log_new_host(kind, url):
@@ -175,6 +208,9 @@ def fetch_pending(kind, folder, limit=200, session=requests, sleep=time.sleep, n
             asset.status, asset.error, asset.fetched_at = IgMediaAsset.STATUS_OK, "", timezone.now()
             ok += 1
             streak = 0
+            if kind == IgMediaAsset.KIND_COVER:
+                asset.save(update_fields=["attempts", "path", "status", "error", "fetched_at"])
+                make_small(asset)
         except Exception as exc:  # noqa: BLE001 - best effort, recorded on the row
             asset.status, asset.error = IgMediaAsset.STATUS_FAILED, str(exc)[:500]
             failed += 1
