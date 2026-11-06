@@ -21,6 +21,7 @@ from apps.customers.purchases import (
     qualifying_pos,
 )
 from apps.customers.internal_accounts import internal_account_payload
+from apps.customers.profile360 import call_header, customer_taste, invoice_payments, pos_amounts, value_summary
 from apps.customers.tiers import tier_channel_label, tier_label
 from apps.sales.models import OrderItem, PosSaleItem, SalesLine
 
@@ -79,6 +80,9 @@ def customer_360_payload(customer, history_page=1, history_per_page=HISTORY_PER_
         "purchases": purchase_history(customer, history_page, history_per_page),
         "addresses": addresses_for(customer),
         "discounts": _discounts(customer),
+        "value": value_summary(customer, desk=desk),
+        "taste": customer_taste(customer),
+        "calls_header": call_header(customer),
     }
 
 
@@ -197,7 +201,14 @@ def _hydrate_purchase_items(events):
             .order_by("id")
         ):
             pos_items[item.pos_sale_id].append(_item_payload(item, kind="pos"))
+    payments = invoice_payments(online_ids, pos_ids)
+    amounts = pos_amounts(pos_ids)
     for row in events:
+        row["payment"] = payments.get((row["kind"], row["pk"]))
+        if row["kind"] == "pos":
+            row["amount"] = int(amounts.get(row["pk"]) or 0)
+        else:
+            row["amount"] = row["value"]
         if row["kind"] == "online":
             row["items"] = online_items.get(row["pk"], [])
             if row["items"] and not row["item_count"]:

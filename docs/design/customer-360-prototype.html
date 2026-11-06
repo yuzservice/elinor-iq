@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>صفحه ۳۶۰ مشتری</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#06080d}
+button{font-family:inherit}
+button:focus-visible,a:focus-visible{outline:2px solid #60a5fa;outline-offset:2px}
+.card{background:#0c1017;border:1px solid rgba(255,255,255,.08);border-radius:18px}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.col{display:flex;flex-direction:column}
+.mut{font-size:12.5px;color:#94a3b8}
+.h{margin:0;font-size:15px;font-weight:600;color:#e2e8f0}
+.ghost{min-height:38px;padding:0 13px;border-radius:10px;background:transparent;border:1px solid rgba(255,255,255,.14);color:#cbd5e1;font-size:12.5px;cursor:pointer}
+th{font-weight:500;text-align:right;padding:8px 10px;color:#94a3b8;white-space:nowrap}
+td{padding:10px;white-space:nowrap}
+tbody tr{border-top:1px solid rgba(255,255,255,.06)}
+</style>
+</helmet>
+<div dir="rtl" style="min-height: 100vh; box-sizing: border-box; background: #06080d; color: #f8fafc; font-family: Vazirmatn, system-ui, sans-serif; padding: 22px 16px 56px;">
+<div style="max-width: 1280px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px;">
+
+  <div class="row" style="justify-content: space-between; gap: 10px;">
+    <button type="button" class="ghost">بازگشت به لیست مشتریان</button>
+    <div class="row" style="gap: 10px;">
+      <span class="mut">داده‌ها نمونه است. نمای</span>
+      <div class="card row" role="group" aria-label="نقش کاربر" style="gap: 3px; padding: 3px; border-radius: 12px;">
+        <sc-for list="{{roles}}" as="r" hint-placeholder-count="2"><button type="button" onClick="{{r.pick}}" aria-pressed="{{r.pressed}}" style="{{r.style}}">{{r.label}}</button></sc-for>
+      </div>
+    </div>
+  </div>
+
+  <section class="card row" style="justify-content: space-between; padding: 18px 20px; gap: 14px 24px;">
+    <div class="col" style="gap: 8px; flex: 1 1 340px;">
+      <div class="row" style="gap: 10px;">
+        <h1 style="margin: 0; font-size: 22px; font-weight: 800;">مشتری نمونه ۲۷</h1>
+        <span style="padding: 3px 11px; border-radius: 999px; background: rgba(245,158,11,.15); color: #fbbf24; font-size: 12.5px;">طلایی ۱ (حضوری)</span>
+        <span style="padding: 3px 11px; border-radius: 999px; background: rgba(139,92,246,.16); color: #c4b5fd; font-size: 12.5px;">ترکیبی</span>
+      </div>
+      <div class="row" style="gap: 6px;">
+        <span style="padding: 3px 10px; border-radius: 999px; border: 1px solid rgba(52,211,153,.5); color: #34d399; font-size: 12px;">فرصت فروش</span>
+        <span style="padding: 3px 10px; border-radius: 999px; border: 1px solid rgba(96,165,250,.5); color: #93c5fd; font-size: 12px;">پیگیری باز: ۳ روز دیگر</span>
+      </div>
+      <span class="mut">آخرین تماس: علاقه‌مند است، ۴ روز پیش، سارا</span>
+    </div>
+    <div class="row" style="gap: 8px;">
+      <a href="tel:00000000000" style="display: inline-flex; align-items: center; min-height: 46px; padding: 0 18px; border-radius: 12px; background: #3b82f6; color: #fff; font-size: 15px; font-weight: 600; direction: ltr; text-decoration: none;">0912 000 0027</a>
+      <button type="button" class="ghost" onClick="{{copy}}" style="min-height: 46px;">{{copyLabel}}</button>
+    </div>
+  </section>
+
+  <section aria-label="ارزش مشتری" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+    <sc-for list="{{kpis}}" as="k" hint-placeholder-count="4">
+      <div class="card col" style="padding: 15px 18px; gap: 5px;">
+        <span style="font-size: 13px; color: #cbd5e1;">{{k.label}}</span>
+        <span style="display: flex; align-items: baseline; gap: 5px;"><span style="font-size: 26px; font-weight: 800; letter-spacing: -.5px;">{{k.value}}</span><span class="mut">{{k.unit}}</span></span>
+        <span style="{{k.noteStyle}}">{{k.note}}</span>
+      </div>
+    </sc-for>
+  </section>
+
+  <section aria-label="سلیقه مشتری" class="card" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px 18px; padding: 14px 18px;">
+    <sc-for list="{{taste}}" as="t" hint-placeholder-count="6">
+      <div class="col" style="gap: 3px;"><span class="mut">{{t.a}}</span><span style="font-size: 14px; font-weight: 600;">{{t.b}}</span></div>
+    </sc-for>
+  </section>
+
+  <nav aria-label="بخش‌های صفحه مشتری" class="row" style="gap: 22px; border-bottom: 1px solid rgba(255,255,255,.08); margin-top: 6px;">
+    <sc-for list="{{tabs}}" as="t" hint-placeholder-count="5"><button type="button" onClick="{{t.pick}}" aria-pressed="{{t.pressed}}" style="{{t.style}}">{{t.label}}</button></sc-for>
+  </nav>
+
+  <sc-if value="{{isActivity}}" hint-placeholder-val="{{ true }}">
+    <section class="col" style="gap: 12px;">
+      <div class="row"><sc-for list="{{actFilters}}" as="f" hint-placeholder-count="5"><button type="button" onClick="{{f.pick}}" aria-pressed="{{f.pressed}}" style="{{f.style}}">{{f.label}}</button></sc-for></div>
+      <div class="card col" style="padding: 8px 18px;">
+        <sc-for list="{{activity}}" as="a" hint-placeholder-count="5">
+          <div style="display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,.05);">
+            <span style="{{a.dot}}"></span>
+            <div class="col" style="gap: 2px; min-width: 0;"><span style="font-size: 13.5px; font-weight: 600;">{{a.title}}</span><span class="mut" style="line-height: 1.7;">{{a.detail}}</span></div>
+            <span class="mut" style="white-space: nowrap;">{{a.when}}</span>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+  </sc-if>
+
+  <sc-if value="{{isInvoices}}" hint-placeholder-val="{{ false }}">
+    <section class="card" style="overflow-x: auto; padding: 4px 10px;">
+      <table style="width: 100%; min-width: 640px; border-collapse: collapse; font-size: 13px;">
+        <thead><tr><th scope="col">شماره</th><th scope="col">تاریخ</th><th scope="col">کانال</th><th scope="col">پرداخت</th><th scope="col">اقلام</th><th scope="col">مبلغ</th><th scope="col">وضعیت</th></tr></thead>
+        <tbody><sc-for list="{{invoices}}" as="i" hint-placeholder-count="5"><tr><td style="font-weight: 600;">{{i.a}}</td><td>{{i.b}}</td><td>{{i.c}}</td><td class="mut">{{i.d}}</td><td>{{i.e}}</td><td style="font-weight: 600;">{{i.f}}</td><td style="{{i.gStyle}}">{{i.g}}</td></tr></sc-for></tbody>
+      </table>
+    </section>
+  </sc-if>
+
+  <sc-if value="{{isItems}}" hint-placeholder-val="{{ false }}">
+    <section style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px;">
+      <sc-for list="{{items}}" as="i" hint-placeholder-count="6">
+        <div class="card col" style="padding: 13px 15px; gap: 4px;"><span style="font-size: 13.5px; font-weight: 600;">{{i.a}}</span><span class="mut">{{i.b}}</span><span class="mut">{{i.c}}</span></div>
+      </sc-for>
+    </section>
+  </sc-if>
+
+  <sc-if value="{{isCalls}}" hint-placeholder-val="{{ false }}">
+    <section class="col" style="gap: 12px;">
+      <div class="card" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px 18px; padding: 14px 18px;">
+        <sc-for list="{{callStats}}" as="k" hint-placeholder-count="4"><div class="col" style="gap: 3px;"><span class="mut">{{k.a}}</span><span style="{{k.style}}">{{k.b}}</span></div></sc-for>
+      </div>
+      <sc-for list="{{calls}}" as="c" hint-placeholder-count="3">
+        <article class="card col" style="padding: 14px 18px; gap: 12px;">
+          <div class="row" style="justify-content: space-between; gap: 8px 14px;">
+            <div class="row" style="gap: 8px;">
+              <span style="{{c.resultStyle}}">{{c.result}}</span>
+              <sc-for list="{{c.tags}}" as="t" hint-placeholder-count="1"><span style="padding: 2px 9px; border-radius: 999px; border: 1px solid rgba(52,211,153,.5); color: #34d399; font-size: 11.5px;">{{t}}</span></sc-for>
+            </div>
+            <span class="mut">{{c.meta}}</span>
+          </div>
+          <sc-if value="{{c.hasAnswers}}" hint-placeholder-val="{{ true }}">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px 18px;">
+              <sc-for list="{{c.answers}}" as="q" hint-placeholder-count="3"><div class="col" style="gap: 2px;"><span class="mut">{{q.k}}</span><span style="font-size: 13.5px; font-weight: 600;">{{q.v}}</span></div></sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{c.hasNote}}" hint-placeholder-val="{{ true }}">
+            <p style="margin: 0; padding: 9px 12px; border-radius: 10px; background: #131924; font-size: 13px; line-height: 1.8; color: #cbd5e1;">{{c.note}}</p>
+          </sc-if>
+          <sc-if value="{{c.hasFooter}}" hint-placeholder-val="{{ true }}">
+            <div class="row" style="gap: 6px 18px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.06); font-size: 12.5px;">
+              <sc-for list="{{c.footer}}" as="f" hint-placeholder-count="2"><span style="{{f.style}}">{{f.text}}</span></sc-for>
+            </div>
+          </sc-if>
+        </article>
+      </sc-for>
+    </section>
+  </sc-if>
+
+  <sc-if value="{{isProfile}}" hint-placeholder-val="{{ false }}">
+    <section style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px;">
+      <sc-for list="{{profile}}" as="p" hint-placeholder-count="3">
+        <div class="card col" style="padding: 16px 18px; gap: 9px;">
+          <h2 class="h" style="font-size: 14px;">{{p.title}}</h2>
+          <sc-for list="{{p.rows}}" as="r" hint-placeholder-count="3"><div class="row" style="justify-content: space-between; gap: 12px; font-size: 13px;"><span class="mut">{{r.a}}</span><span>{{r.b}}</span></div></sc-for>
+        </div>
+      </sc-for>
+    </section>
+  </sc-if>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1300}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { role: 'manager', tab: 'activity', act: 'all', copied: false };
+  }
+  renderVals() {
+    var self = this, S = this.state;
+    var seg = function (on) { return 'min-height: 32px; padding: 0 12px; border: 0; border-radius: 9px; font-size: 12.5px; cursor: pointer; ' + (on ? 'background: #3b82f6; color: #fff; font-weight: 600;' : 'background: transparent; color: #94a3b8;'); };
+    var tab = function (on) { return 'min-height: 44px; padding: 0 2px; margin-bottom: -1px; background: transparent; border: 0; border-bottom: 2px solid ' + (on ? '#60a5fa' : 'transparent') + '; cursor: pointer; font-size: 14px; color: ' + (on ? '#f8fafc' : '#94a3b8') + ';' + (on ? ' font-weight: 600;' : ''); };
+    var chip = function (on) { return 'min-height: 34px; padding: 0 12px; border-radius: 999px; font-size: 12.5px; cursor: pointer; border: 1px solid ' + (on ? '#60a5fa' : 'rgba(255,255,255,.12)') + '; background: ' + (on ? 'rgba(59,130,246,.2)' : 'transparent') + '; color: ' + (on ? '#fff' : '#94a3b8') + ';'; };
+    var set = function (list, cur, key, st) { return list.map(function (x) { var on = cur === x[0]; return { label: x[1], pressed: on ? 'true' : 'false', style: st(on), pick: function () { var o = {}; o[key] = x[0]; self.setState(o); } }; }); };
+    var up = 'font-size: 12.5px; color: #34d399;', flat = 'font-size: 12.5px; color: #94a3b8;', warn = 'font-size: 12.5px; color: #fbbf24;';
+    var activity = [
+      ['call', 'تماس: علاقه‌مند است', 'سارا. به مانتوی پاییزه علاقه دارد و قرار تماس بعدی گذاشته شد. برچسب: فرصت فروش.', '۴ روز پیش'],
+      ['invoice', 'فاکتور فروشگاه ساری، ۴٫۲ میلیون تومان', '۲ قلم: مانتو، شلوار. پرداخت با اسنپ‌پی.', '۴۵ روز پیش'],
+      ['tier', 'تغییر سطح به طلایی ۱', 'از طلایی ۲ با به‌روزرسانی روزانه.', '۷۲ روز پیش'],
+      ['discount', 'استفاده از تخفیف ۱۵٪', 'روی فاکتور آنلاین ۲٫۸ میلیون تومانی.', '۹۰ روز پیش'],
+      ['invoice', 'فاکتور آنلاین، ۲٫۸ میلیون تومان', '۱ قلم: کفش. پرداخت با درگاه.', '۹۰ روز پیش'],
+      ['call', 'تماس: پاسخ نداد', 'نیما. تلاش ۱ از ۳.', '۱۲۰ روز پیش']
+    ];
+    var dots = { call: '#60a5fa', invoice: '#34d399', tier: '#fbbf24', discount: '#c084fc' };
+    var mgr = S.role === 'manager';
+    return {
+      roles: set([['manager', 'مدیر'], ['agent', 'کارمند فروش']], S.role, 'role', seg),
+      copy: function () { self.setState({ copied: true }); }, copyLabel: S.copied ? 'کپی شد' : 'کپی شماره',
+      kpis: [
+        { label: 'مجموع خرید', value: '۸۷٫۵', unit: 'میلیون تومان', note: '۲۰٪ بیشتر از میانگین طلایی ۱', noteStyle: up },
+        { label: 'میانگین سبد خرید', value: '۳٫۸', unit: 'میلیون تومان', note: '۸٪ بیشتر از میانگین طلایی ۱', noteStyle: up },
+        { label: 'تعداد فاکتور', value: '۲۳', unit: 'فاکتور', note: '۱۵ حضوری، ۸ آنلاین', noteStyle: flat },
+        { label: 'آخرین خرید', value: '۴۵', unit: 'روز پیش', note: 'معمولاً هر ۳۲ روز خرید می‌کند', noteStyle: warn }
+      ],
+      taste: [['دسته محبوب', 'مانتو'], ['سایز', 'M'], ['رنگ', 'سیاه'], ['شعبه', 'ساری'], ['پرداخت', 'اسنپ‌پی'], ['خرید با تخفیف', '۳۸٪']].map(function (x) { return { a: x[0], b: x[1] }; }),
+      tabs: set([['activity', 'فعالیت‌ها'], ['invoices', 'فاکتورها (۲۳)'], ['items', 'کالاها (۴۱)'], ['calls', 'تماس‌ها (۳)'], ['profile', 'مشخصات']], S.tab, 'tab', tab),
+      isActivity: S.tab === 'activity', isInvoices: S.tab === 'invoices', isItems: S.tab === 'items', isCalls: S.tab === 'calls', isProfile: S.tab === 'profile',
+      actFilters: set([['all', 'همه'], ['invoice', 'فاکتور'], ['call', 'تماس'], ['tier', 'سطح'], ['discount', 'تخفیف']], S.act, 'act', chip),
+      activity: activity.filter(function (a) { return S.act === 'all' || a[0] === S.act; }).map(function (a) {
+        return { title: a[1], detail: a[2], when: a[3], dot: 'width: 9px; height: 9px; border-radius: 50%; margin-top: 6px; background: ' + dots[a[0]] + ';' };
+      }),
+      invoices: [
+        ['P-۴۲۱۸', '۱۴۰۵/۰۶/۱۰', 'فروشگاه ساری', 'اسنپ‌پی', '۲', '۴٫۲ میلیون', 'فروش'],
+        ['O-۹۰۷۷', '۱۴۰۵/۰۵/۰۵', 'آنلاین', 'درگاه', '۱', '۲٫۸ میلیون', 'تکمیل‌شده'],
+        ['P-۳۹۶۰', '۱۴۰۵/۰۴/۱۸', 'فروشگاه ساری', 'کارت', '۳', '۵٫۶ میلیون', 'فروش و مرجوعی'],
+        ['O-۸۸۱۲', '۱۴۰۵/۰۳/۰۲', 'آنلاین', 'دیجی‌پی', '۲', '۳٫۱ میلیون', 'تکمیل‌شده']
+      ].map(function (r) { return { a: r[0], b: r[1], c: r[2], d: r[3], e: r[4], f: r[5], g: r[6], gStyle: 'color: ' + (r[6] === 'فروش و مرجوعی' ? '#fbbf24' : '#34d399') + ';' }; }),
+      items: [['مانتو کتان بلند', 'سایز M، سیاه', '۳ بار خرید، آخرین: ۴۵ روز پیش'], ['شلوار راسته', 'سایز M، کرم', '۲ بار خرید، آخرین: ۴۵ روز پیش'], ['کفش اسپرت', 'سایز ۳۹، سفید', '۱ بار خرید، آخرین: ۹۰ روز پیش'], ['شال نخی', 'طرح‌دار', '۲ بار خرید، آخرین: ۱۲۰ روز پیش']].map(function (r) { return { a: r[0], b: r[1], c: r[2] }; }),
+      callStats: [
+        { a: 'تماس‌ها', b: '۳', style: 'font-size: 20px; font-weight: 800;' },
+        { a: 'پاسخ‌داده', b: '۲ از ۳', style: 'font-size: 20px; font-weight: 800;' },
+        { a: 'خرید بعد از تماس', b: '۴٫۲ میلیون', style: 'font-size: 20px; font-weight: 800; color: #34d399;' },
+        { a: 'پیگیری بعدی', b: '۱۴۰۵/۰۸/۲۰', style: 'font-size: 20px; font-weight: 800; color: #93c5fd;' }
+      ],
+      calls: [
+        { result: 'علاقه‌مند است', resultStyle: 'padding: 3px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 600; background: #34d39922; color: #34d399;', meta: 'سارا، بازگشت طلایی‌ها، ۴ روز پیش', tags: ['فرصت فروش'],
+          hasAnswers: true, answers: [{ k: 'دسته موردعلاقه', v: 'مانتو' }, { k: 'بودجه', v: '۶ میلیون تومان' }, { k: 'تماس بعدی', v: '۱۴۰۵/۰۸/۲۰' }],
+          hasNote: true, note: 'منتظر مدل جدید پاییزه است و خواست وقتی رسید خبر بدهیم.',
+          hasFooter: true, footer: [{ text: 'پیگیری باز: ۳ روز دیگر', style: 'color: #93c5fd;' }, { text: 'هنوز خریدی بعد از این تماس ثبت نشده', style: 'color: #94a3b8;' }] },
+        { result: 'نظر داد', resultStyle: 'padding: 3px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 600; background: #60a5fa22; color: #60a5fa;', meta: 'مینا، نظرسنجی بعد از خرید، ۶۰ روز پیش', tags: [],
+          hasAnswers: true, answers: [{ k: 'امتیاز تجربه خرید', v: '۴ از ۵' }, { k: 'معرفی به دیگران', v: 'بله' }, { k: 'بهترین ساعت تماس', v: '۱۷:۰۰' }],
+          hasNote: true, note: 'از برخورد فروشگاه راضی بود و گفت سایزها گاهی کم می‌شود.',
+          hasFooter: true, footer: [{ text: 'خرید بعد از تماس: ۴٫۲ میلیون تومان، ۱۵ روز بعد', style: 'color: #34d399; font-weight: 600;' }] },
+        { result: 'پاسخ نداد', resultStyle: 'padding: 3px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 600; background: #fbbf2422; color: #fbbf24;', meta: 'نیما، بازگشت طلایی‌ها، ۱۲۰ روز پیش', tags: [],
+          hasAnswers: false, answers: [], hasNote: false, note: '', hasFooter: true, footer: [{ text: 'تلاش ۱ از ۳', style: 'color: #94a3b8;' }] }
+      ],
+      profile: [
+        { title: 'هویت', rows: [{ a: 'نام', b: 'مشتری نمونه ۲۷' }, { a: 'موبایل', b: '0912 000 0027' }, { a: 'زادروز', b: '۱۳۷۲/۰۴/۱۵' }, { a: 'جنسیت', b: 'زن' }].concat(mgr ? [{ a: 'ایمیل', b: 'sample@example.com' }] : []) },
+        mgr ? { title: 'نشانی‌ها (۲)', rows: [{ a: 'ساری', b: 'نشانی نمونه ۱' }, { a: 'تهران', b: 'نشانی نمونه ۲' }] } : { title: 'نشانی‌ها', rows: [{ a: 'شهر', b: 'ساری' }, { a: 'نشانی کامل', b: 'فقط برای مدیر' }] },
+        { title: 'تخفیف‌ها (۹)', rows: [{ a: 'خرید با تخفیف', b: '۳۸٪ از فاکتورها' }, { a: 'آخرین تخفیف', b: '۱۵٪، ۹۰ روز پیش' }, { a: 'مجموع تخفیف', b: '۵٫۴ میلیون تومان' }] }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

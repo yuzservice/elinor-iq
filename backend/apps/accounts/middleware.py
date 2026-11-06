@@ -7,7 +7,7 @@ from django.http import JsonResponse
 from .models import User
 
 _ALLOWED = ("/api/auth/", "/api/calls/", "/api/health/")
-_CUSTOMER_360 = re.compile(r"^/api/customers/(\d+)/(?:purchases/|products/)?$")
+_CUSTOMER_360 = re.compile(r"^/api/customers/(\d+)/(?:purchases/|products/|timeline/)?$")
 _TIERS = "/api/customers/tiers/"
 
 

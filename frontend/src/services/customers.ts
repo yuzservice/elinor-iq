@@ -17,6 +17,8 @@ import type {
   TierRules,
   TierRulesPreview,
   TierRulesState,
+  TimelineEvent,
+  TimelineKind,
 } from "../types";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
@@ -159,6 +161,8 @@ export const customersService = {
     api<Paginated<CustomerPurchase> & { id: number }>(
       queryPath(`/customers/${id}/purchases/`, { page, per_page: perPage }),
     ),
+  timeline: (id: number, type: TimelineKind, page = 1) =>
+    api<Paginated<TimelineEvent>>(queryPath(`/customers/${id}/timeline/`, { type, page })),
   products: (id: number) =>
     api<{ id: number; total: number; results: CustomerProductHistory[] }>(`/customers/${id}/products/`),
   markInternalAccount: (payload: { customer_source_id: number; kind: InternalAccountKind; note: string }) =>

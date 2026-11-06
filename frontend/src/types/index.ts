@@ -359,6 +359,8 @@ export type CustomerPurchase = {
   value_label: string | null;
   discount_amount: number;
   is_cancelled: boolean;
+  payment: string | null;
+  amount: number | null;
   items: CustomerPurchaseItem[];
 };
 
@@ -427,7 +429,54 @@ export type Customer360 = {
     status: string;
     status_label: string;
   }[];
+  value: Customer360Value;
+  taste: Customer360Taste;
+  calls_header: {
+    tags: { id: number; title: string; color: string }[];
+    followup_at: string | null;
+    last_call: { outcome_title: string; at: string; agent: string; connected: boolean } | null;
+  };
 };
+
+export type Customer360Value = {
+  total_amount: number;
+  avg_basket: number | null;
+  invoice_count: number;
+  online_count: number;
+  pos_count: number;
+  last_purchase_at: string | null;
+  days_since_last: number | null;
+  usual_gap_days: number | null;
+  overdue: boolean;
+  comparison: { tier_label: string; total_percent: number | null; basket_percent: number | null } | null;
+};
+
+export type Customer360Taste = {
+  category: string | null;
+  size: string | null;
+  color: string | null;
+  branch: string | null;
+  payment: string | null;
+  discount_percent: number | null;
+};
+
+export type TimelineKind = "all" | "invoice" | "call" | "tier" | "discount";
+export type TimelineEvent =
+  | {
+      type: "invoice";
+      at: string;
+      channel: "online" | "pos";
+      branch: string;
+      source_id: number;
+      amount: number;
+      discount_amount: number;
+      qualifying: boolean;
+      status: string;
+      payment: string | null;
+      products: string[];
+    }
+  | { type: "call"; at: string; call: import("../features/calls/types").CallLogRow }
+  | { type: "tier"; at: string; from: string | null; to: string | null; reason: string };
 
 export type ProductChannelUnits = {
   online: number;

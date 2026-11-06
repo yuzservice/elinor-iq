@@ -140,7 +140,8 @@ def customer_logs(customer_id):
         CallLog.objects.filter(customer_id=customer_id)
         .select_related("agent", "program", "form_version")
         .only(
-            "created_at", "outcome_title", "connected", "answers", "note", "agent_id",
+            "created_at", "outcome_title", "outcome_id", "connected", "answers", "note", "agent_id", "tag_ids", "task_id",
+            "form_version__schema",
             "agent__username", "program__name", "form_version__version",
         )
         .order_by("-created_at")
@@ -170,3 +171,48 @@ def task_detail_payload(task, user=None):
         "form": {"version": form.version, "schema": form.schema} if form else None,
         "history": [log_payload(log, user) for log in customer_logs(task.customer_id)[:HISTORY_LIMIT]],
     }
+
+
+def customer_call_stats(customer_id):
+    logs = CallLog.objects.filter(customer_id=customer_id).aggregate(total=Count("pk"), connected=Count("pk", filter=Q(connected=True)))
+    bought = CallLogPurchase.objects.filter(log__customer_id=customer_id).aggregate(total=Sum("amount"))["total"]
+    followup = (
+        CallTask.objects.filter(customer_id=customer_id, status=CallTask.STATUS_OPEN, source=CallTask.SOURCE_FOLLOWUP)
+        .order_by("due_at")
+        .values_list("due_at", flat=True)
+        .first()
+    )
+    return {"total": logs["total"], "connected": logs["connected"], "purchase_amount": int(bought or 0), "next_followup_at": followup}
+
+
+def log_cards(logs, customer_id, user=None):
+    """Card data for the Customer 360 calls tab, in a fixed number of queries for the page."""
+    from .models import CallTag
+
+    tag_ids = {tag_id for log in logs for tag_id in (log.tag_ids or [])}
+    tags = {tag.pk: {"title": tag.title, "color": tag.color} for tag in CallTag.objects.filter(pk__in=tag_ids)}
+    purchases = {row.log_id: row for row in CallLogPurchase.objects.filter(log_id__in=[log.pk for log in logs])}
+    attempts = {}
+    for task_id, log_id in CallLog.objects.filter(task_id__in={log.task_id for log in logs}).order_by("created_at", "pk").values_list("task_id", "pk"):
+        attempts.setdefault(task_id, []).append(log_id)
+    followups = list(
+        CallTask.objects.filter(customer_id=customer_id, status=CallTask.STATUS_OPEN, source=CallTask.SOURCE_FOLLOWUP).values_list("due_at", "created_at")
+    )
+    cards = []
+    for log in logs:
+        card = log_payload(log, user)
+        outcome = next((row for row in (log.form_version.schema or {}).get("outcomes", []) if row.get("id") == log.outcome_id), {})
+        card["tags"] = [tags[tag_id] for tag_id in (log.tag_ids or []) if tag_id in tags]
+        purchase = purchases.get(log.pk)
+        card["purchase"] = (
+            {"amount": purchase.amount, "days_after": max(0, (purchase.purchased_at - log.created_at).days)} if purchase else None
+        )
+        if outcome.get("after_save") == "retry":
+            order = attempts.get(log.task_id, [])
+            card["attempt"] = {"n": order.index(log.pk) + 1 if log.pk in order else 1, "of": int(outcome.get("retry_times") or 0) + 1}
+        else:
+            card["attempt"] = None
+        # A follow-up created by this log has the same creation moment (same transaction), give or take a second.
+        card["followup_at"] = next((due for due, created in followups if abs((created - log.created_at).total_seconds()) < 5), None)
+        cards.append(card)
+    return cards
