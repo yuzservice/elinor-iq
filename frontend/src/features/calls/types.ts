@@ -86,10 +86,17 @@ export type CustomerCalls = {
     dnc_cleared_by: string | null;
     dnc_clear_reason: string;
   } | null;
-  results: CallLogRow[];
+  stats: { total: number; connected: number; purchase_amount: number; next_followup_at: string | null };
+  results: CallCard[];
   total: number;
   page: number;
   per_page: number;
+};
+export type CallCard = CallLogRow & {
+  tags: { title: string; color: string }[];
+  purchase: { amount: number; days_after: number } | null;
+  attempt: { n: number; of: number } | null;
+  followup_at: string | null;
 };
 export type CallListRow = {
   id: number;

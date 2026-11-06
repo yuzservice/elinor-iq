@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 
+from apps.accounts.models import User
 from apps.accounts.permissions import IsSuperAdmin, is_super_admin
 from apps.core.coverage import coverage_payload
 from apps.sales.services import parse_range, window_meta
@@ -215,7 +216,30 @@ def customer_detail(request, source_id):
         include_internal=is_super_admin(request.user),
     )
     payload["data_coverage"] = coverage_payload()
+    if request.user.role == User.ROLE_SALES_AGENT:
+        _redact_for_agent(payload)
     return Response(payload)
+
+
+def _redact_for_agent(payload):
+    """Sales agents see everything except email, national code and full addresses (city only)."""
+    payload["email"] = ""
+    payload["profile"] = {**payload.get("profile", {}), "email": "", "national_code": ""}
+    payload["addresses"] = [{"city": row.get("city", ""), "province": row.get("province", "")} for row in payload.get("addresses", [])]
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def customer_timeline(request, source_id):
+    from .profile360 import TIMELINE_TYPES, timeline
+
+    customer = Customer.objects.filter(source_id=source_id).first()
+    if not customer:
+        return Response({"detail": "مشتری پیدا نشد."}, status=status.HTTP_404_NOT_FOUND)
+    kind = request.query_params.get("type") or "all"
+    if kind != "all" and kind not in TIMELINE_TYPES:
+        return Response({"detail": "نوع نامعتبر است."}, status=status.HTTP_400_BAD_REQUEST)
+    return Response(timeline(customer, kind, page=_positive_int(request.query_params.get("page"), default=1)))
 
 
 @api_view(["GET"])

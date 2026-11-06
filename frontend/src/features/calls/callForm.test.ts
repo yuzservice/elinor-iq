@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { answerSummary, dueLabel, isOneClick, needsDncConfirm, rawAnswers, saveCheck, toggleOption } from "./callForm";
+import { answerSummary, answerValue, dueLabel, isOneClick, needsDncConfirm, rawAnswers, saveCheck, toggleOption } from "./callForm";
 import type { FormOutcome } from "./types";
 
 const outcome = (patch: Partial<FormOutcome> = {}): FormOutcome => ({
@@ -69,5 +69,17 @@ describe("form builder helpers", () => {
     expect(newField("rating").options).toHaveLength(0);
     expect(outcomeSubtitle(newOutcome())).toBe("یک کلیکی");
     expect(outcomeSubtitle({ ...newOutcome(), connected: true, after_save: "retry", retry_times: 3 })).toBe("فقط یادداشت، ۳ تلاش مجدد");
+  });
+
+  it("formats call-card answer values", () => {
+    expect(answerValue({ type: "toggle", title: "معرفی", value: true })).toBe("بله");
+    expect(answerValue({ type: "toggle", title: "معرفی", value: false })).toBe("خیر");
+    expect(answerValue({ type: "rating", title: "امتیاز", value: 4 })).toBe("۴ از ۵");
+    expect(answerValue({ type: "date", title: "تماس بعدی", value: "2026-11-11" })).toBe("۱۴۰۵/۰۸/۲۰");
+    expect(answerValue({ type: "time", title: "ساعت", value: "17:00" })).toBe("۱۷:۰۰");
+    expect(answerValue({ type: "number", title: "بودجه", value: 6000000 })).toBe("۶٬۰۰۰٬۰۰۰");
+    expect(answerValue({ type: "single", title: "دسته", value: "a", labels: ["مانتو"] })).toBe("مانتو");
+    expect(answerValue({ type: "multi", title: "دسته", value: ["a", "b"], labels: ["مانتو", "شلوار"] })).toBe("مانتو، شلوار");
+    expect(answerValue({ type: "text", title: "توضیح", value: "" })).toBe("—");
   });
 });

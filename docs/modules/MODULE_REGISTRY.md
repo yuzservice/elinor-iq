@@ -104,7 +104,8 @@ This registry catalogs the core architectural modules of ELINOR IQ V2. Each entr
 - **Important Services & APIs:**
   - `GET /api/customers/` (`customer_list`): Paginated customer list with rich multi-parameter filters (city, province, tier, channel, purchase frequency, registered-only, order behavior).
   - `GET /api/customers/list-summary/`, `list-options/`, `GET|POST list-views/`, `DELETE list-views/<id>/`: redesigned list totals, filter choices, saved views. `CustomerMetrics` (`metrics.py`, `refresh_customer_metrics`) backs list sorts and filters. Rules: `docs/business-rules/customer-list.md`.
-  - `GET /api/customers/<source_id>/` (`customer_detail`): Complete Customer 360 record combining online orders and POS sales.
+  - `GET /api/customers/<source_id>/` (`customer_detail`): Complete Customer 360 record combining online orders and POS sales; adds `value` (cards + tier-average comparison + purchase rhythm), `taste`, `calls_header` (`profile360.py`). Sales agents get email, national code and full addresses removed.
+  - `GET /api/customers/<source_id>/timeline/?type=all|invoice|call|tier|discount&page=` (`customer_timeline`): one paginated timeline (20). Rules: `docs/business-rules/customer-360.md`.
   - `GET /api/customers/<source_id>/purchases/` (`customer_purchases`): Chronological purchase history across online and physical stores.
   - `GET /api/customers/<source_id>/products/` (`customer_products`): Customer product purchase history with category and variant attribution.
   - `GET /api/customers/campaigns/` (`customer_campaigns`): Audience estimation and segmentation for targeted marketing campaigns.
@@ -116,7 +117,7 @@ This registry catalogs the core architectural modules of ELINOR IQ V2. Each entr
   - Internal accounts API (`IsSuperAdmin`, `internal_accounts.py`): `GET|POST /api/customers/internal-accounts/`, `PATCH /api/customers/internal-accounts/<id>/`; changes start the background tier refresh. Customer 360 adds `internal_account` (super admins only); UI: `features/customers/InternalAccountPanel.tsx` (header menu + confirmed-account banner on `Customer360Page.tsx`).
   - Tier rules API (all `IsSuperAdmin`, `tier_rule_admin.py`): `GET /api/customers/tier-rules/`, `PUT|DELETE /api/customers/tier-rules/draft/`, `POST /api/customers/tier-rules/draft/preview/`, `POST /api/customers/tier-rules/draft/activate/` (202 / 409, background job under the `customer_tiers` lock), `POST /api/customers/tier-rules/<version>/restore/`. Rules: `docs/business-rules/customer-tiers.md`.
 - **Frontend Entrypoints & Components:**
-  - Pages: `frontend/src/pages/CustomersPage.tsx`, `frontend/src/pages/Customer360Page.tsx`
+  - Pages: `frontend/src/pages/CustomersPage.tsx`, `frontend/src/pages/Customer360Page.tsx` (design `docs/design/customer-360-prototype.html`; call cards in `features/calls/CustomerCalls.tsx`)
   - Overview (list tab, above the filter bar): `frontend/src/features/customers/CustomerOverview.tsx` + `overviewDisplay.ts` (formatting, sparkline, collapsed state in `localStorage` per user); tier legend links open the list with `?tier=CODE`; «ویرایش قوانین» / «به‌روزرسانی سطوح» in its tier panel (super admins only). Design: `docs/design/customers-overview-v3.html`.
   - List filters, sort and page live in the URL: `features/customers/customerListUrl.ts`.
   - Panels: `frontend/src/features/customers/CustomerListPanel.tsx`, `frontend/src/features/customers/CustomerCampaignsPanel.tsx`, `frontend/src/features/customers/CustomerReportsPanel.tsx`

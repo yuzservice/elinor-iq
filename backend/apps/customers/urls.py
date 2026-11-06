@@ -24,6 +24,7 @@ urlpatterns = [
     path("tier-rules/<int:version>/restore/", views.tier_rules_restore),
     path("", views.customer_list),
     path("<int:source_id>/purchases/", views.customer_purchases),
+    path("<int:source_id>/timeline/", views.customer_timeline),
     path("<int:source_id>/products/", views.customer_products),
     path("<int:source_id>/", views.customer_detail),
 ]
