@@ -1,7 +1,8 @@
 #!/bin/sh
 set -e
 
-pip install --no-cache-dir -r requirements.txt
+# Not fatal: without network (e.g. a new package after a failed image build) start with what is installed.
+pip install --no-cache-dir -r requirements.txt || echo "pip install failed; continuing with the installed packages."
 python manage.py migrate --noinput
 
 interval="${ELINOR_SYNC_INTERVAL_SECONDS:-3600}"

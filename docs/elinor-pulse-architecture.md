@@ -1,8 +1,8 @@
 # Elinor Pulse: architecture (Phase 0)
 
 Status: Phase 0 approved 2026-11-06 (cover option C). Phase 1 (data and sync) committed on `feature/elinor-pulse`
-(`f75c398`). Phase 2 `e161e14`, Phase 2.1 `1f671e9`, relay `593a445` (all pushed). Phase 2.2 (media volume on the backend, small
-cover copies, §16) uncommitted, not merged. §12 = Phase 1 changes; §13 = Phase 2; §14 = Phase 2.1; §15 = relay; §16 = 2.2.
+(`f75c398`). Phase 2 `e161e14`, Phase 2.1 `1f671e9`, relay `593a445`, Phase 2.2 `320c977` (all pushed). Deploy preparation (§17)
+uncommitted, not merged. §12 = Phase 1 changes; §13 = Phase 2; §14 = 2.1; §15 = relay; §16 = 2.2; §17 = first deploy.
 Spec: `elinor-instagram/docs/product-spec.md` (draft 1.1) and `fit-gap-elinor-iq-2026-11-06.md` (decisions in §5.1).
 Labels: **[V]** verified in code, data or a live read-only Zernio call on 2026-11-06 · **[A]** assumed, not verified.
 
@@ -396,8 +396,8 @@ progressive, no metadata. A failure is written to `small_error`; the cover stays
 - Real numbers (local volume, ✅ 2026-11-06): 101 originals 57.4 MB (avg 568 KB); 101 small copies 5.6 MB (avg 55 KB,
   9 to 133 KB). A list of 20 posts drops from about 11 MB to about 1.1 MB.
 
-**Moving covers to the server** (server database is separate; run after deploy, `PULSE_ENABLED=true` and one
-`pulse_sync --full` so the posts exist):
+**Moving covers to the server** (superseded by the runbook, `docs/runbooks/pulse-first-deploy.md`; server database is
+separate; run after deploy, `PULSE_ENABLED=true` and one `pulse_sync --full` so the posts exist):
 1. Local export (originals only; the export reads the volume, so run it where the volume is mounted):
    `docker compose run --rm --no-deps -v ./backups:/backups --entrypoint python pulse-scheduler manage.py pulse_export_covers /backups/pulse-covers.tar.gz`
    The current export is `backups/pulse-covers-2026-11-06.tar.gz` (55 MB, 101 files).
@@ -411,4 +411,38 @@ Locally the `pulse-scheduler` image build stalled on the network earlier, so the
 of the backend image (same Dockerfile) with `elinor-iq-v2_pulse_media` and `./backups` mounted: 101 imported, 101 small
 copies. The running local backend got Pillow with a one-time `pip install`; `docker compose build backend` (or the
 server's `update.sh`, which builds) bakes it into the image.
+
+## 17. First deploy preparation (2026-11-09)
+
+Runbook for the owner (Persian): `docs/runbooks/pulse-first-deploy.md`. The engineer has no server access.
+
+**Build resilience.**
+- `backend` is now built as `image: elinor-iq-backend` (the name Compose already gives it in project `elinor-iq`), and
+  `pulse-scheduler` uses that image instead of its own build. `docker compose --dry-run up -d --build` builds it once;
+  the `update.sh` fallback (`--no-build --pull never`) still creates `pulse-scheduler` from the existing image (both
+  verified locally with dry runs). The runbook checks first that the server has an image named `elinor-iq-backend`.
+- `docker/scheduler-entrypoint.sh` and `pulse-scheduler-entrypoint.sh`: `pip install -r requirements.txt` is no longer
+  fatal. Before, with `set -e`, a failed runtime install (no network, after a failed build, with Pillow new in
+  requirements) would have crash-looped the existing sales scheduler.
+- Without Pillow nothing crashes: it is imported inside `make_small`; small copies fail with `small_error`, covers stay
+  ok and lists fall back to the original.
+- Local evidence (2026-11-09): `docker compose build backend` failed after about 6.5 minutes with a pip read timeout to
+  `files.pythonhosted.org`, so the old image was used; a runtime `pip install Pillow` in `pulse-scheduler` then worked.
+- `update.sh` needs no change for a build that *fails*. Proposal (not made): wrap the build in `timeout 1800 …` so a
+  build that *hangs* also falls back.
+
+**Media writers.** Commands that write covers or product images (`pulse_sync`, `pulse_fetch_covers`,
+`pulse_import_covers`, `pulse_make_small_covers`, `pulse_match_products`) must run in `pulse-scheduler`; `backend` mounts
+the volume read-only.
+
+**Users.** `/admin/` uses Django's `UserAdmin` forms (username, role, password twice; the change page shows the hash
+with the «change password» link). `manage.py create_user --username NAME [--role ROLE]` (default `content`) asks for
+the password twice with `getpass`, runs the password validators and never prints it. `/admin/` stays closed to
+`content` and `sales_agent` (middleware) and to non-staff users.
+
+**Data on the Mac (2026-11-09).** `pulse_sync --full` now returns about 300 posts: Zernio filled in history back to
+2026-08-10 after the account was connected. Local: 308 posts, 308 covers ok with small copies; export
+`backups/pulse-covers-2026-11-09.tar.gz` (308 files, 135 MB). Seven posts from 11-01 to 11-06 (for example
+`DfaQS0sGz4j`) are no longer in Zernio (`post_not_found`), probably deleted or archived on Instagram [A]; they keep their
+last numbers in Pulse. Open item: hide posts that disappear from Zernio.
 

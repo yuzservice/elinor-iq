@@ -3,7 +3,8 @@
 # Never migrates: the backend and the main scheduler apply migrations; this loop waits for them.
 set -e
 
-pip install --no-cache-dir -r requirements.txt
+# Not fatal: without network (e.g. a new package after a failed image build) start with what is installed.
+pip install --no-cache-dir -r requirements.txt || echo "pip install failed; continuing with the installed packages."
 
 until python manage.py migrate --check >/dev/null 2>&1; do
   echo "Pulse: waiting for migrations to be applied"

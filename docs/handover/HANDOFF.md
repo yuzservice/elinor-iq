@@ -128,7 +128,12 @@ Notes for the Product Architect / next task:
 
 ## 9. Log
 
-### 2026-11-06 — Elinor Pulse Phase 2.2: media served, small covers (`feature/elinor-pulse`), uncommitted
+### 2026-11-09 — Elinor Pulse first deploy preparation (`feature/elinor-pulse`), uncommitted
+- Runbook (Persian) `docs/runbooks/pulse-first-deploy.md`: backup with `pg_dump -Fc`, update with Pulse off, enable, full sync, covers, users, rollback. Owner runs every server step.
+- `pulse-scheduler` reuses the `elinor-iq-backend` image; scheduler entrypoints no longer crash when `pip install` fails. `/admin/` creates users with a password and role; `create_user` command (password by prompt). Flag-off suites unchanged; new tests `test_accounts_users.py` (4 passed).
+- Local: 308 posts and covers; export `backups/pulse-covers-2026-11-09.tar.gz` (308 files, 135 MB). The 11-06 tarball is no longer in `backups/` (not removed by the engineer); the new one is a superset.
+
+### 2026-11-06 — Elinor Pulse Phase 2.2: media served, small covers (`feature/elinor-pulse`), committed `320c977`, pushed
 - Fixed: `backend` mounts `pulse_media:/pulse-media:ro` (covers were invisible to the API). Covers moved into the volume with `pulse_import_covers` (101 ok); duplicate `backups/pulse-media` removed; tarball kept.
 - 600 px list copies (`Pillow==11.0.0`, `pulse.0004`): 101 made, avg 55 KB vs 568 KB originals. Lists use `/sm/`, the post sheet the original. Tests: Pulse 52 passed; Vitest 98 passed. Server steps: architecture §16.
 

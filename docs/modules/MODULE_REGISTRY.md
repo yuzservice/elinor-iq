@@ -36,6 +36,7 @@ This registry catalogs the core architectural modules of ELINOR IQ V2. Each entr
   - `GET /api/auth/me/` (`me`): Returns authenticated user profile, role, and permissions; `features.pulse` is true when `PULSE_ENABLED` and the role is in `apps.pulse.permissions.PULSE_ROLES`.
   - `GET /api/auth/csrf/` (`csrf`): Generates CSRF cookie token for frontend bootstrapping.
   - `IsSuperAdmin`, `is_super_admin`: Permission class restricting privileged administrative endpoints.
+  - `/admin/` users (`admin.py`): Django `UserAdmin` forms with role and password (set twice, change link). `manage.py create_user --username NAME [--role ROLE]` (default `content`) asks for the password interactively. Tests: `tests/test_accounts_users.py`.
 - **Frontend Entrypoints & Components:**
   - Page: `frontend/src/pages/LoginPage.tsx`
   - Service: `frontend/src/services/auth.ts` (`authService.login`, `authService.logout`, `authService.me`, `authService.csrf`)

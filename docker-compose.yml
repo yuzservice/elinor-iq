@@ -15,6 +15,8 @@ services:
     restart: unless-stopped
 
   backend:
+    # Named explicitly (= Compose's default name for project "elinor-iq") so pulse-scheduler can reuse it.
+    image: elinor-iq-backend
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
@@ -110,9 +112,8 @@ services:
     restart: unless-stopped
 
   pulse-scheduler:
-    build:
-      context: .
-      dockerfile: docker/backend.Dockerfile
+    # Same image as backend, built once; the update.sh fallback (--no-build) then still has an image for it.
+    image: elinor-iq-backend
     env_file:
       - .env
     environment:
