@@ -9,6 +9,7 @@ class User(AbstractUser):
     ROLE_ANALYST = "analyst"
     ROLE_STAFF = "staff"
     ROLE_SALES_AGENT = "sales_agent"
+    ROLE_CONTENT = "content"  # Instagram team: Elinor Pulse only
     ROLE_CHOICES = [
         (ROLE_SUPER_ADMIN, "Super admin"),
         (ROLE_ADMIN, "Admin"),
@@ -16,6 +17,7 @@ class User(AbstractUser):
         (ROLE_ANALYST, "Analyst"),
         (ROLE_STAFF, "Staff"),
         (ROLE_SALES_AGENT, "Sales agent"),
+        (ROLE_CONTENT, "Content"),
     ]
 
     role = models.CharField(max_length=32, choices=ROLE_CHOICES, default=ROLE_ADMIN)

@@ -128,6 +128,33 @@ Notes for the Product Architect / next task:
 
 ## 9. Log
 
+### 2026-11-09 — Elinor Pulse first deploy preparation (`feature/elinor-pulse`), uncommitted
+- Runbook (Persian) `docs/runbooks/pulse-first-deploy.md`: backup with `pg_dump -Fc`, update with Pulse off, enable, full sync, covers, users, rollback. Owner runs every server step.
+- `pulse-scheduler` reuses the `elinor-iq-backend` image; scheduler entrypoints no longer crash when `pip install` fails. `/admin/` creates users with a password and role; `create_user` command (password by prompt). Flag-off suites unchanged; new tests `test_accounts_users.py` (4 passed).
+- Local: 308 posts and covers; export `backups/pulse-covers-2026-11-09.tar.gz` (308 files, 135 MB). The 11-06 tarball is no longer in `backups/` (not removed by the engineer); the new one is a superset.
+
+### 2026-11-06 — Elinor Pulse Phase 2.2: media served, small covers (`feature/elinor-pulse`), committed `320c977`, pushed
+- Fixed: `backend` mounts `pulse_media:/pulse-media:ro` (covers were invisible to the API). Covers moved into the volume with `pulse_import_covers` (101 ok); duplicate `backups/pulse-media` removed; tarball kept.
+- 600 px list copies (`Pillow==11.0.0`, `pulse.0004`): 101 made, avg 55 KB vs 568 KB originals. Lists use `/sm/`, the post sheet the original. Tests: Pulse 52 passed; Vitest 98 passed. Server steps: architecture §16.
+
+### 2026-11-06 — Elinor Pulse covers through the Cloudflare relay (`feature/elinor-pulse`), committed `593a445`, pushed
+- Covers only from Instagram's CDN via `PULSE_COVER_RELAY_URL` / `_TOKEN` (token only in a header); Zernio-hosted cover URLs are never downloaded; expired Meta links become `expired` (fallback image). Removed `PULSE_MEDIA_PROXY` and `pulse_refresh_covers`. New: `pulse_fetch_covers`, `pulse_export_covers`, `pulse_import_covers`; status shows ok / pending / failed / expired / skipped and relay errors.
+- Real local run: all 101 covers downloaded (65 MB on disk) in one `pulse_sync --full`; export `backups/pulse-covers-2026-11-06.tar.gz` (55 MB, 101 files). Server steps: architecture §15. Tests: Pulse 48 passed; Vitest 98 passed.
+
+### 2026-11-06 — Elinor Pulse Phase 2.1 corrections (`feature/elinor-pulse`), committed `1f671e9`, pushed
+- No score for fresh posts in generated text; star = most viewed with raw numbers; weakest and repeat_winner use non-fresh posts of the last 3 days (no repeat within 2 days, `pulse.0003`); same-age day comparison; «ارسال» for shares; clean post names; growth note with the first snapshot date.
+- `pulse_sync --full` ran on real data: 101 posts, 21 CSV-only posts became Zernio posts, missing post `DfaQS0sGz4j` (2026-11-06 22:00) imported. `pulse_refresh_covers` added; 101 covers waiting until the Meta links expire around 2026-11-11. Tests: Pulse 44 passed; Vitest 98 passed.
+
+### 2026-11-06 — Elinor Pulse Phase 2 (`feature/elinor-pulse`), committed `e161e14`, pushed
+- Gate passed: real `pulse_sync` (79 posts updated, 2 requests) and `pulse_snapshot` (74 posts, date 11-05) locally; 100 posts = 79 Zernio + 21 CSV-only.
+- Built: role `content` (`accounts.0004`, choices only), read-only `/api/pulse/` + task toggle, `me.features.pulse`, `/pulse` UI with 4 inner tabs and post/product sheets, rule-based brief and 3 tasks (`pulse_daily_brief`), post-timeline backfill (`pulse_backfill_snapshots`), `pulse.0002`. Tests: Pulse backend 37 passed; frontend 98 passed (full suite). Details and real-data findings: architecture §13.
+- Open (needs owner decision): brief sentence 1 compares fresh posts with full days; "weakest non-fresh post of yesterday" never exists; Zernio history starts 11-06, so backfill cannot fill older days.
+
+### 2026-11-06 — Elinor Pulse Phase 0 + Phase 1 (`feature/elinor-pulse`, from `main` `d6e3ba9`), uncommitted
+- Architecture proposal `docs/elinor-pulse-architecture.md`: app `apps/pulse`, `ig_` tables, Zernio REST (`https://zernio.com/api`, verified with read-only calls), separate `pulse-scheduler`, `pulse_media` volume, no new dependencies. Parser probe on `posts_100.csv` matches 88 / 137 / 69.
+- Server checks: Zernio and `api.elinorboutique.com` reachable, Instagram CDN blocked; owner chose cover option C (wait for Zernio's copy, or `PULSE_MEDIA_PROXY`).
+- Phase 1 implemented, uncommitted: `apps/pulse` (8 `ig_` tables, migration `pulse.0001`), 4 `pulse_*` commands, `pulse-scheduler` service + `pulse_media` volume, `tests/test_pulse.py` (16 passed). Local: CSV 100 posts / 88 with codes; 132 of 137 codes matched (unmatched 1042, 1143, 5205, 7685, 9233). First real `pulse_sync` (local, 2026-11-06): 79 posts of the last 30 days updated from Zernio in 3.5 s with 2 requests; codes unchanged (88 / 137); followers 899,508; 79 covers waiting (Meta CDN, no proxy). The 21 older CSV posts (09-29 to 10-05) are outside the 30-day window and keep their CSV numbers.
+
 ### 2026-11-04 — Customer 360 redesign (`feature/customer-360-redesign`, from `production`), checkpoints
 - Backend: `profile360.py` (value cards with tier-average comparison, purchase rhythm, taste, call header, timeline), `customers/<id>/timeline/`, call cards with stats/tags/purchase/attempt/follow-up, sales-agent redaction (email, national code, full address). Detail for the largest local customer (147 invoices): 474 ms cold, 301 ms warm; customers with 283 and 368 invoices: 175 and 138 ms cold.
 - Reference saved as `docs/design/customer-360-prototype.html`. Frontend rebuilt to it (header, cards, taste, lazy tabs: timeline, invoices, product cards, call cards, profile); invoice rows add `payment` and `amount`. Re-timed after that: 356 ms cold / 223 ms warm, timeline 22 ms. Rules: `docs/business-rules/customer-360.md`.

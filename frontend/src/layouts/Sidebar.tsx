@@ -4,6 +4,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useTheme } from "../theme/ThemeProvider";
 import {
   IconCalls,
+  IconPulse,
   IconCollapse,
   IconCustomers,
   IconHome,
@@ -12,7 +13,7 @@ import {
   IconSales,
   IconSettings,
 } from "../components/Icons";
-import { SALES_AGENT_ROLE, visibleNavItems } from "../lib/nav";
+import { CONTENT_ROLE, SALES_AGENT_ROLE, showsSettings, visibleNavItems } from "../lib/nav";
 
 const ICONS = {
   home: IconHome,
@@ -20,6 +21,7 @@ const ICONS = {
   customers: IconCustomers,
   products: IconProducts,
   calls: IconCalls,
+  pulse: IconPulse,
 };
 
 export function Sidebar() {
@@ -166,7 +168,7 @@ export function Sidebar() {
           })}
 
           {/* Settings NavLink */}
-          {user?.role === SALES_AGENT_ROLE ? null : (
+          {!showsSettings(user) ? null : (
           <NavLink
             to="/settings"
             className={({ isActive }) =>
@@ -203,7 +205,7 @@ export function Sidebar() {
       <div className="space-y-3">
         
         {/* AI Assistant Widget */}
-        {user?.role === SALES_AGENT_ROLE ? null : !collapsed ? (
+        {!showsSettings(user) ? null : !collapsed ? (
           <div className="p-3.5 rounded-2xl bg-accent/5 border border-accent/20">
             <div className="flex items-center gap-2 text-xs font-bold text-accent">
               <span className="h-2 w-2 rounded-full bg-accent pulse-glow" />
@@ -248,7 +250,7 @@ export function Sidebar() {
                   <div className="text-xs font-bold text-ink truncate">
                     {user?.username || "admin"}
                   </div>
-                  <div className="text-[10px] text-faint">{user?.role === SALES_AGENT_ROLE ? "کارمند فروش" : "مدیر ارشد فروشگاه"}</div>
+                  <div className="text-[10px] text-faint">{user?.role === SALES_AGENT_ROLE ? "کارمند فروش" : user?.role === CONTENT_ROLE ? "تیم محتوا" : "مدیر ارشد فروشگاه"}</div>
                 </div>
               </div>
 
@@ -301,7 +303,7 @@ export function Sidebar() {
             >
               {user?.username?.slice(0, 2).toUpperCase() || "AD"}
               <div className="opacity-0 pointer-events-none group-hover:opacity-100 absolute right-12 z-50 px-2.5 py-1 rounded-lg bg-elevated border border-line text-ink text-xs font-semibold whitespace-nowrap shadow-xl transition-opacity">
-                {user?.username || "admin"} ({user?.role === SALES_AGENT_ROLE ? "کارمند فروش" : "مدیر ارشد"})
+                {user?.username || "admin"} ({user?.role === SALES_AGENT_ROLE ? "کارمند فروش" : user?.role === CONTENT_ROLE ? "تیم محتوا" : "مدیر ارشد"})
               </div>
             </div>
 

@@ -8,9 +8,10 @@ import {
   IconSales,
   IconSettings,
   IconCalls,
+  IconPulse,
 } from "../components/Icons";
 import { CoverageNotice } from "../components/ui";
-import { SALES_AGENT_ROLE, visibleNavItems } from "../lib/nav";
+import { showsSettings, visibleNavItems } from "../lib/nav";
 import { Sidebar } from "./Sidebar";
 
 const ICONS = {
@@ -19,6 +20,7 @@ const ICONS = {
   customers: IconCustomers,
   products: IconProducts,
   calls: IconCalls,
+  pulse: IconPulse,
 };
 
 function MobileThemeToggle() {
@@ -45,7 +47,8 @@ function MobileThemeToggle() {
 export function AppShell() {
   const { user } = useAuth();
   const location = useLocation();
-  const showCoverageNotice = location.pathname !== "/" && !location.pathname.startsWith("/calls");
+  const showCoverageNotice =
+    location.pathname !== "/" && !location.pathname.startsWith("/calls") && !location.pathname.startsWith("/pulse");
 
   return (
     <div className="flex min-h-screen bg-canvas text-ink transition-colors">
@@ -107,7 +110,7 @@ export function AppShell() {
               );
             })}
 
-            {user?.role === SALES_AGENT_ROLE ? null : (
+            {!showsSettings(user) ? null : (
             <NavLink
               to="/settings"
               className={({ isActive }) =>

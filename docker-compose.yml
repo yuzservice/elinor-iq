@@ -15,6 +15,8 @@ services:
     restart: unless-stopped
 
   backend:
+    # Named explicitly (= Compose's default name for project "elinor-iq") so pulse-scheduler can reuse it.
+    image: elinor-iq-backend
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
@@ -27,6 +29,7 @@ services:
       - ./backups:/backups
       - ./source:/source:ro
       - ./docker/backend-entrypoint.sh:/entrypoint.sh:ro
+      - pulse_media:/pulse-media:ro  # Pulse covers: served read-only; only pulse-scheduler writes
     depends_on:
       postgres:
         condition: service_healthy
@@ -108,6 +111,24 @@ services:
     entrypoint: ["/scheduler-entrypoint.sh"]
     restart: unless-stopped
 
+  pulse-scheduler:
+    # Same image as backend, built once; the update.sh fallback (--no-build) then still has an image for it.
+    image: elinor-iq-backend
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+    volumes:
+      - ./backend:/app
+      - ./docker/pulse-scheduler-entrypoint.sh:/pulse-scheduler-entrypoint.sh:ro
+      - pulse_media:/pulse-media
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "/pulse-scheduler-entrypoint.sh"]
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   frontend_node_modules:
+  pulse_media:
