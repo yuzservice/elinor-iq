@@ -15,6 +15,7 @@ This registry catalogs the core architectural modules of ELINOR IQ V2. Each entr
 - [[CORE_HISTORICAL_IMPORT|Core Historical Import Documentation]]
 - [[SOURCE_DATABASE_DISCOVERY|Source Database Discovery Findings]]
 - [[SMART_DIRECT_INSTAGRAM|Smart Direct Instagram Integration Guide]] (historical; module retired in commit 3bc0a48)
+- [[elinor-pulse-architecture|Elinor Pulse architecture]] (Instagram dashboard, `apps.pulse`)
 
 ---
 
@@ -28,13 +29,14 @@ This registry catalogs the core architectural modules of ELINOR IQ V2. Each entr
   - `backend/apps/accounts/permissions.py`
   - `backend/apps/accounts/urls.py`
 - **Primary Database Models:**
-  - `User` (`users` table): Extends `AbstractUser`, defines custom roles: `ROLE_SUPER_ADMIN` (`super_admin`), `ROLE_ADMIN` (`admin`), `ROLE_MANAGER` (`manager`), `ROLE_ANALYST` (`analyst`), `ROLE_STAFF` (`staff`).
+  - `User` (`users` table): Extends `AbstractUser`, defines custom roles: `ROLE_SUPER_ADMIN` (`super_admin`), `ROLE_ADMIN` (`admin`), `ROLE_MANAGER` (`manager`), `ROLE_ANALYST` (`analyst`), `ROLE_STAFF` (`staff`), `ROLE_SALES_AGENT` (`sales_agent`, Call Center only), `ROLE_CONTENT` (`content`, Elinor Pulse only; `accounts.0004`, choices only). `middleware.py` (`SalesAgentScopeMiddleware`) enforces both scopes for every API.
 - **Important Services & APIs:**
   - `POST /api/auth/login/` (`login_view`): Authenticates credentials, establishes Django session.
   - `POST /api/auth/logout/` (`logout_view`): Flushes session.
-  - `GET /api/auth/me/` (`me`): Returns authenticated user profile, role, and permissions.
+  - `GET /api/auth/me/` (`me`): Returns authenticated user profile, role, and permissions; `features.pulse` is true when `PULSE_ENABLED` and the role is in `apps.pulse.permissions.PULSE_ROLES`.
   - `GET /api/auth/csrf/` (`csrf`): Generates CSRF cookie token for frontend bootstrapping.
   - `IsSuperAdmin`, `is_super_admin`: Permission class restricting privileged administrative endpoints.
+  - `/admin/` users (`admin.py`): Django `UserAdmin` forms with role and password (set twice, change link). `manage.py create_user --username NAME [--role ROLE]` (default `content`) asks for the password interactively. Tests: `tests/test_accounts_users.py`.
 - **Frontend Entrypoints & Components:**
   - Page: `frontend/src/pages/LoginPage.tsx`
   - Service: `frontend/src/services/auth.ts` (`authService.login`, `authService.logout`, `authService.me`, `authService.csrf`)
@@ -265,6 +267,19 @@ This registry catalogs the core architectural modules of ELINOR IQ V2. Each entr
 - **APIs (`/api/calls/`):** `tasks/`, `tasks/counts/`, `tasks/bulk/`, `tasks/<id>/`, `tasks/<id>/logs/`, `logs/<id>/`, `customers/<source_id>/`, `customers/<source_id>/clear-dnc/`, `lists/` (+ `<id>/` GET/PATCH/DELETE; POST `create_program`), `lists/excel/`, `programs/` (+ `preview/`, `activate/`, `status/`, `form/`, `form/publish/`), `settings/`, `tags/`, `agents/`, `reports/{sales,escalations,customers,answers,team}/`, `escalations/<id>/close/`.
 - **Frontend:** lazy route `/calls` (`pages/CallCenterPage.tsx`), `features/calls/` (`AgentPanel`, `CallFormFields`, `FormBuilder` lazy, `ProgramsPanel`, `ReportsPanel`, `SettingsPanel`, `CreateCallList`, `CustomerCalls`, `callsUrl.ts` for URL state), `services/calls.ts`; `?edit_list=` in `CustomerListPanel`.
 - **Tests:** `tests/test_call_center.py`, `features/calls/callForm.test.ts`. **Rules:** `docs/business-rules/call-center.md`.
+
+---
+
+## 11. Elinor Pulse (`apps.pulse`), Instagram — Phases 1–2, behind `PULSE_ENABLED`
+
+- **Status:** branch `feature/elinor-pulse`, not merged. No AI code (`PULSE_AI_ENABLED` reserved). Architecture: `docs/elinor-pulse-architecture.md` (§13 = Phase 2).
+- **Models (all `ig_`):** `IgAccount`, `IgPost` (unique `shortcode`; latest metrics), `IgPostSnapshot` (post × Tehran day, first 30 days), `IgAccountDaily`, `IgProductCode` (code → `products.id`, no DB constraint), `IgPostProduct` (caption codes by `position`), `IgMediaAsset`, `IgSyncRun`.
+- **Backend:** `captions.py` (caption codes), `codes.py` (title code `(?<![0-9])([0-9]{4})\s*(?:\||$)`, rebuild), `shares.py` (2:1 weights, computed on read), `zernio.py` (read-only Zernio REST client), `media.py` (covers through the Cloudflare relay `PULSE_COVER_RELAY_URL`, Meta CDN URLs only; product thumbnails direct), `covers.py` (export / import by shortcode, small-copy backfill); covers get a 600 px list copy (`small_path`, Pillow, `pulse.0004`); `pulse_media` is mounted read-only on `backend`, `sync.py` (jobs, `--if-due`, advisory lock, `ig_sync_runs`).
+- **Commands:** `pulse_import_csv <path>`, `pulse_sync --if-due` (3 h), `pulse_match_products --if-due` (after each sync), `pulse_snapshot --if-due` (daily after 00:30 Tehran), `pulse_backfill_snapshots --if-due` (daily, Zernio post-timeline, never replaces our rows), `pulse_daily_brief --if-due` (after 08:00 Tehran). One-off: `pulse_sync --full` (90 days), `pulse_fetch_covers`, `pulse_export_covers <folder|.tar.gz>`, `pulse_import_covers <folder|.tar.gz>`, `pulse_make_small_covers`. New dependency: `Pillow==11.0.0` (Phase 2.2). Run by the `pulse-scheduler` service (`docker/pulse-scheduler-entrypoint.sh`), never by the main scheduler.
+- **Phase 2 backend:** `rules.py` (all thresholds), `analytics.py` (groups, medians, scores, KPIs, golden hours, products, autopsy), `texts.py` (all Persian sentences), `brief.py` (6 task rules, brief), `backfill.py`, `permissions.py` (`PULSE_ROLES`, `PulseAccess`), `views.py` + `urls.py` (`/api/pulse/`: status, home, tasks toggle, posts, posts/<id>, products, products/<code>, hours, media/<id>). Models `IgDailyBrief`, `IgDailyTask` (`pulse.0002`; `IgDailyTask.post` and `IgMediaAsset.url_checked_at` in `pulse.0003`).
+- **Frontend:** lazy route `/pulse` (`pages/PulsePage.tsx`), `features/pulse/` (`HomeTab`, `PostsTab`, `ProductsTab`, `HoursTab`, `Sheets`, `ui`, `format`, `types`), `services/pulse.ts`; Pulse tokens `--pulse*`, `--s-*` in `styles/index.css`; nav item «پالس» via `lib/nav.ts` (`features.pulse`).
+- **Isolation:** reads `products` / `variants` only; never calls the Elinor API; never writes core tables (tested).
+- **Tests:** `tests/test_pulse.py` (fixture `tests/fixtures/pulse/posts_100.csv`), `tests/test_pulse_phase2.py`; frontend `features/pulse/format.test.ts`, `lib/nav.test.ts`.
 
 ---
 

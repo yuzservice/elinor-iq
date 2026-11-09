@@ -49,6 +49,7 @@ def me(request):
 
 def _user_payload(user):
     from apps.calls.permissions import is_call_manager
+    from apps.pulse.permissions import has_pulse_access
 
     from .permissions import is_super_admin
 
@@ -58,4 +59,5 @@ def _user_payload(user):
         "role": user.role,
         "can_manage_platform": is_super_admin(user),
         "can_manage_calls": is_call_manager(user),
+        "features": {"pulse": has_pulse_access(user)},
     }

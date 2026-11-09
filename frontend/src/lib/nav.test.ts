@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DATA_COVERAGE_MESSAGE, NAV_ITEMS, PRODUCT_NAV_LABEL } from "./nav";
+import { DATA_COVERAGE_MESSAGE, NAV_ITEMS, PRODUCT_NAV_LABEL, showsSettings, visibleNavItems } from "./nav";
 
 describe("product scope and coverage", () => {
   it("renames products nav and removes inventory", () => {
@@ -16,5 +16,24 @@ describe("product scope and coverage", () => {
   it("does not expose a direct-messaging nav item", () => {
     expect(NAV_ITEMS.map((item) => item.to)).not.toContain("/smart-direct");
     expect(NAV_ITEMS.some((item) => item.label.includes("دایرکت"))).toBe(false);
+  });
+});
+
+const keys = (user: Parameters<typeof visibleNavItems>[0]) => visibleNavItems(user).map((item) => item.key);
+
+describe("nav visibility", () => {
+  it("shows Pulse only with the feature", () => {
+    expect(keys({ role: "admin", features: { pulse: true } })).toContain("pulse");
+    expect(keys({ role: "admin", features: { pulse: false } })).not.toContain("pulse");
+    expect(keys({ role: "manager" })).not.toContain("pulse");
+  });
+
+  it("limits the content team to Pulse and agents to calls", () => {
+    expect(keys({ role: "content", features: { pulse: true } })).toEqual(["pulse"]);
+    expect(keys({ role: "content", features: { pulse: false } })).toEqual([]);
+    expect(keys({ role: "sales_agent", features: { pulse: true } })).toEqual(["calls"]);
+    expect(showsSettings({ role: "content" })).toBe(false);
+    expect(showsSettings({ role: "sales_agent" })).toBe(false);
+    expect(showsSettings({ role: "admin" })).toBe(true);
   });
 });
