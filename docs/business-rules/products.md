@@ -12,7 +12,7 @@ Status: implemented on `feature/products-redesign` (2026-11-10), not merged; own
 - Grain: Tehran day × product × variant × sales line (`ONLINE`, `SARI`, `GORGAN`, `CAPRI`). Built only from `semantics.py`: qualifying online items, qualifying POS items, POS refund items.
 - `units`: sold units. `net_units`: sold minus in-store returns (returns count on the return day). `revenue`: amount × quantity of sold lines minus returned lines. Online and POS `amount` are both per unit after discount (verified: `Σ amount × quantity = Order.total_amount` for 257k of 270k qualifying orders). `Order.total_amount` and POS tenders are never used.
 - `discounted_units`: sold units whose line has a discount. `invoice_count`: invoices that sold it.
-- Internal accounts (desk/staff) place orders for real customers (about 34% of online item revenue locally), so product sales keep them, as all sales totals do (`operators.py`). `PRODUCTS_EXCLUDE_INTERNAL_SALES=true` drops them from product sales and bundles. Buyers, prospects and call lists always leave them out.
+- Internal accounts (desk/staff) place orders for real customers (about 34% of online item revenue locally), so product sales keep them, as all sales totals do (`operators.py`); owner decision, 2026-11-10. `PRODUCTS_EXCLUDE_INTERNAL_SALES=true` drops them from product sales and bundles. Buyers, prospects and call lists always leave them out.
 - Rebuilt in full by the daily pass (one transaction; readers keep the old rows until commit). Idempotent.
 
 ## Product metrics (`product_metrics`, one row per product that ever sold)
