@@ -68,7 +68,7 @@ def _api(role):
 def test_content_role_sees_only_pulse(pulse):
     client = _api("content")
     assert client.get("/api/pulse/home/").status_code == 200
-    for path in ("/api/sales/kpis/", "/api/customers/", "/api/products/", "/api/home/", "/api/calls/tasks/"):
+    for path in ("/api/sales/kpis/", "/api/customers/", "/api/products/summary/", "/api/home/", "/api/calls/tasks/"):
         assert client.get(path).status_code == 403, path
     assert client.get("/api/auth/me/").json()["features"] == {"pulse": True}
 

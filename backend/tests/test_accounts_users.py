@@ -17,7 +17,7 @@ def _check_content_login(username, settings):
     assert response.status_code == 200
     me = client.get("/api/auth/me/").json()
     assert me["role"] == "content" and me["features"] == {"pulse": True}
-    for path in ("/api/sales/kpis/", "/api/customers/", "/api/products/"):
+    for path in ("/api/sales/kpis/", "/api/customers/", "/api/products/summary/"):
         assert client.get(path).status_code == 403, path
     assert client.get("/api/pulse/status/").status_code == 200
 
