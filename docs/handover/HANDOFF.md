@@ -128,6 +128,9 @@ Notes for the Product Architect / next task:
 
 ## 9. Log
 
+### 2026-11-10 — Products redesign (`feature/products-redesign`, from `production` `79e1cb8`), checkpoints
+- Step 0: references saved as `docs/design/products-prototype.html` (sha256 3998463c…) and `docs/design/product-360-prototype.html` (sha256 e6084528…); source of truth for layout and copy, sample data only. Not merged; owner reviews locally.
+
 ### 2026-11-09 — Elinor Pulse first deploy preparation (`feature/elinor-pulse`), uncommitted
 - Runbook (Persian) `docs/runbooks/pulse-first-deploy.md`: backup with `pg_dump -Fc`, update with Pulse off, enable, full sync, covers, users, rollback. Owner runs every server step.
 - `pulse-scheduler` reuses the `elinor-iq-backend` image; scheduler entrypoints no longer crash when `pip install` fails. `/admin/` creates users with a password and role; `create_user` command (password by prompt). Flag-off suites unchanged; new tests `test_accounts_users.py` (4 passed).

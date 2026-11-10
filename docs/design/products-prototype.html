@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>محصولات</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#06080d}
+button,input{font-family:inherit}
+button:focus-visible,input:focus-visible{outline:2px solid #60a5fa;outline-offset:2px}
+.card{background:#0c1017;border:1px solid rgba(255,255,255,.08);border-radius:18px}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.col{display:flex;flex-direction:column}
+.mut{font-size:12.5px;color:#94a3b8}
+.h{margin:0;font-size:15px;font-weight:600;color:#e2e8f0}
+.ghost{min-height:36px;padding:0 12px;border-radius:10px;background:transparent;border:1px solid rgba(255,255,255,.14);color:#cbd5e1;font-size:12.5px;cursor:pointer}
+.inp{box-sizing:border-box;min-height:38px;padding:0 12px;border-radius:10px;background:#131924;color:#f8fafc;border:1px solid rgba(255,255,255,.12);font-size:13px}
+th{font-weight:500;text-align:right;padding:6px 10px;color:#94a3b8;white-space:nowrap}
+td{padding:9px 10px;white-space:nowrap}
+tbody tr{border-top:1px solid rgba(255,255,255,.06)}
+tbody tr:hover{background:rgba(255,255,255,.025)}
+</style>
+</helmet>
+<div dir="rtl" style="min-height: 100vh; box-sizing: border-box; background: #06080d; color: #f8fafc; font-family: Vazirmatn, system-ui, sans-serif; padding: 24px 16px 56px;">
+<div style="max-width: 1360px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px;">
+
+  <div class="col" style="gap: 4px;"><h1 style="margin: 0; font-size: 24px; font-weight: 800;">محصولات</h1><span class="mut">داده‌ها نمونه است. موجودی انبار در سیستم نیست، پس پیش‌بینی‌ها فقط بر اساس سرعت فروش است.</span></div>
+
+  <section class="card col" aria-label="تنظیمات گزارش" style="position: sticky; top: 8px; z-index: 20; padding: 12px 14px; gap: 10px; background: rgba(12,16,23,.96); backdrop-filter: blur(8px);">
+    <div class="row" style="gap: 8px 18px; position: relative;">
+      <div class="row" style="gap: 8px;">
+        <span style="font-size: 12.5px; color: #cbd5e1; font-weight: 600;">بازه</span>
+        <div class="row" role="group" aria-label="بازه زمانی" style="gap: 2px; padding: 3px; border-radius: 11px; background: #131924;"><sc-for list="{{periods}}" as="p" hint-placeholder-count="5"><button type="button" onClick="{{p.pick}}" aria-pressed="{{p.pressed}}" style="{{p.style}}">{{p.label}}</button></sc-for></div>
+        <sc-if value="{{showCustom}}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{openCur}}" aria-expanded="{{curOpen}}" style="{{curBtnStyle}}">{{curLabel}}<span aria-hidden="true" style="font-size: 10px; color: #64748b;">▾</span></button></sc-if>
+      </div>
+      <span aria-hidden="true" style="width: 1px; height: 22px; background: rgba(255,255,255,.1);"></span>
+      <div class="row" style="gap: 8px;">
+        <span style="font-size: 12.5px; color: #cbd5e1; font-weight: 600;">مقایسه با</span>
+        <div class="row" role="group" aria-label="بازه مقایسه" style="gap: 2px; padding: 3px; border-radius: 11px; background: #131924;"><sc-for list="{{cmps}}" as="p" hint-placeholder-count="5"><button type="button" onClick="{{p.pick}}" aria-pressed="{{p.pressed}}" style="{{p.style}}">{{p.label}}</button></sc-for></div>
+        <sc-if value="{{showCmpCustom}}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{openCmp}}" aria-expanded="{{cmpOpen}}" style="{{cmpBtnStyle}}">{{cmpLabelBtn}}<span aria-hidden="true" style="font-size: 10px; color: #64748b;">▾</span></button></sc-if>
+      </div>
+        <sc-if value="{{calOpen}}" hint-placeholder-val="{{ false }}">
+          <div role="dialog" aria-label="انتخاب بازه تاریخ" style="position: absolute; top: calc(100% + 8px); right: 0; z-index: 40; width: 292px; padding: 14px; border-radius: 16px; background: #131924; border: 1px solid rgba(255,255,255,.14); box-shadow: 0 22px 50px -12px rgba(0,0,0,.85); display: flex; flex-direction: column; gap: 10px;">
+            <div class="row" style="justify-content: space-between; flex-wrap: nowrap;">
+              <button type="button" onClick="{{prevMonth}}" aria-label="ماه قبل" style="width: 32px; height: 32px; border-radius: 9px; background: transparent; border: 0; color: #cbd5e1; font-size: 16px; cursor: pointer;">›</button>
+              <span style="font-size: 14px; font-weight: 600;">{{monthTitle}}</span>
+              <button type="button" onClick="{{nextMonth}}" aria-label="ماه بعد" style="width: 32px; height: 32px; border-radius: 9px; background: transparent; border: 0; color: #cbd5e1; font-size: 16px; cursor: pointer;">‹</button>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; text-align: center;">
+              <sc-for list="{{weekdays}}" as="w" hint-placeholder-count="7"><span style="font-size: 11.5px; color: #64748b; padding: 4px 0;">{{w}}</span></sc-for>
+              <sc-for list="{{days}}" as="d" hint-placeholder-count="35"><button type="button" onClick="{{d.pick}}" disabled="{{d.blank}}" aria-label="{{d.aria}}" aria-pressed="{{d.pressed}}" style="{{d.style}}">{{d.label}}</button></sc-for>
+            </div>
+            <div class="row" style="justify-content: space-between; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.08);">
+              <span class="mut">{{calHint}}</span>
+              <button type="button" onClick="{{closeCal}}" disabled="{{calIncomplete}}" style="{{calDoneStyle}}">تأیید</button>
+            </div>
+          </div>
+        </sc-if>
+    </div>
+    <div class="row" style="gap: 8px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.07);">
+      <input class="inp" type="search" aria-label="جستجوی کالا" placeholder="جستجوی نام یا کد کالا" value="{{q}}" onChange="{{setQ}}" style="flex: 1 1 200px; max-width: 260px;" />
+      <sc-for list="{{filters}}" as="f" hint-placeholder-count="5">
+        <span style="position: relative;">
+          <button type="button" onClick="{{f.toggle}}" aria-expanded="{{f.open}}" style="{{f.style}}">{{f.label}}<span style="{{f.valueStyle}}">{{f.value}}</span><span aria-hidden="true" style="font-size: 10px; color: #64748b;">▾</span></button>
+          <sc-if value="{{f.open}}" hint-placeholder-val="{{ false }}">
+            <div role="listbox" aria-label="{{f.label}}" style="position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; min-width: 200px; max-height: 280px; overflow-y: auto; padding: 6px; border-radius: 12px; background: #131924; border: 1px solid rgba(255,255,255,.14); box-shadow: 0 18px 40px -10px rgba(0,0,0,.8);">
+              <sc-for list="{{f.opts}}" as="o" hint-placeholder-count="4">
+                <label style="display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 8px; border-radius: 8px; font-size: 13px; color: #e2e8f0; cursor: pointer;"><input type="checkbox" checked="{{o.on}}" onChange="{{o.pick}}" />{{o.label}}</label>
+              </sc-for>
+              <button type="button" onClick="{{f.clear}}" style="width: 100%; min-height: 32px; margin-top: 4px; background: transparent; border: 0; border-top: 1px solid rgba(255,255,255,.08); color: #93c5fd; font-size: 12.5px; cursor: pointer;">پاک کردن</button>
+            </div>
+          </sc-if>
+        </span>
+      </sc-for>
+      <sc-if value="{{hasActive}}" hint-placeholder-val="{{ false }}"><button type="button" onClick="{{clearAll}}" style="min-height: 34px; background: transparent; border: 0; color: #93c5fd; font-size: 12.5px; cursor: pointer;">پاک کردن همه</button></sc-if>
+    </div>
+    <div class="row" style="gap: 4px 14px; font-size: 12.5px;">
+      <span style="color: #cbd5e1;">{{scopeText}}</span>
+      <span class="mut">{{rangeText}}</span>
+      <span class="mut">{{cmpText}}</span>
+    </div>
+  </section>
+
+  <section aria-label="شاخص‌ها" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px;">
+    <sc-for list="{{kpis}}" as="k" hint-placeholder-count="4">
+      <button type="button" onClick="{{k.pick}}" aria-pressed="{{k.pressed}}" class="card col" style="{{k.style}}">
+        <span style="font-size: 13px; color: #cbd5e1;">{{k.label}}</span>
+        <span style="display: flex; align-items: baseline; gap: 5px;"><span style="font-size: 26px; font-weight: 800; letter-spacing: -.5px;">{{k.value}}</span><span class="mut">{{k.unit}}</span></span>
+        <sc-for list="{{k.items}}" as="i" hint-placeholder-count="3"><span class="row" style="justify-content: space-between; width: 100%; gap: 8px; font-size: 12.5px;"><span style="color: #e2e8f0;">{{i.a}}</span><span class="mut">{{i.b}}</span></span></sc-for>
+        <span style="{{k.noteStyle}}">{{k.note}}</span>
+      </button>
+    </sc-for>
+  </section>
+
+  <section class="card col" aria-label="فروش به تفکیک شعبه" style="padding: 14px 18px; gap: 10px;">
+    <div class="row" style="justify-content: space-between;"><h2 class="h" style="font-size: 14px;">فروش به تفکیک شعبه</h2><span class="mut">روی هر شعبه بزنید تا کل صفحه برای همان شعبه فیلتر شود</span></div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px 22px;">
+      <sc-for list="{{branchStrip}}" as="b" hint-placeholder-count="4">
+        <button type="button" onClick="{{b.pick}}" aria-pressed="{{b.pressed}}" style="{{b.style}}">
+          <span class="row" style="justify-content: space-between; width: 100%;"><span class="row" style="gap: 7px;"><span style="{{b.dot}}"></span><span style="font-size: 13.5px; font-weight: 600; color: #e2e8f0;">{{b.name}}</span></span><span style="{{b.deltaStyle}}">{{b.delta}}</span></span>
+          <span style="display: flex; align-items: baseline; gap: 5px;"><span style="font-size: 19px; font-weight: 800; color: #f8fafc;">{{b.value}}</span><span class="mut">میلیون تومان، {{b.share}}</span></span>
+          <span style="height: 5px; border-radius: 3px; background: rgba(255,255,255,.06); width: 100%;"><span style="{{b.bar}}"></span></span>
+        </button>
+      </sc-for>
+    </div>
+  </section>
+
+  <section class="card col" style="padding: 12px 8px 10px;">
+    <div class="row" style="gap: 6px; padding: 0 8px 10px;">
+      <span class="mut">میان‌بر</span>
+      <sc-for list="{{presets}}" as="p" hint-placeholder-count="4"><button type="button" onClick="{{p.pick}}" aria-pressed="{{p.pressed}}" style="{{p.style}}">{{p.label}}</button></sc-for>
+    </div>
+    <div class="row" style="justify-content: space-between; padding: 0 8px 8px;">
+      <div class="col" style="gap: 2px;"><span style="font-size: 14px; font-weight: 600;">{{resultLine}}</span><span class="mut">{{resultHint}}</span></div>
+      <div class="row">
+        <sc-if value="{{canShowAll}}" hint-placeholder-val="{{ true }}"><button type="button" onClick="{{showAll}}" style="min-height: 36px; padding: 0 14px; border-radius: 10px; border: 0; background: #3b82f6; color: #fff; font-size: 12.5px; font-weight: 600; cursor: pointer;">نمایش همه کالاها</button></sc-if>
+        <button type="button" class="ghost" onClick="{{toggleHelp}}" aria-expanded="{{helpOpen}}">راهنمای ستون‌ها</button>
+        <button type="button" class="ghost">خروجی اکسل</button>
+      </div>
+    </div>
+    <sc-if value="{{helpOpen}}" hint-placeholder-val="{{ false }}">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px 22px; margin: 0 8px 12px; padding: 12px 14px; border-radius: 12px; background: #131924;">
+        <sc-for list="{{helpRows}}" as="h" hint-placeholder-count="12"><div class="col" style="gap: 1px;"><span style="font-size: 12.5px; font-weight: 600; color: #e2e8f0;">{{h.a}}</span><span class="mut" style="line-height: 1.7;">{{h.b}}</span></div></sc-for>
+        <div class="row" style="gap: 6px 14px; grid-column: 1 / -1; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.08); font-size: 12px; color: #94a3b8;"><span>رنگ شعب:</span><sc-for list="{{brLegend}}" as="b" hint-placeholder-count="4"><span class="row" style="gap: 5px;"><span style="{{b.dot}}"></span>{{b.a}}</span></sc-for></div>
+      </div>
+    </sc-if>
+    <div style="overflow-x: auto;">
+      <table style="width: 100%; min-width: 900px; border-collapse: collapse; font-size: 13px;">
+        <thead><tr>
+          <sc-for list="{{heads}}" as="h" hint-placeholder-count="9">
+            <th scope="col" aria-sort="{{h.aria}}" title="{{h.help}}">
+              <sc-if value="{{h.sortable}}" hint-placeholder-val="{{ true }}"><button type="button" onClick="{{h.pick}}" style="{{h.style}}">{{h.label}} <span style="{{h.arrowStyle}}">{{h.arrow}}</span></button></sc-if>
+              <sc-if value="{{h.plain}}" hint-placeholder-val="{{ false }}"><span>{{h.label}}</span></sc-if>
+            </th>
+          </sc-for>
+        </tr></thead>
+        <tbody>
+          <sc-for list="{{rows}}" as="r" hint-placeholder-count="10">
+            <tr>
+              <td><a href="Product360.dc.html" style="display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-decoration: none; color: inherit;"><span style="font-size: 13.5px; font-weight: 600; color: #e2e8f0;">{{r.name}}</span><span style="font-size: 11.5px; color: #94a3b8; direction: ltr;">{{r.sku}}</span></a></td>
+              <td style="color: #cbd5e1;">{{r.cat}}</td>
+              <td style="font-weight: 600;">{{r.units}}</td>
+              <td>{{r.revenue}}</td>
+              <td><span class="row" style="gap: 8px; flex-wrap: nowrap;"><span>{{r.velocity}}</span><svg width="64" height="20" viewBox="0 0 64 20" aria-hidden="true"><polyline points="{{r.spark}}" fill="none" stroke="{{r.sparkColor}}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></polyline></svg></span></td>
+              <td>{{r.start}}</td>
+              <td style="{{r.ratioStyle}}">{{r.ratio}}</td>
+              <td style="{{r.trendStyle}}">{{r.trend}}</td>
+              <td style="color: #cbd5e1;">{{r.age}}</td>
+              <td title="{{r.branchTip}}"><span class="row" style="gap: 4px; flex-wrap: nowrap;"><sc-for list="{{r.brCounts}}" as="m" hint-placeholder-count="4"><span style="{{m.style}}"><span style="{{m.dot}}"></span>{{m.v}}</span></sc-for></span></td>
+              <td style="{{r.discStyle}}">{{r.disc}}</td>
+              <td style="{{r.returnStyle}}">{{r.returns}}</td>
+              <td><span class="row" style="gap: 5px; flex-wrap: nowrap;"><span style="{{r.statusStyle}}">{{r.status}}</span><sc-if value="{{r.out}}" hint-placeholder-val="{{ false }}"><span title="{{r.outTip}}" style="padding: 2px 8px; border-radius: 999px; font-size: 11.5px; background: rgba(244,63,94,.14); color: #fb7185;">{{r.outLabel}}</span></sc-if></span></td>
+            </tr>
+          </sc-for>
+        </tbody>
+      </table>
+    </div>
+    <sc-if value="{{noRows}}" hint-placeholder-val="{{ false }}"><p class="mut" style="margin: 0; padding: 28px; text-align: center;">کالایی با این فیلترها پیدا نشد. یکی از فیلترها را بردارید.</p></sc-if>
+    <div class="row" style="justify-content: space-between; padding: 12px 8px 2px;">
+      <span class="mut">{{pageLine}}</span>
+      <sc-if value="{{paged}}" hint-placeholder-val="{{ true }}">
+      <div class="row"><button type="button" class="ghost" onClick="{{prev}}" disabled="{{noPrev}}">قبلی</button><button type="button" class="ghost" onClick="{{next}}" disabled="{{noNext}}">بعدی</button></div>
+      </sc-if>
+    </div>
+  </section>
+
+  <section class="card col" aria-label="خرید همزمان" style="padding: 16px 18px; gap: 12px;">
+    <div class="row" style="justify-content: space-between; gap: 8px 16px;">
+      <div class="col" style="gap: 3px;"><h2 class="h">خرید همزمان (باندل)</h2><span class="mut">کالاهایی که با هم در یک فاکتور خریده می‌شوند؛ برای چیدمان فروشگاه و پیشنهاد سبد خرید آنلاین</span></div>
+      <div class="row" style="gap: 8px;">
+        <div class="row" role="group" aria-label="کانال" style="gap: 2px; padding: 3px; border-radius: 11px; background: #131924;"><sc-for list="{{bChannels}}" as="p" hint-placeholder-count="3"><button type="button" onClick="{{p.pick}}" aria-pressed="{{p.pressed}}" style="{{p.style}}">{{p.label}}</button></sc-for></div>
+        <div class="row" role="group" aria-label="سطح" style="gap: 2px; padding: 3px; border-radius: 11px; background: #131924;"><sc-for list="{{bLevels}}" as="p" hint-placeholder-count="2"><button type="button" onClick="{{p.pick}}" aria-pressed="{{p.pressed}}" style="{{p.style}}">{{p.label}}</button></sc-for></div>
+        <label style="display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: #cbd5e1;"><input type="checkbox" checked="{{bNew}}" onChange="{{toggleNew}}" />فقط سیگنال‌های تازه</label>
+      </div>
+    </div>
+    <div style="overflow-x: auto;">
+      <table style="width: 100%; min-width: 820px; border-collapse: collapse; font-size: 13px;">
+        <thead><tr><th scope="col" title="دو کالا یا دو دسته که با هم در یک فاکتور خریده شده‌اند. «سیگنال اولیه» یعنی سبد هنوز کم است ولی ارتباط قوی است.">جفت</th><th scope="col" title="در چند فاکتور هر دو با هم بوده‌اند.">سبد مشترک</th><th scope="col" title="از کسانی که اولی را خریدند، چند درصد دومی را هم در همان فاکتور خریدند.">اگر اولی خریده شود</th><th scope="col" title="چند برابر حالت تصادفی با هم خریده شده‌اند. بالای ۲× یعنی ارتباط واقعی.">قدرت ارتباط</th><th scope="col" title="تعداد سبد مشترک نسبت به بازه مقایسه بیشتر شده یا کمتر.">روند</th><th scope="col" title="کار پیشنهادی: کنار هم چیدن در فروشگاه یا پیشنهاد در سبد خرید آنلاین.">پیشنهاد</th></tr></thead>
+        <tbody><sc-for list="{{bundles}}" as="b" hint-placeholder-count="6"><tr>
+          <td><span class="row" style="gap: 6px; flex-wrap: nowrap;"><span style="font-weight: 600; color: #e2e8f0;">{{b.a}}</span><span class="mut">+</span><span style="font-weight: 600; color: #e2e8f0;">{{b.b}}</span><sc-if value="{{b.early}}" hint-placeholder-val="{{ false }}"><span title="تعداد سبد هنوز کم است ولی ارتباط قوی است" style="padding: 1px 8px; border-radius: 999px; font-size: 11px; background: rgba(96,165,250,.16); color: #93c5fd;">سیگنال اولیه</span></sc-if></span></td>
+          <td>{{b.baskets}}</td>
+          <td><span class="row" style="gap: 6px; flex-wrap: nowrap;"><span style="display: inline-block; width: 60px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.06);"><span style="{{b.confBar}}"></span></span><span>{{b.conf}}</span></span></td>
+          <td style="{{b.liftStyle}}">{{b.lift}}</td>
+          <td style="{{b.trendStyle}}">{{b.trend}}</td>
+          <td class="mut">{{b.action}}</td>
+        </tr></sc-for></tbody>
+      </table>
+    </div>
+    <p class="mut" style="margin: 0; line-height: 1.8;">«اگر اولی خریده شود» یعنی در چند درصد سبدهای کالای اول، کالای دوم هم بوده. «قدرت ارتباط» یعنی این جفت چند برابر حالت تصادفی با هم خریده شده‌اند؛ بالای ۲ برابر یعنی ارتباط واقعی. جفت‌های با کمتر از ۵ سبد مشترک نمایش داده نمی‌شوند.</p>
+  </section>
+
+  <sc-if value="{{hasDrawer}}" hint-placeholder-val="{{ false }}">
+    <section class="card col" aria-label="شناسنامه کالا" style="padding: 18px 20px; gap: 16px; border-color: rgba(96,165,250,.45);">
+      <div class="row" style="justify-content: space-between; gap: 10px;">
+        <div class="col" style="gap: 3px;"><h2 style="margin: 0; font-size: 19px; font-weight: 800;">{{d.name}}</h2><span class="mut">{{d.meta}}</span></div>
+        <div class="row">
+          <button type="button" onClick="{{d.callList}}" style="min-height: 38px; padding: 0 14px; border-radius: 10px; border: 0; background: #3b82f6; color: #fff; font-size: 12.5px; font-weight: 600; cursor: pointer;">ساخت لیست تماس از خریداران</button>
+          <button type="button" class="ghost" onClick="{{closeDrawer}}">بستن</button>
+        </div>
+      </div>
+      <sc-if value="{{d.hasMsg}}" hint-placeholder-val="{{ false }}"><p role="status" style="margin: 0; padding: 8px 12px; border-radius: 10px; background: rgba(59,130,246,.14); font-size: 13px;">{{d.msg}}</p></sc-if>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px;">
+        <sc-for list="{{d.kpis}}" as="k" hint-placeholder-count="4"><div class="col" style="gap: 3px;"><span class="mut">{{k.a}}</span><span style="font-size: 20px; font-weight: 800;">{{k.b}}</span></div></sc-for>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 18px;">
+        <div class="col" style="flex: 2 1 420px; min-width: 0; gap: 8px;">
+          <span style="font-size: 13.5px; font-weight: 600;">فروش روزانه از روز لانچ</span>
+          <div role="img" aria-label="نمودار فروش روزانه" style="display: flex; align-items: flex-end; gap: 3px; height: 120px; border-bottom: 1px solid rgba(255,255,255,.1);">
+            <sc-for list="{{d.daily}}" as="b" hint-placeholder-count="30"><span title="{{b.tip}}" style="{{b.style}}"></span></sc-for>
+          </div>
+          <div class="row" style="justify-content: space-between;"><span class="mut">روز ۱</span><span class="mut">امروز</span></div>
+        </div>
+        <div class="col" style="flex: 1 1 300px; min-width: 0; gap: 8px;">
+          <span style="font-size: 13.5px; font-weight: 600;">سایز و رنگ (تعداد فروش)</span>
+          <div style="overflow-x: auto;">
+            <table style="border-collapse: separate; border-spacing: 3px; font-size: 12.5px;">
+              <thead><tr><th scope="col" style="padding: 2px 6px;"></th><sc-for list="{{d.sizes}}" as="z" hint-placeholder-count="4"><th scope="col" style="padding: 2px 6px; text-align: center;">{{z}}</th></sc-for></tr></thead>
+              <tbody><sc-for list="{{d.matrix}}" as="m" hint-placeholder-count="3"><tr style="border: 0;"><th scope="row" style="padding: 2px 6px;">{{m.color}}</th><sc-for list="{{m.cells}}" as="c" hint-placeholder-count="4"><td style="{{c.style}}">{{c.v}}</td></sc-for></tr></sc-for></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 18px;">
+        <div class="col" style="flex: 1 1 300px; gap: 8px;">
+          <span style="font-size: 13.5px; font-weight: 600;">سرعت هر سایز (عدد در روز)</span>
+          <sc-for list="{{d.sizeSpeed}}" as="b" hint-placeholder-count="4"><div style="display: grid; grid-template-columns: 40px minmax(0, 1fr) 40px; align-items: center; gap: 10px; font-size: 13px;"><span>{{b.a}}</span><span style="height: 7px; border-radius: 4px; background: rgba(255,255,255,.06);"><span style="{{b.bar}}"></span></span><span style="text-align: left; font-weight: 600;">{{b.v}}</span></div></sc-for>
+        </div>
+        <div class="col" style="flex: 1 1 300px; gap: 8px;">
+          <span style="font-size: 13.5px; font-weight: 600;">فروش شعب</span>
+          <sc-for list="{{d.branches}}" as="b" hint-placeholder-count="4"><div style="display: grid; grid-template-columns: 70px minmax(0, 1fr) 40px; align-items: center; gap: 10px; font-size: 13px;"><span>{{b.a}}</span><span style="height: 7px; border-radius: 4px; background: rgba(255,255,255,.06);"><span style="{{b.bar}}"></span></span><span style="text-align: left; font-weight: 600;">{{b.v}}</span></div></sc-for>
+        </div>
+        <div class="col" style="flex: 1 1 300px; gap: 8px;">
+          <span style="font-size: 13.5px; font-weight: 600;">معمولاً همراه این کالا خریده می‌شود</span>
+          <sc-for list="{{d.pairs}}" as="p" hint-placeholder-count="3"><div class="row" style="justify-content: space-between; font-size: 13px;"><span>{{p.a}}</span><span class="mut">{{p.b}}</span></div></sc-for>
+        </div>
+      </div>
+    </section>
+  </sc-if>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1400}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { period: '30', cmp: 'prev', cur: [14050701, 14050730], cmpR: [14040701, 14040730], cal: null, calY: 1405, calM: 7, pick: [], all: false, help: false, dcat: 'مانتو', bch: 'all', blev: 'item', bnew: false, q: '', open: null, f: {}, sort: 'revenue', dir: 'desc', page: 1, drawer: null, msg: '' };
+  }
+  renderVals() {
+    var self = this, S = this.state, F = S.f;
+    var fa = function (n) { return Math.round(n).toLocaleString('fa-IR'); };
+    var fa1 = function (n) { return Number(n).toLocaleString('fa-IR', { maximumFractionDigits: 1 }); };
+    var cats = ['مانتو', 'شلوار', 'کفش', 'شال و روسری', 'کیف', 'اکسسوری'];
+    var kinds = { 'مانتو': ['مانتو کتان بلند', 'مانتو جلوباز', 'مانتو کوتاه'], 'شلوار': ['شلوار راسته', 'شلوار بگ', 'شلوار جین'], 'کفش': ['کفش اسپرت', 'کفش تخت', 'بوت'], 'شال و روسری': ['شال نخی', 'روسری ابریشم', 'شال طرح‌دار'], 'کیف': ['کیف دوشی', 'کیف دستی'], 'اکسسوری': ['کمربند', 'کلاه'] };
+    var scale = { '7': 0.25, '30': 1, '90': 2.8, '365': 10, 'custom': 1 }[S.period];
+    var all = [];
+    for (var i = 1; i <= 48; i++) {
+      var cat = cats[(i * 5) % 6], ks = kinds[cat], name = ks[(i * 7) % ks.length] + ' ' + fa(100 + i);
+      var units = Math.round((3 + (i * 37) % 90) * scale), price = 0.8 + ((i * 13) % 50) / 10;
+      var age = 3 + (i * 29) % 420, trend = ((i * 17) % 61) - 25, online = 25 + (i * 11) % 60, ret = ((i * 7) % 12);
+      all.push({ id: i, name: name, sku: 'EL-' + String(4000 + i * 7), cat: cat, units: units, revenue: units * price, velocity: units / ({ '7': 1, '30': 4.3, '90': 12.9, '365': 52, 'custom': 4.3 }[S.period]),
+        trend: trend, age: age, online: online, size: ['S', 'M', 'L', 'XL', '۳۸', '۳۹'][(i * 3) % 6], returns: ret, discounted: i % 4 === 0, branch: ['سایت', 'ساری', 'گرگان', 'کاپری'][(i * 3) % 4] });
+    }
+    var sorted = all.slice().sort(function (a, b) { return b.velocity - a.velocity; });
+    var topCut = sorted[Math.floor(sorted.length * 0.2)].velocity, lowCut = sorted[Math.floor(sorted.length * 0.8)].velocity;
+    all.forEach(function (p) {
+      p.discShare = p.discounted ? 35 + (p.id * 7) % 40 : (p.id * 3) % 15;
+      p.net = p.velocity * (1 - p.returns / 100);
+      p.full = p.net * (1 - p.discShare / 100);
+      p.out = p.id % 9 === 0 && p.trend < 0;
+      p.start = Math.round(p.units * 0.35 + (p.id * 3) % 15);
+      p.idle = p.id % 11 === 0 ? 30 + (p.id * 7) % 60 : 0;
+    });
+    var byCat = {};
+    all.forEach(function (p) { (byCat[p.cat] = byCat[p.cat] || []).push(p.full); });
+    Object.keys(byCat).forEach(function (c) { byCat[c].sort(function (a, b) { return b - a; }); });
+    all.forEach(function (p) {
+      var l = byCat[p.cat], rank = l.indexOf(p.full) / Math.max(1, l.length - 1);
+      var med = l[Math.floor(l.length / 2)] || 1; p.ratio = p.full / med;
+      p.status = p.idle ? 'راکد' : rank <= 0.1 && p.units >= 10 ? 'پیشران فروش' : (p.trend >= 20 ? 'رو به رشد' : (rank >= 0.8 && !p.out ? 'کند' : 'عادی'));
+    });
+    var ageBucket = function (d) { return d <= 30 ? 'تا ۳۰ روز' : (d <= 90 ? '۳۱ تا ۹۰ روز' : (d <= 365 ? '۹۱ تا ۳۶۵ روز' : 'بیش از یک سال')); };
+    var fdefs = [
+      { k: 'cat', label: 'دسته', opts: cats, get: function (p) { return p.cat; } },
+      { k: 'branch', label: 'کانال و شعبه', opts: ['سایت', 'ساری', 'گرگان', 'کاپری'], get: function (p) { return p.branch; } },
+      { k: 'status', label: 'وضعیت فروش', opts: ['پیشران فروش', 'رو به رشد', 'عادی', 'کند', 'راکد'], get: function (p) { return p.status; } },
+      { k: 'age', label: 'عمر کالا', opts: ['تا ۳۰ روز', '۳۱ تا ۹۰ روز', '۹۱ تا ۳۶۵ روز', 'بیش از یک سال'], get: function (p) { return ageBucket(p.age); } },
+      { k: 'stock', label: 'موجودی مرکزی', opts: ['نیاز به شارژ فوری', 'احتمالاً تمام شده', 'موجود'], get: function (p) { return p.need ? 'نیاز به شارژ فوری' : (p.out ? 'احتمالاً تمام شده' : 'موجود'); } },
+      { k: 'disc', label: 'تخفیف', opts: ['تخفیف‌دار', 'بدون تخفیف'], get: function (p) { return p.discounted ? 'تخفیف‌دار' : 'بدون تخفیف'; } }
+    ];
+    var found = all.filter(function (p) {
+      if (S.q && p.name.indexOf(S.q) < 0 && p.sku.indexOf(S.q) < 0) return false;
+      return fdefs.every(function (x) { var v = F[x.k]; return !v || !v.length || v.indexOf(x.get(p)) >= 0; });
+    });
+    var sign = S.dir === 'asc' ? 1 : -1;
+    found.sort(function (a, b) { return S.sort === 'name' ? sign * (a.id - b.id) : sign * (a[S.sort] - b[S.sort]); });
+    var filtered = Object.keys(F).length > 0 || !!S.q, fullList = filtered || S.all;
+    var defaultSort = !fullList;
+    var perPage = 10, pages = fullList ? Math.max(1, Math.ceil(found.length / perPage)) : 1, page = fullList ? Math.min(S.page, pages) : 1;
+    var setF = function (k, v) { var n = Object.assign({}, F); if (v && v.length) n[k] = v; else delete n[k]; self.setState({ f: n, page: 1 }); };
+    var spark = function (seed, tr) {
+      var pts = [];
+      for (var j = 0; j < 8; j++) { var v = 10 + Math.sin(j + seed) * 3 + j * tr / 20; pts.push(v); }
+      var mn = Math.min.apply(null, pts), mx = Math.max.apply(null, pts);
+      return pts.map(function (v, j) { return (62 - j * 60 / 7).toFixed(1) + ',' + (18 - (v - mn) / ((mx - mn) || 1) * 16).toFixed(1); }).join(' ');
+    };
+    var ranges = { '7': ['۱۴۰۵/۰۸/۱۲', '۱۴۰۵/۰۸/۱۸'], '30': ['۱۴۰۵/۰۷/۱۹', '۱۴۰۵/۰۸/۱۸'], '90': ['۱۴۰۵/۰۵/۲۰', '۱۴۰۵/۰۸/۱۸'], '365': ['۱۴۰۴/۰۸/۱۹', '۱۴۰۵/۰۸/۱۸'] };
+    var prevR = { '7': ['۱۴۰۵/۰۸/۰۵', '۱۴۰۵/۰۸/۱۱'], '30': ['۱۴۰۵/۰۶/۱۹', '۱۴۰۵/۰۷/۱۸'], '90': ['۱۴۰۵/۰۲/۲۰', '۱۴۰۵/۰۵/۱۹'], '365': ['۱۴۰۳/۰۸/۱۹', '۱۴۰۴/۰۸/۱۸'] };
+    var faD = function (n) { var t = String(n); return (t.slice(0, 4) + '/' + t.slice(4, 6) + '/' + t.slice(6)).replace(/[0-9]/g, function (c) { return '۰۱۲۳۴۵۶۷۸۹'[c]; }); };
+    var cur = S.period === 'custom' ? [faD(S.cur[0]), faD(S.cur[1])] : ranges[S.period];
+    var cmpR = S.cmp === 'custom' ? [faD(S.cmpR[0]), faD(S.cmpR[1])] : (S.cmp === 'yoy' ? (S.period === 'custom' ? ['…', '…'] : [ranges[S.period][0].replace('۱۴۰۵', '۱۴۰۴').replace('۱۴۰۴/۰۸/۱۹', '۱۴۰۳/۰۸/۱۹'), ranges[S.period][1].replace('۱۴۰۵', '۱۴۰۴')]) : (S.period === 'custom' ? ['…', '…'] : prevR[S.period]));
+    var cmpLabel = { prev: 'نسبت به دوره قبل', yoy: 'نسبت به سال قبل', custom: 'نسبت به بازه مقایسه' }[S.cmp];
+    var showDelta = S.cmp !== 'none';
+    var monthNames = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
+    var monthLen = function (y, m) { return m <= 6 ? 31 : (m <= 11 ? 30 : (y === 1403 ? 30 : 29)); };
+    var firstIndex = function (y, m) {
+      var off = 0, yy, mm;
+      for (yy = 1404; yy < y; yy++) for (mm = 1; mm <= 12; mm++) off += monthLen(yy, mm);
+      for (mm = 1; mm < m; mm++) off += monthLen(y, mm);
+      return ((6 + off) % 7 + 7) % 7;
+    };
+    var rangeBtn = function (on) { return 'display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 12px; border-radius: 10px; font-size: 13px; cursor: pointer; color: #e2e8f0; background: #131924; border: 1px solid ' + (on ? '#60a5fa' : 'rgba(255,255,255,.14)') + ';'; };
+    var calDays = [];
+    if (S.cal && S.calY >= 1404) {
+      var lead = firstIndex(S.calY, S.calM), len = monthLen(S.calY, S.calM), a = S.pick[0], b2 = S.pick[1];
+      for (var k = 0; k < lead; k++) calDays.push({ blank: true, label: '', aria: '', pressed: 'false', style: 'height: 34px; border: 0; background: transparent;', pick: function () {} });
+      for (var dd = 1; dd <= len; dd++) (function (day) {
+        var n = S.calY * 10000 + S.calM * 100 + day, edge = n === a || n === b2, inR = a && b2 && n > a && n < b2, future = n > 14050818;
+        calDays.push({ blank: future, label: String(day).replace(/[0-9]/g, function (c) { return '۰۱۲۳۴۵۶۷۸۹'[c]; }), aria: faD(n), pressed: edge ? 'true' : 'false',
+          style: 'height: 34px; border: 0; font-size: 12.5px; cursor: ' + (future ? 'default' : 'pointer') + '; border-radius: ' + (edge ? '9px' : (inR ? '0' : '9px')) + '; background: ' + (edge ? '#3b82f6' : (inR ? 'rgba(59,130,246,.18)' : 'transparent')) + '; color: ' + (edge ? '#fff' : (future ? '#475569' : '#e2e8f0')) + ';' + (edge ? ' font-weight: 600;' : ''),
+          pick: function () { if (future) return; var p2 = S.pick.length === 1 ? (n < S.pick[0] ? [n, S.pick[0]] : [S.pick[0], n]) : [n]; self.setState({ pick: p2 }); } });
+      })(dd);
+    }
+    var seg = function (on) { return 'min-height: 32px; padding: 0 12px; border: 0; border-radius: 9px; font-size: 12.5px; cursor: pointer; ' + (on ? 'background: #3b82f6; color: #fff; font-weight: 600;' : 'background: transparent; color: #94a3b8;'); };
+    var totalRev = found.reduce(function (s, p) { return s + p.revenue; }, 0) || 1, totalUnits = found.reduce(function (s, p) { return s + p.units; }, 0);
+    var fSorted = found.slice().sort(function (a, b) { return b.revenue - a.revenue; });
+    var top20 = fSorted.slice(0, Math.ceil(found.length * 0.2)).reduce(function (s, p) { return s + p.revenue; }, 0);
+    var BR = [['سایت', '#3b82f6'], ['ساری', '#10b981'], ['گرگان', '#f59e0b'], ['کاپری', '#8b5cf6']];
+    var mixOf = function (p) { var w = [p.online, 30 + (p.id * 7) % 30, 15 + (p.id * 5) % 20, 5 + (p.id * 3) % 12]; var t = w[0] + w[1] + w[2] + w[3]; return w.map(function (x) { return x / t; }); };
+    var brRev = [0, 0, 0, 0];
+    found.forEach(function (p) { mixOf(p).forEach(function (m, i) { brRev[i] += p.revenue * m; }); });
+    var brTotal = brRev[0] + brRev[1] + brRev[2] + brRev[3] || 1, brMax = Math.max.apply(null, brRev) || 1;
+    all.forEach(function (p) { p.need = (p.status === 'پیشران فروش' || p.status === 'رو به رشد') && (p.out || p.id % 5 === 0); });
+    var statusColor = { 'پیشران فروش': '#34d399', 'رو به رشد': '#60a5fa', 'عادی': '#94a3b8', 'کند': '#fbbf24', 'راکد': '#fb923c' };
+    var radar = found.filter(function (p) { return p.age <= 60; }).map(function (p) { return { p: p, ratio: 1 + ((p.id * 19) % 40) / 10 }; }).sort(function (a, b) { return b.ratio - a.ratio; }).slice(0, 4);
+    var openP = function (id) { self.setState({ drawer: id, msg: '' }); };
+    var dp = S.drawer ? all.filter(function (p) { return p.id === S.drawer; })[0] : null;
+    var cols = [
+      ['name', 'کالا', false, 'نام و کد کالا. روی آن بزنید تا شناسنامه کالا باز شود.'],
+      ['cat', 'دسته', true, 'دسته کالا، دقیقاً مثل دسته‌بندی سایت.'],
+      ['units', 'تعداد فروش', false, 'چند عدد در بازه انتخابی فروش رفته است.'],
+      ['revenue', 'مبلغ فروش', false, 'مجموع مبلغ فروش در بازه، به میلیون تومان.'],
+      ['velocity', 'فروش هفتگی', false, 'میانگین فروش در هر هفته، بعد از کم کردن مرجوعی‌ها.'],
+      ['start', 'فروش ۱۴ روز اول', false, 'در دو هفته اول بعد از اولین فروش، چند عدد فروش رفته. نشان می‌دهد کالا چقدر خوب شروع کرده.'],
+      ['ratio', 'نسبت به دسته', false, 'چند برابر یک کالای معمولی همان دسته می‌فروشد. ۲× یعنی دو برابر.'],
+      ['trend', 'تغییر', false, 'فروش این بازه نسبت به بازه مقایسه بیشتر شده یا کمتر.'],
+      ['age', 'عمر کالا', false, 'چند روز از اولین فروش این کالا گذشته است.'],
+      ['online', 'فروش هر شعبه', true, 'تعداد فروش در سایت و هر فروشگاه. رنگ‌ها در راهنما آمده است.'],
+      ['discShare', 'فروش با تخفیف', false, 'چند درصد فروش این کالا با تخفیف بوده است.'],
+      ['returns', 'مرجوعی', false, 'چند درصد فروش برگشت خورده است.'],
+      ['status', 'وضعیت', true, 'پیشران فروش، رو به رشد، عادی، کند یا راکد (بدون فروش در ۳۰ روز اخیر).']
+    ];
+
+    return {
+      periods: [['7', '۷ روز'], ['30', '۳۰ روز'], ['90', '۹۰ روز'], ['365', '۱۲ ماه'], ['custom', 'دلخواه']].map(function (p) { var on = S.period === p[0]; return { label: p[1], pressed: on ? 'true' : 'false', style: seg(on), pick: function () { self.setState({ period: p[0], page: 1 }); } }; }),
+      cmps: [['prev', 'دوره قبل'], ['yoy', 'سال قبل'], ['custom', 'دلخواه'], ['none', 'بدون مقایسه']].map(function (p) { var on = S.cmp === p[0]; return { label: p[1], pressed: on ? 'true' : 'false', style: seg(on), pick: function () { self.setState({ cmp: p[0] }); } }; }),
+      showCustom: S.period === 'custom', showCmpCustom: S.cmp === 'custom',
+      curLabel: faD(S.cur[0]) + ' تا ' + faD(S.cur[1]), cmpLabelBtn: faD(S.cmpR[0]) + ' تا ' + faD(S.cmpR[1]),
+      curOpen: S.cal === 'cur', cmpOpen: S.cal === 'cmp', calOpen: !!S.cal,
+      curBtnStyle: rangeBtn(S.cal === 'cur'), cmpBtnStyle: rangeBtn(S.cal === 'cmp'),
+      openCur: function () { self.setState({ cal: S.cal === 'cur' ? null : 'cur', pick: S.cur.slice(), calY: Math.floor(S.cur[0] / 10000), calM: Math.floor(S.cur[0] / 100) % 100 }); },
+      openCmp: function () { self.setState({ cal: S.cal === 'cmp' ? null : 'cmp', pick: S.cmpR.slice(), calY: Math.floor(S.cmpR[0] / 10000), calM: Math.floor(S.cmpR[0] / 100) % 100 }); },
+      monthTitle: monthNames[S.calM - 1] + ' ' + String(S.calY).replace(/[0-9]/g, function (c) { return '۰۱۲۳۴۵۶۷۸۹'[c]; }),
+      prevMonth: function () { self.setState(S.calM === 1 ? { calM: 12, calY: S.calY - 1 } : { calM: S.calM - 1 }); },
+      nextMonth: function () { self.setState(S.calM === 12 ? { calM: 1, calY: S.calY + 1 } : { calM: S.calM + 1 }); },
+      weekdays: ['ش', 'ی', 'د', 'س', 'چ', 'پ', 'ج'], days: calDays,
+      calHint: S.pick.length === 1 ? 'روز پایان را انتخاب کنید' : (S.pick.length === 2 ? faD(S.pick[0]) + ' تا ' + faD(S.pick[1]) : 'روز شروع را انتخاب کنید'),
+      calIncomplete: S.pick.length !== 2,
+      calDoneStyle: 'min-height: 34px; padding: 0 16px; border-radius: 9px; border: 0; font-size: 12.5px; font-weight: 600; ' + (S.pick.length === 2 ? 'background: #3b82f6; color: #fff; cursor: pointer;' : 'background: #1e2633; color: #64748b; cursor: not-allowed;'),
+      closeCal: function () { if (S.pick.length !== 2) return; var o = { cal: null }; o[S.cal === 'cur' ? 'cur' : 'cmpR'] = S.pick; self.setState(o); },
+      rangeText: 'بازه فعلی: ' + cur[0] + ' تا ' + cur[1],
+      cmpText: S.cmp === 'none' ? 'بدون مقایسه' : 'مقایسه با: ' + cmpR[0] + ' تا ' + cmpR[1] + (S.cmp === 'prev' ? ' (بازه هم‌اندازه قبلی)' : (S.cmp === 'yoy' ? ' (همین بازه سال قبل)' : '')),
+      kpis: (function () {
+        var plain = 'text-align: right; padding: 14px 18px; gap: 6px; font-family: inherit; color: inherit; cursor: default; align-items: stretch;';
+        var click = function (on, c) { return 'text-align: right; padding: 14px 18px; gap: 6px; font-family: inherit; color: inherit; cursor: pointer; align-items: stretch; border-color: ' + (on ? c : 'rgba(255,255,255,.08)') + ';'; };
+        var same = function (k, v) { return JSON.stringify(F[k] || []) === JSON.stringify(v); };
+        var top3 = function (list, b) { return list.slice().sort(function (x, y) { return y.full - x.full; }).slice(0, 3).map(function (p) { return { a: p.name, b: b(p) }; }); };
+        var drivers = found.filter(function (p) { return p.status === 'پیشران فروش'; });
+        var needs = found.filter(function (p) { return p.need; });
+        var slow = found.filter(function (p) { return p.status === 'کند' || p.status === 'راکد'; });
+        var netUnits = found.reduce(function (s2, p) { return s2 + p.units * (1 - p.returns / 100); }, 0);
+        var card = function (label, value, unit, list, key, val, color, hint) {
+          var on = same(key, val);
+          return { label: label, value: value, unit: unit, items: list, note: on ? 'در جدول فیلتر شده؛ برای برداشتن دوباره بزنید' : hint, noteStyle: 'font-size: 12px; color: ' + color + ';',
+            style: click(on, color), pressed: on ? 'true' : 'false', pick: function () { setF(key, on ? [] : val); } };
+        };
+        return [
+          { label: 'فروش', value: fa(totalRev), unit: 'میلیون تومان', items: [{ a: 'تعداد فروش خالص', b: fa(netUnits) + ' عدد' }, { a: 'میانگین قیمت فروش', b: fa1(Math.round(totalRev / (netUnits || 1) * 1000) / 1000 * 1000) + ' هزار تومان' }],
+            note: showDelta ? '▲ ۱۲٪ مبلغ و ▲ ۹٪ تعداد ' + cmpLabel : 'در بازه انتخابی', noteStyle: 'font-size: 12px; color: ' + (showDelta ? '#34d399' : '#94a3b8') + ';', style: plain, pressed: 'false', pick: function () {} },
+          card('پیشران‌های فروش', fa(drivers.length), 'کالا', top3(drivers, function (p) { return fa1(Math.round(p.ratio * 10) / 10) + '× دسته'; }), 'status', ['پیشران فروش'], '#34d399', 'همه پیشران‌ها را در جدول ببینید'),
+          card('نیاز به شارژ فوری', fa(needs.length), 'کالا', top3(needs, function (p) { return p.out ? 'موجودی مرکزی صفر' : 'موجودی مرکزی کم'; }), 'stock', ['نیاز به شارژ فوری'], '#fb7185', 'سریع می‌فروشند و موجودی مرکزی کم است'),
+          card('کندفروش و راکد', fa(slow.length), 'کالا', top3(slow, function (p) { return p.idle ? fa(p.idle) + ' روز بدون فروش' : 'کند'; }), 'status', ['کند', 'راکد'], '#fbbf24', 'برای تخفیف یا جابه‌جایی بررسی کنید')
+        ];
+      })(),
+      bChannels: [['all', 'همه'], ['store', 'حضوری'], ['online', 'آنلاین']].map(function (x) { var on = S.bch === x[0]; return { label: x[1], pressed: on ? 'true' : 'false', style: seg(on), pick: function () { self.setState({ bch: x[0] }); } }; }),
+      bLevels: [['item', 'کالا'], ['cat', 'دسته']].map(function (x) { var on = S.blev === x[0]; return { label: x[1], pressed: on ? 'true' : 'false', style: seg(on), pick: function () { self.setState({ blev: x[0] }); } }; }),
+      bNew: S.bnew, toggleNew: function (e) { self.setState({ bnew: e.target.checked }); },
+      bundles: (function () {
+        var pairs = S.blev === 'cat'
+          ? [['مانتو', 'شال و روسری', 412, 34, 2.6, 12], ['شلوار', 'مانتو', 388, 29, 1.8, 4], ['کفش', 'کیف', 141, 22, 3.1, 18], ['مانتو', 'اکسسوری', 96, 9, 1.4, -6], ['شال و روسری', 'کیف', 74, 12, 2.2, 9]]
+          : [['مانتو کتان بلند ۱۰۷', 'شال نخی ۱۱۲', 48, 26, 3.4, 40], ['شلوار راسته ۱۱۵', 'مانتو جلوباز ۱۲۲', 41, 19, 2.1, 6], ['کفش اسپرت ۱۳۰', 'کیف دوشی ۱۳۱', 9, 31, 4.2, 120], ['روسری ابریشم ۱۴۴', 'کیف دستی ۱۱۹', 7, 24, 3.8, 90], ['مانتو کوتاه ۱۲۸', 'شلوار جین ۱۳۷', 33, 15, 1.6, -12], ['شال طرح‌دار ۱۴۱', 'کمربند ۱۴۶', 12, 11, 1.2, 3]];
+        var k = S.bch === 'store' ? 0.6 : (S.bch === 'online' ? 0.4 : 1);
+        return pairs.filter(function (x) { return !S.bnew || x[5] >= 50; }).map(function (x) {
+          var baskets = Math.max(5, Math.round(x[2] * k)), early = baskets < 15 && x[4] >= 3;
+          var action = x[4] < 1.5 ? 'ارتباط ضعیف؛ اقدام لازم نیست' : (S.bch === 'online' ? 'در سبد خرید آنلاین پیشنهاد شود' : (S.bch === 'store' ? 'در فروشگاه کنار هم چیده شود' : 'کنار هم بچینید و در سبد آنلاین پیشنهاد دهید'));
+          return { a: x[0], b: x[1], early: early, baskets: fa(baskets), conf: fa(x[3]) + '٪', confBar: 'display: block; height: 5px; border-radius: 3px; background: #3b82f6; width: ' + Math.min(100, x[3] * 2.5) + '%;',
+            lift: fa1(x[4]) + '×', liftStyle: 'font-weight: 600; color: ' + (x[4] >= 2 ? '#34d399' : '#94a3b8') + ';',
+            trend: showDelta ? (x[5] >= 0 ? '▲ ' : '▼ ') + fa(Math.abs(x[5])) + '٪' : 'ــ', trendStyle: 'font-size: 12.5px; font-weight: 600; color: ' + (x[5] >= 0 ? '#34d399' : '#fb7185') + ';', action: action };
+        });
+      })(),
+      helpOpen: S.help, toggleHelp: function () { self.setState({ help: !S.help }); },
+      helpRows: cols.map(function (c) { return { a: c[1], b: c[3] }; }),
+      brLegend: BR.map(function (b) { return { a: b[0], dot: 'width: 8px; height: 8px; border-radius: 50%; background: ' + b[1] + ';' }; }),
+      presets: [
+        ['کالاهای تازه (تا ۹۰ روز)', { age: ['تا ۳۰ روز', '۳۱ تا ۹۰ روز'] }, 'start'],
+        ['رو به رشد', { status: ['رو به رشد'] }, 'trend'],
+        ['کند شده', { status: ['کند'] }, 'trend'],
+        ['احتمالاً تمام شده', { stock: ['احتمالاً تمام شده'] }, 'velocity']
+      ].map(function (x) {
+        var on = JSON.stringify(F) === JSON.stringify(x[1]);
+        return { label: x[0], pressed: on ? 'true' : 'false', style: 'min-height: 32px; padding: 0 12px; border-radius: 999px; font-size: 12.5px; cursor: pointer; border: 1px solid ' + (on ? '#60a5fa' : 'rgba(255,255,255,.12)') + '; background: ' + (on ? 'rgba(59,130,246,.2)' : 'transparent') + '; color: ' + (on ? '#fff' : '#94a3b8') + ';',
+          pick: function () { self.setState(on ? { f: {}, page: 1 } : { f: x[1], sort: x[2], dir: x[0] === 'کند شده' ? 'asc' : 'desc', page: 1 }); } };
+      }),
+      digestCats: cats.map(function (c) { var on = S.dcat === c; return { label: c, pressed: on ? 'true' : 'false', style: 'min-height: 30px; padding: 0 10px; border-radius: 999px; font-size: 12px; cursor: pointer; border: 1px solid ' + (on ? '#60a5fa' : 'rgba(255,255,255,.12)') + '; background: ' + (on ? 'rgba(59,130,246,.2)' : 'transparent') + '; color: ' + (on ? '#fff' : '#94a3b8') + ';', pick: function () { self.setState({ dcat: c }); } }; }),
+      digest: (function () {
+        var inCat = all.filter(function (p) { return p.cat === S.dcat; });
+        var drivers = inCat.filter(function (p) { return p.status === 'پیشران فروش' || p.status === 'رو به رشد'; }).slice(0, 3);
+        var slow = inCat.filter(function (p) { return p.trend <= -15; }).sort(function (a, b) { return a.trend - b.trend; }).slice(0, 3);
+        var row = function (p, note) { return { name: p.name, note: note, open: function () { openP(p.id); } }; };
+        return [
+          { title: 'پیشران‌ها و رو به رشدها', titleStyle: 'font-size: 13px; font-weight: 600; color: #34d399;', empty: !drivers.length, rows: drivers.map(function (p) { return row(p, p.status + '، ' + fa1(Math.round(p.net * 10) / 10) + ' خالص در هفته'); }) },
+          { title: 'کند شدند', titleStyle: 'font-size: 13px; font-weight: 600; color: #fbbf24;', empty: !slow.length, rows: slow.map(function (p) { return row(p, (p.out ? 'احتمالاً تمام شده، ' : '') + '▼ ' + fa(Math.abs(p.trend)) + '٪'); }) }
+        ];
+      })(),
+      branchStrip: BR.map(function (b, i) {
+        var cur = F.branch || [], on = cur.length === 1 && cur[0] === b[0], d = [6, 11, -4, 18][i];
+        return { name: b[0], value: fa1(Math.round(brRev[i] * 10) / 10), share: fa(brRev[i] / brTotal * 100) + '٪ سهم', pressed: on ? 'true' : 'false',
+          delta: showDelta ? (d >= 0 ? '▲ ' : '▼ ') + fa(Math.abs(d)) + '٪' : '', deltaStyle: 'font-size: 12px; font-weight: 600; color: ' + (d >= 0 ? '#34d399' : '#fb7185') + ';',
+          dot: 'width: 8px; height: 8px; border-radius: 50%; background: ' + b[1] + ';',
+          bar: 'display: block; height: 5px; border-radius: 3px; background: ' + b[1] + '; width: ' + Math.round(brRev[i] / brMax * 100) + '%;',
+          style: 'display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding: 8px 10px; border-radius: 12px; cursor: pointer; font-family: inherit; color: inherit; text-align: right; border: 1px solid ' + (on ? b[1] : 'transparent') + '; background: ' + (on ? 'rgba(255,255,255,.04)' : 'transparent') + ';',
+          pick: function () { setF('branch', on ? [] : [b[0]]); } };
+      }),
+      radar: radar.map(function (x) {
+        var p = x.p, d14 = Math.round(8 + x.ratio * 9), f = Math.round(d14 * x.ratio * 0.9);
+        return { name: p.name, meta: p.cat + '، لانچ ' + fa(p.age) + ' روز پیش', ratio: fa1(x.ratio), urgent: x.ratio >= 2.5,
+          sold: fa(d14) + ' عدد در ۱۴ روز اول؛ ' + fa(Math.round(d14 * 0.55)) + ' عدد در ۷ روز اول',
+          sizes: ['M ' + fa1(Math.round(d14 * 0.4 / 14 * 10) / 10) + ' در روز', 'L ' + fa1(Math.round(d14 * 0.3 / 14 * 10) / 10) + ' در روز', 'S ' + fa1(Math.round(d14 * 0.2 / 14 * 10) / 10) + ' در روز'], topBranch: 'پرفروش در: ' + BR[mixOf(p).indexOf(Math.max.apply(null, mixOf(p)))][0], forecast: 'پیش‌بینی ۱۴ روز آینده: حدود ' + fa(f) + ' عدد',
+          style: 'text-align: right; cursor: pointer; align-items: flex-start; padding: 14px 16px; gap: 5px; font-family: inherit; color: inherit; border-color: ' + (x.ratio >= 2.5 ? 'rgba(251,113,133,.45)' : 'rgba(255,255,255,.08)') + ';',
+          open: function () { openP(p.id); } };
+      }),
+      q: S.q, setQ: function (e) { self.setState({ q: e.target.value, page: 1 }); },
+      filters: fdefs.map(function (x) {
+        var cur = F[x.k] || [], open = S.open === x.k;
+        return { label: x.label, open: open,
+          value: cur.length === 0 ? 'همه' : (cur.length === 1 ? cur[0] : fa(cur.length) + ' مورد'),
+          valueStyle: 'font-size: 12.5px; color: ' + (cur.length ? '#93c5fd' : '#64748b') + ';',
+          style: 'display: inline-flex; align-items: center; gap: 7px; min-height: 38px; padding: 0 12px; border-radius: 10px; font-size: 13px; cursor: pointer; border: 1px solid ' + (open ? '#60a5fa' : (cur.length ? 'rgba(96,165,250,.45)' : 'rgba(255,255,255,.12)')) + '; background: #131924; color: #cbd5e1;',
+          toggle: function () { self.setState({ open: open ? null : x.k }); },
+          clear: function () { setF(x.k, []); },
+          opts: x.opts.map(function (o) { var on = cur.indexOf(o) >= 0; return { label: o, on: on, pick: function () { setF(x.k, on ? cur.filter(function (y) { return y !== o; }) : cur.concat([o])); } }; }) };
+      }),
+      hasActive: Object.keys(F).length > 0, clearAll: function () { self.setState({ f: {}, page: 1, open: null, all: false }); },
+      resultLine: fullList ? fa(found.length * 27) + ' کالا' : '۱۰ کالای پرفروش ' + (S.period === 'custom' ? 'بازه انتخابی' : { '7': '۷ روز', '30': '۳۰ روز', '90': '۹۰ روز', '365': '۱۲ ماه' }[S.period] + ' اخیر'),
+      resultHint: fullList ? (filtered ? 'بر اساس فیلترهای بالای صفحه' : 'همه کالاهای دارای فروش در این بازه') : 'بر اساس مبلغ فروش. برای دیدن همه کالاها یا فیلتر کردن، از بالای صفحه استفاده کنید.',
+      canShowAll: !fullList, showAll: function () { self.setState({ all: true, page: 1 }); }, paged: fullList,
+      scopeText: filtered ? 'کل صفحه برای ' + fa(found.length * 27) + ' کالای فیلترشده ساخته شده است.' : 'کل صفحه برای همه کالاها ساخته شده است.',
+      heads: cols.map(function (c) {
+        var on = S.sort === c[0];
+        return { label: c[1], help: c[3], sortable: !c[2], plain: !!c[2], aria: on ? (S.dir === 'asc' ? 'ascending' : 'descending') : 'none',
+          arrow: on ? (S.dir === 'asc' ? '▲' : '▼') : '↕', arrowStyle: 'font-size: 10px; color: ' + (on ? '#60a5fa' : '#475569') + ';',
+          style: 'min-height: 34px; padding: 0; background: transparent; border: 0; cursor: pointer; font-size: 12.5px; color: ' + (on ? '#f8fafc' : '#94a3b8') + ';' + (on ? ' font-weight: 600;' : ''),
+          pick: function () { if (on) self.setState({ dir: S.dir === 'asc' ? 'desc' : 'asc' }); else self.setState({ sort: c[0], dir: c[0] === 'age' || c[0] === 'name' ? 'asc' : 'desc', page: 1 }); } };
+      }),
+      rows: found.slice((page - 1) * perPage, page * perPage).map(function (p) {
+        return { name: p.name, sku: p.sku, cat: p.cat, units: fa(p.units), revenue: fa1(Math.round(p.revenue * 10) / 10) + ' م', velocity: fa1(Math.round(p.net * 10) / 10) + ' خالص در هفته', start: fa(p.start) + ' عدد', ratio: fa1(Math.round(p.ratio * 10) / 10) + '×', ratioStyle: 'font-weight: 600; color: ' + (p.ratio >= 2 ? '#34d399' : (p.ratio < 0.7 ? '#fbbf24' : '#cbd5e1')) + ';', disc: fa(p.discShare) + '٪', discStyle: 'color: ' + (p.discShare >= 40 ? '#fbbf24' : '#cbd5e1') + ';', out: p.need || p.out, outLabel: p.need ? 'شارژ فوری' : 'احتمالاً تمام شده', outTip: p.need ? 'سریع می‌فروشد و موجودی مرکزی کم یا صفر است' : 'فروش افت کرده و موجودی مرکزی صفر است',
+          spark: spark(p.id, p.trend), sparkColor: p.trend >= 0 ? '#34d399' : '#fb7185',
+          trend: showDelta ? (p.trend >= 0 ? '▲ ' : '▼ ') + fa(Math.abs(p.trend)) + '٪' : 'ــ', trendStyle: 'font-size: 12.5px; font-weight: 600; color: ' + (p.trend >= 0 ? '#34d399' : '#fb7185') + ';',
+          age: fa(p.age) + ' روز', mix: mixOf(p).map(function (m, i) { return 'display: block; height: 6px; background: ' + BR[i][1] + '; width: ' + Math.round(m * 100) + '%;'; }),
+          branchTip: mixOf(p).map(function (m, i) { return BR[i][0] + ' ' + fa(Math.round(p.units * m)) + ' عدد'; }).join('، '),
+          brCounts: mixOf(p).map(function (m, i) { return { v: fa(Math.round(p.units * m)), dot: 'width: 6px; height: 6px; border-radius: 50%; background: ' + BR[i][1] + ';', style: 'display: inline-flex; align-items: center; gap: 4px; min-width: 34px; padding: 1px 6px; border-radius: 7px; background: #131924; font-size: 12px; color: #e2e8f0;' }; }),
+          size: p.size, returns: fa(p.returns) + '٪', returnStyle: 'color: ' + (p.returns >= 8 ? '#fb7185' : '#cbd5e1') + ';',
+          status: p.status, statusStyle: 'padding: 2px 10px; border-radius: 999px; font-size: 12px; background: ' + statusColor[p.status] + '22; color: ' + statusColor[p.status] + ';',
+          open: function () { openP(p.id); } };
+      }),
+      noRows: found.length === 0,
+      pageLine: !fullList ? '' : found.length ? 'نمایش ' + fa((page - 1) * perPage + 1) + ' تا ' + fa(Math.min(page * perPage, found.length)) + ' از ' + fa(found.length) + ' ردیف نمونه' : '',
+      noPrev: page <= 1, noNext: page >= pages,
+      prev: function () { self.setState({ page: page - 1 }); }, next: function () { self.setState({ page: page + 1 }); },
+      hasDrawer: !!dp, closeDrawer: function () { self.setState({ drawer: null }); },
+      d: dp ? (function () {
+        var days = [], mx = 0;
+        for (var j = 0; j < 30; j++) { var v = Math.max(0, Math.round(6 + Math.sin(j / 3 + dp.id) * 4 + (j < 10 ? 6 - j / 2 : 0))); days.push(v); if (v > mx) mx = v; }
+        var sizes = ['S', 'M', 'L', 'XL'], colors = ['سیاه', 'کرم', 'سرمه‌ای'];
+        var matrix = colors.map(function (c, ci) { return { color: c, cells: sizes.map(function (z, zi) { var v = (ci * 7 + zi * 5 + dp.id) % 19; return { v: fa(v), style: 'min-width: 40px; padding: 6px 8px; text-align: center; border-radius: 6px; background: rgba(59,130,246,' + (0.08 + v / 19 * 0.6).toFixed(2) + '); color: #f8fafc;' }; }) }; });
+        var br = [['سایت', dp.online], ['ساری', 40], ['گرگان', 25], ['کاپری', 12]];
+        return { name: dp.name, meta: dp.cat + '، ' + dp.sku + '، لانچ ' + fa(dp.age) + ' روز پیش',
+          kpis: [{ a: 'تعداد فروش', b: fa(dp.units) }, { a: 'فروش خالص هفتگی', b: fa1(Math.round(dp.net * 10) / 10) }, { a: 'فروش با تخفیف', b: fa(dp.discShare) + '٪' }, { a: 'مبلغ فروش', b: fa1(Math.round(dp.revenue * 10) / 10) + ' م' }, { a: 'سرعت هفتگی', b: fa1(Math.round(dp.velocity * 10) / 10) }, { a: 'خریداران', b: fa(dp.units * 0.8) }],
+          daily: days.map(function (v, j) { return { tip: 'روز ' + fa(j + 1) + ': ' + fa(v) + ' عدد', style: 'flex: 1 1 0; border-radius: 2px 2px 0 0; background: #3b82f6; height: ' + Math.max(2, Math.round(v / (mx || 1) * 100)) + '%;' }; }),
+          sizes: sizes, matrix: matrix,
+          branches: br.map(function (b) { return { a: b[0], v: fa(b[1]), bar: 'display: block; height: 7px; border-radius: 4px; background: #10b981; width: ' + Math.round(b[1] / 85 * 100) + '%;' }; }),
+          sizeSpeed: [['S', 0.6], ['M', 1.9], ['L', 1.4], ['XL', 0.4]].map(function (z) { return { a: z[0], v: fa1(z[1]), bar: 'display: block; height: 7px; border-radius: 4px; background: #3b82f6; width: ' + Math.round(z[1] / 1.9 * 100) + '%;' }; }),
+          pairs: [{ a: 'شال نخی ۱۱۲', b: 'در ۲۴٪ از سبدها' }, { a: 'شلوار راسته ۱۰۷', b: 'در ۱۸٪ از سبدها' }, { a: 'کیف دوشی ۱۳۱', b: 'در ۹٪ از سبدها' }],
+          hasMsg: !!S.msg, msg: S.msg,
+          callList: function () { self.setState({ msg: 'لیست تماس از ' + fa(dp.units * 0.8) + ' خریدار این کالا ساخته می‌شود و به برنامه‌های تماس می‌رود.' }); } };
+      })() : {}
+    };
+  }
+}
+</script>
+</body>
+</html>
