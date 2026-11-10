@@ -1,5 +1,5 @@
 import { api, queryPath } from "./api";
-import type { BundlePairs, ProductsSummary, ProductsTable } from "../features/products/types";
+import type { BundlePairs, ProductDetail, ProductsSummary, ProductsTable } from "../features/products/types";
 import type {
   Product360Data,
   ProductBundle,
@@ -26,6 +26,9 @@ export const productsService = {
   summary: (params: Params) => api<ProductsSummary>(queryPath("/products/summary/", params)),
   table: (params: Params) => api<ProductsTable>(queryPath("/products/table/", params)),
   pairs: (params: Params) => api<BundlePairs>(queryPath("/products/pairs/", params)),
+  detail: (id: number, params: Params) => api<ProductDetail>(queryPath(`/products/${id}/`, params)),
+  callList: (id: number, kind: "buyers" | "prospects") =>
+    api<{ list_id: number; program_id: number; name: string }>(`/products/${id}/call-list/`, { method: "POST", body: JSON.stringify({ kind }) }),
   list: (params: ProductListParams | number = 1, search = "") => {
     if (typeof params === "number") {
       return api<ProductsListResponse>(

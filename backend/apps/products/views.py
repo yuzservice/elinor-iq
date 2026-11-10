@@ -111,3 +111,31 @@ def product_pairs(request):
     from apps.products.report import bundles
 
     return Response(bundles(request.query_params))
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def product_detail(request, product_id):
+    """Product 360 from the summary tables, with rule-based suggestions and buyers."""
+    from apps.products.product360 import product_detail as build
+
+    data = build(product_id, request.query_params)
+    return Response(data) if data else Response({"detail": "کالا پیدا نشد."}, status=404)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def product_call_list(request, product_id):
+    """Create a call list (buyers or prospects) and a draft program through the call center's list path."""
+    from apps.calls.permissions import is_call_manager
+    from apps.products.product360 import create_call_list
+
+    if not is_call_manager(request.user):
+        return Response({"detail": "فقط مدیر مرکز تماس می‌تواند لیست تماس بسازد."}, status=403)
+    kind = request.data.get("kind")
+    if kind not in ("buyers", "prospects"):
+        return Response({"detail": "نوع لیست نامعتبر است."}, status=400)
+    created = create_call_list(request.user, product_id, kind)
+    if created is None:
+        return Response({"detail": "مشتری مستعدی برای این کالا پیدا نشد."}, status=400)
+    return Response(created, status=201)

@@ -6,7 +6,7 @@ import { useCategoryTree } from "../features/categories/useCategoryTree";
 import { MultiSelect } from "../features/customers/MultiSelect";
 import { COLUMNS, FILTER_LABELS, FILTER_OPTIONS, LINES, STATUS, delta, fa, fa1, jdate, million, pct, sparkPoints } from "../features/products/display";
 import {
-  apiParams, clearFilters, isFiltered, parseState, serializeState, toggleList, type Compare, type ListKey, type Period, type ProductsState,
+  DEFAULT_STATE, apiParams, clearFilters, isFiltered, parseState, serializeState, toggleList, type Compare, type ListKey, type Period, type ProductsState,
 } from "../features/products/productsUrl";
 import type { BundlePairs, ProductReportRow, ProductsSummary, ProductsTable } from "../features/products/types";
 import { tehranTodayIso } from "../lib/format";
@@ -299,14 +299,14 @@ function Badge({ color, children, title }: { color: string; children: ReactNode;
   );
 }
 
-function Row({ row, showDelta }: { row: ProductReportRow; showDelta: boolean }) {
+function Row({ row, showDelta, suffix }: { row: ProductReportRow; showDelta: boolean; suffix: string }) {
   const d = delta(showDelta ? row.change : null);
   const ratioColor = row.ratio == null ? "var(--text-faint)" : row.ratio >= 2 ? "var(--delta-up)" : row.ratio < 0.7 ? "var(--warning)" : "var(--text-secondary)";
   const status = STATUS[row.status];
   return (
     <tr className="border-t border-line hover:bg-hover">
       <td className="px-2.5 py-[9px]">
-        <Link to={`/products/${row.id}`} className="flex flex-col items-start gap-px text-inherit no-underline">
+        <Link to={`/products/${row.id}${suffix}`} className="flex flex-col items-start gap-px text-inherit no-underline">
           <span className="text-[13.5px] font-semibold text-ink">{row.title}</span>
           <span dir="ltr" className="text-[11.5px] text-muted">{row.code}</span>
         </Link>
@@ -347,6 +347,13 @@ function Row({ row, showDelta }: { row: ProductReportRow; showDelta: boolean }) 
       </td>
     </tr>
   );
+}
+
+/** The page's range and comparison, carried into Product 360. */
+function rangeSuffix(state: ProductsState) {
+  const { period, from, to, compare, cfrom, cto } = state;
+  const query = serializeState({ ...DEFAULT_STATE, period, from, to, compare, cfrom, cto });
+  return query ? `?${query}` : "";
 }
 
 function exportCsv(rows: ProductReportRow[]) {
@@ -457,7 +464,7 @@ function ProductTable({ table, loading, state, update }: { table: ProductsTable 
             </tr>
           </thead>
           <tbody className="whitespace-nowrap">
-            {(table?.results ?? []).map((row) => <Row key={row.id} row={row} showDelta={state.compare !== "none"} />)}
+            {(table?.results ?? []).map((row) => <Row key={row.id} row={row} showDelta={state.compare !== "none"} suffix={rangeSuffix(state)} />)}
           </tbody>
         </table>
       </div>
@@ -475,7 +482,7 @@ function ProductTable({ table, loading, state, update }: { table: ProductsTable 
   );
 }
 
-function pairAction(lift: number, channel: string) {
+export function pairAction(lift: number, channel: string) {
   if (lift < 1.5) return "ارتباط ضعیف؛ اقدام لازم نیست";
   if (channel === "online") return "در سبد خرید آنلاین پیشنهاد شود";
   if (channel === "store") return "در فروشگاه کنار هم چیده شود";
