@@ -67,11 +67,14 @@ export function CategoryTreeSelect({ label, nodes, selected, onChange, overlay =
         aria-controls={listId}
         aria-label={`${label}: ${selectionText(selected, index)}`}
         onClick={() => setOpen(!open)}
-        className={`flex min-h-9 w-full cursor-pointer items-center justify-between gap-2 rounded-[10px] border bg-surface px-2.5 text-right text-[13px] ${
-          selected.length ? "border-blue-400/60 text-ink" : "border-slate-300/70 text-muted dark:border-white/[0.12]"
-        }`}
+        className={`flex cursor-pointer items-center justify-between gap-2 rounded-[10px] border px-2.5 text-right text-[13px] ${
+          overlay ? "min-h-[38px] bg-elevated px-3" : "min-h-9 w-full bg-surface"
+        } ${selected.length ? "border-blue-400/60 text-ink" : "border-slate-300/70 text-muted dark:border-white/[0.12]"}`}
       >
-        <span className="truncate">{selectionText(selected, index)}</span>
+        {overlay ? <span className="text-muted">{label}</span> : null}
+        <span className={`truncate ${overlay ? (selected.length ? "max-w-[160px] text-[12.5px] text-blue-600 dark:text-blue-300" : "text-[12.5px] text-faint") : ""}`}>
+          {overlay && !selected.length ? "همه" : selectionText(selected, index)}
+        </span>
         <span aria-hidden="true" className="text-[10px] text-faint">▾</span>
       </button>
       {open ? (

@@ -1,4 +1,5 @@
 import { api, queryPath } from "./api";
+import type { BundlePairs, ProductsSummary, ProductsTable } from "../features/products/types";
 import type {
   Product360Data,
   ProductBundle,
@@ -19,7 +20,12 @@ export type ProductListParams = {
   to?: string;
 };
 
+type Params = Record<string, string | number | undefined>;
+
 export const productsService = {
+  summary: (params: Params) => api<ProductsSummary>(queryPath("/products/summary/", params)),
+  table: (params: Params) => api<ProductsTable>(queryPath("/products/table/", params)),
+  pairs: (params: Params) => api<BundlePairs>(queryPath("/products/pairs/", params)),
   list: (params: ProductListParams | number = 1, search = "") => {
     if (typeof params === "number") {
       return api<ProductsListResponse>(

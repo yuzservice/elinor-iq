@@ -84,3 +84,30 @@ def product_360(request, product_id):
     payload = product_360_report(product_id)
     payload["timing_ms"] = round((time.perf_counter() - started) * 1000, 1)
     return Response(payload)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def products_summary(request):
+    """Products page: range, the four cards and the branch strip (summary tables only)."""
+    from apps.products.report import products_summary as build
+
+    return Response(build(request.query_params))
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def products_table(request):
+    """Products page table: top 10 by revenue, or the full sorted, paged list once a filter is set."""
+    from apps.products.report import products_table as build
+
+    return Response(build(request.query_params))
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def product_pairs(request):
+    """Co-purchase pairs (product or category level, by channel) for the range."""
+    from apps.products.report import bundles
+
+    return Response(bundles(request.query_params))
