@@ -12,6 +12,9 @@ import type { CustomerListSummary, CustomerRow } from "../../types";
 import { CreateCallList } from "../calls/CreateCallList";
 import { CustomerOverview } from "./CustomerOverview";
 import { MultiSelect } from "./MultiSelect";
+import { CategoryTreeSelect } from "../categories/CategoryTreeSelect";
+import { parseIds } from "../categories/categoryTree";
+import { useCategoryTree } from "../categories/useCategoryTree";
 import {
   DATE_TYPES,
   DAY_OPTIONS,
@@ -123,20 +126,21 @@ export function CustomerListPanel({ canManage, onEditTierRules }: Props) {
       .catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productIds]);
+  const categoryTree = useCategoryTree();
   const categories = useMemo(
     () =>
       buildCategories({
         tiers: tiers.map((tier) => ({ value: tier.code, label: tier.title })),
         callResults: (options.data?.call_results ?? []).map((value) => ({ value, label: value })),
         callTags: (options.data?.call_tags ?? []).map((tag) => ({ value: String(tag.id), label: tag.title })),
-        categories: options.data?.categories ?? [],
+        categoryTree,
         sizes: options.data?.sizes ?? [],
         provinces: (options.data?.provinces ?? []).map((row) => ({ value: String(row.id), label: row.name, count: row.count })),
         citiesById: (options.data?.cities_by_id ?? []).map((row) => ({ value: String(row.id), label: row.name, count: row.count, group: String(row.province_id) })),
         products: Object.entries(productLabels).map(([value, label]) => ({ value, label })),
         fillRates: options.data?.fill_rates,
       }),
-    [tiers, options.data, productLabels],
+    [tiers, options.data, productLabels, categoryTree],
   );
 
   const [panel, setPanel] = useState<string | null>(null);
@@ -515,6 +519,16 @@ function FieldInput({ field, params, change, onProductLabels }: {
     );
   }
   if (field.kind === "products") return <ProductPicker field={field} params={params} change={change} onProductLabels={onProductLabels} />;
+  if (field.kind === "tree") {
+    return (
+      <CategoryTreeSelect
+        label={field.label}
+        nodes={field.nodes}
+        selected={parseIds(params.get(field.param))}
+        onChange={(ids) => change({ [field.param]: ids.join(",") || null })}
+      />
+    );
+  }
   return (
     <MultiSelect
       label={field.label}

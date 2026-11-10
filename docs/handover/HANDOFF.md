@@ -130,6 +130,7 @@ Notes for the Product Architect / next task:
 
 ### 2026-11-10 — Products redesign (`feature/products-redesign`, from `production` `79e1cb8`), checkpoints
 - Step 0: references saved as `docs/design/products-prototype.html` (sha256 3998463c…) and `docs/design/product-360-prototype.html` (sha256 e6084528…); source of truth for layout and copy, sample data only. Not merged; owner reviews locally.
+- Step 1: shared category tree (`apps/products/categories.py`, `GET /api/products/categories/`, `features/categories/CategoryTreeSelect`): paths, short labels for repeated titles, inactive hidden, descendants. No category endpoint in our Elinor client (API unreachable from the dev Mac); `sync_categories` keeps the tree and product links current from product payloads (local: +2 categories, 284 products relinked, 0 products without a category). Customer list filter `category_ids` (with descendants) on `CustomerMetrics.product_ids`; old `categories` titles map to exact categories (same customers); the older free-text `category` param is unchanged.
 
 ### 2026-11-09 — Elinor Pulse first deploy preparation (`feature/elinor-pulse`), uncommitted
 - Runbook (Persian) `docs/runbooks/pulse-first-deploy.md`: backup with `pg_dump -Fc`, update with Pulse off, enable, full sync, covers, users, rollback. Owner runs every server step.

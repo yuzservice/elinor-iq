@@ -35,7 +35,10 @@ const categories = buildCategories({
   citiesById: [{ value: "10", label: "ساری", group: "1" }, { value: "11", label: "بابل", group: "1" }, { value: "20", label: "گرگان", group: "2" }],
   products: [{ value: "7", label: "کفش چرم" }],
   fillRates: { birth_month: 0.7, gender: 0.9, joined: 99.6, tier_change: 72.9 },
-  categories: ["مانتو"],
+  categoryTree: [
+    { id: 1, title: "پوشاک", label: "پوشاک", path: "پوشاک", parent_id: null, depth: 0, has_children: true },
+    { id: 2, title: "مانتو", label: "مانتو", path: "پوشاک › مانتو", parent_id: 1, depth: 1, has_children: false },
+  ],
   sizes: ["M"],
 });
 const url = (query: string) => new URLSearchParams(query);
@@ -140,7 +143,7 @@ describe("filter v2 fields", () => {
     expect(fields.map((item) => item.key)).not.toContain("birth");
     expect(fields.map((item) => item.key)).not.toContain("gender");
     expect(fields.map((item) => item.key)).toEqual(expect.arrayContaining(["joined", "tierChange", "province", "city", "products"]));
-    const before = buildCategories({ tiers: [], callResults: [], callTags: [], categories: [], sizes: [] });
+    const before = buildCategories({ tiers: [], callResults: [], callTags: [], categoryTree: [], sizes: [] });
     expect(before.flatMap((category) => category.fields).map((item) => item.key)).not.toContain("joined"); // rates not loaded yet
   });
 
@@ -227,5 +230,11 @@ describe("cells", () => {
   it("keeps tier colors stable and shared with channel variants", () => {
     expect(tierColors("ONLINE_VIP")).toEqual(tierColors("VIP"));
     expect(tierColors("CUSTOM_7")).toEqual(tierColors("CUSTOM_7"));
+  });
+
+  it("category filter uses tree ids; the old title param stays as a removable chip", () => {
+    const labels = activeChips(categories, url("category_ids=2&categories=مانتو")).map((chip) => chip.label);
+    expect(labels).toContain("دسته‌بندی: مانتو");
+    expect(labels).toContain("دسته‌بندی (فیلتر قدیمی): مانتو");
   });
 });

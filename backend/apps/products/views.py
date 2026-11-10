@@ -16,6 +16,15 @@ from apps.sales.services import parse_range
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
+def category_tree(request):
+    """Shared category tree (active categories only) for every category selector."""
+    from apps.products.categories import tree
+
+    return Response({"results": tree()})
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def product_list(request):
     """Unified sales intelligence list across online & physical stores (Sari, Gorgan, Capri)."""
     started = time.perf_counter()

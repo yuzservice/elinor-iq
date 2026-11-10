@@ -1,4 +1,5 @@
 import { formatJalali } from "../../lib/dates";
+import { indexTree, parseIds, type CategoryNode } from "../categories/categoryTree";
 import { formatNumber } from "../../lib/format";
 
 /** All filters, sort and page live in the URL, using the API's own parameter names. */
@@ -7,6 +8,7 @@ export type Option = { value: string; label: string; count?: number; group?: str
 export type Field =
   | { key: string; label: string; kind: "multi" | "single"; param: string; options: Option[]; dependsOn?: string; note?: string }
   | { key: string; label: string; kind: "products"; param: string; options: Option[] }
+  | { key: string; label: string; kind: "tree"; param: string; nodes: CategoryNode[] }
   | { key: string; label: string; kind: "daterange"; after: string; before: string; direction?: { param: string; options: Option[] } }
   | { key: string; label: string; kind: "range"; min: string; max: string; unit: string; scale: number }
   | { key: string; label: string; kind: "dates" };
@@ -21,7 +23,7 @@ export type DynamicOptions = {
   tiers: Option[];
   callResults: Option[];
   callTags: Option[];
-  categories: string[];
+  categoryTree: CategoryNode[];
   sizes: string[];
   provinces?: Option[];
   citiesById?: Option[]; // group = province id
@@ -104,7 +106,7 @@ export function buildCategories(dynamic: DynamicOptions): Category[] {
       label: "کالا",
       fields: [
         { key: "products", label: "خرید کالای مشخص", kind: "products", param: "products", options: dynamic.products ?? [] },
-        { key: "cat", label: "دسته‌بندی", kind: "multi", param: "categories", options: asOptions(dynamic.categories) },
+        { key: "cat", label: "دسته‌بندی", kind: "tree", param: "category_ids", nodes: dynamic.categoryTree },
         { key: "size", label: "سایز", kind: "multi", param: "sizes", options: asOptions(dynamic.sizes) },
       ],
     },
@@ -200,6 +202,10 @@ function chipText(field: Field, params: URLSearchParams): string {
     const part = (param: string, prefix: string) => (params.get(param) ? `${prefix} ${fa1(Number(params.get(param)) / field.scale)}` : "");
     return [part(field.min, "از"), part(field.max, "تا")].filter(Boolean).join(" ");
   }
+  if (field.kind === "tree") {
+    const index = indexTree(field.nodes);
+    return parseIds(params.get(field.param)).map((id) => index.byId.get(id)?.label ?? String(id)).join("، ");
+  }
   return splitList(params.get(field.param))
     .map((value) => field.options.find((option) => option.value === value)?.label ?? value)
     .join("، ");
@@ -219,6 +225,7 @@ export function filterOptions(options: Option[], query: string): Option[] {
 
 /** Old saved lists can hold parameters with no field in the panel; they stay visible and removable. */
 const LEGACY_LABELS: Record<string, string> = {
+  categories: "دسته‌بندی (فیلتر قدیمی)",
   search: "",
   population: "جمعیت",
   channel: "کانال",
