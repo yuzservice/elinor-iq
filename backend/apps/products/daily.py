@@ -131,7 +131,8 @@ def refresh_bundles():
 def refresh_metrics(as_of=None):
     """ProductMetrics as of `as_of` (default today, Tehran) from product_daily_sales and product_central_stock."""
     rules = settings.PRODUCTS_RULES
-    params = {**rules, "d": as_of or timezone.localdate()}
+    # Stock off: no central stock, so no stock flags; statuses stay speed-only.
+    params = {**rules, "d": as_of or timezone.localdate(), "stock_enabled": settings.PRODUCTS_STOCK_ENABLED}
     sql = f"""
     WITH RECURSIVE {PRIMARY_CATEGORY_SQL},
     s AS (
@@ -165,7 +166,8 @@ def refresh_metrics(as_of=None):
             WHERE units > 0 AND day <= %(d)s::date GROUP BY product_id, sales_line) l
         GROUP BY product_id
     ),
-    stock AS (SELECT product_id, SUM(GREATEST(balance, 0)) AS bal FROM product_central_stock GROUP BY product_id),
+    stock AS (SELECT product_id, SUM(GREATEST(balance, 0)) AS bal FROM product_central_stock
+              WHERE %(stock_enabled)s GROUP BY product_id),
     base AS (
         SELECT s.*, pc.category_id, COALESCE(f.u, 0) AS first14, COALESCE(bl.lines, '{{}}'::jsonb) AS lines, st.bal,
             s.n28 / (GREATEST(LEAST(%(d)s::date - s.first_day + 1, 28), 7) / 7.0) AS speed,

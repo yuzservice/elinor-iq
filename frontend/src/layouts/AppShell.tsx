@@ -48,7 +48,8 @@ export function AppShell() {
   const { user } = useAuth();
   const location = useLocation();
   const showCoverageNotice =
-    location.pathname !== "/" && !location.pathname.startsWith("/calls") && !location.pathname.startsWith("/pulse");
+    location.pathname !== "/" && !location.pathname.startsWith("/calls") && !location.pathname.startsWith("/pulse") &&
+    !location.pathname.startsWith("/products");
 
   return (
     <div className="flex min-h-screen bg-canvas text-ink transition-colors">

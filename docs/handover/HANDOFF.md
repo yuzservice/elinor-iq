@@ -16,7 +16,10 @@ Update this file at the end of every implementation task (newest entry first in 
    - `docs/stock-discovery` branch (`docs/SOURCE_STOCK_DISCOVERY.md`) is pushed but not merged.
    - The Graphify graph was built from `3bc0a48` and is stale.
    - The "Last updated" line below predates the Call Center, Pulse and products work; the Log entries are current.
+   - `fix/products-no-stock` (from `production`): stock disabled behind `PRODUCTS_STOCK_ENABLED` (default false); card 3 is
+     «رو به رشد», Product 360 shows a 14-day forecast, stock params ignored, no stock API calls. Awaiting owner review; not merged.
 4. **Deferred decisions:**
+   - Products stock (central and branch) is off until the warehouse API exists; re-enable with `PRODUCTS_STOCK_ENABLED=true`.
    - Pulse stock alerts wait for branch stock (vendor warehouse API: receipts, transfers, manual adjustments,
      balance per warehouse).
    - Pulse `.sm.jpg` in cover export/import, and `timeout 1800` around the build in `update.sh`.

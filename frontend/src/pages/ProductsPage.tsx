@@ -70,7 +70,9 @@ function RangeButton({ open, from, to, onClick }: { open: boolean; from: string;
   );
 }
 
-function ReportBar({ state, update, summary, count }: { state: ProductsState; update: (next: ProductsState) => void; summary: ProductsSummary | null; count: number }) {
+function ReportBar({ state, update, summary, count, stockOn }: {
+  state: ProductsState; update: (next: ProductsState) => void; summary: ProductsSummary | null; count: number; stockOn: boolean;
+}) {
   const nodes = useCategoryTree();
   const [calendar, setCalendar] = useState<"cur" | "cmp" | null>(null);
   const [q, setQ] = useState(state.q);
@@ -140,7 +142,7 @@ function ReportBar({ state, update, summary, count }: { state: ProductsState; up
           className="min-h-[38px] min-w-0 flex-[1_1_200px] rounded-[10px] border border-line bg-elevated px-3 text-[13px] text-ink outline-none focus:border-accent sm:max-w-[260px]"
         />
         <CategoryTreeSelect overlay label="دسته" nodes={nodes} selected={state.category_ids} onChange={(ids) => update({ ...state, category_ids: ids, page: 1 })} />
-        {LISTS.map((key) => (
+        {LISTS.filter((key) => stockOn || key !== "stock").map((key) => (
           <MultiSelect key={key} overlay label={FILTER_LABELS[key]} options={FILTER_OPTIONS[key]} selected={state[key]} onChange={(values) => update({ ...state, [key]: values, page: 1 })} />
         ))}
         {filtered ? (
@@ -222,13 +224,23 @@ function Cards({ summary, state, update }: { summary: ProductsSummary; state: Pr
         items={summary.drivers.top.map((row) => ({ a: row.title, b: `${fa1(row.ratio)}× دسته` }))}
         {...card("status", ["driver"], "var(--delta-up)", "همه پیشران‌ها را در جدول ببینید")}
       />
-      <Kpi
-        label="نیاز به شارژ فوری"
-        value={fa(summary.charge.count)}
-        unit="کالا"
-        items={summary.charge.top.map((row) => ({ a: row.title, b: row.central_stock === 0 ? "موجودی مرکزی صفر" : "موجودی مرکزی کم" }))}
-        {...card("stock", ["charge"], "var(--delta-down)", "سریع می‌فروشند و موجودی مرکزی کم است")}
-      />
+      {summary.charge ? (
+        <Kpi
+          label="نیاز به شارژ فوری"
+          value={fa(summary.charge.count)}
+          unit="کالا"
+          items={summary.charge.top.map((row) => ({ a: row.title, b: row.central_stock === 0 ? "موجودی مرکزی صفر" : "موجودی مرکزی کم" }))}
+          {...card("stock", ["charge"], "var(--delta-down)", "سریع می‌فروشند و موجودی مرکزی کم است")}
+        />
+      ) : (
+        <Kpi
+          label="رو به رشد"
+          value={fa(summary.growth?.count)}
+          unit="کالا"
+          items={(summary.growth?.top ?? []).map((row) => ({ a: row.title, b: delta(row.trend).text }))}
+          {...card("status", ["growth"], "var(--accent)", "فروش ۱۴ روز اخیر بیشتر از ۱۴ روز قبل")}
+        />
+      )}
       <Kpi
         label="کندفروش و راکد"
         value={fa(summary.slow.count)}
@@ -356,14 +368,14 @@ function rangeSuffix(state: ProductsState) {
   return query ? `?${query}` : "";
 }
 
-function exportCsv(rows: ProductReportRow[]) {
+function exportCsv(rows: ProductReportRow[], stockOn: boolean) {
   const head = ["کالا", "کد", "دسته", "تعداد فروش", "مبلغ فروش (تومان)", "فروش خالص هفتگی", "فروش ۱۴ روز اول", "نسبت به دسته", "تغییر ٪", "عمر کالا (روز)",
-    ...LINES.map((line) => `فروش ${line.label}`), "فروش با تخفیف ٪", "مرجوعی ٪", "وضعیت", "موجودی مرکزی"];
+    ...LINES.map((line) => `فروش ${line.label}`), "فروش با تخفیف ٪", "مرجوعی ٪", "وضعیت", ...(stockOn ? ["موجودی مرکزی"] : [])];
   const cell = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
   const round = (value: number | null) => (value == null ? "" : Math.round(value * 10) / 10);
   const lines = rows.map((r) => [r.title, r.code, r.category, r.units, r.revenue, round(r.speed), r.first14, round(r.ratio), round(r.change), r.age,
     ...LINES.map((line) => r.lines[line.key]), round(r.discount_share == null ? null : r.discount_share * 100), round(r.return_rate == null ? null : r.return_rate * 100),
-    STATUS[r.status].label, r.central_stock ?? ""].map(cell).join(","));
+    STATUS[r.status].label, ...(stockOn ? [r.central_stock ?? ""] : [])].map(cell).join(","));
   const blob = new Blob(["﻿" + [head.map(cell).join(","), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
@@ -372,7 +384,9 @@ function exportCsv(rows: ProductReportRow[]) {
   URL.revokeObjectURL(link.href);
 }
 
-function ProductTable({ table, loading, state, update }: { table: ProductsTable | null; loading: boolean; state: ProductsState; update: (next: ProductsState) => void }) {
+function ProductTable({ table, loading, state, update, stockOn }: {
+  table: ProductsTable | null; loading: boolean; state: ProductsState; update: (next: ProductsState) => void; stockOn: boolean;
+}) {
   const [help, setHelp] = useState(false);
   const [exporting, setExporting] = useState(false);
   const full = table?.full ?? false;
@@ -385,7 +399,7 @@ function ProductTable({ table, loading, state, update }: { table: ProductsTable 
   const doExport = async () => {
     setExporting(true);
     try {
-      exportCsv((await productsService.table({ ...apiParams(state), all: "1", export: "1" })).results);
+      exportCsv((await productsService.table({ ...apiParams(state), all: "1", export: "1" })).results, stockOn);
     } finally {
       setExporting(false);
     }
@@ -394,7 +408,7 @@ function ProductTable({ table, loading, state, update }: { table: ProductsTable 
     <section className={`${CARD} flex flex-col px-2 pb-2.5 pt-3`}>
       <div className="flex flex-wrap items-center gap-1.5 px-2 pb-2.5">
         <span className="text-[12.5px] text-muted">میان‌بر</span>
-        {PRESETS.map(([label, filter, sort, dir]) => {
+        {PRESETS.filter(([, filter]) => stockOn || !("stock" in filter)).map(([label, filter, sort, dir]) => {
           const [key, values] = Object.entries(filter)[0] as [ListKey, string[]];
           const on = state[key].join(",") === values.join(",");
           return (
@@ -574,10 +588,16 @@ function Bundles({ state, update }: { state: ProductsState; update: (next: Produ
 export function ProductsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const search = searchParams.toString();
-  const state = useMemo(() => parseState(search), [search]);
+  const [stockOn, setStockOn] = useState(false);
+  const parsed = useMemo(() => parseState(search), [search]);
+  // Stock is off by owner decision (2026-11-11): old stock params in URLs and saved views are ignored silently.
+  const state = useMemo(() => (stockOn ? parsed : { ...parsed, stock: [] }), [parsed, stockOn]);
   const update = (next: ProductsState) => setSearchParams(serializeState(next));
   const scopeParams = apiParams({ ...state, sort: "revenue", dir: "desc", page: 1 });
   const summary = useLoad(() => productsService.summary(scopeParams), JSON.stringify(scopeParams));
+  useEffect(() => {
+    if (summary.data) setStockOn(summary.data.stock_enabled === true);
+  }, [summary.data]);
   const tableParams = apiParams(state);
   const table = useLoad(() => productsService.table(tableParams), JSON.stringify(tableParams));
   const asOf = summary.data?.range.as_of;
@@ -587,10 +607,11 @@ export function ProductsPage() {
       <div className="flex flex-col gap-1">
         <h1 className="m-0 text-2xl font-extrabold text-ink">محصولات</h1>
         <span className="text-[12.5px] text-muted">
-          موجودی فقط انبار مرکزی است (از سایت)؛ موجودی شعب در سیستم نیست. وضعیت‌ها در هر دسته جداگانه سنجیده می‌شوند{asOf ? `؛ محاسبه ${jdate(asOf)}` : ""}.
+          {stockOn ? "موجودی فقط انبار مرکزی است (از سایت)؛ موجودی شعب در سیستم نیست. " : "همه‌چیز بر اساس سرعت فروش است. "}
+          وضعیت‌ها در هر دسته جداگانه سنجیده می‌شوند{asOf ? `؛ محاسبه ${jdate(asOf)}` : ""}.
         </span>
       </div>
-      <ReportBar state={state} update={update} summary={summary.data} count={table.data?.total ?? 0} />
+      <ReportBar state={state} update={update} summary={summary.data} count={table.data?.total ?? 0} stockOn={stockOn} />
       {summary.error || table.error ? <p className={`${CARD} m-0 p-4 text-[13px] text-[var(--delta-down)]`}>گزارش بارگیری نشد. دوباره تلاش کنید.</p> : null}
       {summary.data ? (
         <div className={`flex flex-col gap-3.5 ${summary.loading ? "opacity-60" : ""}`}>
@@ -600,7 +621,7 @@ export function ProductsPage() {
       ) : (
         <div className={`${CARD} h-[220px] animate-pulse`} />
       )}
-      <ProductTable table={table.data} loading={table.loading} state={state} update={update} />
+      <ProductTable table={table.data} loading={table.loading} state={state} update={update} stockOn={stockOn} />
       <Bundles state={state} update={update} />
     </div>
   );

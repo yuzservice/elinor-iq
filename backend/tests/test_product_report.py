@@ -79,3 +79,29 @@ def test_endpoints_need_login_and_answer(shop, auth_api):
     assert APIClient().get("/api/products/summary/").status_code in (401, 403)
     for path in ("summary", "table", "pairs"):
         assert auth_api.get(f"/api/products/{path}/?period=7&status=driver,normal").status_code == 200
+
+
+@pytest.mark.django_db
+def test_stock_off_growth_card_no_stock_fields_and_stock_params_ignored(shop, settings):
+    settings.PRODUCTS_STOCK_ENABLED = False
+    cat, products = shop
+    p, v = products[0]
+    _online([(p, v, 2)], days_ago=20)  # 2 units in the earlier 14 days, 3 in the last 14: trend +50%
+    daily.refresh_daily_sales()
+    daily.refresh_metrics(as_of=TODAY)
+    summary = products_summary(QueryDict("stock=charge"), today=TODAY)
+    assert summary["stock_enabled"] is False and "charge" not in summary
+    assert summary["growth"]["count"] == 1
+    top = summary["growth"]["top"][0]
+    assert top["id"] == p.pk and top["status"] == "growth" and top["trend"] == pytest.approx(50)
+    table = products_table(QueryDict("stock=charge,out"), today=TODAY)  # old saved view: ignored, not an error
+    assert not table["full"] and table["total"] == 12
+    assert not any(key in table["results"][0] for key in ("stock_flag", "central_stock"))
+
+
+@pytest.mark.django_db
+def test_stock_on_keeps_charge_card(shop, settings):
+    settings.PRODUCTS_STOCK_ENABLED = True
+    summary = products_summary(QueryDict(""), today=TODAY)
+    assert summary["stock_enabled"] is True and "charge" in summary and "growth" not in summary
+    assert "stock_flag" in products_table(QueryDict(""), today=TODAY)["results"][0]
