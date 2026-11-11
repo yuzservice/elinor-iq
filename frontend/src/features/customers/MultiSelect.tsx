@@ -9,7 +9,7 @@ const LIST_CLASS = "mt-1 flex max-h-[280px] flex-col overflow-hidden rounded-xl 
  * Compact checkbox dropdown for every option list in the filter panel. `single` keeps at most one value.
  * With `onQuery` the parent searches remotely and passes the matches as `options`.
  */
-export function MultiSelect({ label, options, selected, single, onChange, onQuery, describedBy }: {
+export function MultiSelect({ label, options, selected, single, onChange, onQuery, describedBy, overlay = false }: {
   label: string;
   options: Option[];
   selected: string[];
@@ -17,6 +17,7 @@ export function MultiSelect({ label, options, selected, single, onChange, onQuer
   onChange: (values: string[]) => void;
   onQuery?: (query: string) => void;
   describedBy?: string;
+  overlay?: boolean; // float over the page with the label in the button (report bars) instead of pushing content
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -82,14 +83,17 @@ export function MultiSelect({ label, options, selected, single, onChange, onQuer
         aria-label={`${label}: ${text}`}
         aria-describedby={describedBy}
         onClick={() => setOpen(!open)}
-        className={`flex min-h-9 w-full cursor-pointer items-center justify-between gap-2 rounded-[10px] border bg-surface px-2.5 text-right text-[13px] ${
-          selected.length ? "border-blue-400/60 text-ink" : "border-slate-300/70 text-muted dark:border-white/[0.12]"
-        } ${selected.length ? "pe-8" : ""}`}
+        className={`flex cursor-pointer items-center justify-between gap-2 rounded-[10px] border px-2.5 text-right text-[13px] ${
+          overlay ? "min-h-[38px] bg-elevated px-3" : "min-h-9 w-full bg-surface"
+        } ${selected.length ? "border-blue-400/60 text-ink" : "border-slate-300/70 text-muted dark:border-white/[0.12]"} ${selected.length && !overlay ? "pe-8" : ""}`}
       >
-        <span className="truncate">{text}</span>
+        {overlay ? <span className="text-muted">{label}</span> : null}
+        <span className={`truncate ${overlay ? (selected.length ? "max-w-[160px] text-[12.5px] text-blue-600 dark:text-blue-300" : "text-[12.5px] text-faint") : ""}`}>
+          {overlay && !selected.length ? "همه" : text}
+        </span>
         <span aria-hidden="true" className="text-[10px] text-faint">▾</span>
       </button>
-      {selected.length ? (
+      {selected.length && !overlay ? (
         <button
           type="button"
           aria-label={`پاک کردن ${label}`}
@@ -100,7 +104,7 @@ export function MultiSelect({ label, options, selected, single, onChange, onQuer
         </button>
       ) : null}
       {open ? (
-        <div className={LIST_CLASS}>
+        <div className={`${LIST_CLASS} ${overlay ? "absolute right-0 top-full z-40 min-w-[220px] shadow-2xl" : ""}`}>
           {searchable ? (
             <input
               type="search"

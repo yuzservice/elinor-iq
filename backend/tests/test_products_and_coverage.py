@@ -32,16 +32,18 @@ def test_products_api_is_sales_focused_without_inventory(auth_api):
         status=1,
         title="کت مشکی",
     )
-    response = auth_api.get("/api/products/")
+    from apps.products.daily import refresh_daily_sales, refresh_metrics
+
+    refresh_daily_sales()
+    refresh_metrics()
+    response = auth_api.get("/api/products/table/")
     assert response.status_code == 200
-    assert "inventory_note" not in response.data
     row = response.data["results"][0]
-    assert row["product"] == "کت مشکی"
-    assert row["sold_quantity"] == 2
-    assert row["order_count"] == 1
-    assert row["last_sale_at"] is not None
+    assert row["title"] == "کت مشکی"
+    assert row["units"] == 2 and row["revenue"] == 800000  # per-unit amount × quantity = the order total
+    assert row["central_stock"] is None  # Variant.quantity (99) is never reported; only the labelled central stock
+    assert 99 not in row.values()
     assert "quantity" not in row
-    assert response.data["data_coverage"]["partial"] is False
 
 
 @pytest.mark.django_db

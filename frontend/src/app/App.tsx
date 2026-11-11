@@ -8,6 +8,7 @@ import { SalesPage } from "../pages/SalesPage";
 import { CustomersPage } from "../pages/CustomersPage";
 import { Customer360Page } from "../pages/Customer360Page";
 import { ProductsPage } from "../pages/ProductsPage";
+import { Product360Page } from "../pages/Product360Page";
 import { SettingsPage } from "../pages/SettingsPage";
 import { authService } from "../services/auth";
 import { ThemeProvider } from "../theme/ThemeProvider";
@@ -84,6 +85,7 @@ export function App() {
             <Route path="/customers" element={<CustomersPage />} />
             <Route path="/customers/:id" element={<Customer360Page />} />
             <Route path="/products" element={<ProductsPage />} />
+            <Route path="/products/:id" element={<Product360Page />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route
               path="/calls"

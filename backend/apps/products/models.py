@@ -169,3 +169,105 @@ class VariantAttribute(models.Model):
                 name="uniq_variant_attribute",
             ),
         ]
+
+
+# Summary tables rebuilt by apps.products.daily from apps.sales.semantics (rules: docs/business-rules/products.md).
+# Product and variant ids are plain columns, not foreign keys: these tables are derived and fully rebuilt.
+
+
+class ProductDailySales(models.Model):
+    """One row per Tehran day, product, variant and sales line (ONLINE, SARI, GORGAN, CAPRI).
+
+    units: sold units; net_units: sold minus in-store returns; revenue: amount × quantity of sold lines minus returned
+    lines (online and POS line prices are both per unit, after discount); discounted_units: sold units with a line
+    discount; invoice_count: distinct invoices that sold it."""
+
+    day = models.DateField()
+    product_id = models.BigIntegerField()
+    variant_id = models.BigIntegerField(null=True)
+    sales_line = models.CharField(max_length=16)
+    units = models.IntegerField(default=0)
+    net_units = models.IntegerField(default=0)
+    revenue = models.BigIntegerField(default=0)
+    discounted_units = models.IntegerField(default=0)
+    invoice_count = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = "product_daily_sales"
+        constraints = [
+            models.UniqueConstraint(fields=["day", "product_id", "variant_id", "sales_line"], nulls_distinct=False, name="uniq_product_daily_sales"),
+        ]
+        indexes = [models.Index(fields=["product_id", "day"], name="pds_product_day"), models.Index(fields=["day"], name="pds_day")]
+
+
+class ProductMetrics(models.Model):
+    """Per product, as of the refresh day. Speeds are net units per week; comparisons stay within `category`."""
+
+    product_id = models.BigIntegerField(primary_key=True)
+    category_id = models.BigIntegerField(null=True, db_index=True)
+    as_of = models.DateField()
+    first_sale_date = models.DateField(null=True)
+    last_sale_date = models.DateField(null=True)
+    last_sale_by_line = models.JSONField(default=dict)
+    units_7 = models.IntegerField(default=0)
+    units_14 = models.IntegerField(default=0)
+    units_28 = models.IntegerField(default=0)
+    revenue_7 = models.BigIntegerField(default=0)
+    revenue_14 = models.BigIntegerField(default=0)
+    revenue_28 = models.BigIntegerField(default=0)
+    units_first14 = models.IntegerField(default=0)
+    weekly_speed = models.FloatField(default=0)
+    full_price_speed = models.FloatField(default=0)
+    category_median_speed = models.FloatField(null=True)
+    category_ratio = models.FloatField(null=True)
+    trend_pct = models.FloatField(null=True)
+    discount_share = models.FloatField(null=True)
+    return_rate = models.FloatField(null=True)
+    status = models.CharField(max_length=16, db_index=True)
+    central_stock = models.IntegerField(null=True)
+    stock_days = models.FloatField(null=True)
+    stock_flag = models.CharField(max_length=16, blank=True, db_index=True)
+
+    class Meta:
+        db_table = "product_metrics"
+
+
+class CentralStock(models.Model):
+    """`main_balance` of a variety from the Elinor product API: central warehouse only, never branch stock."""
+
+    variant_id = models.BigIntegerField(primary_key=True)
+    product_id = models.BigIntegerField(db_index=True)
+    balance = models.IntegerField()
+    fetched_at = models.DateTimeField()
+
+    class Meta:
+        db_table = "product_central_stock"
+
+
+class BasketItemDaily(models.Model):
+    """Invoices per day, channel (online / store) and level (product / category) containing `key`; key 0 = all invoices."""
+
+    day = models.DateField()
+    channel = models.CharField(max_length=8)
+    level = models.CharField(max_length=8)
+    key = models.BigIntegerField()
+    baskets = models.IntegerField()
+
+    class Meta:
+        db_table = "product_basket_items_daily"
+        indexes = [models.Index(fields=["level", "channel", "day"], name="pbi_level_day")]
+
+
+class BasketPairDaily(models.Model):
+    """Invoices per day, channel and level containing both `a` and `b` (a < b)."""
+
+    day = models.DateField()
+    channel = models.CharField(max_length=8)
+    level = models.CharField(max_length=8)
+    a = models.BigIntegerField()
+    b = models.BigIntegerField()
+    baskets = models.IntegerField()
+
+    class Meta:
+        db_table = "product_basket_pairs_daily"
+        indexes = [models.Index(fields=["level", "channel", "day"], name="pbp_level_day")]

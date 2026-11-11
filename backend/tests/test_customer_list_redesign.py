@@ -236,7 +236,7 @@ def test_facet_filters_and_options(auth_api):
     assert _rows(auth_api, "discount=yes" + query) == [1]
     assert _rows(auth_api, "discount=no" + query) == [2]  # purchasers only; 3 has no purchase
     options = auth_api.get("/api/customers/list-options/").data
-    assert options["sizes"] == ["M"] and options["categories"] == ["مانتو"] and set(options["cities"]) == {"ساری", "گرگان"}
+    assert options["sizes"] == ["M"] and "categories" not in options and set(options["cities"]) == {"ساری", "گرگان"}  # categories: /api/products/categories/
 
 
 # --- Filter v2: geo, products, profile, tier change ------------------------------------------------

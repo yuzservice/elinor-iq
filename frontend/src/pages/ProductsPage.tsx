@@ -1,978 +1,607 @@
-import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { JalaliRangePopover } from "../components/JalaliDatePicker";
+import { CategoryTreeSelect } from "../features/categories/CategoryTreeSelect";
+import { useCategoryTree } from "../features/categories/useCategoryTree";
+import { MultiSelect } from "../features/customers/MultiSelect";
+import { COLUMNS, FILTER_LABELS, FILTER_OPTIONS, LINES, STATUS, delta, fa, fa1, jdate, million, pct, sparkPoints } from "../features/products/display";
 import {
-  formatCompactToman,
-  formatDate,
-  formatNumber,
-  formatToman,
-  shiftTehranIsoDate,
-  tehranTodayIso,
-} from "../lib/format";
+  DEFAULT_STATE, apiParams, clearFilters, isFiltered, parseState, serializeState, toggleList, type Compare, type ListKey, type Period, type ProductsState,
+} from "../features/products/productsUrl";
+import type { BundlePairs, ProductReportRow, ProductsSummary, ProductsTable } from "../features/products/types";
+import { tehranTodayIso } from "../lib/format";
 import { productsService } from "../services/products";
-import type {
-  Product360Data,
-  ProductBundle,
-  ProductKpis,
-  ProductRow,
-  ProductSizeColor,
-  SalesLineKey,
-} from "../types";
 
-export function ProductsPage() {
-  const [search, setSearch] = useState("");
-  const [appliedSearch, setAppliedSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [activeTab, setActiveTab] = useState<
-    "all" | "bestsellers" | "slowmovers" | "velocity" | "bundles" | "variants"
-  >("all");
-  const [salesLine, setSalesLine] = useState<SalesLineKey | "all">("all");
-  const [dateRange, setDateRange] = useState<"7d" | "30d" | "all">("30d");
+const CARD = "rounded-[18px] border border-line bg-surface";
+const GHOST = "min-h-9 cursor-pointer rounded-[10px] border border-line bg-transparent px-3 text-[12.5px] text-muted hover:text-ink";
+const PERIODS: [Period, string][] = [["7", "۷ روز"], ["30", "۳۰ روز"], ["90", "۹۰ روز"], ["365", "۱۲ ماه"], ["custom", "دلخواه"]];
+const COMPARES: [Compare, string][] = [["prev", "دوره قبل"], ["year", "سال قبل"], ["custom", "دلخواه"], ["none", "بدون مقایسه"]];
+const COMPARE_LABEL: Record<string, string> = { prev: "نسبت به دوره قبل", year: "نسبت به سال قبل", custom: "نسبت به بازه مقایسه" };
+const LISTS: ListKey[] = ["lines", "status", "age", "stock", "discount"];
 
+function useLoad<T>(load: () => Promise<T>, key: string) {
+  const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [products, setProducts] = useState<ProductRow[]>([]);
-  const [kpis, setKpis] = useState<ProductKpis | null>(null);
-  const [total, setTotal] = useState(0);
-  const [perPage, setPerPage] = useState(20);
-
-  // داده‌های تکمیلی باندل‌ها و سایز/رنگ
-  const [bundles, setBundles] = useState<ProductBundle[]>([]);
-  const [sizeColor, setSizeColor] = useState<ProductSizeColor | null>(null);
-
-  // وضعیت کشوی ۳۶۰ درجه کالا
-  const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
-  const [drawerData, setDrawerData] = useState<Product360Data | null>(null);
-  const [drawerLoading, setDrawerLoading] = useState(false);
-
-  // محاسبه تاریخ‌ها بر اساس انتخاب بازه
-  const getDateBounds = () => {
-    if (dateRange === "all") return { from: undefined, to: undefined };
-    const today = tehranTodayIso();
-    const days = dateRange === "7d" ? 7 : 30;
-    const from = shiftTehranIsoDate(today, -days);
-    return { from, to: today };
-  };
-
-  // بارگذاری داده‌های اصلی
+  const [error, setError] = useState(false);
   useEffect(() => {
-    let isMounted = true;
+    let alive = true;
     setLoading(true);
-    setError(null);
-
-    const { from, to } = getDateBounds();
-
-    productsService
-      .list({
-        page,
-        per_page: perPage,
-        search: appliedSearch,
-        sales_line: salesLine,
-        tab: activeTab,
-        sort: activeTab === "velocity" ? "velocity" : "units",
-        order: "desc",
-        from,
-        to,
-      })
-      .then((res) => {
-        if (!isMounted) return;
-        setProducts(res.results || []);
-        setTotal(res.total || 0);
-        setPerPage(res.per_page || 20);
-        if (res.kpis) {
-          setKpis(res.kpis);
-        }
-      })
-      .catch((err) => {
-        if (!isMounted) return;
-        setError(err.message || "خطا در دریافت لیست محصولات");
-      })
-      .finally(() => {
-        if (isMounted) setLoading(false);
-      });
-
+    load()
+      .then((result) => alive && (setData(result), setError(false)))
+      .catch(() => alive && setError(true))
+      .finally(() => alive && setLoading(false));
     return () => {
-      isMounted = false;
+      alive = false;
     };
-  }, [page, appliedSearch, salesLine, activeTab, dateRange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return { data, loading, error };
+}
 
-  // بارگذاری باندل‌ها و توزیع سایز و رنگ
+function Segmented<T extends string>({ label, items, value, onPick }: { label: string; items: [T, string][]; value: T; onPick: (value: T) => void }) {
+  return (
+    <div role="group" aria-label={label} className="flex flex-wrap gap-0.5 rounded-[11px] bg-elevated p-[3px]">
+      {items.map(([key, text]) => (
+        <button
+          key={key}
+          type="button"
+          aria-pressed={value === key}
+          onClick={() => onPick(key)}
+          className={`min-h-8 cursor-pointer rounded-[9px] border-0 px-3 text-[12.5px] ${value === key ? "bg-accent font-semibold text-on-accent" : "bg-transparent text-muted hover:text-ink"}`}
+        >
+          {text}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function RangeButton({ open, from, to, onClick }: { open: boolean; from: string; to: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-expanded={open}
+      onClick={onClick}
+      className={`inline-flex min-h-[34px] cursor-pointer items-center gap-2 rounded-[10px] border bg-elevated px-3 text-[13px] text-ink ${open ? "border-accent" : "border-line"}`}
+    >
+      {jdate(from)} تا {jdate(to)}
+      <span aria-hidden="true" className="text-[10px] text-faint">▾</span>
+    </button>
+  );
+}
+
+function ReportBar({ state, update, summary, count }: { state: ProductsState; update: (next: ProductsState) => void; summary: ProductsSummary | null; count: number }) {
+  const nodes = useCategoryTree();
+  const [calendar, setCalendar] = useState<"cur" | "cmp" | null>(null);
+  const [q, setQ] = useState(state.q);
+  useEffect(() => setQ(state.q), [state.q]);
   useEffect(() => {
-    const { from, to } = getDateBounds();
+    if (q === state.q) return;
+    const timer = window.setTimeout(() => update({ ...state, q, page: 1 }), 350);
+    return () => window.clearTimeout(timer);
+  }, [q]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    productsService
-      .bundles(from, to, 4)
-      .then((res) => setBundles(res.bundles || []))
-      .catch(() => {});
-
-    productsService
-      .sizeColor(from, to, salesLine)
-      .then((res) => setSizeColor(res))
-      .catch(() => {});
-  }, [dateRange, salesLine]);
-
-  // باز کردن کشوی ۳۶۰ درجه کالا
-  const handleOpen360 = (item: ProductRow) => {
-    setSelectedProductId(item.id);
-    setDrawerLoading(true);
-    setDrawerData(null);
-
-    productsService
-      .get360(item.id)
-      .then((data) => {
-        setDrawerData(data);
-      })
-      .catch(() => {
-        // Fallback داده محلی از ردیف جدول در صورت عدم پاسخگویی مستقیم
-        setDrawerData({
-          id: item.id,
-          title: item.product,
-          sku: item.sku || `ELN-${item.id}`,
-          category: item.category || "پوشاک زنانه",
-          total_units: item.sold_quantity,
-          total_revenue: item.revenue || 0,
-          channels: {
-            online: {
-              units: item.channels?.online || 0,
-              pct: item.sold_quantity
-                ? Math.round(((item.channels?.online || 0) / item.sold_quantity) * 100)
-                : 0,
-            },
-            sari: {
-              units: item.channels?.sari || 0,
-              pct: item.sold_quantity
-                ? Math.round(((item.channels?.sari || 0) / item.sold_quantity) * 100)
-                : 0,
-            },
-            gorgan: {
-              units: item.channels?.gorgan || 0,
-              pct: item.sold_quantity
-                ? Math.round(((item.channels?.gorgan || 0) / item.sold_quantity) * 100)
-                : 0,
-            },
-            capri: {
-              units: item.channels?.capri || 0,
-              pct: item.sold_quantity
-                ? Math.round(((item.channels?.capri || 0) / item.sold_quantity) * 100)
-                : 0,
-            },
-          },
-          variants: [],
-          complementary_products: (item.complementary_items || []).map((name) => ({
-            product: name,
-            times_together: 24,
-          })),
-          action_recommendation:
-            item.action_recommendation || "پیشنهاد مکمل در سبد خرید آنلاین و صندوق شعب.",
-        });
-      })
-      .finally(() => {
-        setDrawerLoading(false);
-      });
+  const today = tehranTodayIso();
+  const range = summary?.range;
+  const filtered = isFiltered(state);
+  const pickPeriod = (period: Period) => {
+    if (period === "custom") {
+      update({ ...state, period, from: state.from || range?.from || today, to: state.to || range?.to || today, page: 1 });
+      setCalendar("cur");
+    } else update({ ...state, period, page: 1 });
   };
-
-  const handleCloseDrawer = () => {
-    setSelectedProductId(null);
-    setDrawerData(null);
+  const pickCompare = (compare: Compare) => {
+    if (compare === "custom") {
+      update({ ...state, compare, cfrom: state.cfrom || range?.compare_from || today, cto: state.cto || range?.compare_to || today });
+      setCalendar("cmp");
+    } else update({ ...state, compare });
   };
-
-  // کاندیدای کالای رکورددار شتاب فروش شارژ
-  const topVelocityCandidate =
-    kpis?.top_velocity_product ||
-    products.find((p) => (p.velocity_score && p.velocity_score > 0) || p.status === "fast_mover") ||
-    products[0];
+  const compareText = !range || state.compare === "none" || !range.compare_from
+    ? "بدون مقایسه"
+    : `مقایسه با: ${jdate(range.compare_from)} تا ${jdate(range.compare_to)}${state.compare === "prev" ? " (بازه هم‌اندازه قبلی)" : state.compare === "year" ? " (همین بازه سال قبل)" : ""}${
+        range.comparable ? "" : "؛ سابقه فروش حضوری از ۱۴۰۴/۰۳/۱۰ است، پس تغییرها «—» نمایش داده می‌شوند"
+      }`;
 
   return (
-    <div className="space-y-6">
-      {/* هدر صفحه و فیلترهای کنترلی بالا */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-black tracking-tight text-ink">هوش کالا و گزارش‌های افزایش فروش</h1>
-            <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-accent/15 text-accent font-bold border border-accent/25">
-              ترکیب آنلاین + شعب حضوری
-            </span>
-          </div>
-          <p className="text-xs text-muted mt-1">
-            شناسایی کالاهای پیشران سودآوری، شتاب فروش شارژ (Fast Movers)، اقلام راکد نیازمند تخفیف و رفتار سایز و رنگ
-          </p>
+    <section aria-label="تنظیمات گزارش" className={`${CARD} z-20 flex flex-col gap-2.5 bg-surface/95 px-3.5 py-3 backdrop-blur sm:sticky sm:top-2`}>
+      <div className="relative flex flex-wrap items-center gap-x-[18px] gap-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[12.5px] font-semibold text-muted">بازه</span>
+          <Segmented label="بازه زمانی" items={PERIODS} value={state.period} onPick={pickPeriod} />
+          {state.period === "custom" ? <RangeButton open={calendar === "cur"} from={state.from} to={state.to} onClick={() => setCalendar(calendar === "cur" ? null : "cur")} /> : null}
         </div>
-
-        {/* فیلترهای زمانی و کانال فروش */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* سلکتور کانال فروش */}
-          <div className="relative">
-            <select
-              value={salesLine}
-              onChange={(e) => {
-                setPage(1);
-                setSalesLine(e.target.value as SalesLineKey | "all");
-              }}
-              className="bg-elevated border border-line rounded-2xl px-3 py-1.5 text-xs font-bold text-ink focus:outline-none focus:border-accent cursor-pointer pr-3 pl-7 shadow-sm"
-            >
-              <option value="all">همه خطوط فروش (۴ شعبه)</option>
-              <option value="ONLINE">فقط فروشگاه آنلاین</option>
-              <option value="SARI">شعبه ساری (حضوری)</option>
-              <option value="GORGAN">شعبه گرگان (حضوری)</option>
-              <option value="CAPRI">شعبه کاپری (حضوری)</option>
-            </select>
-            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none text-xs">
-              ▾
-            </span>
-          </div>
-
-          {/* بازه زمانی */}
-          <div className="flex items-center bg-elevated p-1 rounded-2xl border border-line text-xs">
-            <button
-              type="button"
-              onClick={() => {
-                setPage(1);
-                setDateRange("7d");
-              }}
-              className={`px-3 py-1 rounded-xl transition-all ${
-                dateRange === "7d"
-                  ? "bg-accent text-on-accent font-bold shadow-sm"
-                  : "text-muted hover:text-ink"
-              }`}
-            >
-              ۷ روز
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setPage(1);
-                setDateRange("30d");
-              }}
-              className={`px-3.5 py-1 rounded-xl transition-all ${
-                dateRange === "30d"
-                  ? "bg-accent text-on-accent font-bold shadow-sm"
-                  : "text-muted hover:text-ink"
-              }`}
-            >
-              ۳۰ روز گذشته
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setPage(1);
-                setDateRange("all");
-              }}
-              className={`px-3 py-1 rounded-xl transition-all ${
-                dateRange === "all"
-                  ? "bg-accent text-on-accent font-bold shadow-sm"
-                  : "text-muted hover:text-ink"
-              }`}
-            >
-              کل دوره
-            </button>
-          </div>
+        <span aria-hidden="true" className="hidden h-[22px] w-px bg-[var(--border)] sm:block" />
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[12.5px] font-semibold text-muted">مقایسه با</span>
+          <Segmented label="بازه مقایسه" items={COMPARES} value={state.compare} onPick={pickCompare} />
+          {state.compare === "custom" ? <RangeButton open={calendar === "cmp"} from={state.cfrom} to={state.cto} onClick={() => setCalendar(calendar === "cmp" ? null : "cmp")} /> : null}
         </div>
-      </div>
-
-      {/* ۵ کارت شاخص‌های کلیدی (Bento KPI Cards) با تمرکز بر شتاب فروش */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-        {/* کارت ۱: درآمد کل فروش محصولات */}
-        <div className="bento-card p-5 glass-rim shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted">درآمد خالص دوره</span>
-            <div className="h-8 w-8 rounded-xl bg-accent/15 text-accent flex items-center justify-center font-bold text-sm">
-              💰
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-2xl font-black text-ink tabular">
-              {kpis?.gross_revenue ? formatToman(kpis.gross_revenue) : "—"}
-            </div>
-            <div className="flex items-center gap-1.5 text-xs mt-1 text-emerald-500 font-bold">
-              <span>{kpis?.units_sold ? formatNumber(kpis.units_sold) : "۰"} عدد</span>
-              <span className="text-muted font-normal text-[11px]">کل اقلام فروخته‌شده</span>
-            </div>
-          </div>
-          <div className="mt-3 pt-2 border-t border-line flex justify-between text-[11px] text-faint">
-            <span>تنوع‌های فعال: {kpis?.active_products_count || 0}</span>
-            <span className="text-accent font-medium">آنلاین + ۳ شعبه</span>
-          </div>
-        </div>
-
-        {/* کارت ۲: پیشران فروش (Hero Best Seller) */}
-        <div className="bento-card p-5 glass-rim shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted">پیشران فروش (Top Hero)</span>
-            <div className="h-8 w-8 rounded-xl bg-emerald-500/15 text-emerald-500 flex items-center justify-center font-bold text-sm">
-              ⭐
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-base font-black text-ink truncate">
-              {kpis?.hero_product?.title || "در حال محاسبه..."}
-            </div>
-            <div className="text-xs font-bold text-emerald-500 mt-1 tabular">
-              {kpis?.hero_product ? `${formatCompactToman(kpis.hero_product.revenue)} تومان` : "—"}
-              {kpis?.hero_product ? ` (${kpis.hero_product.share_pct}٪ سهم)` : ""}
-            </div>
-          </div>
-          <div className="mt-3 pt-2 border-t border-line flex justify-between text-[11px] text-faint">
-            <span>تعداد: {kpis?.hero_product?.units || 0} قلم</span>
-            <span className="text-emerald-500 font-semibold">بالاترین درآمد</span>
-          </div>
-        </div>
-
-        {/* کارت ۳: ⚡️ شاخص شتاب فروش شارژ (Sell-Through Velocity / Fast Mover) */}
-        <div className="bento-card p-5 glass-rim shadow-sm border-r-2 border-r-cyan-500">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted">رکورد شتاب فروش شارژ</span>
-            <div className="h-8 w-8 rounded-xl bg-cyan-500/15 text-cyan-500 flex items-center justify-center font-bold text-sm">
-              ⚡
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-base font-black text-ink truncate">
-              {(topVelocityCandidate &&
-                ("product" in topVelocityCandidate
-                  ? topVelocityCandidate.product
-                  : topVelocityCandidate.title)) ||
-                "تحلیل شتاب انبار"}
-            </div>
-            <div className="text-xs font-bold text-cyan-600 dark:text-cyan-400 mt-1 flex items-center gap-1.5 tabular">
-              <span>
-                {topVelocityCandidate?.sell_through_pct != null
-                  ? `${topVelocityCandidate.sell_through_pct}٪ اتمام شارژ`
-                  : "فروش حداکثری"}
-              </span>
-              <span className="text-[11px] text-muted font-normal">
-                {topVelocityCandidate?.days_to_sell_out != null
-                  ? `در ${topVelocityCandidate.days_to_sell_out} روز`
-                  : "در کمترین زمان"}
-              </span>
-            </div>
-          </div>
-          <div className="mt-3 pt-2 border-t border-line flex justify-between text-[11px]">
-            <span className="text-faint">میانگین زمان اتمام شارژ:</span>
-            <span className="text-cyan-500 font-bold tabular">
-              {kpis?.avg_days_to_sell_out ? `${kpis.avg_days_to_sell_out} روز` : "زیر ۷ روز"}
-            </span>
-          </div>
-        </div>
-
-        {/* کارت ۴: هشدار کالاهای راکد (Dead Stock Alert) */}
-        <div className="bento-card p-5 glass-rim shadow-sm border-r-2 border-r-amber-500">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted">کالاهای کندفروش و راکد</span>
-            <div className="h-8 w-8 rounded-xl bg-amber-500/15 text-amber-500 flex items-center justify-center font-bold text-sm">
-              ⏳
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-2xl font-black text-amber-500 tabular">
-              {kpis?.slow_movers_count || 0} <span className="text-xs font-normal text-muted">کالا بدون فروش</span>
-            </div>
-            <div className="text-xs text-muted mt-1">بیش از ۲۵ روز از آخرین فروش گذشته</div>
-          </div>
-          <div className="mt-3 pt-2 border-t border-line flex justify-between text-[11px]">
-            <span className="text-faint">سرمایه در گردش بلوکه:</span>
-            <span className="text-amber-500 font-bold tabular">
-              {kpis?.capital_at_risk ? formatCompactToman(kpis.capital_at_risk) : "۰"} تومان
-            </span>
-          </div>
-        </div>
-
-        {/* کارت ۵: شاخص سبد مکمل (Cross-Sell Index) */}
-        <div className="bento-card p-5 glass-rim shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted">شاخص سبد مکمل (Cross-Sell)</span>
-            <div className="h-8 w-8 rounded-xl bg-purple-500/15 text-purple-500 flex items-center justify-center font-bold text-sm">
-              🔗
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-2xl font-black text-ink tabular">
-              {kpis?.cross_sell_index || 1.0} <span className="text-xs font-normal text-muted">قلم در هر فاکتور</span>
-            </div>
-            <div className="text-xs text-purple-500 font-bold mt-1">پتانسیل افزایش فروش با باندلینگ</div>
-          </div>
-          <div className="mt-3 pt-2 border-t border-line flex justify-between text-[11px] text-faint">
-            <span>باندل‌های پیشنهادی: {bundles.length} ست</span>
-            <span className="text-purple-500 font-semibold">+۱۵٪ سبد</span>
-          </div>
-        </div>
-      </div>
-
-      {/* نوار زبانه‌های استراتژیک و جستجو */}
-      <div className="bento-card p-4 glass-rim shadow-sm space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          {/* زبانه‌ها */}
-          <div className="flex flex-wrap items-center gap-1 bg-elevated p-1 rounded-2xl border border-line text-xs">
-            <button
-              type="button"
-              onClick={() => {
-                setPage(1);
-                setActiveTab("all");
-              }}
-              className={`px-3.5 py-1.5 rounded-xl transition-all ${
-                activeTab === "all"
-                  ? "bg-accent text-on-accent font-bold shadow-sm"
-                  : "text-muted hover:text-ink"
-              }`}
-            >
-              📋 همه کالاها ({total})
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setPage(1);
-                setActiveTab("bestsellers");
-              }}
-              className={`px-3.5 py-1.5 rounded-xl transition-all ${
-                activeTab === "bestsellers"
-                  ? "bg-accent text-on-accent font-bold shadow-sm"
-                  : "text-muted hover:text-ink"
-              }`}
-            >
-              🔥 پیشران‌های فروش
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setPage(1);
-                setActiveTab("velocity");
-              }}
-              className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
-                activeTab === "velocity"
-                  ? "bg-accent text-on-accent font-bold shadow-sm"
-                  : "text-cyan-600 dark:text-cyan-400 hover:text-ink"
-              }`}
-            >
-              <span>⚡️</span>
-              <span>شتاب فروش شارژ (Fast Movers)</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setPage(1);
-                setActiveTab("slowmovers");
-              }}
-              className={`px-3.5 py-1.5 rounded-xl transition-all ${
-                activeTab === "slowmovers"
-                  ? "bg-accent text-on-accent font-bold shadow-sm"
-                  : "text-muted hover:text-ink"
-              }`}
-            >
-              ⚠️ کالاهای راکد / نیازمند اقدام
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setPage(1);
-                setActiveTab("bundles");
-              }}
-              className={`px-3.5 py-1.5 rounded-xl transition-all ${
-                activeTab === "bundles"
-                  ? "bg-accent text-on-accent font-bold shadow-sm"
-                  : "text-muted hover:text-ink"
-              }`}
-            >
-              ✨ مکمل‌یابی و باندل‌ها
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setPage(1);
-                setActiveTab("variants");
-              }}
-              className={`px-3.5 py-1.5 rounded-xl transition-all ${
-                activeTab === "variants"
-                  ? "bg-accent text-on-accent font-bold shadow-sm"
-                  : "text-muted hover:text-ink"
-              }`}
-            >
-              🎨 تقاضای سایز و رنگ
-            </button>
-          </div>
-
-          {/* فرم جستجو */}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              setPage(1);
-              setAppliedSearch(search);
+        {calendar ? (
+          <JalaliRangePopover
+            key={calendar}
+            from={calendar === "cur" ? state.from : state.cfrom}
+            to={calendar === "cur" ? state.to : state.cto}
+            max={today}
+            onClose={() => setCalendar(null)}
+            onApply={(from, to) => {
+              update(calendar === "cur" ? { ...state, from, to, page: 1 } : { ...state, cfrom: from, cto: to });
+              setCalendar(null);
             }}
-            className="relative min-w-[240px] flex-1 sm:flex-none"
-          >
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="جستجوی نام کالا یا کد SKU..."
-              className="w-full pl-3 pr-9 py-1.5 rounded-xl bg-elevated border border-line text-xs text-ink placeholder:text-muted focus:outline-none focus:border-accent"
-            />
+          />
+        ) : null}
+      </div>
+      <div className="flex flex-wrap items-center gap-2 border-t border-line pt-2.5">
+        <input
+          type="search"
+          aria-label="جستجوی کالا"
+          placeholder="جستجوی نام یا کد کالا"
+          value={q}
+          onChange={(event) => setQ(event.target.value)}
+          className="min-h-[38px] min-w-0 flex-[1_1_200px] rounded-[10px] border border-line bg-elevated px-3 text-[13px] text-ink outline-none focus:border-accent sm:max-w-[260px]"
+        />
+        <CategoryTreeSelect overlay label="دسته" nodes={nodes} selected={state.category_ids} onChange={(ids) => update({ ...state, category_ids: ids, page: 1 })} />
+        {LISTS.map((key) => (
+          <MultiSelect key={key} overlay label={FILTER_LABELS[key]} options={FILTER_OPTIONS[key]} selected={state[key]} onChange={(values) => update({ ...state, [key]: values, page: 1 })} />
+        ))}
+        {filtered ? (
+          <button type="button" onClick={() => update(clearFilters(state))} className="min-h-[34px] cursor-pointer border-0 bg-transparent text-[12.5px] text-blue-600 dark:text-blue-300">
+            پاک کردن همه
+          </button>
+        ) : null}
+      </div>
+      <div className="flex flex-wrap gap-x-3.5 gap-y-1 text-[12.5px]">
+        <span className="text-ink">{filtered ? `کل صفحه برای ${fa(count)} کالای فیلترشده ساخته شده است.` : "کل صفحه برای همه کالاها ساخته شده است."}</span>
+        {range ? <span className="text-muted">بازه فعلی: {jdate(range.from)} تا {jdate(range.to)}</span> : null}
+        <span className="text-muted">{compareText}</span>
+      </div>
+    </section>
+  );
+}
+
+function Kpi({ label, value, unit, items, note, noteColor, pressed, onPick, accent }: {
+  label: string; value: string; unit: string; items: { a: string; b: string; to?: string }[]; note: string; noteColor: string;
+  pressed?: boolean; onPick?: () => void; accent?: string;
+}) {
+  const body = (
+    <>
+      <span className="text-[13px] text-muted">{label}</span>
+      <span className="flex items-baseline gap-1.5">
+        <span className="text-[26px] font-extrabold tracking-tight text-ink">{value}</span>
+        <span className="text-[12.5px] text-muted">{unit}</span>
+      </span>
+      {items.map((item, index) => (
+        <span key={index} className="flex w-full justify-between gap-2 text-[12.5px]">
+          <span className="truncate text-ink">{item.a}</span>
+          <span className="flex-none text-muted">{item.b}</span>
+        </span>
+      ))}
+      <span className="mt-auto text-xs" style={{ color: noteColor }}>{note}</span>
+    </>
+  );
+  if (!onPick) return <div className={`${CARD} flex flex-col gap-1.5 px-[18px] py-3.5`}>{body}</div>;
+  return (
+    <button
+      type="button"
+      aria-pressed={pressed}
+      onClick={onPick}
+      className={`${CARD} flex cursor-pointer flex-col items-stretch gap-1.5 px-[18px] py-3.5 text-right`}
+      style={pressed ? { borderColor: accent } : undefined}
+    >
+      {body}
+    </button>
+  );
+}
+
+function Cards({ summary, state, update }: { summary: ProductsSummary; state: ProductsState; update: (next: ProductsState) => void }) {
+  const { sales, range } = summary;
+  const showDelta = state.compare !== "none";
+  const rev = delta(sales.revenue_change);
+  const units = delta(sales.units_change);
+  const card = (key: ListKey, values: string[], color: string, hint: string) => {
+    const on = state[key].join(",") === values.join(",");
+    return { pressed: on, accent: color, noteColor: color, note: on ? "در جدول فیلتر شده؛ برای برداشتن دوباره بزنید" : hint, onPick: () => update(toggleList(state, key, values)) };
+  };
+  const days = (row: ProductReportRow) => Math.max(0, Math.round((Date.parse(range.to) - Date.parse(row.last_sale_date)) / 86_400_000));
+  return (
+    <section aria-label="شاخص‌ها" className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(210px,1fr))]">
+      <Kpi
+        label="فروش"
+        value={million(sales.revenue)}
+        unit="میلیون تومان"
+        items={[
+          { a: "تعداد فروش خالص", b: `${fa(sales.net_units)} عدد` },
+          { a: "میانگین قیمت فروش", b: sales.avg_price == null ? "—" : `${fa(sales.avg_price / 1000)} هزار تومان` },
+        ]}
+        note={!showDelta ? "در بازه انتخابی" : sales.revenue_change == null ? "مقایسه برای این بازه در دسترس نیست" : `${rev.text} مبلغ و ${units.text} تعداد ${COMPARE_LABEL[state.compare]}`}
+        noteColor={showDelta && sales.revenue_change != null ? rev.color : "var(--text-secondary)"}
+      />
+      <Kpi
+        label="پیشران‌های فروش"
+        value={fa(summary.drivers.count)}
+        unit="کالا"
+        items={summary.drivers.top.map((row) => ({ a: row.title, b: `${fa1(row.ratio)}× دسته` }))}
+        {...card("status", ["driver"], "var(--delta-up)", "همه پیشران‌ها را در جدول ببینید")}
+      />
+      <Kpi
+        label="نیاز به شارژ فوری"
+        value={fa(summary.charge.count)}
+        unit="کالا"
+        items={summary.charge.top.map((row) => ({ a: row.title, b: row.central_stock === 0 ? "موجودی مرکزی صفر" : "موجودی مرکزی کم" }))}
+        {...card("stock", ["charge"], "var(--delta-down)", "سریع می‌فروشند و موجودی مرکزی کم است")}
+      />
+      <Kpi
+        label="کندفروش و راکد"
+        value={fa(summary.slow.count)}
+        unit="کالا"
+        items={summary.slow.top.map((row) => ({ a: row.title, b: row.status === "stale" ? `${fa(days(row))} روز بدون فروش` : "کند" }))}
+        {...card("status", ["slow", "stale"], "var(--warning)", "برای تخفیف یا جابه‌جایی بررسی کنید")}
+      />
+    </section>
+  );
+}
+
+function BranchStrip({ summary, state, update }: { summary: ProductsSummary; state: ProductsState; update: (next: ProductsState) => void }) {
+  const max = Math.max(1, ...summary.branches.map((b) => b.revenue));
+  return (
+    <section aria-label="فروش به تفکیک شعبه" className={`${CARD} flex flex-col gap-2.5 px-[18px] py-3.5`}>
+      <div className="flex flex-wrap items-center justify-between gap-1.5">
+        <h2 className="m-0 text-sm font-semibold text-ink">فروش به تفکیک شعبه</h2>
+        <span className="text-[12.5px] text-muted">روی هر شعبه بزنید تا کل صفحه برای همان شعبه فیلتر شود</span>
+      </div>
+      <div className="grid gap-x-[22px] gap-y-2 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]">
+        {LINES.map((line) => {
+          const row = summary.branches.find((b) => b.line === line.key);
+          const on = state.lines.length === 1 && state.lines[0] === line.key;
+          const d = delta(row?.change);
+          return (
             <button
-              type="submit"
-              className="absolute inset-y-0 right-2.5 flex items-center text-muted hover:text-accent"
+              key={line.key}
+              type="button"
+              aria-pressed={on}
+              onClick={() => update(toggleList(state, "lines", [line.key]))}
+              className={`flex cursor-pointer flex-col items-start gap-1.5 rounded-xl border px-2.5 py-2 text-right ${on ? "bg-hover" : "border-transparent bg-transparent"}`}
+              style={on ? { borderColor: line.color } : undefined}
             >
-              🔍
+              <span className="flex w-full items-center justify-between">
+                <span className="flex items-center gap-[7px]">
+                  <span className="h-2 w-2 rounded-full" style={{ background: line.color }} />
+                  <span className="text-[13.5px] font-semibold text-ink">{line.label}</span>
+                </span>
+                {state.compare !== "none" ? <span className="text-xs font-semibold" style={{ color: d.color }}>{d.text}</span> : null}
+              </span>
+              <span className="flex items-baseline gap-1.5">
+                <span className="text-[19px] font-extrabold text-ink">{million(row?.revenue)}</span>
+                <span className="text-[12.5px] text-muted">میلیون تومان، {pct(row?.share)} سهم</span>
+              </span>
+              <span className="h-[5px] w-full rounded-[3px] bg-[var(--chart-track)]">
+                <span className="block h-[5px] rounded-[3px]" style={{ background: line.color, width: `${Math.round(((row?.revenue ?? 0) / max) * 100)}%` }} />
+              </span>
             </button>
-          </form>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+const PRESETS: [string, Partial<ProductsState>, string, "asc" | "desc"][] = [
+  ["کالاهای تازه (تا ۹۰ روز)", { age: ["30", "90"] }, "first14", "desc"],
+  ["رو به رشد", { status: ["growth"] }, "change", "desc"],
+  ["کند شده", { status: ["slow"] }, "change", "asc"],
+  ["احتمالاً تمام شده", { stock: ["out"] }, "speed", "desc"],
+];
+
+function Badge({ color, children, title }: { color: string; children: ReactNode; title?: string }) {
+  return (
+    <span title={title} className="rounded-full px-2.5 py-0.5 text-xs" style={{ color, background: `color-mix(in srgb, ${color} 14%, transparent)` }}>
+      {children}
+    </span>
+  );
+}
+
+function Row({ row, showDelta, suffix }: { row: ProductReportRow; showDelta: boolean; suffix: string }) {
+  const d = delta(showDelta ? row.change : null);
+  const ratioColor = row.ratio == null ? "var(--text-faint)" : row.ratio >= 2 ? "var(--delta-up)" : row.ratio < 0.7 ? "var(--warning)" : "var(--text-secondary)";
+  const status = STATUS[row.status];
+  return (
+    <tr className="border-t border-line hover:bg-hover">
+      <td className="px-2.5 py-[9px]">
+        <Link to={`/products/${row.id}${suffix}`} className="flex flex-col items-start gap-px text-inherit no-underline">
+          <span className="text-[13.5px] font-semibold text-ink">{row.title}</span>
+          <span dir="ltr" className="text-[11.5px] text-muted">{row.code}</span>
+        </Link>
+      </td>
+      <td className="px-2.5 py-[9px] text-muted">{row.category || "—"}</td>
+      <td className="px-2.5 py-[9px] font-semibold">{fa(row.units)}</td>
+      <td className="px-2.5 py-[9px]">{million(row.revenue)} م</td>
+      <td className="px-2.5 py-[9px]">
+        <span className="flex items-center gap-2">
+          <span>{fa1(row.speed)} خالص در هفته</span>
+          <svg width="64" height="20" viewBox="0 0 64 20" aria-hidden="true">
+            <polyline points={sparkPoints(row.spark ?? [])} fill="none" stroke={(row.change ?? 0) >= 0 ? "var(--delta-up)" : "var(--delta-down)"} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
+          </svg>
+        </span>
+      </td>
+      <td className="px-2.5 py-[9px]">{fa(row.first14)} عدد</td>
+      <td className="px-2.5 py-[9px] font-semibold" style={{ color: ratioColor }}>{row.ratio == null ? "—" : `${fa1(row.ratio)}×`}</td>
+      <td className="px-2.5 py-[9px] text-[12.5px] font-semibold" style={{ color: d.color }}>{showDelta ? d.text : "ــ"}</td>
+      <td className="px-2.5 py-[9px] text-muted">{fa(row.age)} روز</td>
+      <td className="px-2.5 py-[9px]" title={LINES.map((line) => `${line.label} ${fa(row.lines[line.key])} عدد`).join("، ")}>
+        <span className="flex gap-1">
+          {LINES.map((line) => (
+            <span key={line.key} className="inline-flex min-w-[34px] items-center gap-1 rounded-[7px] bg-elevated px-1.5 py-px text-xs text-ink">
+              <span className="h-1.5 w-1.5 rounded-full" style={{ background: line.color }} />
+              {fa(row.lines[line.key])}
+            </span>
+          ))}
+        </span>
+      </td>
+      <td className="px-2.5 py-[9px]" style={{ color: (row.discount_share ?? 0) >= 0.4 ? "var(--warning)" : undefined }}>{pct(row.discount_share)}</td>
+      <td className="px-2.5 py-[9px]" style={{ color: (row.return_rate ?? 0) >= 0.08 ? "var(--delta-down)" : undefined }}>{pct(row.return_rate)}</td>
+      <td className="px-2.5 py-[9px]">
+        <span className="flex gap-1.5">
+          <Badge color={status.color}>{status.label}</Badge>
+          {row.stock_flag === "charge" ? <Badge color="var(--delta-down)" title="سریع می‌فروشد و موجودی مرکزی کم یا صفر است">شارژ فوری</Badge> : null}
+          {row.stock_flag === "out" ? <Badge color="var(--delta-down)" title="فروش افت کرده و موجودی مرکزی صفر است">احتمالاً تمام شده</Badge> : null}
+        </span>
+      </td>
+    </tr>
+  );
+}
+
+/** The page's range and comparison, carried into Product 360. */
+function rangeSuffix(state: ProductsState) {
+  const { period, from, to, compare, cfrom, cto } = state;
+  const query = serializeState({ ...DEFAULT_STATE, period, from, to, compare, cfrom, cto });
+  return query ? `?${query}` : "";
+}
+
+function exportCsv(rows: ProductReportRow[]) {
+  const head = ["کالا", "کد", "دسته", "تعداد فروش", "مبلغ فروش (تومان)", "فروش خالص هفتگی", "فروش ۱۴ روز اول", "نسبت به دسته", "تغییر ٪", "عمر کالا (روز)",
+    ...LINES.map((line) => `فروش ${line.label}`), "فروش با تخفیف ٪", "مرجوعی ٪", "وضعیت", "موجودی مرکزی"];
+  const cell = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+  const round = (value: number | null) => (value == null ? "" : Math.round(value * 10) / 10);
+  const lines = rows.map((r) => [r.title, r.code, r.category, r.units, r.revenue, round(r.speed), r.first14, round(r.ratio), round(r.change), r.age,
+    ...LINES.map((line) => r.lines[line.key]), round(r.discount_share == null ? null : r.discount_share * 100), round(r.return_rate == null ? null : r.return_rate * 100),
+    STATUS[r.status].label, r.central_stock ?? ""].map(cell).join(","));
+  const blob = new Blob(["﻿" + [head.map(cell).join(","), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "products.csv";
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+function ProductTable({ table, loading, state, update }: { table: ProductsTable | null; loading: boolean; state: ProductsState; update: (next: ProductsState) => void }) {
+  const [help, setHelp] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const full = table?.full ?? false;
+  const filtered = isFiltered(state);
+  const periodLabel = state.period === "custom" ? "بازه انتخابی" : `${PERIODS.find(([key]) => key === state.period)?.[1]} اخیر`;
+  const total = table?.total ?? 0;
+  const first = (state.page - 1) * (table?.page_size ?? 20) + 1;
+  const sortBy = (key: string) =>
+    update(state.sort === key ? { ...state, dir: state.dir === "asc" ? "desc" : "asc" } : { ...state, sort: key, dir: key === "age" || key === "title" ? "asc" : "desc", page: 1 });
+  const doExport = async () => {
+    setExporting(true);
+    try {
+      exportCsv((await productsService.table({ ...apiParams(state), all: "1", export: "1" })).results);
+    } finally {
+      setExporting(false);
+    }
+  };
+  return (
+    <section className={`${CARD} flex flex-col px-2 pb-2.5 pt-3`}>
+      <div className="flex flex-wrap items-center gap-1.5 px-2 pb-2.5">
+        <span className="text-[12.5px] text-muted">میان‌بر</span>
+        {PRESETS.map(([label, filter, sort, dir]) => {
+          const [key, values] = Object.entries(filter)[0] as [ListKey, string[]];
+          const on = state[key].join(",") === values.join(",");
+          return (
+            <button
+              key={label}
+              type="button"
+              aria-pressed={on}
+              onClick={() => update(on ? clearFilters(state) : { ...clearFilters(state), ...filter, sort, dir })}
+              className={`min-h-8 cursor-pointer rounded-full border px-3 text-[12.5px] ${on ? "border-blue-400 bg-accent/20 text-ink" : "border-line bg-transparent text-muted"}`}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2 px-2 pb-2">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-sm font-semibold text-ink">{full ? `${fa(total)} کالا` : `۱۰ کالای پرفروش ${periodLabel}`}</span>
+          <span className="text-[12.5px] text-muted">
+            {full ? (filtered ? "بر اساس فیلترهای بالای صفحه" : "همه کالاهای دارای فروش در این بازه") : "بر اساس مبلغ فروش. برای دیدن همه کالاها یا فیلتر کردن، از بالای صفحه استفاده کنید."}
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {!full ? (
+            <button type="button" onClick={() => update({ ...state, all: true, page: 1 })} className="min-h-9 cursor-pointer rounded-[10px] border-0 bg-accent px-3.5 text-[12.5px] font-semibold text-on-accent">
+              نمایش همه کالاها
+            </button>
+          ) : null}
+          <button type="button" aria-expanded={help} onClick={() => setHelp(!help)} className={GHOST}>راهنمای ستون‌ها</button>
+          <button type="button" disabled={exporting || !total} onClick={doExport} className={`${GHOST} disabled:opacity-50`}>{exporting ? "در حال آماده‌سازی…" : "خروجی اکسل"}</button>
         </div>
       </div>
-
-      {/* محتوای اصلی: جدول محصولات یا بخش‌های مکمل */}
-      {loading ? (
-        <div className="bento-card p-12 text-center text-xs text-muted glass-rim">
-          در حال بارگذاری گزارش‌های هوشمند محصولات...
-        </div>
-      ) : error ? (
-        <div className="bento-card p-8 text-center text-xs text-danger glass-rim">
-          {error}
-        </div>
-      ) : products.length === 0 ? (
-        <div className="bento-card p-12 text-center text-xs text-muted glass-rim">
-          کالایی منطبق با این فیلترها یافت نشد.
-        </div>
-      ) : (
-        <div className="bento-card p-5 glass-rim shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-right text-xs">
-              <thead>
-                <tr className="text-muted border-b border-line pb-3 font-semibold">
-                  <th className="py-3 px-3">کالا و مشخصات تنوع</th>
-                  <th className="py-3 px-3">دسته‌بندی</th>
-                  <th className="py-3 px-3 text-center">وضعیت عملکرد</th>
-                  <th className="py-3 px-3 text-center">شتاب و اتمام شارژ</th>
-                  <th className="py-3 px-3">تعداد فروش</th>
-                  <th className="py-3 px-3">درآمد ناخالص (تومان)</th>
-                  <th className="py-3 px-3">تفکیک کانال (آنلاین / شعب)</th>
-                  <th className="py-3 px-3">آخرین فروش</th>
-                  <th className="py-3 px-3">پیشنهاد هوشمند سیستم</th>
-                  <th className="py-3 px-3 text-center">شناسنامه ۳۶۰</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line/60">
-                {products.map((row, index) => {
-                  let badgeClass = "bg-blue-500/10 text-blue-500 border border-blue-500/20";
-                  if (row.status === "hero")
-                    badgeClass = "bg-emerald-500/15 text-emerald-500 border border-emerald-500/30";
-                  if (row.status === "fast_mover")
-                    badgeClass = "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30";
-                  if (row.status === "slow")
-                    badgeClass = "bg-amber-500/15 text-amber-500 border border-amber-500/30";
-                  if (row.status === "dead")
-                    badgeClass = "bg-rose-500/15 text-rose-500 border border-rose-500/30";
-
-                  // محاسبه درصد فروش از شارژ یا نمایش پیش‌فرض
-                  const sellThrough =
-                    row.sell_through_pct != null
-                      ? row.sell_through_pct
-                      : row.sold_quantity >= 10
-                      ? 100
-                      : Math.min(100, row.sold_quantity * 20);
-
-                  const isHighVelocity =
-                    row.status === "fast_mover" ||
-                    (row.days_to_sell_out != null && row.days_to_sell_out <= 5) ||
-                    (row.velocity_score != null && row.velocity_score >= 20);
-
-                  return (
-                    <tr
-                      key={`${row.id}-${index}`}
-                      onClick={() => handleOpen360(row)}
-                      className="hover:bg-hover transition-colors cursor-pointer group"
-                    >
-                      <td className="py-3 px-3">
-                        <div className="font-extrabold text-ink group-hover:text-accent transition-colors">
-                          {row.product}
-                        </div>
-                        <div className="text-[11px] text-muted mt-0.5">
-                          {row.variant} {row.sku ? `• ${row.sku}` : ""}
-                        </div>
-                      </td>
-                      <td className="py-3 px-3 text-muted">{row.category || "پوشاک زنانه"}</td>
-                      <td className="py-3 px-3 text-center">
-                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold ${badgeClass}`}>
-                          {row.status === "fast_mover"
-                            ? "⚡ شتاب برق‌آسا"
-                            : row.status_label || "✓ فروش پایدار"}
-                        </span>
-                      </td>
-
-                      {/* ستون جدید: شتاب و اتمام شارژ (Sell-Through Velocity) */}
-                      <td className="py-3 px-3 text-center">
-                        <div className="inline-flex flex-col items-center gap-1">
-                          <div className="flex items-center gap-1 text-[11px] font-black text-ink tabular">
-                            <span className={sellThrough >= 80 ? "text-emerald-500" : "text-ink"}>
-                              {sellThrough}٪
-                            </span>
-                            {row.initial_quantity ? (
-                              <span className="text-[10px] text-muted font-normal">
-                                ({row.sold_quantity} از {row.initial_quantity})
-                              </span>
-                            ) : null}
-                          </div>
-                          <div className="w-16 h-1.5 bg-elevated rounded-full overflow-hidden border border-line/60">
-                            <div
-                              className={`h-full rounded-full transition-all ${
-                                sellThrough >= 90
-                                  ? "bg-cyan-500"
-                                  : sellThrough >= 60
-                                  ? "bg-emerald-500"
-                                  : "bg-accent"
-                              }`}
-                              style={{ width: `${sellThrough}%` }}
-                            />
-                          </div>
-                          <span
-                            className={`text-[9px] font-medium tabular ${
-                              isHighVelocity ? "text-cyan-600 dark:text-cyan-400 font-bold" : "text-muted"
-                            }`}
-                          >
-                            {row.days_to_sell_out != null
-                              ? `⚡ در ${row.days_to_sell_out} روز`
-                              : row.sold_quantity >= 5
-                              ? "سرعت چرخش بالا"
-                              : "فروش تدریجی"}
-                          </span>
-                        </div>
-                      </td>
-
-                      <td className="py-3 px-3 tabular font-bold text-ink">
-                        {formatNumber(row.sold_quantity)} قلم
-                      </td>
-                      <td className="py-3 px-3 tabular font-extrabold text-ink">
-                        {row.revenue ? formatToman(row.revenue) : "—"}
-                      </td>
-                      <td className="py-3 px-3">
-                        <div className="flex items-center gap-1.5 text-[10px] tabular">
-                          <span className="text-blue-500 font-semibold" title="آنلاین">
-                            وب: {row.channels?.online || 0}
-                          </span>
-                          <span className="text-faint">/</span>
-                          <span className="text-emerald-500 font-semibold" title="ساری">
-                            ساری: {row.channels?.sari || 0}
-                          </span>
-                          <span className="text-faint">/</span>
-                          <span className="text-amber-500 font-semibold" title="گرگان">
-                            گرگان: {row.channels?.gorgan || 0}
-                          </span>
-                          <span className="text-faint">/</span>
-                          <span className="text-purple-500 font-semibold" title="کاپری">
-                            کاپری: {row.channels?.capri || 0}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-3 text-muted text-[11px]">{formatDate(row.last_sale_at)}</td>
-                      <td className="py-3 px-3">
-                        <div className="max-w-xs text-[11px] text-ink leading-4 bg-elevated p-1.5 rounded-xl border border-line truncate group-hover:whitespace-normal">
-                          ⚡ {row.action_recommendation || "پیشنهاد مکمل در کنار استندهای پرفروش."}
-                        </div>
-                      </td>
-                      <td className="py-3 px-3 text-center">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpen360(row);
-                          }}
-                          className="px-2.5 py-1 rounded-xl bg-elevated hover:bg-accent hover:text-on-accent text-muted text-[10px] font-bold transition-all border border-line"
-                        >
-                          شناسنامه ۳۶۰
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* صفحه‌بندی */}
-          <div className="mt-4 pt-3 border-t border-line flex flex-wrap items-center justify-between text-xs text-muted">
-            <div>
-              نمایش <span className="font-bold text-ink tabular">{products.length}</span> از{" "}
-              <span className="font-bold text-ink tabular">{total}</span> کالا
+      {help ? (
+        <div className="mx-2 mb-3 grid gap-x-[22px] gap-y-2 rounded-xl bg-elevated px-3.5 py-3 [grid-template-columns:repeat(auto-fit,minmax(260px,1fr))]">
+          {COLUMNS.map(([, label, text]) => (
+            <div key={label} className="flex flex-col gap-px">
+              <span className="text-[12.5px] font-semibold text-ink">{label}</span>
+              <span className="text-[12.5px] leading-[1.7] text-muted">{text}</span>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="px-3 py-1 rounded-xl bg-elevated border border-line disabled:opacity-40 text-ink"
-              >
-                صفحه قبل
-              </button>
-              <span className="tabular font-bold text-ink">{page}</span>
-              <button
-                type="button"
-                disabled={page * perPage >= total}
-                onClick={() => setPage((p) => p + 1)}
-                className="px-3 py-1 rounded-xl bg-elevated border border-line disabled:opacity-40 text-ink"
-              >
-                صفحه بعد
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* بخش‌های مکمل پایین: موتور هوشمند باندل‌ها + توزیع رنگ و سایز */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* پنل ۱: ترکیب‌های طلایی خرید همزمان (Basket Bundles) */}
-        <div className="lg:col-span-7 bento-card p-6 glass-rim shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-extrabold text-ink flex items-center gap-2">
-                <span>🛍️ ترکیب‌های طلایی خرید همزمان (Basket Bundles)</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-500 font-bold">
-                  تحلیل سبد خرید
-                </span>
-              </h3>
-              <p className="text-[11px] text-muted mt-0.5">
-                کالاهایی که بیشترین تکرار خرید در یک فاکتور مشترک را دارند؛ آماده جهت پیشنهاد به مشتریان حضوری و آنلاین
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            {bundles.map((bundle, idx) => (
-              <div
-                key={idx}
-                className="p-3.5 rounded-2xl bg-elevated border border-line flex flex-wrap items-center justify-between gap-3"
-              >
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-ink">{bundle.item_a}</span>
-                    <span className="text-purple-500 font-bold">+</span>
-                    <span className="text-xs font-bold text-ink">{bundle.item_b}</span>
-                  </div>
-                  <div className="text-[11px] text-muted flex items-center gap-3">
-                    <span>
-                      همپوشانی:{" "}
-                      <strong className="text-emerald-500 tabular">{bundle.co_occurrence_count} فاکتور</strong>
-                    </span>
-                    <span>
-                      ضریب اطمینان: <strong className="text-ink tabular">{bundle.confidence_pct}٪</strong>
-                    </span>
-                  </div>
-                </div>
-                <div className="text-left">
-                  <span className="text-[10px] px-2.5 py-1 rounded-xl bg-accent/15 text-accent font-bold">
-                    {bundle.recommendation}
-                  </span>
-                </div>
-              </div>
+          ))}
+          <div className="col-span-full flex flex-wrap items-center gap-x-3.5 gap-y-1.5 border-t border-line pt-2 text-xs text-muted">
+            <span>رنگ شعب:</span>
+            {LINES.map((line) => (
+              <span key={line.key} className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: line.color }} />{line.label}</span>
             ))}
           </div>
         </div>
-
-        {/* پنل ۲: ماتریس هوش سایز و رنگ */}
-        <div className="lg:col-span-5 bento-card p-6 glass-rim shadow-sm space-y-4">
-          <div>
-            <h3 className="text-sm font-extrabold text-ink flex items-center gap-2">
-              <span>🎨 رفتار تقاضای رنگ و سایز</span>
-            </h3>
-            <p className="text-[11px] text-muted mt-0.5">
-              توزیع سهم فروش جهت بهینه‌سازی تولید و توزیع در شعب
-            </p>
-          </div>
-
-          {/* تفکیک سایزها */}
-          <div className="space-y-2">
-            <span className="text-xs font-bold text-ink block">سهم فروش سایزهای برتر:</span>
-            <div className="space-y-2 text-xs">
-              {(sizeColor?.sizes || []).slice(0, 4).map((s, idx) => (
-                <div key={idx}>
-                  <div className="flex justify-between text-[11px] mb-1">
-                    <span className="text-muted">سایز {s.label}</span>
-                    <span className="font-bold tabular text-accent">
-                      {s.share_pct}٪ ({s.units_sold} قلم)
-                    </span>
-                  </div>
-                  <div className="h-2 w-full bg-elevated rounded-full overflow-hidden">
-                    <div className="h-full bg-accent rounded-full" style={{ width: `${s.share_pct}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* رنگ‌های پرفروش */}
-          <div className="pt-3 border-t border-line">
-            <span className="text-xs font-bold text-ink block mb-2">رنگ‌های پیشتاز دوره:</span>
-            <div className="grid grid-cols-3 gap-2 text-center text-xs">
-              {(sizeColor?.colors || []).slice(0, 3).map((c, idx) => (
-                <div key={idx} className="p-2 rounded-xl bg-elevated border border-line">
-                  <div className="font-bold text-ink truncate">{c.label}</div>
-                  <div className="text-[10px] text-muted tabular mt-0.5">{c.share_pct}٪ فروش</div>
-                </div>
-              ))}
-            </div>
+      ) : null}
+      <div className={`overflow-x-auto ${loading ? "opacity-60" : ""}`}>
+        <table className="w-full min-w-[900px] border-collapse text-[13px]">
+          <thead>
+            <tr>
+              {COLUMNS.map(([key, label, text]) => {
+                const on = key != null && state.sort === key;
+                return (
+                  <th key={label} scope="col" title={text} aria-sort={on ? (state.dir === "asc" ? "ascending" : "descending") : "none"} className="whitespace-nowrap px-2.5 py-1.5 text-right font-medium text-muted">
+                    {key ? (
+                      <button type="button" onClick={() => sortBy(key)} className={`min-h-[34px] cursor-pointer border-0 bg-transparent p-0 text-[12.5px] ${on ? "font-semibold text-ink" : "text-muted"}`}>
+                        {label} <span className={`text-[10px] ${on ? "text-accent" : "text-faint"}`}>{on ? (state.dir === "asc" ? "▲" : "▼") : "↕"}</span>
+                      </button>
+                    ) : (
+                      <span>{label}</span>
+                    )}
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody className="whitespace-nowrap">
+            {(table?.results ?? []).map((row) => <Row key={row.id} row={row} showDelta={state.compare !== "none"} suffix={rangeSuffix(state)} />)}
+          </tbody>
+        </table>
+      </div>
+      {table && !table.results.length ? <p className="m-0 p-7 text-center text-[12.5px] text-muted">کالایی با این فیلترها پیدا نشد. یکی از فیلترها را بردارید.</p> : null}
+      {full && total ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-2 pb-0.5 pt-3">
+          <span className="text-[12.5px] text-muted">نمایش {fa(first)} تا {fa(Math.min(first + (table?.page_size ?? 20) - 1, total))} از {fa(total)}</span>
+          <div className="flex gap-1.5">
+            <button type="button" className={`${GHOST} disabled:opacity-40`} disabled={state.page <= 1} onClick={() => update({ ...state, page: state.page - 1 })}>قبلی</button>
+            <button type="button" className={`${GHOST} disabled:opacity-40`} disabled={first + (table?.page_size ?? 20) > total} onClick={() => update({ ...state, page: state.page + 1 })}>بعدی</button>
           </div>
         </div>
+      ) : null}
+    </section>
+  );
+}
+
+export function pairAction(lift: number, channel: string) {
+  if (lift < 1.5) return "ارتباط ضعیف؛ اقدام لازم نیست";
+  if (channel === "online") return "در سبد خرید آنلاین پیشنهاد شود";
+  if (channel === "store") return "در فروشگاه کنار هم چیده شود";
+  return "کنار هم بچینید و در سبد آنلاین پیشنهاد دهید";
+}
+
+export function PairsTable({ pairs, showDelta, linkProducts }: { pairs: BundlePairs | null; showDelta: boolean; linkProducts: boolean }) {
+  const name = (id: number, text: string) =>
+    linkProducts ? <Link to={`/products/${id}`} className="font-semibold text-ink no-underline hover:underline">{text}</Link> : <span className="font-semibold text-ink">{text}</span>;
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[820px] border-collapse text-[13px]">
+        <thead>
+          <tr className="text-muted">
+            {[
+              ["جفت", "دو کالا یا دو دسته که با هم در یک فاکتور خریده شده‌اند. «سیگنال اولیه» یعنی سبد هنوز کم است ولی ارتباط قوی است."],
+              ["سبد مشترک", "در چند فاکتور هر دو با هم بوده‌اند."],
+              ["اگر اولی خریده شود", "از کسانی که اولی را خریدند، چند درصد دومی را هم در همان فاکتور خریدند."],
+              ["قدرت ارتباط", "چند برابر حالت تصادفی با هم خریده شده‌اند. بالای ۲× یعنی ارتباط واقعی."],
+              ["روند", "تعداد سبد مشترک نسبت به بازه مقایسه بیشتر شده یا کمتر."],
+              ["پیشنهاد", "کار پیشنهادی: کنار هم چیدن در فروشگاه یا پیشنهاد در سبد خرید آنلاین."],
+            ].map(([label, text]) => <th key={label} scope="col" title={text} className="whitespace-nowrap px-2.5 py-1.5 text-right font-medium">{label}</th>)}
+          </tr>
+        </thead>
+        <tbody className="whitespace-nowrap">
+          {(pairs?.results ?? []).map((pair) => {
+            const d = delta(showDelta ? pair.trend : null);
+            return (
+              <tr key={`${pair.a}-${pair.b}`} className="border-t border-line hover:bg-hover">
+                <td className="px-2.5 py-[9px]">
+                  <span className="flex items-center gap-1.5">
+                    {name(pair.a, pair.a_name)}<span className="text-muted">+</span>{name(pair.b, pair.b_name)}
+                    {pair.early ? <span title="تعداد سبد هنوز کم است ولی ارتباط قوی است" className="rounded-full bg-accent/15 px-2 py-px text-[11px] text-blue-600 dark:text-blue-300">سیگنال اولیه</span> : null}
+                  </span>
+                </td>
+                <td className="px-2.5 py-[9px]">{fa(pair.baskets)}</td>
+                <td className="px-2.5 py-[9px]">
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-block h-[5px] w-[60px] rounded-[3px] bg-[var(--chart-track)]">
+                      <span className="block h-[5px] rounded-[3px] bg-accent" style={{ width: `${Math.min(100, pair.confidence * 250)}%` }} />
+                    </span>
+                    {pct(pair.confidence)}
+                  </span>
+                </td>
+                <td className="px-2.5 py-[9px] font-semibold" style={{ color: pair.lift >= 2 ? "var(--delta-up)" : "var(--text-secondary)" }}>{fa1(pair.lift)}×</td>
+                <td className="px-2.5 py-[9px] text-[12.5px] font-semibold" style={{ color: pair.new && showDelta && pairs?.comparable ? "var(--accent)" : d.color }}>
+                  {!showDelta ? "ــ" : pair.new && pairs?.comparable ? "تازه" : d.text}
+                </td>
+                <td className="px-2.5 py-[9px] text-[12.5px] text-muted">{pairAction(pair.lift, pairs?.channel ?? "all")}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {pairs && !pairs.results.length ? <p className="m-0 p-6 text-center text-[12.5px] text-muted">جفتی با دست‌کم ۵ سبد مشترک در این بازه پیدا نشد.</p> : null}
+    </div>
+  );
+}
+
+function Bundles({ state, update }: { state: ProductsState; update: (next: ProductsState) => void }) {
+  const params = { ...apiParams(state), channel: state.bch, level: state.blev, fresh: state.bnew ? "1" : undefined };
+  const { data, loading } = useLoad(() => productsService.pairs(params), JSON.stringify(params));
+  return (
+    <section aria-label="خرید همزمان" className={`${CARD} flex flex-col gap-3 px-[18px] py-4`}>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="flex flex-col gap-[3px]">
+          <h2 className="m-0 text-[15px] font-semibold text-ink">خرید همزمان (باندل)</h2>
+          <span className="text-[12.5px] text-muted">کالاهایی که با هم در یک فاکتور خریده می‌شوند؛ برای چیدمان فروشگاه و پیشنهاد سبد خرید آنلاین</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Segmented label="کانال" items={[["all", "همه"], ["store", "حضوری"], ["online", "آنلاین"]]} value={state.bch} onPick={(bch) => update({ ...state, bch })} />
+          <Segmented label="سطح" items={[["product", "کالا"], ["category", "دسته"]]} value={state.blev} onPick={(blev) => update({ ...state, blev })} />
+          <label className="inline-flex items-center gap-[7px] text-[12.5px] text-muted">
+            <input type="checkbox" checked={state.bnew} onChange={(event) => update({ ...state, bnew: event.target.checked })} />
+            فقط سیگنال‌های تازه
+          </label>
+        </div>
       </div>
+      <div className={loading ? "opacity-60" : ""}>
+        <PairsTable pairs={data} showDelta={state.compare !== "none"} linkProducts={state.blev === "product"} />
+      </div>
+      <p className="m-0 text-[12.5px] leading-[1.8] text-muted">
+        «اگر اولی خریده شود» یعنی در چند درصد سبدهای کالای اول، کالای دوم هم بوده. «قدرت ارتباط» یعنی این جفت چند برابر حالت تصادفی با هم خریده شده‌اند؛ بالای ۲ برابر یعنی ارتباط واقعی. جفت‌های با کمتر از ۵ سبد مشترک نمایش داده نمی‌شوند.
+      </p>
+    </section>
+  );
+}
 
-      {/* کشوی شناسنامه ۳۶۰ درجه کالا (Product 360 Drawer) */}
-      {selectedProductId &&
-        typeof document !== "undefined" &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex justify-end"
-            onClick={handleCloseDrawer}
-          >
-            <div
-              className="w-full max-w-lg h-full bg-surface border-r border-line p-6 overflow-y-auto space-y-6 shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* هدر کشو */}
-              <div className="flex items-start justify-between pb-4 border-b border-line">
-                <div>
-                  <span className="text-xs text-muted font-mono">{drawerData?.sku}</span>
-                  <h2 className="text-lg font-black text-ink mt-0.5">{drawerData?.title || "شناسنامه کالا"}</h2>
-                  <div className="text-xs text-muted">{drawerData?.category}</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleCloseDrawer}
-                  className="p-1.5 rounded-xl hover:bg-hover text-muted hover:text-ink transition-colors"
-                >
-                  ✕
-                </button>
-              </div>
+export function ProductsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const search = searchParams.toString();
+  const state = useMemo(() => parseState(search), [search]);
+  const update = (next: ProductsState) => setSearchParams(serializeState(next));
+  const scopeParams = apiParams({ ...state, sort: "revenue", dir: "desc", page: 1 });
+  const summary = useLoad(() => productsService.summary(scopeParams), JSON.stringify(scopeParams));
+  const tableParams = apiParams(state);
+  const table = useLoad(() => productsService.table(tableParams), JSON.stringify(tableParams));
+  const asOf = summary.data?.range.as_of;
 
-              {drawerLoading ? (
-                <div className="py-12 text-center text-xs text-muted">در حال بارگذاری تحلیل‌های کالا...</div>
-              ) : drawerData ? (
-                <>
-                  {/* کارت‌های خلاصه مالی */}
-                  <div className="grid grid-cols-2 gap-3 text-xs">
-                    <div className="p-3.5 rounded-2xl bg-elevated border border-line">
-                      <span className="text-muted">کل درآمد فروش:</span>
-                      <div className="text-base font-extrabold text-ink tabular mt-1">
-                        {formatToman(drawerData.total_revenue)}
-                      </div>
-                    </div>
-                    <div className="p-3.5 rounded-2xl bg-elevated border border-line">
-                      <span className="text-muted">تعداد فروش کل:</span>
-                      <div className="text-base font-extrabold text-ink tabular mt-1">
-                        {formatNumber(drawerData.total_units)} عدد
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* بخش جدید: تحلیل شتاب جذب و اتمام شارژ (Sell-Through Velocity) */}
-                  <div className="p-4 rounded-2xl bg-cyan-500/10 border border-cyan-500/25 space-y-2.5">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-extrabold text-cyan-700 dark:text-cyan-300 flex items-center gap-1.5">
-                        <span>⚡</span>
-                        <span>شتاب فروش و سرعت اتمام شارژ (Sell-Through):</span>
-                      </span>
-                      <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 text-[10px] font-bold">
-                        Fast Mover
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs pt-1">
-                      <div className="p-2 rounded-xl bg-surface border border-line/60">
-                        <span className="text-[10px] text-muted block">درصد فروش از شارژ:</span>
-                        <span className="font-black text-ink tabular text-xs">
-                          {drawerData.total_units >= 5 ? "۱۰۰٪ شارژ فروخته شد" : "۸۰٪ شارژ فروخته شد"}
-                        </span>
-                      </div>
-                      <div className="p-2 rounded-xl bg-surface border border-line/60">
-                        <span className="text-[10px] text-muted block">زمان اتمام شارژ:</span>
-                        <span className="font-black text-cyan-600 dark:text-cyan-400 tabular text-xs">
-                          ظرف ۲ تا ۴ روز از ورود
-                        </span>
-                      </div>
-                    </div>
-                    <p className="text-[11px] text-cyan-800 dark:text-cyan-200 leading-4">
-                      💡 <strong>توصیه تأمین:</strong> به دلیل سرعت جذب بالای این کالا و جلوگیری از اتمام زودهنگام موجودی (Stockout)، پیشنهاد می‌شود در پارت بعدی با حداقل ۲ برابر تیراژ شارژ گردد.
-                    </p>
-                  </div>
-
-                  {/* سهم فروش به تفکیک کانال */}
-                  <div className="space-y-2 text-xs">
-                    <span className="font-bold text-ink block">سهم فروش به تفکیک کانال:</span>
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between p-2.5 rounded-xl bg-elevated border border-line">
-                        <span>فروشگاه آنلاین:</span>
-                        <span className="font-bold tabular text-blue-500">
-                          {drawerData.channels.online.units} عدد ({drawerData.channels.online.pct}٪)
-                        </span>
-                      </div>
-                      <div className="flex justify-between p-2.5 rounded-xl bg-elevated border border-line">
-                        <span>شعبه ساری (حضوری):</span>
-                        <span className="font-bold tabular text-emerald-500">
-                          {drawerData.channels.sari.units} عدد ({drawerData.channels.sari.pct}٪)
-                        </span>
-                      </div>
-                      <div className="flex justify-between p-2.5 rounded-xl bg-elevated border border-line">
-                        <span>شعبه گرگان (حضوری):</span>
-                        <span className="font-bold tabular text-amber-500">
-                          {drawerData.channels.gorgan.units} عدد ({drawerData.channels.gorgan.pct}٪)
-                        </span>
-                      </div>
-                      <div className="flex justify-between p-2.5 rounded-xl bg-elevated border border-line">
-                        <span>شعبه کاپری (حضوری):</span>
-                        <span className="font-bold tabular text-purple-500">
-                          {drawerData.channels.capri.units} عدد ({drawerData.channels.capri.pct}٪)
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* اقلام مکمل پیشنهادی */}
-                  <div className="p-4 rounded-2xl bg-purple-500/5 border border-purple-500/20 space-y-3">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-purple-500">
-                      <span>✨ اقلام مکمل پیشنهادی جهت افزایش فروش:</span>
-                    </div>
-                    <div className="space-y-2 text-xs">
-                      {drawerData.complementary_products.length > 0 ? (
-                        drawerData.complementary_products.map((item, idx) => (
-                          <div
-                            key={idx}
-                            className="flex items-center justify-between p-2 rounded-xl bg-purple-500/10 text-purple-700 dark:text-purple-300 font-semibold"
-                          >
-                            <span>🔗 {item.product}</span>
-                            <span className="text-[10px] bg-purple-500/20 px-2 py-0.5 rounded-lg">
-                              {item.times_together} بار همزمانی
-                            </span>
-                          </div>
-                        ))
-                      ) : (
-                        <span className="text-muted text-[11px]">
-                          اقلام مکمل با همپوشانی کافی ثبت نشده است.
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* پیشنهاد هوشمند */}
-                  <div className="space-y-1.5">
-                    <span className="text-xs font-bold text-ink">پیشنهاد هوشمند تیم فروش:</span>
-                    <div className="p-3.5 rounded-2xl bg-elevated border border-line text-xs leading-5 text-muted">
-                      ⚡ {drawerData.action_recommendation}
-                    </div>
-                  </div>
-
-                  {/* دکمه عملیاتی */}
-                  <div className="pt-3 border-t border-line flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => alert("پیشنهاد تخفیف باندل برای این محصول فعال گردید.")}
-                      className="flex-1 py-2.5 rounded-xl bg-accent text-on-accent text-xs font-bold hover:bg-accent/90 transition-all shadow-md"
-                    >
-                      فعال‌سازی پیشنهاد باندلینگ
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleCloseDrawer}
-                      className="px-4 py-2.5 rounded-xl border border-line text-xs font-semibold text-muted hover:bg-hover"
-                    >
-                      بستن
-                    </button>
-                  </div>
-                </>
-              ) : null}
-            </div>
-          </div>,
-          document.body,
-        )}
+  return (
+    <div className="mx-auto flex w-full max-w-[1360px] flex-col gap-3.5 pb-14">
+      <div className="flex flex-col gap-1">
+        <h1 className="m-0 text-2xl font-extrabold text-ink">محصولات</h1>
+        <span className="text-[12.5px] text-muted">
+          موجودی فقط انبار مرکزی است (از سایت)؛ موجودی شعب در سیستم نیست. وضعیت‌ها در هر دسته جداگانه سنجیده می‌شوند{asOf ? `؛ محاسبه ${jdate(asOf)}` : ""}.
+        </span>
+      </div>
+      <ReportBar state={state} update={update} summary={summary.data} count={table.data?.total ?? 0} />
+      {summary.error || table.error ? <p className={`${CARD} m-0 p-4 text-[13px] text-[var(--delta-down)]`}>گزارش بارگیری نشد. دوباره تلاش کنید.</p> : null}
+      {summary.data ? (
+        <div className={`flex flex-col gap-3.5 ${summary.loading ? "opacity-60" : ""}`}>
+          <Cards summary={summary.data} state={state} update={update} />
+          <BranchStrip summary={summary.data} state={state} update={update} />
+        </div>
+      ) : (
+        <div className={`${CARD} h-[220px] animate-pulse`} />
+      )}
+      <ProductTable table={table.data} loading={table.loading} state={state} update={update} />
+      <Bundles state={state} update={update} />
     </div>
   );
 }

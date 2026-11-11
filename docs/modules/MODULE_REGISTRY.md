@@ -170,31 +170,32 @@ This registry catalogs the core architectural modules of ELINOR IQ V2. Each entr
 
 ---
 
-## 5. Catalog, Attributes & Merchandising Intelligence (`apps.products`)
+## 5. Catalog, Categories & Product Intelligence (`apps.products`)
 
-- **Responsibility:** Manages product catalog entities, hierarchical categories, variants, color/size attributes, bundle affinity mining, and cross-tabulated merchandising intelligence.
-- **Traceability Status:** **Verified Implementation** (Confidence: HIGH).
+- **Responsibility:** Product catalog (products, variants, attributes), the shared category tree, daily product sales summaries, statuses, central stock, co-purchase pairs, the Products page and Product 360. Rules: `docs/business-rules/products.md`; decision `docs/decisions/0008-products-summary-tables.md`.
+- **Traceability Status:** **Verified Implementation** on `feature/products-redesign` (not merged).
 - **Key Source File Paths:**
-  - `backend/apps/products/models.py`
-  - `backend/apps/products/intelligence.py`
-  - `backend/apps/products/views.py`
-  - `backend/apps/products/urls.py`
+  - `backend/apps/products/models.py`, `categories.py` (tree, descendants, sync from payloads), `daily.py` (set-based rebuilds), `stock.py` (central stock refresh), `report.py` (page queries), `product360.py`, `views.py`, `urls.py`
+  - Commands: `sync_categories`, `products_daily [--if-due]`, `refresh_central_stock [--limit N]` (both run in `docker/scheduler-entrypoint.sh` after the tier/metrics pass)
+  - Settings: `PRODUCTS_RULES`, `PRODUCTS_EXCLUDE_INTERNAL_SALES`, `PRODUCTS_STOCK_REFRESH_PER_RUN`, `PRODUCTS_LEAD_TIME_DAYS`
 - **Primary Database Models:**
-  - `Product` (`products` table): Master catalog items with `source_id`, `title`, `sku`, `barcode`, `status`.
-  - `Category` (`categories`), `ProductCategory` (`product_categories`): Hierarchical category taxonomy.
-  - `Variant` (`variants` table): Specific product varieties with `price`, `color_name`, `size`, `sku`, `barcode`.
-  - `Color` (`colors`), `ProductAttribute` (`product_attributes`), `ProductAttributeValue` (`product_attribute_values`), `VariantAttribute` (`variant_attributes`): EAV and color/size attribute relations.
+  - `Product` (`products`), `Variant` (`variants`), `Category` (`categories`, parent + status), `ProductCategory` (`product_categories`), attribute tables.
+  - Summary tables (migration `0003_product_summaries`, rebuilt daily): `ProductDailySales` (`product_daily_sales`: day × product × variant × sales line), `ProductMetrics` (`product_metrics`), `CentralStock` (`product_central_stock`, `main_balance`, central only), `BasketItemDaily` / `BasketPairDaily` (`product_basket_items_daily`, `product_basket_pairs_daily`).
 - **Important Services & APIs:**
-  - `GET /api/products/` (`product_list`): Paginated product list with search and category filtering.
-  - `GET /api/products/bundles/` (`product_bundles`): Market basket co-occurrence analysis calculating product bundle affinities from historical order baskets.
-  - `GET /api/products/size-color/` (`product_size_color`): Merchandising intelligence breaking down sales volumes across size and color combinations.
-  - `GET /api/products/<product_id>/360/` (`product_360`): Comprehensive product report showing sales velocity, channel distribution, and customer demographics.
+  - `GET /api/products/categories/`: active category tree with paths and short labels.
+  - `GET /api/products/summary/`: range, four cards, branch strip.
+  - `GET /api/products/table/`: top 10 or the full sorted, paged list (`export=1` for the CSV).
+  - `GET /api/products/pairs/`: co-purchase pairs (`level`, `channel`, `fresh`, `product_id`).
+  - `GET /api/products/<id>/`: Product 360.
+  - `POST /api/products/<id>/call-list/` (`kind` buyers or prospects; call managers): call list plus a draft program.
+  - Removed 2026-11-10: `GET /api/products/`, `/bundles/`, `/size-color/`, `/<id>/360/` and `intelligence.py`.
 - **Frontend Entrypoints & Components:**
-  - Page: `frontend/src/pages/ProductsPage.tsx`
+  - Pages: `frontend/src/pages/ProductsPage.tsx`, `Product360Page.tsx` (`/products/:id`)
+  - `frontend/src/features/products/` (`productsUrl.ts` URL state, `display.ts`, `types.ts`), `features/categories/` (`CategoryTreeSelect`, `useCategoryTree`), `components/JalaliDatePicker.tsx` (`JalaliRangePopover`)
   - Service: `frontend/src/services/products.ts`
 - **Dependencies on Other Modules:**
-  - `apps.sales` (queries `OrderItem` and `PosSaleItem` for sales analysis).
-- **Existing Technical Documentation:** [[SOURCE_DATABASE_DISCOVERY#6-product--variant-relationships]], [[CORE_HISTORICAL_IMPORT#target-models]]
+  - `apps.sales.semantics` (every sales figure), `apps.customers` (operators, CustomerMetrics, tiers; the customer list's `category_ids` filter), `apps.calls` (lists and programs), `apps.integrations.elinor` (read-only product API for central stock).
+- **Existing Technical Documentation:** [[products]], [[SOURCE_DATABASE_DISCOVERY#6-product--variant-relationships]], [[CORE_HISTORICAL_IMPORT#target-models]]
 
 ---
 
