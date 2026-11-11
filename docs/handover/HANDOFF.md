@@ -3,6 +3,25 @@
 Durable state for the next engineer or AI assistant. Do not rely on chat history; this file plus the repo is the source of truth.
 Update this file at the end of every implementation task (newest entry first in the Log).
 
+## Start here (updated 2026-11-11)
+1. Read `AGENTS.md` (rules for every tool), then this file, then `docs/process/context-loading.md` and the
+   `docs/modules/MODULE_REGISTRY.md` section for the module at hand. How work is run: `docs/process/ai-workflow.md`.
+2. **Current work: products redesign** (`feature/products-redesign`), all steps 0–9 done:
+   - category tree, daily product tables, Products page, Product 360, cleanup, docs.
+   - Merged on 2026-11-11 into `production` (`44fb072`, then `fa13657`) and `main`.
+   - Next: the owner runs `update.sh` on the server, then once `docker compose exec backend python manage.py products_daily`,
+     and reviews the pages on real data. Central stock fills through the scheduler.
+3. **Open items:**
+   - Local online item details are incomplete from 2026-09 (the dev Mac cannot reach the Elinor API).
+   - `docs/stock-discovery` branch (`docs/SOURCE_STOCK_DISCOVERY.md`) is pushed but not merged.
+   - The Graphify graph was built from `3bc0a48` and is stale.
+   - The "Last updated" line below predates the Call Center, Pulse and products work; the Log entries are current.
+4. **Deferred decisions:**
+   - Pulse stock alerts wait for branch stock (vendor warehouse API: receipts, transfers, manual adjustments,
+     balance per warehouse).
+   - Pulse `.sm.jpg` in cover export/import, and `timeout 1800` around the build in `update.sh`.
+   - Internal accounts stay in product sales (owner, 2026-11-10).
+
 Last updated: 2026-11-02 · **Call Center merged into `production` and `main`; reaches the server on the next `update.sh`** · **Customers overview v3 on `feature/customers-overview` (uncommitted, awaiting owner review)** · **`production` = `3f5de33` (tier rules + «از» + channel-based tiers + channel-draft button), pushed; the server gets it when the owner runs `update.sh`**; `main` is development (see §2 Branches); **RFM/Club reverted on `main` 2026-10-27 (decision 0005)**
 
 ## 1. Current priority
