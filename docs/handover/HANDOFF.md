@@ -150,6 +150,9 @@ Notes for the Product Architect / next task:
 
 ## 9. Log
 
+### 2026-11-12 — Home redesign with sales targets (`feature/home-redesign`, from `production` `401c018`), checkpoints
+- Step 0: reference saved as `docs/design/home-prototype.html` (sha256 2bd24581…); sample data only. Not merged; owner reviews locally.
+
 ### 2026-11-10 — Products redesign (`feature/products-redesign`, from `production` `79e1cb8`), checkpoints
 - 2026-11-11: merged on the owner's go: `feature/products-redesign` (`98028b7`) → `production` (`44fb072`) → `main`. Server: run `update.sh`, then once `docker compose exec backend python manage.py products_daily`; central stock fills through the scheduler.
 - Step 0: references saved as `docs/design/products-prototype.html` (sha256 3998463c…) and `docs/design/product-360-prototype.html` (sha256 e6084528…); source of truth for layout and copy, sample data only. Not merged; owner reviews locally.
