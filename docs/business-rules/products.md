@@ -31,6 +31,18 @@ Precedence: راکد > پیشران فروش > رو به رشد > کند > عا�
 - Otherwise «عادی». Percentile rules need at least 5 selling products in the category (`min_category_size`); smaller categories get only «راکد», «رو به رشد» or «عادی».
 - The Products page shows products whose last sale is within 365 days; older ones are retired, not «راکد».
 
+## Stock is disabled (owner decision, 2026-11-11)
+- `PRODUCTS_STOCK_ENABLED` (env, default false). Products run on sales speed only until the Elinor warehouse API exists
+  (receipts, transfers, adjustments, balance per warehouse). Central-only `main_balance` was judged not good enough to act on.
+- While off: the scheduler skips `refresh_central_stock` and the command refuses (no Elinor API calls for stock); metrics ignore
+  `product_central_stock`, so no «نیاز به شارژ فوری» / «احتمالاً تمام شده» flags; API responses carry no `stock_flag` or
+  `central_stock`; old `stock=` params in URLs and saved views are ignored silently.
+- Products page card 3 is «رو به رشد» (status growth, top 3 by 14-day trend) and filters the table by that status. The stock
+  filter, badges and the «احتمالاً تمام شده» shortcut are hidden. The data-coverage notice is not shown on product pages.
+- Product 360: instead of the charge suggestion, a forecast: ⌈daily speed × lead time (14)⌉ units in the next 14 days, with
+  the fastest sizes and colours (28-day speed basis). No stock numbers, no charge advice.
+- Code, models and tables stay; setting the variable to true restores the rules below unchanged.
+
 ## Central stock (`product_central_stock`)
 - `main_balance` per variety from the read-only product API (`/admin/products/{id}`): central warehouse only. No branch stock anywhere; `Variant.quantity` is never reported.
 - `refresh_central_stock` runs every scheduler loop: balances already in stored payloads first, then up to `PRODUCTS_STOCK_REFRESH_PER_RUN` (150) products sold in the last 90 days whose balance is older than 20 hours, within the client's rate limit. It stops at the first API error.

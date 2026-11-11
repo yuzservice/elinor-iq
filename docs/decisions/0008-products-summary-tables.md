@@ -12,3 +12,9 @@ Date: 2026-11-10. Status: implemented on `feature/products-redesign`, awaiting o
   - materialized views: the codebase already uses plain tables rebuilt by set-based SQL (`CustomerMetrics`), and the bundle build needs a temporary table;
   - per-request pair mining (seconds per range);
   - branch stock, which the API does not expose.
+
+## Addendum 2026-11-11: stock disabled
+- Owner decision: no stock of any kind (not branch, not central) until the Elinor warehouse API exists; products are based on
+  sales speed only. Disabled behind `PRODUCTS_STOCK_ENABLED` (default false), not deleted: no migration, the tables and the
+  refresh code stay, so it can be switched back on.
+- Card 3 «نیاز به شارژ فوری» became «رو به رشد»; Product 360's charge suggestion became a 14-day sales forecast.

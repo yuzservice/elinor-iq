@@ -7,8 +7,8 @@ export type ProductReportRow = {
   code: string;
   category: string;
   status: ProductStatus;
-  stock_flag: "" | "charge" | "out";
-  central_stock: number | null;
+  stock_flag?: "" | "charge" | "out"; // only while stock is enabled
+  central_stock?: number | null;
   units: number;
   net_units: number;
   revenue: number;
@@ -16,6 +16,7 @@ export type ProductReportRow = {
   first14: number;
   ratio: number | null;
   change: number | null;
+  trend: number | null;
   age: number;
   discount_share: number | null;
   return_rate: number | null;
@@ -30,8 +31,10 @@ export type ProductsSummary = {
   filtered: boolean;
   products: number;
   sales: { revenue: number; net_units: number; avg_price: number | null; revenue_change: number | null; units_change: number | null };
+  stock_enabled: boolean;
   drivers: { count: number; top: ProductReportRow[] };
-  charge: { count: number; top: ProductReportRow[] };
+  charge?: { count: number; top: ProductReportRow[] }; // stock enabled
+  growth?: { count: number; top: ProductReportRow[] }; // stock disabled
   slow: { count: number; top: ProductReportRow[] };
   branches: { line: LineKey; revenue: number; share: number; change: number | null }[];
 };
@@ -45,6 +48,7 @@ export type BundlePairs = { level: "product" | "category"; channel: "all" | "sto
 
 export type BranchRow = { line: LineKey; units: number; share: number | null; index: number | null; last_sale: string | null };
 export type ProductTip =
+  | { kind: "forecast"; units: number; lead: number; per_day: number; fastest: { size: string; color: string; need: number }[] }
   | { kind: "charge"; need: number; lead: number; per_day: number; central: number; dropped: boolean; needs: { size: string; color: string; need: number }[] }
   | { kind: "branch"; best: BranchRow; worst: BranchRow | null }
   | { kind: "bundle"; pair: BundlePair; comparable: boolean }
@@ -56,8 +60,9 @@ export type ProductDetail = {
   title: string;
   code: string;
   status: ProductStatus | null;
-  stock_flag: "" | "charge" | "out";
-  central_stock: number | null;
+  stock_enabled: boolean;
+  stock_flag?: "" | "charge" | "out";
+  central_stock?: number | null;
   category: { id: number | null; title: string; path: string };
   first_sale_date: string | null;
   age: number | null;

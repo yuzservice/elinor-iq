@@ -169,6 +169,9 @@ PRODUCTS_RULES = {
 # Internal (desk/staff) accounts place orders for real customers: ~34% of online item revenue locally. Sales totals keep
 # them (apps/customers/operators.py); set true to drop them from product sales and bundles.
 PRODUCTS_EXCLUDE_INTERNAL_SALES = os.environ.get("PRODUCTS_EXCLUDE_INTERNAL_SALES", "false").lower() in {"1", "true", "yes"}
+# Owner decision 2026-11-11: no stock of any kind until the Elinor warehouse API exists. Off = no stock refresh (no API
+# calls), no stock in responses or UI, no stock flags. Code, models and tables stay so it can be switched back on.
+PRODUCTS_STOCK_ENABLED = os.environ.get("PRODUCTS_STOCK_ENABLED", "false").lower() in {"1", "true", "yes"}
 PRODUCTS_STOCK_REFRESH_PER_RUN = int(os.environ.get("PRODUCTS_STOCK_REFRESH_PER_RUN", "150"))
 
 # Elinor Pulse (Instagram). Off by default; architecture: docs/elinor-pulse-architecture.md

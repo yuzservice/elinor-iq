@@ -69,6 +69,11 @@ def comparable(lines, cfrom):
     return cfrom is not None and all(cfrom >= LINE_START[line] for line in lines)
 
 
+def stock_enabled():
+    """Owner switch (2026-11-11): stock is off until the Elinor warehouse API exists; products run on sales speed only."""
+    return settings.PRODUCTS_STOCK_ENABLED
+
+
 class Scope:
     """Product-level filters shared by the table, the cards, the branch strip and bundles."""
 
@@ -77,7 +82,8 @@ class Scope:
         self.start, self.end, self.cfrom, self.cto, self.compare = resolve_ranges(params, self.today)
         self.lines = _csv(params, "lines", LINES) or list(LINES)
         self.statuses = _csv(params, "status", STATUSES)
-        self.stock = _csv(params, "stock", ("charge", "out", "ok"))
+        # Stock filters exist only while stock is enabled; old URLs keep working because the param is then ignored.
+        self.stock = _csv(params, "stock", ("charge", "out", "ok")) if stock_enabled() else []
         self.ages = _csv(params, "age", AGE_BUCKETS)
         self.discount = _csv(params, "discount", ("yes", "no"))
         self.q = str(params.get("q") or "").strip()
@@ -151,7 +157,7 @@ def _rows_sql(scope):
     rows AS (
         SELECT m.product_id AS id, split_part(p.title, '|', 1) AS title, COALESCE(NULLIF(p.sku, ''), p.source_id::text) AS code,
             m.category_id, m.status, m.stock_flag, m.central_stock, m.first_sale_date, m.last_sale_date, m.category_ratio AS ratio,
-            m.units_first14 AS first14, m.full_price_speed, m.weekly_speed AS speed_28,
+            m.units_first14 AS first14, m.full_price_speed, m.weekly_speed AS speed_28, m.trend_pct AS trend,
             COALESCE(c.units, 0) AS units, COALESCE(c.net_units, 0) AS net_units, COALESCE(c.revenue, 0) AS revenue,
             c.u_online, c.u_sari, c.u_gorgan, c.u_capri,
             (COALESCE(c.net_units, 0) / (GREATEST(LEAST(%s, %s - m.first_sale_date + 1), 7) / 7.0))::float AS speed,
@@ -172,8 +178,9 @@ def _labels():
 
 
 def _row(row, labels):
-    return {key: row[key] for key in ("id", "title", "code", "status", "stock_flag", "central_stock", "units", "net_units", "revenue",
-                                      "speed", "first14", "ratio", "change", "age", "discount_share", "return_rate")} | {
+    stock = ("stock_flag", "central_stock") if stock_enabled() else ()
+    return {key: row[key] for key in ("id", "title", "code", "status", *stock, "units", "net_units", "revenue",
+                                      "speed", "first14", "ratio", "change", "trend", "age", "discount_share", "return_rate")} | {
         "title": row["title"].strip(), "category": labels.get(row["category_id"], ""), "first_sale_date": row["first_sale_date"],
         "last_sale_date": row["last_sale_date"],
         "lines": {line: row[f"u_{line.lower()}"] or 0 for line in LINES},
@@ -271,8 +278,10 @@ def products_summary(params, today=None):
         "sales": {"revenue": totals["revenue"], "net_units": totals["net_units"],
                   "avg_price": float(totals["revenue"]) / totals["net_units"] if totals["net_units"] else None,
                   "revenue_change": change(totals["revenue"], totals["prev_revenue"]), "units_change": change(totals["net_units"], totals["prev_units"])},
+        "stock_enabled": stock_enabled(),
         "drivers": card("status = 'driver'", "full_price_speed DESC"),
-        "charge": card("stock_flag = 'charge'", "speed_28 DESC"),
+        **({"charge": card("stock_flag = 'charge'", "speed_28 DESC")} if stock_enabled()
+           else {"growth": card("status = 'growth'", "trend DESC NULLS LAST")}),
         "slow": card("status IN ('slow', 'stale')", "status = 'stale' DESC, last_sale_date DESC"),
         "branches": branches,
     }
