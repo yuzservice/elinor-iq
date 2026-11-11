@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { JalaliDateField } from "../components/JalaliDatePicker";
 import { Button, Input, PageHeader, Panel, SectionHeader, ThemeSwitch } from "../components/ui";
 import { ErrorState, Skeleton } from "../components/Table";
+import { TargetsPanel } from "../features/home/TargetsPanel";
+import { toJalaliParts } from "../lib/dates";
 import { useApi } from "../hooks/useApi";
 import { useAuth } from "../hooks/useAuth";
 import { formatDate, formatDateTime, formatNumber } from "../lib/format";
@@ -34,6 +36,7 @@ function accountRoleLabel(role?: string) {
 export function SettingsPage() {
   const { user } = useAuth();
   const canManage = Boolean(user?.can_manage_platform);
+  const canEditTargets = ["super_admin", "admin", "manager"].includes(user?.role ?? "");
   const { data, loading, error, setData, setError } = useApi(() => systemService.status(), []);
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState("");
@@ -162,6 +165,8 @@ export function SettingsPage() {
   return (
     <div className="max-w-3xl space-y-6">
       <PageHeader title="تنظیمات" description="حساب داخلی، ظاهر، اتصال API و وضعیت همگام‌سازی." />
+
+      {canEditTargets ? <TargetsPanel initialYear={toJalaliParts(new Date())?.jy ?? 1405} /> : null}
 
       <Panel>
         <SectionHeader title="ظاهر" />

@@ -144,3 +144,17 @@ def home_summary(request):
             },
         }
     )
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def home_targets(request):
+    """Target progress for the current Jalali month, season or year (?scope=month|quarter|year), cached 60 s."""
+    from apps.core.home_cache import cached
+    from apps.sales.targets import progress
+    from apps.sales.views import can_edit_targets
+
+    scope = request.query_params.get("scope")
+    scope = scope if scope in ("month", "quarter", "year") else "month"
+    data = cached(f"targets:{scope}", lambda: progress(scope))
+    return Response({**data, "can_edit": can_edit_targets(request.user)})

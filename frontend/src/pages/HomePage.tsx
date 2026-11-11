@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   RevenueChart,
-  TargetGauge,
 } from "../components/dashboard";
 import { JalaliRangeModal } from "../components/JalaliDatePicker";
 import { ErrorState, Skeleton } from "../components/Table";
@@ -10,6 +9,7 @@ import { useApi } from "../hooks/useApi";
 import { formatCompactToman, formatDate, formatNumber, formatToman, shiftTehranIsoDate, tehranTodayIso } from "../lib/format";
 import { formatJalali, todayIso } from "../lib/dates";
 import { homeService } from "../services/home";
+import { TargetsSection } from "../features/home/TargetsSection";
 import { salesService, type SalesLineFilter } from "../services/sales";
 import type { HomePeriod } from "../types";
 
@@ -325,24 +325,10 @@ export function HomePage() {
           </div>
         </div>
 
-        {/* Target Progress Radial Gauge (Span 4) */}
-        <div
-          className="col-span-12 lg:col-span-4 bento-card p-4 sm:p-6 lg:p-7 glass-rim flex flex-col justify-between shadow-soft"
-          onMouseMove={(e) => {
-            const rect = e.currentTarget.getBoundingClientRect();
-            e.currentTarget.style.setProperty("--mouse-x", `${e.clientX - rect.left}px`);
-            e.currentTarget.style.setProperty("--mouse-y", `${e.clientY - rect.top}px`);
-          }}
-        >
-          <TargetGauge
-            currentValue={displayTotal}
-            targetValue={3_000_000_000}
-            label="تحقق تارگت ۳ میلیارد"
-            periodLabel="هدف‌گذاری این دوره"
-          />
-        </div>
 
       </div>
+
+      <TargetsSection />
 
       {/* ============================================================== */}
       {/* 4. SECONDARY BENTO GRID (3 KPI Cards)                          */}
