@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>صفحه ۳۶۰ کالا</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#06080d}
+button{font-family:inherit}
+button:focus-visible,a:focus-visible{outline:2px solid #60a5fa;outline-offset:2px}
+.card{background:#0c1017;border:1px solid rgba(255,255,255,.08);border-radius:18px}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.col{display:flex;flex-direction:column}
+.mut{font-size:12.5px;color:#94a3b8}
+.h{margin:0;font-size:15px;font-weight:600;color:#e2e8f0}
+.ghost{min-height:38px;padding:0 13px;border-radius:10px;background:transparent;border:1px solid rgba(255,255,255,.14);color:#cbd5e1;font-size:12.5px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center}
+th{font-weight:500;text-align:right;padding:8px 10px;color:#94a3b8;white-space:nowrap}
+td{padding:9px 10px;white-space:nowrap}
+tbody tr{border-top:1px solid rgba(255,255,255,.06)}
+</style>
+</helmet>
+<div dir="rtl" style="min-height: 100vh; box-sizing: border-box; background: #06080d; color: #f8fafc; font-family: Vazirmatn, system-ui, sans-serif; padding: 22px 16px 56px;">
+<div style="max-width: 1280px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px;">
+
+  <div class="row" style="justify-content: space-between;">
+    <a href="Products.dc.html" class="ghost">بازگشت به محصولات</a>
+    <span class="mut">داده‌ها نمونه است. بازه: ۳۰ روز اخیر در برابر ۳۰ روز قبل</span>
+  </div>
+
+  <section class="card row" style="justify-content: space-between; padding: 18px 20px; gap: 14px 24px;">
+    <div class="col" style="gap: 7px; flex: 1 1 360px;">
+      <span class="mut" style="direction: ltr; text-align: right;">EL-4747</span>
+      <div class="row" style="gap: 10px;">
+        <h1 style="margin: 0; font-size: 22px; font-weight: 800;">مانتو کتان بلند ۱۰۷</h1>
+        <span style="padding: 3px 11px; border-radius: 999px; background: rgba(52,211,153,.15); color: #34d399; font-size: 12.5px; font-weight: 600;">پیشران فروش</span>
+        <span style="padding: 3px 11px; border-radius: 999px; background: rgba(244,63,94,.14); color: #fb7185; font-size: 12.5px;">نیاز به شارژ فوری</span>
+      </div>
+      <span class="mut">پوشاک › مانتو › مانتو کتان؛ اولین فروش ۲۳ روز پیش (۱۴۰۵/۰۷/۲۵)؛ قیمت ۲٫۹ میلیون تومان</span>
+    </div>
+    <div class="row" style="gap: 8px;">
+      <button type="button" onClick="{{callBuyers}}" style="min-height: 42px; padding: 0 16px; border-radius: 11px; border: 0; background: #3b82f6; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;">ساخت لیست تماس از خریداران</button>
+      <button type="button" class="ghost" onClick="{{callProspects}}" style="min-height: 42px;">لیست مشتریان مستعد</button>
+    </div>
+  </section>
+  <sc-if value="{{hasMsg}}" hint-placeholder-val="{{ false }}"><p role="status" style="margin: 0; padding: 9px 14px; border-radius: 12px; background: rgba(59,130,246,.14); font-size: 13px;">{{msg}}</p></sc-if>
+
+  <section aria-label="شاخص‌های کالا" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+    <sc-for list="{{kpis}}" as="k" hint-placeholder-count="4">
+      <div class="card col" title="{{k.help}}" style="padding: 14px 18px; gap: 5px;">
+        <span style="font-size: 13px; color: #cbd5e1;">{{k.label}}</span>
+        <span style="display: flex; align-items: baseline; gap: 5px;"><span style="font-size: 25px; font-weight: 800; letter-spacing: -.5px;">{{k.value}}</span><span class="mut">{{k.unit}}</span></span>
+        <span style="{{k.noteStyle}}">{{k.note}}</span>
+      </div>
+    </sc-for>
+  </section>
+
+  <section class="card col" aria-label="پیشنهادهای هوشمند" style="padding: 16px 18px; gap: 4px;">
+    <div class="row" style="justify-content: space-between; margin-bottom: 6px;"><h2 class="h">پیشنهادها برای این کالا</h2><span class="mut">هر پیشنهاد دلیلش را از داده می‌گوید</span></div>
+    <sc-for list="{{tips}}" as="t" hint-placeholder-count="4">
+      <div style="display: grid; grid-template-columns: 6px minmax(0, 1fr) auto; gap: 12px; align-items: start; padding: 12px 0; border-top: 1px solid rgba(255,255,255,.06);">
+        <span style="{{t.bar}}"></span>
+        <div class="col" style="gap: 3px; min-width: 0;">
+          <span style="font-size: 13.5px; font-weight: 600; color: #e2e8f0;">{{t.title}}</span>
+          <span class="mut" style="line-height: 1.8;">{{t.why}}</span>
+        </div>
+        <sc-if value="{{t.hasAction}}" hint-placeholder-val="{{ false }}"><button type="button" class="ghost" onClick="{{t.act}}">{{t.action}}</button></sc-if>
+      </div>
+    </sc-for>
+  </section>
+
+  <nav aria-label="بخش‌های کالا" class="row" style="gap: 22px; border-bottom: 1px solid rgba(255,255,255,.08); margin-top: 4px;">
+    <sc-for list="{{tabs}}" as="t" hint-placeholder-count="5"><button type="button" onClick="{{t.pick}}" aria-pressed="{{t.pressed}}" style="{{t.style}}">{{t.label}}</button></sc-for>
+  </nav>
+
+  <sc-if value="{{isSales}}" hint-placeholder-val="{{ true }}">
+    <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch;">
+      <section class="card col" style="flex: 2 1 480px; min-width: 0; padding: 16px 18px; gap: 10px;">
+        <div class="row" style="justify-content: space-between;"><h2 class="h" style="font-size: 14px;">فروش روزانه از روز اول</h2><span class="mut">خط نقطه‌چین: میانگین یک کالای معمولی همین دسته</span></div>
+        <div role="img" aria-label="نمودار فروش روزانه" style="position: relative; display: flex; align-items: flex-end; gap: 3px; height: 150px; border-bottom: 1px solid rgba(255,255,255,.1);">
+          <span style="position: absolute; right: 0; left: 0; bottom: 22%; border-top: 1px dashed rgba(251,191,36,.6);"></span>
+          <sc-for list="{{daily}}" as="b" hint-placeholder-count="23"><span title="{{b.tip}}" style="{{b.style}}"></span></sc-for>
+        </div>
+        <div class="row" style="justify-content: space-between;"><span class="mut">روز ۱</span><span class="mut">امروز (روز ۲۳)</span></div>
+      </section>
+      <section class="card col" style="flex: 1 1 300px; min-width: 0; padding: 16px 18px; gap: 10px;">
+        <h2 class="h" style="font-size: 14px;">سایز و رنگ</h2>
+        <div style="overflow-x: auto;">
+          <table style="border-collapse: separate; border-spacing: 3px; font-size: 12.5px;">
+            <thead><tr><th scope="col" style="padding: 2px 6px;"></th><sc-for list="{{sizes}}" as="z" hint-placeholder-count="4"><th scope="col" style="padding: 2px 6px; text-align: center;">{{z}}</th></sc-for></tr></thead>
+            <tbody><sc-for list="{{matrix}}" as="m" hint-placeholder-count="3"><tr style="border: 0;"><th scope="row" style="padding: 2px 6px;">{{m.color}}</th><sc-for list="{{m.cells}}" as="c" hint-placeholder-count="4"><td title="{{c.tip}}" style="{{c.style}}">{{c.v}}</td></sc-for></tr></sc-for></tbody>
+          </table>
+        </div>
+        <span class="mut">سرعت هر سایز (عدد در روز)</span>
+        <sc-for list="{{sizeSpeed}}" as="b" hint-placeholder-count="4"><div style="display: grid; grid-template-columns: 36px minmax(0, 1fr) 36px; align-items: center; gap: 10px; font-size: 12.5px;"><span>{{b.a}}</span><span style="height: 6px; border-radius: 3px; background: rgba(255,255,255,.06);"><span style="{{b.bar}}"></span></span><span style="text-align: left; font-weight: 600;">{{b.v}}</span></div></sc-for>
+      </section>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{isBranches}}" hint-placeholder-val="{{ false }}">
+    <section class="card" style="overflow-x: auto; padding: 4px 12px;">
+      <table style="width: 100%; min-width: 640px; border-collapse: collapse; font-size: 13px;">
+        <thead><tr><th scope="col">شعبه</th><th scope="col" title="تعداد فروش این کالا در این شعبه در بازه.">تعداد فروش</th><th scope="col" title="سهم این شعبه از فروش این کالا.">سهم</th><th scope="col" title="سهم شعبه از این کالا تقسیم بر سهم شعبه از کل دسته. بالای ۱ یعنی این کالا در این شعبه بهتر از معمول می‌فروشد.">شاخص شعبه</th><th scope="col" title="آخرین روزی که در این شعبه فروش داشته است.">آخرین فروش</th><th scope="col">پیشنهاد</th></tr></thead>
+        <tbody><sc-for list="{{branches}}" as="b" hint-placeholder-count="4"><tr>
+          <td><span class="row" style="gap: 7px;"><span style="{{b.dot}}"></span><span style="font-weight: 600;">{{b.a}}</span></span></td>
+          <td style="font-weight: 600;">{{b.units}}</td><td>{{b.share}}</td><td style="{{b.idxStyle}}">{{b.idx}}</td><td class="mut">{{b.last}}</td><td class="mut">{{b.tip}}</td>
+        </tr></sc-for></tbody>
+      </table>
+    </section>
+  </sc-if>
+
+  <sc-if value="{{isBundle}}" hint-placeholder-val="{{ false }}">
+    <section class="card" style="overflow-x: auto; padding: 4px 12px;">
+      <table style="width: 100%; min-width: 640px; border-collapse: collapse; font-size: 13px;">
+        <thead><tr><th scope="col">کالای همراه</th><th scope="col" title="در چند فاکتور با این کالا بوده است.">سبد مشترک</th><th scope="col" title="از خریداران این کالا، چند درصد آن را هم در همان فاکتور خریدند.">همراه این کالا</th><th scope="col" title="چند برابر حالت تصادفی با هم خریده شده‌اند. بالای ۲× یعنی ارتباط واقعی.">قدرت ارتباط</th><th scope="col">پیشنهاد</th></tr></thead>
+        <tbody><sc-for list="{{pairs}}" as="b" hint-placeholder-count="4"><tr><td style="font-weight: 600;">{{b.a}}</td><td>{{b.n}}</td><td>{{b.conf}}</td><td style="{{b.liftStyle}}">{{b.lift}}</td><td class="mut">{{b.tip}}</td></tr></sc-for></tbody>
+      </table>
+    </section>
+  </sc-if>
+
+  <sc-if value="{{isBuyers}}" hint-placeholder-val="{{ false }}">
+    <div class="col" style="gap: 12px;">
+      <section style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+        <sc-for list="{{buyerStats}}" as="k" hint-placeholder-count="4"><div class="card col" title="{{k.help}}" style="padding: 14px 18px; gap: 4px;"><span class="mut">{{k.a}}</span><span style="font-size: 22px; font-weight: 800;">{{k.b}}</span><span class="mut">{{k.c}}</span></div></sc-for>
+      </section>
+      <section class="card col" style="padding: 16px 18px; gap: 9px;">
+        <h2 class="h" style="font-size: 14px;">خریداران به تفکیک سطح</h2>
+        <sc-for list="{{tiers}}" as="t" hint-placeholder-count="5"><div style="display: grid; grid-template-columns: 80px minmax(0, 1fr) 44px; align-items: center; gap: 10px; font-size: 13px;"><span>{{t.a}}</span><span style="height: 7px; border-radius: 4px; background: rgba(255,255,255,.06);"><span style="{{t.bar}}"></span></span><span style="text-align: left; font-weight: 600;">{{t.v}}</span></div></sc-for>
+      </section>
+    </div>
+  </sc-if>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1400}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { tab: 'sales', msg: '' };
+  }
+  renderVals() {
+    var self = this, S = this.state;
+    var fa = function (n) { return Number(n).toLocaleString('fa-IR', { maximumFractionDigits: 1 }); };
+    var tab = function (on) { return 'min-height: 44px; padding: 0 2px; margin-bottom: -1px; background: transparent; border: 0; border-bottom: 2px solid ' + (on ? '#60a5fa' : 'transparent') + '; cursor: pointer; font-size: 14px; color: ' + (on ? '#f8fafc' : '#94a3b8') + ';' + (on ? ' font-weight: 600;' : ''); };
+    var say = function (m) { self.setState({ msg: m }); };
+    var tip = function (color, title, why, action, act) { return { bar: 'width: 6px; height: 100%; min-height: 34px; border-radius: 3px; background: ' + color + ';', title: title, why: why, hasAction: !!action, action: action || '', act: act || function () {} }; };
+    var days = [9, 12, 14, 11, 13, 16, 18, 15, 17, 19, 21, 18, 20, 22, 19, 17, 16, 12, 9, 6, 4, 2, 1], mx = 22;
+    var sizes = ['S', 'M', 'L', 'XL'], colors = ['سیاه', 'کرم', 'سرمه‌ای'];
+    var grid = [[14, 52, 38, 9], [8, 41, 27, 5], [5, 22, 18, 3]];
+    var BR = [['سایت', '#3b82f6', 132, 0.9, 'امروز', 'عادی'], ['ساری', '#10b981', 118, 1.6, 'امروز', 'بهتر از معمول؛ سهم بیشتری از شارژ بعدی بفرستید'], ['گرگان', '#f59e0b', 61, 0.8, 'دیروز', 'عادی'], ['کاپری', '#8b5cf6', 11, 0.4, '۹ روز پیش', 'ضعیف؛ موجودی اضافه را به ساری منتقل کنید']];
+    var total = 322;
+    return {
+      hasMsg: !!S.msg, msg: S.msg,
+      callBuyers: function () { say('لیست تماس از ۲۹۰ خریدار این کالا ساخته می‌شود و به برنامه‌های تماس می‌رود.'); },
+      callProspects: function () { say('لیست ۸۴۰ مشتری ساخته می‌شود که در ۹۰ روز اخیر مانتو خریده‌اند ولی این کالا را نخریده‌اند.'); },
+      kpis: [
+        { label: 'فروش', value: '۹۳۴', unit: 'میلیون تومان', note: '۳۲۲ عدد؛ ▲ ۲۸٪ نسبت به ۳۰ روز قبل', noteStyle: 'font-size: 12.5px; color: #34d399;', help: 'مبلغ و تعداد فروش در بازه.' },
+        { label: 'فروش هفتگی', value: '۸۷', unit: 'عدد خالص', note: '۳٫۴× یک مانتوی معمولی', noteStyle: 'font-size: 12.5px; color: #34d399;', help: 'میانگین فروش هفتگی بعد از کم کردن مرجوعی، و مقایسه با یک کالای معمولی همان دسته.' },
+        { label: 'فروش ۱۴ روز اول', value: '۲۳۸', unit: 'عدد', note: 'رتبه ۲ در مانتوهای امسال', noteStyle: 'font-size: 12.5px; color: #94a3b8;', help: 'تعداد فروش در دو هفته اول. نشان می‌دهد کالا چقدر خوب شروع کرده.' },
+        { label: 'مرجوعی و تخفیف', value: '۳٪', unit: 'مرجوعی', note: '۱۲٪ فروش با تخفیف', noteStyle: 'font-size: 12.5px; color: #94a3b8;', help: 'درصد برگشتی و درصد فروشی که با تخفیف بوده.' }
+      ],
+      tips: [
+        tip('#fb7185', 'برای شارژ اقدام کنید: حدود ۲۴۰ عدد برای ۱۴ روز آینده', 'سرعت فعلی ۱۷ عدد در روز است و موجودی انبار مرکزی به ۶ عدد رسیده. فروش در ۵ روز اخیر افت کرده که با تمام شدن موجودی جور است، نه با کم شدن تقاضا. بیشترین نیاز: سایز M و L در رنگ سیاه و کرم.', 'جزئیات سایز', function () { self.setState({ tab: 'sales' }); }),
+        tip('#10b981', 'ساری بهترین شعبه این کالاست', 'شاخص ساری ۱٫۶ است؛ یعنی این کالا در ساری ۶۰٪ بیشتر از یک مانتوی معمولی می‌فروشد. در کاپری ۰٫۴ است و ۹ روز فروش نداشته.', 'تفکیک شعب', function () { self.setState({ tab: 'branches' }); }),
+        tip('#60a5fa', 'شال نخی ۱۱۲ را کنار این مانتو بچینید و در سبد آنلاین پیشنهاد دهید', 'در ۲۶٪ فاکتورهای این مانتو شال نخی ۱۱۲ هم بوده؛ ۳٫۴ برابر حالت تصادفی. این ارتباط در ۱۴ روز اخیر ۴۰٪ قوی‌تر شده.', 'خرید همزمان', function () { self.setState({ tab: 'bundle' }); }),
+        tip('#fbbf24', 'تخفیف لازم نیست', 'فقط ۱۲٪ فروش با تخفیف بوده و سرعت با قیمت کامل بالاست. تخفیف دادن روی این کالا احتمالاً حاشیه سود را کم می‌کند بدون اینکه فروش زیاد شود.'),
+        tip('#a78bfa', '۸۴۰ مشتری مستعد برای کمپین', 'این مشتریان در ۹۰ روز اخیر مانتو خریده‌اند ولی این کالا را نه. ۳۱٪ خریداران فعلی این کالا از همین گروه بوده‌اند.', 'ساخت لیست', function () { say('لیست ۸۴۰ مشتری مستعد ساخته می‌شود و به برنامه‌های تماس می‌رود.'); })
+      ],
+      tabs: [['sales', 'فروش و سایز'], ['branches', 'شعب'], ['bundle', 'خرید همزمان'], ['buyers', 'خریداران']].map(function (x) { var on = S.tab === x[0]; return { label: x[1], pressed: on ? 'true' : 'false', style: tab(on), pick: function () { self.setState({ tab: x[0] }); } }; }),
+      isSales: S.tab === 'sales', isBranches: S.tab === 'branches', isBundle: S.tab === 'bundle', isBuyers: S.tab === 'buyers',
+      daily: days.map(function (v, j) { return { tip: 'روز ' + fa(j + 1) + ': ' + fa(v) + ' عدد', style: 'position: relative; flex: 1 1 0; border-radius: 2px 2px 0 0; background: ' + (j >= 18 ? '#fb7185' : '#3b82f6') + '; height: ' + Math.max(2, Math.round(v / mx * 100)) + '%;' }; }),
+      sizes: sizes,
+      matrix: colors.map(function (c, i) { return { color: c, cells: grid[i].map(function (v, k) { return { v: fa(v), tip: c + '، سایز ' + sizes[k] + ': ' + fa(v) + ' عدد', style: 'min-width: 42px; padding: 6px 8px; text-align: center; border-radius: 6px; background: rgba(59,130,246,' + (0.08 + v / 52 * 0.6).toFixed(2) + '); color: #f8fafc;' }; }) }; }),
+      sizeSpeed: [['S', 1.2], ['M', 5.0], ['L', 3.6], ['XL', 0.7]].map(function (z) { return { a: z[0], v: fa(z[1]), bar: 'display: block; height: 6px; border-radius: 3px; background: #3b82f6; width: ' + Math.round(z[1] / 5 * 100) + '%;' }; }),
+      branches: BR.map(function (b) { return { a: b[0], dot: 'width: 8px; height: 8px; border-radius: 50%; background: ' + b[1] + ';', units: fa(b[2]) + ' عدد', share: fa(Math.round(b[2] / total * 100)) + '٪', idx: fa(b[3]), idxStyle: 'font-weight: 600; color: ' + (b[3] >= 1.2 ? '#34d399' : (b[3] < 0.8 ? '#fbbf24' : '#cbd5e1')) + ';', last: b[4], tip: b[5] }; }),
+      pairs: [['شال نخی ۱۱۲', 84, 26, 3.4, 'کنار هم بچینید؛ در سبد آنلاین پیشنهاد دهید'], ['شلوار راسته ۱۱۵', 61, 19, 2.1, 'در سبد آنلاین پیشنهاد دهید'], ['کیف دوشی ۱۳۱', 22, 7, 1.3, 'ارتباط ضعیف؛ اقدام لازم نیست']].map(function (x) { return { a: x[0], n: fa(x[1]), conf: fa(x[2]) + '٪', lift: fa(x[3]) + '×', liftStyle: 'font-weight: 600; color: ' + (x[3] >= 2 ? '#34d399' : '#94a3b8') + ';', tip: x[4] }; }),
+      buyerStats: [
+        { a: 'خریداران', b: '۲۹۰', c: 'نفر', help: 'تعداد مشتری متمایز که این کالا را خریده‌اند.' },
+        { a: 'مشتری تازه', b: '۲۴٪', c: 'اولین خریدشان از الینور بوده', help: 'سهم خریدارانی که این کالا اولین خریدشان بوده.' },
+        { a: 'خرید دوباره', b: '۱۱٪', c: 'بیش از یک عدد یا دوباره خریده‌اند', help: 'سهم خریدارانی که این کالا را بیش از یک بار خریده‌اند.' },
+        { a: 'میانگین سبد همراه', b: '۴٫۲', c: 'میلیون تومان', help: 'میانگین مبلغ فاکتورهایی که این کالا در آن‌ها بوده.' }
+      ],
+      tiers: [['VIP', 18], ['الماس', 31], ['طلایی ۱', 64], ['طلایی ۲', 82], ['نقره‌ای', 95]].map(function (t) { return { a: t[0], v: fa(t[1]), bar: 'display: block; height: 7px; border-radius: 4px; background: #a78bfa; width: ' + Math.round(t[1] / 95 * 100) + '%;' }; })
+    };
+  }
+}
+</script>
+</body>
+</html>

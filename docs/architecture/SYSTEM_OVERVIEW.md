@@ -205,7 +205,7 @@ Key structural differences and mappings:
 | **Core** | `apps/core` | Application health checks, system-wide exception handling, data coverage notices (`coverage_payload`), and executive home summary APIs. |
 | **Customers** | `apps/customers` | Customer master registry, complex multi-parameter filtering (`list_query.py`), Jalali date calculations, customer detail / Customer 360 payload (`detail.py`), RFM customer tier evaluation (`tiers.py`), scheduled tier refresh (`tier_refresh.py`), marketing campaign audience generation (`campaigns.py`), and streaming CSV export (`export.py`). |
 | **Sales** | `apps/sales` | Core sales semantics (`semantics.py`), online order models, POS sale models, online payment records, cross-channel sales KPI calculation (`kpis.py`), sales trend series generation, and operational branch insights. |
-| **Products** | `apps/products` | Catalog hierarchies (categories, products, variants, colors, sizes), bundle affinity analysis, and size/color distribution intelligence (`intelligence.py`). |
+| **Products** | `apps/products` | Catalog (products, variants, attributes), shared category tree, daily product sales and metrics, central stock, co-purchase pairs (`daily.py`, `report.py`, `product360.py`); rules in `docs/business-rules/products.md`. |
 | **System** | `apps/system` | Administrative monitoring UI backplane: sync execution management (`trigger_sync`, `stop_sync`), POS sync coverage inspection (`sync_coverage`), credentials configuration (`api_config`), and admin provisioning. |
 | **Integrations: Elinor** | `apps/integrations/elinor` | Upstream Elinor API client (`client.py`), incremental synchronization orchestrator (`sync.py`), and historical SQL dump ETL engine (`dump_import/`). |
 

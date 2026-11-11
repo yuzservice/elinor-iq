@@ -545,3 +545,83 @@ export function JalaliRangeModal({
 
   return typeof document !== "undefined" ? createPortal(modalContent, document.body) : modalContent;
 }
+
+/** Compact range calendar for report bars: pick a start day, then an end day, then «تأیید». Days after `max` are disabled. */
+export function JalaliRangePopover({ from, to, max, onApply, onClose }: {
+  from: string;
+  to: string;
+  max: string;
+  onApply: (from: string, to: string) => void;
+  onClose: () => void;
+}) {
+  const [pick, setPick] = useState<string[]>(from && to ? [from, to] : []);
+  const start = toJalaliParts(from || max) || { jy: 1405, jm: 1, jd: 1 };
+  const [cursor, setCursor] = useState({ jy: start.jy, jm: start.jm });
+  const root = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onDown = (event: MouseEvent) => root.current && !root.current.contains(event.target as Node) && onClose();
+    const onKey = (event: globalThis.KeyboardEvent) => event.key === "Escape" && onClose();
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+
+  const shift = (delta: number) =>
+    setCursor(({ jy, jm }) => {
+      const m = jm + delta;
+      return m < 1 ? { jy: jy - 1, jm: 12 } : m > 12 ? { jy: jy + 1, jm: 1 } : { jy, jm: m };
+    });
+  const choose = (iso: string) => setPick((current) => (current.length === 1 ? [current[0], iso].sort() : [iso]));
+  const length = jalaliMonthLength(cursor.jy, cursor.jm);
+  const offset = (new Date(`${jalaliToIso(cursor.jy, cursor.jm, 1)}T12:00:00`).getDay() + 1) % 7;
+  const [a, b] = pick;
+  const hint = pick.length === 1 ? "روز پایان را انتخاب کنید" : pick.length === 2 ? `${formatJalali(a)} تا ${formatJalali(b)}` : "روز شروع را انتخاب کنید";
+
+  return (
+    <div ref={root} role="dialog" aria-label="انتخاب بازه تاریخ" className="absolute right-0 top-[calc(100%+8px)] z-40 flex w-[292px] flex-col gap-2.5 rounded-2xl border border-line bg-elevated p-3.5 shadow-2xl">
+      <div className="flex items-center justify-between">
+        <button type="button" onClick={() => shift(-1)} aria-label="ماه قبل" className="h-8 w-8 cursor-pointer rounded-[9px] border-0 bg-transparent text-base text-muted hover:bg-hover">›</button>
+        <span className="text-sm font-semibold text-ink">{jalaliMonthName(cursor.jm)} {toFaDigits(cursor.jy)}</span>
+        <button type="button" onClick={() => shift(1)} aria-label="ماه بعد" className="h-8 w-8 cursor-pointer rounded-[9px] border-0 bg-transparent text-base text-muted hover:bg-hover">‹</button>
+      </div>
+      <div className="grid grid-cols-7 gap-0.5 text-center">
+        {WEEKDAYS.map((day) => <span key={day} className="py-1 text-[11.5px] text-faint">{day}</span>)}
+        {Array.from({ length: offset }, (_, i) => <span key={`blank-${i}`} />)}
+        {Array.from({ length }, (_, i) => {
+          const iso = jalaliToIso(cursor.jy, cursor.jm, i + 1);
+          const edge = iso === a || iso === b;
+          const inside = a && b && iso > a && iso < b;
+          const future = iso > max;
+          return (
+            <button
+              key={iso}
+              type="button"
+              disabled={future}
+              aria-label={formatJalali(iso)}
+              aria-pressed={edge}
+              onClick={() => choose(iso)}
+              className={`h-[34px] border-0 text-[12.5px] ${edge ? "rounded-[9px] bg-accent font-semibold text-on-accent" : inside ? "bg-accent/20 text-ink" : "rounded-[9px] bg-transparent text-ink hover:bg-hover"} ${future ? "cursor-default text-faint opacity-50" : "cursor-pointer"}`}
+            >
+              {toFaDigits(i + 1)}
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex items-center justify-between border-t border-line pt-2">
+        <span className="text-[12.5px] text-muted">{hint}</span>
+        <button
+          type="button"
+          disabled={pick.length !== 2}
+          onClick={() => onApply(a, b)}
+          className="min-h-[34px] cursor-pointer rounded-[9px] border-0 bg-accent px-4 text-[12.5px] font-semibold text-on-accent disabled:cursor-not-allowed disabled:bg-hover disabled:text-faint"
+        >
+          تأیید
+        </button>
+      </div>
+    </div>
+  );
+}

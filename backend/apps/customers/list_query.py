@@ -233,12 +233,12 @@ def _apply_metric_filters(qs, params):
         ("branches", "metrics__lines__overlap"),
         ("payments", "metrics__payments__overlap"),
         ("sizes", "metrics__sizes__overlap"),
-        ("categories", "metrics__categories__overlap"),
         ("cities", "metrics__cities__overlap"),
     ):
         values = _split(params.get(param))
         if values:
             qs = qs.filter(**{lookup: values})
+    qs = _apply_category(qs, params)
     for param, lookup in (("provinces", "metrics__province_ids__overlap"), ("city_ids", "metrics__city_ids__overlap"), ("products", "metrics__product_ids__overlap")):
         ids = _ids(params.get(param))
         if ids:
@@ -271,6 +271,22 @@ def _apply_metric_filters(qs, params):
         if params.get(f"{prefix}_before"):
             bound = _parse_bound(params.get(f"{prefix}_before"), end_of_day=True)
             qs = qs.filter(**{f"{column}__lte": bound}) if bound else qs
+    return qs
+
+
+def _apply_category(qs, params):
+    """`category_ids` = category ids, each with its descendants (shared tree). The old `categories` = titles maps to the
+    exact categories (no descendants), so saved views and call lists made before the tree return the same customers.
+    (The older free-text `category` param keeps its own behaviour in `_category_q`.)"""
+    from apps.products.categories import ids_for_titles, product_ids_in
+
+    ids = _ids(params.get("category_ids"))
+    if ids:
+        qs = qs.filter(metrics__product_ids__overlap=product_ids_in(ids) or [0])
+    titles = _split(params.get("categories"))
+    if titles:
+        exact, _unmatched = ids_for_titles(titles)
+        qs = qs.filter(metrics__product_ids__overlap=product_ids_in(exact, with_descendants=False) or [0])
     return qs
 
 
@@ -752,7 +768,7 @@ def _facet_options():
     """The most common real values, from the metrics table, for the filter chips."""
     facets = {}
     with connection.cursor() as cursor:
-        for column, key, limit in (("cities", "cities", 12), ("categories", "categories", 16), ("sizes", "sizes", 14)):
+        for column, key, limit in (("cities", "cities", 12), ("sizes", "sizes", 14)):
             cursor.execute(
                 f"SELECT value FROM (SELECT UNNEST({column}) AS value FROM customer_metrics) v GROUP BY value ORDER BY COUNT(*) DESC, value LIMIT %s",
                 [limit],

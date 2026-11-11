@@ -151,6 +151,26 @@ ELINOR_SYNC_HOURLY_ONLINE_DETAILS_LIMIT = int(os.environ.get("ELINOR_SYNC_HOURLY
 ELINOR_SYNC_HOURLY_POS_DAYS = int(os.environ.get("ELINOR_SYNC_HOURLY_POS_DAYS", "3"))
 ELINOR_SYNC_INTERVAL_SECONDS = int(os.environ.get("ELINOR_SYNC_INTERVAL_SECONDS", "3600"))
 
+# Products intelligence thresholds (docs/business-rules/products.md). Percentile rules compare within one category.
+PRODUCTS_RULES = {
+    "driver_top_share": 0.10,  # «پیشران فروش»: top 10% full-price speed in its category...
+    "driver_min_units": 10,  # ...and at least this many units in the last 28 days
+    "growth_trend_pct": 20,  # «رو به رشد»: last 14 days vs previous 14
+    "slow_bottom_share": 0.20,  # «کند»: bottom 20% speed in its category
+    "stale_days": 30,  # «راکد»: no sale for this many days
+    "min_category_size": 5,  # percentile rules need at least this many selling products in the category
+    "lead_time_days": int(os.environ.get("PRODUCTS_LEAD_TIME_DAYS", "14")),  # «نیاز به شارژ فوری»
+    "out_drop_pct": 70,  # «احتمالاً تمام شده»: last-7-day sales at least this much below the previous 4 weeks, central stock 0
+    "bundle_min_baskets": 5,
+    "bundle_early_baskets": 15,  # «سیگنال اولیه»: fewer baskets than this...
+    "bundle_early_lift": 3,  # ...with lift at least this
+    "bundle_fresh_trend_pct": 50,  # «فقط سیگنال‌های تازه»
+}
+# Internal (desk/staff) accounts place orders for real customers: ~34% of online item revenue locally. Sales totals keep
+# them (apps/customers/operators.py); set true to drop them from product sales and bundles.
+PRODUCTS_EXCLUDE_INTERNAL_SALES = os.environ.get("PRODUCTS_EXCLUDE_INTERNAL_SALES", "false").lower() in {"1", "true", "yes"}
+PRODUCTS_STOCK_REFRESH_PER_RUN = int(os.environ.get("PRODUCTS_STOCK_REFRESH_PER_RUN", "150"))
+
 # Elinor Pulse (Instagram). Off by default; architecture: docs/elinor-pulse-architecture.md
 PULSE_ENABLED = os.environ.get("PULSE_ENABLED", "false").lower() in {"1", "true", "yes"}
 PULSE_AI_ENABLED = os.environ.get("PULSE_AI_ENABLED", "false").lower() in {"1", "true", "yes"}
