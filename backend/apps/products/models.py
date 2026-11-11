@@ -271,3 +271,16 @@ class BasketPairDaily(models.Model):
     class Meta:
         db_table = "product_basket_pairs_daily"
         indexes = [models.Index(fields=["level", "channel", "day"], name="pbp_level_day")]
+
+
+class ProductStatusChange(models.Model):
+    """A product's status changed on a daily refresh (old None = first status). Feeds «پیشران تازه» on the home page."""
+
+    product_id = models.BigIntegerField()
+    old_status = models.CharField(max_length=16, null=True)
+    new_status = models.CharField(max_length=16)
+    day = models.DateField()
+
+    class Meta:
+        db_table = "product_status_changes"
+        indexes = [models.Index(fields=["new_status", "day"], name="psc_status_day")]

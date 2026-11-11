@@ -1,10 +1,8 @@
 import { api, queryPath } from "./api";
-import type { CopyPreview, TargetGrid, TargetProgress, TargetScope } from "../features/home/types";
-import type { HomePeriod, HomeSummary } from "../types";
+import type { CopyPreview, HomeData, TargetGrid, TargetProgress, TargetScope } from "../features/home/types";
 
 export const homeService = {
-  summary: (period: HomePeriod = "month") =>
-    api<HomeSummary>(queryPath("/home/summary/", { period })),
+  summary: (params: { period: string; from?: string; to?: string }) => api<HomeData>(queryPath("/home/summary/", params)),
   targets: (scope: TargetScope) => api<TargetProgress>(queryPath("/home/targets/", { scope })),
   targetGrid: (year?: number) => api<TargetGrid>(queryPath("/sales/targets/", { year })),
   saveTargets: (year: number, cells: { month: number; sales_line: string; amount: number | null }[], source: "manual" | "copy" = "manual") =>

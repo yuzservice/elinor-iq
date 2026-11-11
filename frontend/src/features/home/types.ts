@@ -34,3 +34,31 @@ export type CopyPreview = {
   growth_pct: number;
   cells: { month: number; sales_line: LineKey; amount: number | null; source: "target" | "sales" | "incomplete"; base: number | null }[];
 };
+
+export type HomePeriodKey = "today" | "7" | "30" | "90" | "custom";
+type Card = { value: number | null; change: number | null; spark: number[] };
+
+export type HomeData = {
+  range: { from: string; to: string; compare_from: string; compare_to: string; bucket: "hour" | "day"; comparable: boolean };
+  sync: { last_success_at: string | null; failed: { started_at: string; kind: string } | null };
+  today: {
+    sales: number; invoices: number; buyers: number; sales_change: number | null; invoices_change: number | null; buyers_change: number | null;
+    last_hour_sales: number; compare_day: string;
+  };
+  trend: { current: { at: string; sales: number }[]; compare: number[] };
+  branches: { line: LineKey; sales: number; invoices: number; basket: number | null; change: number | null }[];
+  cards: {
+    sales: Card & { online_share: number | null };
+    invoices: Card & { online: number; in_store: number };
+    basket: Card & { best_line: LineKey | null; best_value: number | null };
+    buyers: Card & { new_share: number | null };
+  };
+  attention: AttentionItem[];
+};
+
+export type AttentionItem =
+  | { kind: "target"; lines: LineKey[]; worst: { line: LineKey; pct: number; gap: number }; required_daily: number | null; avg_daily: number; link: string }
+  | { kind: "drivers"; count: number; names: string[]; link: string }
+  | { kind: "calls"; overdue: number; escalations: number; link: string }
+  | { kind: "tier_drop"; count: number; since: string; link: string }
+  | { kind: "sync_failed"; at: string; sync_kind: string; link: string };
