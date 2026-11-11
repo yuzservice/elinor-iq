@@ -66,7 +66,8 @@ def test_daily_table_matches_semantics_and_is_idempotent(cat):
 
 
 @pytest.mark.django_db
-def test_status_rules_within_category_and_stock_flags(cat):
+def test_status_rules_within_category_and_stock_flags(cat, settings):
+    settings.PRODUCTS_STOCK_ENABLED = True
     products = [_product(cat, n) for n in range(11)]
     sales = [(15, 15)] + [(2, 6)] + [(3, 3)] * 6 + [(1, 1)] * 2  # (20 days ago, 5 days ago)
     for (p, v), (old, new) in zip(products, sales):
@@ -120,7 +121,8 @@ class _Client:
 
 
 @pytest.mark.django_db
-def test_central_stock_refresh_only_recent_sellers_and_stops_on_error(cat):
+def test_central_stock_refresh_only_recent_sellers_and_stops_on_error(cat, settings):
+    settings.PRODUCTS_STOCK_ENABLED = True
     (p1, v1), (p2, v2), (old, vold) = _product(cat, 1), _product(cat, 2), _product(cat, 3)
     _online([(p1, v1, 1), (p2, v2, 1)], days_ago=10)
     _online([(old, vold, 1)], days_ago=200)
@@ -134,3 +136,18 @@ def test_central_stock_refresh_only_recent_sellers_and_stops_on_error(cat):
     refresh_central_stock(limit=10, client=client)  # p1 is fresh, only p2 is due; the 200-day-old product never is
     assert client.calls == 1 and CentralStock.objects.get(variant_id=v2.pk).balance == 7
     assert _balances({"varieties": [{"id": 1, "main_balance": None}, {"id": 2, "quantity": 3}]}) == {}
+
+
+@pytest.mark.django_db
+def test_stock_off_no_refresh_no_api_calls_no_flags(cat, settings):
+    settings.PRODUCTS_STOCK_ENABLED = False
+    p, v = _product(cat, 1)
+    _online([(p, v, 8)], days_ago=15)
+    CentralStock.objects.create(variant_id=v.pk, product_id=p.pk, balance=0, fetched_at=timezone.now())  # kept, not used
+    client = _Client({p.source_id: {"varieties": [{"id": v.source_id, "main_balance": 3}]}})
+    daily.refresh_daily_sales()
+    assert "skipped" in refresh_central_stock(limit=10, client=client) and client.calls == 0
+    daily.refresh_metrics(as_of=TODAY)
+    m = ProductMetrics.objects.get(product_id=p.pk)
+    assert m.stock_flag == "" and m.central_stock is None  # would be «out» with stock on
+    assert CentralStock.objects.get(variant_id=v.pk).balance == 0  # table and rows kept

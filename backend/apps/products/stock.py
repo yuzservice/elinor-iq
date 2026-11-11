@@ -63,6 +63,8 @@ def due_products(limit):
 def refresh_central_stock(limit=None, client=None):
     """Seed from payloads, then fetch up to `limit` due products from the API (the client keeps the rate limit).
     Stops at the first API error so a network outage costs one request."""
+    if not settings.PRODUCTS_STOCK_ENABLED:
+        return {"skipped": "stock disabled (PRODUCTS_STOCK_ENABLED=false)"}  # no Elinor API calls for stock
     limit = settings.PRODUCTS_STOCK_REFRESH_PER_RUN if limit is None else limit
     report = {"seeded": seed_from_payloads(), "fetched": 0, "variants": 0, "error": None}
     due = due_products(limit)

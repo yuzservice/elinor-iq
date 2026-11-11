@@ -50,7 +50,9 @@ def setup(db):
 
 
 @pytest.mark.django_db
-def test_detail_kpis_branches_buyers_and_rule_based_tips(setup):
+def test_detail_kpis_branches_buyers_and_rule_based_tips(setup, settings):
+    settings.PRODUCTS_STOCK_ENABLED = True
+    daily.refresh_metrics(as_of=TODAY)
     d = product_detail(setup["star"].pk, {}, today=TODAY)
     assert d["kpis"]["units"] == 13 and d["kpis"]["revenue"] == 1300 and d["kpis"]["revenue_change"] is None  # nothing in the previous 30 days
     sari = next(b for b in d["branches"] if b["line"] == "SARI")
@@ -82,3 +84,16 @@ def test_call_lists_from_buyers_and_prospects_land_on_a_program(setup, sync_thre
     prospects = CallList.objects.get(pk=response.data["list_id"])
     assert set(prospects.members.values_list("customer_id", flat=True)) == {setup["prospect"].pk}
     assert auth_api.post(f"/api/products/{setup['star'].pk}/call-list/", {"kind": "x"}, format="json").status_code == 400
+
+
+@pytest.mark.django_db
+def test_stock_off_forecast_instead_of_charge_and_no_stock_fields(setup, settings):
+    settings.PRODUCTS_STOCK_ENABLED = False
+    daily.refresh_metrics(as_of=TODAY)
+    d = product_detail(setup["star"].pk, {}, today=TODAY)
+    assert d["stock_enabled"] is False and "stock_flag" not in d and "central_stock" not in d
+    kinds = [t["kind"] for t in d["tips"]]
+    assert "charge" not in kinds
+    forecast = next(t for t in d["tips"] if t["kind"] == "forecast")
+    assert forecast["units"] == 26 and forecast["lead"] == 14  # ⌈13 a week / 7 × 14 days⌉, no stock subtracted
+    assert forecast["fastest"] == [{"size": "M", "color": "", "need": 26}] and "central" not in forecast

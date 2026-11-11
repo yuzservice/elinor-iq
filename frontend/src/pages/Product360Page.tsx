@@ -24,6 +24,16 @@ function daysAgo(day: string | null, to: string) {
 function tipCopy(tip: ProductTip, d: ProductDetail): { color: string; title: string; why: string; action?: string; tab?: Tab } {
   const cat = d.category.title || "این دسته";
   switch (tip.kind) {
+    case "forecast": {
+      const fastest = tip.fastest.map((n) => [n.size ? `سایز ${n.size}` : "", n.color].filter(Boolean).join(" ")).filter(Boolean);
+      return {
+        color: "var(--accent)",
+        title: `با سرعت فعلی، ${fa(tip.lead)} روز آینده حدود ${fa(tip.units)} عدد فروش می‌رود`,
+        why: `سرعت فعلی ${fa1(tip.per_day)} عدد در روز است (فروش خالص ۲۸ روز اخیر).${fastest.length ? ` پرفروش‌ترین‌ها: ${fastest.join("، ")}.` : ""}`,
+        action: "جزئیات سایز",
+        tab: "sales",
+      };
+    }
     case "charge": {
       const needs = tip.needs.map((n) => [n.size ? `سایز ${n.size}` : "", n.color].filter(Boolean).join(" ")).filter(Boolean);
       return {

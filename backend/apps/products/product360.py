@@ -20,7 +20,7 @@ from apps.sales.semantics import qualifying_online_items, qualifying_pos_items
 
 from .categories import descendant_ids, tree
 from .models import CentralStock, Product, ProductMetrics, Variant
-from .report import LINES, Scope, _fetch, _plain, bundles, comparable
+from .report import LINES, Scope, _fetch, _plain, bundles, comparable, stock_enabled
 
 CHART_DAYS = 180
 PROSPECT_DAYS = 90
@@ -94,9 +94,9 @@ def _buyers(product_id):
     }
 
 
-def _variant_needs(product_id, as_of, first_sale, lead):
-    """Per variant: speed per day × lead time − central stock, the largest first. Speed uses the same basis as
-    ProductMetrics.weekly_speed: net units of the last 28 days over min(28, days since first sale), at least 7 days."""
+def _variant_needs(product_id, as_of, first_sale, lead, with_stock=True):
+    """Per variant: speed per day × lead time (− central stock when stock is on), the largest first. Speed uses the same
+    basis as ProductMetrics.weekly_speed: net units of the last 28 days over min(28, days since first sale), at least 7 days."""
     end, start = as_of, as_of - timedelta(days=27)
     days = max(min(28, (as_of - first_sale).days + 1), 7)
     rows = _fetch(
@@ -104,14 +104,14 @@ def _variant_needs(product_id, as_of, first_sale, lead):
            WHERE d.product_id = %s AND d.day BETWEEN %s AND %s AND d.variant_id IS NOT NULL GROUP BY 1""",
         [product_id, start, end],
     )
-    stock = dict(CentralStock.objects.filter(product_id=product_id).values_list("variant_id", "balance"))
+    stock = dict(CentralStock.objects.filter(product_id=product_id).values_list("variant_id", "balance")) if with_stock else None
     variants = {v.pk: v for v in Variant.objects.filter(pk__in=[r["variant_id"] for r in rows])}
     needs = []
     for row in rows:
         variant = variants.get(row["variant_id"])
-        if variant is None or row["variant_id"] not in stock:
+        if variant is None or (stock is not None and row["variant_id"] not in stock):
             continue
-        need = math.ceil(max(row["net"], 0) / days * lead) - max(stock[row["variant_id"]], 0)
+        need = math.ceil(max(row["net"], 0) / days * lead) - (max(stock[row["variant_id"]], 0) if stock is not None else 0)
         if need > 0:
             needs.append({"size": variant.size, "color": variant.color_name, "need": need})
     return sorted(needs, key=lambda n: -n["need"])
@@ -187,7 +187,13 @@ def product_detail(product_id, params, today=None):
 
     tips = []
     status = metrics.status if metrics else None
-    central = metrics.central_stock if metrics else None
+    stock_on = stock_enabled()
+    central = metrics.central_stock if metrics and stock_on else None
+    if metrics and not stock_on and metrics.weekly_speed > 0 and status in ("driver", "growth", "normal"):
+        # Stock off: a sales forecast only, with the variants that sell fastest; no stock numbers, no charge advice.
+        per_day = metrics.weekly_speed / 7
+        tips.append({"kind": "forecast", "units": math.ceil(per_day * lead), "lead": lead, "per_day": per_day,
+                     "fastest": _variant_needs(product_id, metrics.as_of, metrics.first_sale_date, lead, with_stock=False)[:3]})
     if metrics and central is not None and metrics.weekly_speed > 0 and status in ("driver", "growth", "normal"):
         per_day = metrics.weekly_speed / 7
         need = math.ceil(per_day * lead) - central
@@ -214,7 +220,8 @@ def product_detail(product_id, params, today=None):
 
     return {
         "id": product.pk, "title": (product.title or "").split("|")[0].strip(), "code": product.sku or str(product.source_id),
-        "status": status, "stock_flag": metrics.stock_flag if metrics else "", "central_stock": central,
+        "status": status, "stock_enabled": stock_on,
+        **({"stock_flag": metrics.stock_flag if metrics else "", "central_stock": central} if stock_on else {}),
         "category": {"id": category_id, "title": cat_title, "path": category.get("path", "")},
         "first_sale_date": first_sale, "age": (end - first_sale).days if first_sale else None, "price": max(prices) if prices else None,
         "range": {"from": start, "to": end, "compare_from": scope.cfrom, "compare_to": scope.cto, "compare": scope.compare, "comparable": has_compare},
