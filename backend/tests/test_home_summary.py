@@ -144,3 +144,58 @@ def test_summary_endpoint_role_filtered_and_bad_range():
     agent = APIClient(HTTP_HOST="localhost")
     agent.force_login(_user("sales_agent", "agent2"))  # the role middleware reads the session user
     assert agent.get("/api/home/summary/").status_code == 403
+
+
+def _drop(customer, previous, new, reason="daily", days=3, previous_channel=None, channel=None):
+    CustomerTierHistory.objects.create(customer=customer, previous_tier_code=previous, tier_code=new, reason=reason,
+                                       previous_channel=previous_channel, channel=channel, changed_at=NOW - timedelta(days=days))
+
+
+@pytest.mark.django_db
+def test_tier_drop_item_counts_only_drops_from_top_tiers(settings):
+    settings.HOME_TIER_DROP_TOP_N = 3
+    top = home.top_tiers()
+    assert [code for code, _ in top] == ["VIP", "DIAMOND", "GOLD_1"]  # the active (default) rules, by rank
+    vip, gold1, gold2, old, activated, desk, gone = (_customer() for _ in range(7))
+    _drop(vip, "VIP", "BRONZE_1")
+    _drop(gold1, "GOLD_1", "GOLD_2")
+    _drop(gold2, "GOLD_2", "SILVER")  # not a top tier
+    _drop(old, "VIP", "SILVER", days=45)  # outside 30 days
+    _drop(activated, "DIAMOND", "BRONZE_1", reason="activation")  # rule change, not behaviour
+    _drop(desk, "VIP", "BRONZE_1")
+    InternalAccount.objects.create(customer=desk, kind="desk", is_active=True)
+    _drop(gone, "VIP", None)  # to no tier: not a drop
+    facts = home.attention_facts(now=NOW)
+    assert facts["tier_drop"]["count"] == 2 and facts["tier_drop"]["from"] == "VIP,DIAMOND,GOLD_1"
+    assert facts["tier_drop"]["titles"] == [title for _, title in top]
+    settings.HOME_TIER_DROP_TOP_N = 1
+    assert home.attention_facts(now=NOW)["tier_drop"]["count"] == 1  # VIP only
+
+
+@pytest.mark.django_db
+def test_tier_drop_link_returns_the_counted_customers(settings, auth_api):
+    from urllib.parse import parse_qs, urlsplit
+
+    a, b, c = _customer(), _customer(), _customer()
+    _drop(a, "VIP", "BRONZE_1")
+    _drop(b, "DIAMOND", "GOLD_2")
+    _drop(c, "SILVER", "BRONZE_2")
+    boss = _user("super_admin")
+    item = next(i for i in home.attention(boss, facts=home.attention_facts(now=timezone.now())) if i["kind"] == "tier_drop")
+    query = {key: values[0] for key, values in parse_qs(urlsplit(item["link"]).query).items()}
+    ids = {row["id"] for row in auth_api.get("/api/customers/", query).data["results"]}
+    assert item["count"] == 2 and ids == {a.source_id, b.source_id}
+    full = auth_api.get("/api/customers/", {"tier_change": "down"}).data
+    assert {row["id"] for row in full["results"]} == {a.source_id, b.source_id, c.source_id}  # the full filter is unchanged
+
+
+@pytest.mark.django_db
+def test_top_tiers_per_channel(settings, monkeypatch):
+    from apps.customers import tier_rules
+
+    lists = [("online", [{"code": "ON_VIP", "title": "VIP آنلاین", "enabled": True}, {"code": "ON_OFF", "title": "x", "enabled": False},
+                         {"code": "ON_GOLD", "title": "طلایی آنلاین", "enabled": True}, {"code": "ON_SILVER", "title": "نقره‌ای", "enabled": True}]),
+             ("store", [{"code": "ST_VIP", "title": "VIP حضوری", "enabled": True}, {"code": "ST_GOLD", "title": "طلایی حضوری", "enabled": True}])]
+    monkeypatch.setattr(tier_rules, "tier_lists", lambda rules: lists)
+    settings.HOME_TIER_DROP_TOP_N = 2
+    assert [code for code, _ in home.top_tiers()] == ["ON_VIP", "ON_GOLD", "ST_VIP", "ST_GOLD"]  # disabled skipped, per channel

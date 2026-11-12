@@ -261,8 +261,10 @@ function attentionCopy(item: AttentionItem): { color: string; title: string; det
         detail: item.overdue && item.escalations ? `${fa(item.escalations)} مورد هم به مدیر ارجاع شده و منتظر بررسی است.` : "برای پیگیری به مرکز تماس بروید.",
         link: "مرکز تماس",
       };
-    case "tier_drop":
-      return { color: "var(--accent)", title: `${fa(item.count)} مشتری در ۳۰ روز اخیر سطحشان پایین آمد`, detail: "برای برنامه تماس مناسب‌اند.", link: "مشتریان" };
+    case "tier_drop": {
+      const names = item.titles.length > 1 ? `${item.titles.slice(0, -1).join("، ")} و ${item.titles[item.titles.length - 1]}` : item.titles[0];
+      return { color: "var(--accent)", title: `${fa(item.count)} مشتری از سطوح ${names} پایین آمدند`, detail: "در ۳۰ روز اخیر؛ برای برنامه تماس مناسب‌اند.", link: "مشتریان" };
+    }
     case "sync_failed":
       return { color: "var(--delta-down)", title: "آخرین همگام‌سازی ناموفق بود", detail: `${jdate(item.at)} ساعت ${clock(item.at)}؛ وضعیت را در تنظیمات ببینید.`, link: "تنظیمات" };
   }

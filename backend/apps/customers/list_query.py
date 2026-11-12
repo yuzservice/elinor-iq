@@ -318,6 +318,11 @@ def _apply_tier_change(qs, params):
         reason__in=TIER_CHANGE_REASONS, tier_code__isnull=False,
     ).annotate(old_rank=rank("previous_tier_code"), new_rank=rank("tier_code"))
     history = history.filter(new_rank__lt=F("old_rank")) if direction == "up" else history.filter(new_rank__gt=F("old_rank"))
+    from_codes = [code.strip().upper() for code in _split(params.get("tier_change_from")) if code.strip()]
+    if from_codes:
+        # «از سطوح …»: only changes that started from these tiers (codes are unique per channel); internal accounts out.
+        history = history.filter(previous_tier_code__in=from_codes)
+        qs = exclude_operator_accounts(qs)
     after = _parse_bound(params.get("tier_change_after"), end_of_day=False) if params.get("tier_change_after") else None
     before = _parse_bound(params.get("tier_change_before"), end_of_day=True) if params.get("tier_change_before") else None
     if after:

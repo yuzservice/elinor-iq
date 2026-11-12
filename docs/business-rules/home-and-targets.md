@@ -40,6 +40,9 @@ Status: implemented on `feature/home-redesign` (2026-11-13), not merged; owner r
 2. New «پیشران فروش» products: status became driver in the last 7 days (`product_status_changes`, written by the daily
    products pass). Everyone.
 3. Overdue Call Center tasks (open, due before now) and open escalations. Call managers only (super_admin, admin, manager).
-4. Customers whose tier dropped in the last 30 days, as counted by the customer list «تغییر سطح» filter (natural changes only,
-   see `customer-list.md`). Everyone.
+4. Customers who dropped from a **top tier** in the last 30 days (owner decision 2026-11-13): the top N enabled tiers of each
+   channel of the active rule set, by rank (`HOME_TIER_DROP_TOP_N`, default 3; codes are read from the rules, never hard-coded).
+   Natural drops only (reason daily/sync, same channel, not to «no tier»), internal accounts excluded. Text names the tiers
+   («۴۲ مشتری از سطوح VIP، الماس و طلایی ۱ پایین آمدند»); hidden at 0. The link opens the customer list with
+   `tier_change=down&tier_change_after=…&tier_change_from=<codes>`, which returns exactly the counted customers. Everyone.
 5. A failed sync more recent than the last successful one. Super admin only.

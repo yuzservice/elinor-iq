@@ -60,5 +60,5 @@ export type AttentionItem =
   | { kind: "target"; lines: LineKey[]; worst: { line: LineKey; pct: number; gap: number }; required_daily: number | null; avg_daily: number; link: string }
   | { kind: "drivers"; count: number; names: string[]; link: string }
   | { kind: "calls"; overdue: number; escalations: number; link: string }
-  | { kind: "tier_drop"; count: number; since: string; link: string }
+  | { kind: "tier_drop"; count: number; since: string; from: string; titles: string[]; link: string }
   | { kind: "sync_failed"; at: string; sync_kind: string; link: string };

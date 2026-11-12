@@ -43,3 +43,7 @@ Requests with `dir` are the redesigned list: sort on metrics, internal accounts 
   A channel switch is neither up nor down. A move to no tier is not a drop; entering a tier from none counts as up.
 - Local check (2026-11-13, last 30 days): drops 14,482 → 14,468; rises 2,663. Almost all were real daily-pass moves (about
   850 a day, one spike of 5,375 on 2026-11-02), likely inflated locally by missing recent online details.
+- `tier_change_from=<codes>` (comma-separated tier codes; with `tier_change` and the dates) keeps only changes that started from
+  those tiers and leaves internal accounts out. Tier codes are unique per channel, so the list stays channel-separated. It has
+  no panel field: it shows as a removable chip «تنزل از سطوح: …» with tier titles. Set by the Home tier-drop link; the full
+  «تغییر سطح» filter is unchanged. Local check 2026-11-13: 2,473 drops from VIP, الماس, طلایی سطح ۱ in 30 days (14,468 from any tier).

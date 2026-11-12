@@ -215,6 +215,19 @@ def _last_hour_sales(start, end):
 MAX_ATTENTION = 5
 
 
+def top_tiers(n=None):
+    """[(code, title)] of the top N enabled tiers of each channel of the active rule set, in rank order (never hard-coded)."""
+    from django.conf import settings
+
+    from apps.customers.tier_rules import active_rules, tier_lists
+
+    n = settings.HOME_TIER_DROP_TOP_N if n is None else n
+    out = []
+    for _channel, tiers in tier_lists(active_rules()):
+        out += [(tier["code"], tier.get("title") or tier["code"]) for tier in tiers if tier.get("enabled")][:n]
+    return out
+
+
 def attention_facts(now=None):
     """Role-independent counts behind «نیاز به توجه» (cached with the summary; roles are applied per request)."""
     from apps.calls.models import CallEscalation, CallTask
@@ -226,11 +239,15 @@ def attention_facts(now=None):
                  .order_by("-day").values_list("product_id", flat=True).distinct()[:50])
     titles = [t.split("|")[0].strip() for t in Product.objects.filter(pk__in=fresh[:3]).values_list("title", flat=True)]
     since = (now.date() - timedelta(days=30)).isoformat()
+    top = top_tiers()
+    codes = ",".join(code for code, _ in top)
+    drop_params = {"tier_change": "down", "tier_change_after": since, "tier_change_from": codes}
     return {
         "drivers": {"count": len(fresh), "names": titles},
         "calls": {"overdue": CallTask.objects.filter(status=CallTask.STATUS_OPEN, due_at__lt=now).count(),
                   "escalations": CallEscalation.objects.filter(status=CallEscalation.STATUS_OPEN).count()},
-        "tier_drop": {"count": customer_list_queryset({"tier_change": "down", "tier_change_after": since}).count(), "since": since},
+        "tier_drop": {"count": customer_list_queryset(drop_params).count() if codes else 0, "since": since,
+                      "from": codes, "titles": [title for _, title in top]},
         "sync_failed": last_sync()["failed"],
     }
 
@@ -256,7 +273,8 @@ def attention(user, now=None, targets=None, facts=None):
         items.append({"kind": "calls", **calls, "link": "/calls"})
     drop = facts["tier_drop"]
     if drop["count"]:
-        items.append({"kind": "tier_drop", **drop, "link": f"/customers?tier_change=down&tier_change_after={drop['since']}"})
+        items.append({"kind": "tier_drop", **drop,
+                      "link": f"/customers?tier_change=down&tier_change_after={drop['since']}&tier_change_from={drop['from']}"})
     failed = facts["sync_failed"]
     if is_super_admin(user) and failed:
         items.append({"kind": "sync_failed", "at": failed["started_at"], "sync_kind": failed["kind"], "link": "/settings"})
