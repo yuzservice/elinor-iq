@@ -226,6 +226,7 @@ export function filterOptions(options: Option[], query: string): Option[] {
 /** Old saved lists can hold parameters with no field in the panel; they stay visible and removable. */
 const LEGACY_LABELS: Record<string, string> = {
   categories: "دسته‌بندی (فیلتر قدیمی)",
+  tier_change_from: "تنزل از سطوح",
   search: "",
   population: "جمعیت",
   channel: "کانال",
@@ -312,10 +313,15 @@ export function activeChips(categories: Category[], params: URLSearchParams): Ch
       });
     }),
   );
+  // Tier titles for «تنزل از سطوح» (set by the Home attention link); codes stay in the URL.
+  const tierOptions = categories.flatMap((c) => c.fields).find((f) => f.key === "tier");
+  const tierTitle = (code: string) =>
+    (tierOptions && "options" in tierOptions ? tierOptions.options.find((o) => o.value === code)?.label : undefined) ?? code;
   Object.entries(filterParams(params)).forEach(([key, value]) => {
     if (known.has(key)) return;
     const label = LEGACY_LABELS[key] ?? key;
-    chips.push({ key, label: `${label}: ${value}`, aria: `حذف فیلتر ${label}`, remove: { [key]: null } });
+    const shown = key === "tier_change_from" ? String(value).split(",").map(tierTitle).join("، ") : value;
+    chips.push({ key, label: `${label}: ${shown}`, aria: `حذف فیلتر ${label}`, remove: { [key]: null } });
   });
   return chips;
 }

@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   Badge,
@@ -20,7 +19,7 @@ import {
 } from "../features/sales/salesPageFilters";
 import { useApi } from "../hooks/useApi";
 import { customerDisplayName } from "../lib/customerDisplay";
-import { formatCompactToman, formatDate, formatNumber, formatToman, toInputDate } from "../lib/format";
+import { formatCompactToman, formatDate, formatNumber, toInputDate } from "../lib/format";
 import { formatJalali } from "../lib/dates";
 import { salesService, type ProductSort } from "../services/sales";
 import type { SalesLineKey, TrendGroup, SalesTrendPoint } from "../types";
@@ -69,10 +68,6 @@ export function SalesPage() {
   const [trendGroup, setTrendGroup] = useState<TrendGroup>("daily");
   const [trendMetric, setTrendMetric] = useState<"amount" | "purchase_count">("amount");
 
-  // Target-setting interactive state
-  const [monthlyTarget, setMonthlyTarget] = useState<number>(3_000_000_000);
-  const [isTargetModalOpen, setIsTargetModalOpen] = useState(false);
-  const [targetInputVal, setTargetInputVal] = useState<string>("3000000000");
 
   const salesLine = useMemo(() => {
     if (selectedBranch && selectedBranch !== "all") {
@@ -216,9 +211,6 @@ export function SalesPage() {
     ];
   }, [summaryDetails.data?.sales_lines]);
 
-  // Target calculations
-  const targetPercent = Math.min(100, Math.round((grossSalesVal / (monthlyTarget || 1)) * 100 * 10) / 10);
-  const remainingTarget = Math.max(0, monthlyTarget - grossSalesVal);
 
   function handleBranchChange(branch: string) {
     setSelectedBranch(branch);
@@ -261,9 +253,7 @@ export function SalesPage() {
       `فروش ناخالص,${grossSalesVal},تومان\n` +
       `تعداد فاکتور,${ordersCountVal},فاکتور\n` +
       `میانگین ارزش سبد,${aovVal},تومان\n` +
-      `نرخ مرجوعی,${refundRateVal},درصد\n` +
-      `هدف‌گذاری دوره,${monthlyTarget},تومان\n` +
-      `درصد تحقق,${targetPercent},درصد\n`;
+      `نرخ مرجوعی,${refundRateVal},درصد\n`;
 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
@@ -392,10 +382,6 @@ export function SalesPage() {
               <span>↑ {formatNumber(grossSalesChange)}٪</span>
               <span className="text-muted font-normal text-[11px]">نسبت به دوره قبل</span>
             </div>
-          </div>
-          <div className="mt-3 pt-2.5 border-t border-line flex justify-between text-[11px] text-muted">
-            <span>تارگت {formatCompactToman(monthlyTarget)}: <strong className="text-accent tabular">{formatNumber(targetPercent)}٪</strong></span>
-            <span className="text-emerald-500 font-semibold">روند صعودی</span>
           </div>
         </div>
 
@@ -611,150 +597,6 @@ export function SalesPage() {
         </div>
 
       </div>
-
-      {/* ============================================================== */}
-      {/* 4. TARGET-SETTING & QUOTA PROGRESS BENTO SECTION              */}
-      {/* ============================================================== */}
-      <div className="bento-card p-6 lg:p-7 glass-rim shadow-soft border-r-4 border-r-accent">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-base font-black text-ink">هدف‌گذاری و پایش تارگت فروش دوره</span>
-              <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold">
-                {formatNumber(targetPercent)}٪ تحقق یافته
-              </span>
-            </div>
-            <p className="text-xs text-muted mt-1 leading-5">
-              مقایسه درآمد تحقق‌یافته دوره فعلی با سقف تارگت تعیین‌شده و ارزیابی آهنگ فروش روزانه (Run-rate)
-            </p>
-          </div>
-
-          {/* Target Action Button */}
-          <button
-            type="button"
-            onClick={() => {
-              setTargetInputVal(monthlyTarget.toString());
-              setIsTargetModalOpen(true);
-            }}
-            className="glass-pill px-4 py-2 text-xs font-bold text-accent hover:bg-accent hover:text-on-accent transition-all shadow-sm flex items-center gap-2 self-start md:self-center"
-          >
-            <span>🎯</span>
-            <span>تنظیم و ویرایش تارگت</span>
-          </button>
-        </div>
-
-        {/* Progress Bar & Key Numbers */}
-        <div className="mt-5 space-y-3">
-          <div className="flex justify-between items-baseline text-xs">
-            <span className="text-muted font-medium">
-              فروش محقق‌شده: <strong className="text-ink font-bold tabular text-sm">{formatToman(grossSalesVal)}</strong>
-            </span>
-            <span className="text-muted font-medium">
-              تارگت کل: <strong className="text-accent font-bold tabular text-sm">{formatToman(monthlyTarget)}</strong>
-            </span>
-          </div>
-
-          {/* Continuous Progress Bar */}
-          <div className="h-3 w-full bg-elevated rounded-full overflow-hidden p-0.5 border border-line">
-            <div
-              className="h-full rounded-full bg-gradient-to-l from-blue-500 via-emerald-400 to-accent transition-all duration-1000 shadow-glow-accent"
-              style={{ width: `${Math.min(targetPercent, 100)}%` }}
-            ></div>
-          </div>
-
-          {/* Target Breakdown Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 text-xs">
-            <div className="p-3 rounded-2xl bg-elevated border border-line">
-              <div className="text-[11px] text-muted">مبلغ باقیمانده تا تارگت</div>
-              <div className="text-sm font-black text-amber-600 dark:text-amber-400 tabular mt-1">
-                {formatCompactToman(remainingTarget)}
-              </div>
-            </div>
-            <div className="p-3 rounded-2xl bg-elevated border border-line">
-              <div className="text-[11px] text-muted">آهنگ فروش روزانه (Run-Rate)</div>
-              <div className="text-sm font-black text-ink tabular mt-1">
-                ۹۹.۴ میلیون / روز
-              </div>
-            </div>
-            <div className="p-3 rounded-2xl bg-elevated border border-line">
-              <div className="text-[11px] text-muted">پیش‌بینی عبور از تارگت</div>
-              <div className="text-sm font-black text-emerald-500 tabular mt-1">
-                ۵ روز مانده به پایان
-              </div>
-            </div>
-            <div className="p-3 rounded-2xl bg-elevated border border-line">
-              <div className="text-[11px] text-muted">وضعیت پایش عملکرد</div>
-              <div className="text-sm font-black text-accent tabular mt-1">
-                ✓ بالاتر از هدف پایه
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Target Edit Modal */}
-      {isTargetModalOpen &&
-        typeof document !== "undefined" &&
-        createPortal(
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-            <div
-              className="bento-card p-6 w-full max-w-md glass-rim shadow-2xl space-y-4"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between border-b border-line pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">🎯</span>
-                  <h3 className="font-bold text-ink text-sm sm:text-base">تنظیم تارگت فروش دوره</h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsTargetModalOpen(false)}
-                  className="text-muted hover:text-ink text-sm p-1"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="space-y-3 text-xs">
-                <label className="text-muted font-medium block">
-                  مبلغ هدف‌گذاری شده فروش ناخالص دوره (تومان):
-                </label>
-                <input
-                  type="number"
-                  value={targetInputVal}
-                  onChange={(e) => setTargetInputVal(e.target.value)}
-                  className="w-full bg-elevated border border-line rounded-xl px-3 py-2 text-sm font-bold text-ink focus:outline-none focus:border-accent tabular"
-                  placeholder="مثلاً ۳۰۰۰۰۰۰۰۰۰"
-                />
-                <p className="text-[11px] text-muted">
-                  مبلغ جاری وارد شده: <strong className="text-accent tabular">{formatToman(Number(targetInputVal) || 0)}</strong>
-                </p>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-line">
-                <button
-                  type="button"
-                  onClick={() => setIsTargetModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-muted hover:bg-hover"
-                >
-                  انصراف
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const val = Number(targetInputVal);
-                    if (val > 0) setMonthlyTarget(val);
-                    setIsTargetModalOpen(false);
-                  }}
-                  className="px-4 py-2 rounded-xl text-xs font-bold bg-accent text-on-accent shadow-md shadow-accent/25 hover:opacity-90"
-                >
-                  ذخیره تارگت
-                </button>
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
 
       {/* ============================================================== */}
       {/* 5. SEGMENTED ANALYTICAL TABS (Bento Switcher)                  */}

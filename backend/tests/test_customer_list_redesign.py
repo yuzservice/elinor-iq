@@ -331,5 +331,28 @@ def test_tier_change_direction_and_range(auth_api):
     query = "&sort=name&dir=asc"
     assert _rows(auth_api, "tier_change=up" + query) == [1, 3, 5]
     assert _rows(auth_api, f"tier_change=up&tier_change_after={since}" + query) == [1, 3]
-    assert _rows(auth_api, f"tier_change=down&tier_change_after={since}" + query) == [2, 4]
+    assert _rows(auth_api, f"tier_change=down&tier_change_after={since}" + query) == [2]  # moving to no tier is not a drop
     assert _rows(auth_api, f"tier_change=up&tier_change_before={since}" + query) == [5]
+
+
+@pytest.mark.django_db
+def test_tier_change_counts_only_natural_same_channel_moves(auth_api):
+    from apps.customers.models import CustomerTierHistory
+
+    rows = [  # (previous, new, reason, previous_channel, channel)
+        ("VIP", "BRONZE_1", "daily", None, None),  # 1: natural drop, non-channel rules
+        ("VIP", "BRONZE_1", "sync", "online", "online"),  # 2: natural drop on one channel
+        ("VIP", "BRONZE_1", "activation", None, None),  # 3: new rules activated
+        ("VIP", "BRONZE_1", "baseline", None, None),  # 4: first baseline
+        ("VIP", "BRONZE_1", "manual", None, None),  # 5: admin action
+        ("VIP", "BRONZE_1", "daily", "online", "store"),  # 6: channel switch
+        ("VIP", None, "daily", None, None),  # 7: to no tier
+        ("BRONZE_1", "VIP", "daily", "store", "store"),  # 8: natural rise
+    ]
+    now = timezone.now()
+    for n, (previous, new, reason, previous_channel, channel) in enumerate(rows, start=1):
+        CustomerTierHistory.objects.create(customer=_customer(n), previous_tier_code=previous, tier_code=new, reason=reason,
+                                           previous_channel=previous_channel, channel=channel, changed_at=now - timedelta(days=2))
+    query = "&sort=name&dir=asc"
+    assert _rows(auth_api, "tier_change=down" + query) == [1, 2]
+    assert _rows(auth_api, "tier_change=up" + query) == [8]

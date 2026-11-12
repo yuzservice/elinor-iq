@@ -173,6 +173,8 @@ PRODUCTS_EXCLUDE_INTERNAL_SALES = os.environ.get("PRODUCTS_EXCLUDE_INTERNAL_SALE
 # calls), no stock in responses or UI, no stock flags. Code, models and tables stay so it can be switched back on.
 PRODUCTS_STOCK_ENABLED = os.environ.get("PRODUCTS_STOCK_ENABLED", "false").lower() in {"1", "true", "yes"}
 PRODUCTS_STOCK_REFRESH_PER_RUN = int(os.environ.get("PRODUCTS_STOCK_REFRESH_PER_RUN", "150"))
+# Home «نیاز به توجه»: tier drops count only from the top N enabled tiers of each channel (owner decision 2026-11-13).
+HOME_TIER_DROP_TOP_N = int(os.environ.get("HOME_TIER_DROP_TOP_N", "3"))
 
 # Elinor Pulse (Instagram). Off by default; architecture: docs/elinor-pulse-architecture.md
 PULSE_ENABLED = os.environ.get("PULSE_ENABLED", "false").lower() in {"1", "true", "yes"}

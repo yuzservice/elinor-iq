@@ -211,11 +211,22 @@ def refresh_metrics(as_of=None):
             ELSE '' END
     FROM statused
     """
+    from .models import ProductMetrics, ProductStatusChange
+
     with transaction.atomic(), connection.cursor() as cursor:
+        before = dict(ProductMetrics.objects.values_list("product_id", "status"))
         cursor.execute("SET LOCAL jit = off")
         cursor.execute("DELETE FROM product_metrics")
         cursor.execute(sql, params)
-        return cursor.rowcount
+        written = cursor.rowcount
+        after = ProductMetrics.objects.values_list("product_id", "status")
+        # Only real changes on an existing table: the very first fill records nothing.
+        if before:
+            ProductStatusChange.objects.bulk_create(
+                [ProductStatusChange(product_id=pid, old_status=before.get(pid), new_status=status, day=params["d"])
+                 for pid, status in after if before.get(pid) != status]
+            )
+        return written
 
 
 def run_daily(if_due=False):

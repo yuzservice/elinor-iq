@@ -19,6 +19,9 @@ Update this file at the end of every implementation task (newest entry first in 
    - `fix/products-no-stock` (from `production`): stock disabled behind `PRODUCTS_STOCK_ENABLED` (default false); card 3 is
      «رو به رشد», Product 360 shows a 14-day forecast, stock params ignored, no stock API calls. Awaiting owner review; not merged.
 4. **Deferred decisions:**
+   - Home ideas from the owner (not built): a daily summary to the owner's Telegram group (aggregates only; first check that the
+     server can reach Telegram, which may be filtered); «امروز در برابر معمول همین ساعت» with an hourly chart; a role-based
+     default home (a branch manager sees their own branch); auto-refresh.
    - Products stock (central and branch) is off until the warehouse API exists; re-enable with `PRODUCTS_STOCK_ENABLED=true`.
    - Pulse stock alerts wait for branch stock (vendor warehouse API: receipts, transfers, manual adjustments,
      balance per warehouse).
@@ -149,6 +152,19 @@ Notes for the Product Architect / next task:
 3. Paused: faster server updates (`chore/faster-deploy`, no changes yet).
 
 ## 9. Log
+
+### 2026-11-12 — Home redesign with sales targets (`feature/home-redesign`, from `production` `401c018`), checkpoints
+- Step 0: reference saved as `docs/design/home-prototype.html` (sha256 2bd24581…); sample data only. Not merged; owner reviews locally.
+- Step 1: additive `sales.0006` (`sales_targets`, `sales_target_changes` audit). `apps/sales/targets.py`: Jalali month/season/year bounds (Esfand 29/30), progress (expected = elapsed ÷ total days, pace, forecast, required daily, line status ±3 points), copy-from-last-year preview (last year's target, else sales; in-store months before 1404/03/10 left empty). APIs `GET|PUT /api/sales/targets/`, `GET /api/sales/targets/copy-preview/` (super_admin, admin, manager), `GET /api/home/targets/?scope=` (cached 60 s).
+- Step 1 UI: Settings «تارگت‌ها» grid (`features/home/TargetsPanel.tsx`), home «تارگت فروش» section (`TargetsSection.tsx`). Removed the hard-coded 3-billion target: `TargetGauge` (home), and the Sales page's in-memory target section, modal, card footer and CSV rows.
+- Step 2: Home rebuilt in the reference order (`pages/HomePage.tsx`; `apps/core/home.py`): sync pill, period bar (امروز/۷/۳۰/۹۰/دلخواه, URL state, `JalaliRangePopover`), «امروز تا این لحظه» vs the same weekday last week, trend with dashed comparison, branches, targets, four real cards with sparks and links, «نیاز به توجه» (targets behind, new drivers via additive `products.0004` status log, overdue calls/escalations for call managers, tier drops, failed sync for super admin). `GET /api/home/summary/` 17–228 ms uncached locally, cached 60 s.
+- Tier-change fix (customer list «تغییر سطح» and Home): natural changes only (reason daily/sync), same channel only (both empty = same), a move to no tier is not a drop. Local 30-day drops 14,482 → 14,468 (real daily moves, spike of 5,375 on 2026-11-02); rises 2,663. Tests in `test_customer_list_redesign.py`.
+- Step 3: removed the old home payload and fake numbers with the page rewrite, `apps/core/home_metrics.py` (only its test used it), `components/dashboard/metricCards.tsx`, `primitives.tsx`, `tokens.ts`, `ChannelMix`, the `HomeSummary`/`HomePeriod` types (callers checked; only `RevenueChart` remains, used by Sales). `test_api` checks the new payload.
+- Step 4 timings (local, API, after process warm-up): summary cold 48 ms (today) / 78 (30 d) / 255 (90 d) / 167 (custom month), cached ≤ 1 ms; targets cold 4–40 ms. The first request after a backend restart reached 502 ms (90 d) before the shared attention counts were cached; attention is now cached 60 s, with roles applied per request.
+- Step 5 tests: `test_home_summary.py` (7: figures from semantics, internal accounts not buyers, «—» before in-store history, no old payload keys, today vs same weekday, each attention rule, role filtering, agent 403) and `test_sales_targets.py` (9). Home, sales, customer-list and product files pass; known failures unchanged (`test_gateway_payments` 1, vitest theme 1).
+- Step 6 docs: `docs/business-rules/home-and-targets.md`, decision 0009, MODULE_REGISTRY §2, FEATURE_MATRIX, customer-list tier-change rule, deferred owner ideas in «Start here».
+- Step 7: screenshots at 1440 and 375 px, dark and light, with and without a target (local data; not in the repo). Differences from the reference: the expected-pace marker uses the ink token and is labelled «خط عمودی» (dark in light mode); «امروز» is hourly; partial-target companies name the lines they add up; the demo toggle «نمایش بدون تارگت» is not built. Not merged; owner reviews locally.
+- Home tier-drop item limited to drops from the top N tiers per channel (`HOME_TIER_DROP_TOP_N`, default 3, read from the active rules): local count 2,473 (was 14,468 for all tiers). New customer-list param `tier_change_from` (removable chip «تنزل از سطوح») makes the Home link return exactly the counted customers. Tests: `test_home_summary` 10, `test_customer_list_redesign` 21, customer vitest 61.
 
 ### 2026-11-10 — Products redesign (`feature/products-redesign`, from `production` `79e1cb8`), checkpoints
 - 2026-11-11: merged on the owner's go: `feature/products-redesign` (`98028b7`) → `production` (`44fb072`) → `main`. Server: run `update.sh`, then once `docker compose exec backend python manage.py products_daily`; central stock fills through the scheduler.
