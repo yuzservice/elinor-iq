@@ -210,7 +210,7 @@ function Kpi({ to, label, link, value, unit, change, note, spark, color, help }:
       <span className="flex justify-between"><span className="text-[13px] text-muted">{label}</span><span className="text-[12.5px] text-muted">{link} ‹</span></span>
       <span className="flex items-end justify-between gap-2.5">
         <span className="flex flex-col gap-1">
-          <span className="flex items-baseline gap-1.5"><span className="text-[26px] font-extrabold text-ink">{value}</span><span className="text-[12.5px] text-muted">{unit}</span></span>
+          <span className="flex items-baseline gap-1.5"><span className="text-[26px] font-extrabold text-ink">{value}</span><span className="whitespace-nowrap text-[12.5px] text-muted">{unit}</span></span>
           <Delta change={change} suffix="نسبت به دوره قبل" />
         </span>
         <Spark values={spark} color={color} />
