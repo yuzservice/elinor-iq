@@ -1,7 +1,6 @@
 import { useId, useState } from "react";
 import { formatNumber, formatToman } from "../../lib/format";
 import type { SalesTrendPoint } from "../../types";
-import { channelColor, shortLineLabel } from "./tokens";
 
 type RevenueChartMetric = "amount" | "purchase_count";
 
@@ -243,90 +242,3 @@ export function RevenueChart({
   );
 }
 
-type MixLine = { key: string; label: string; value: number };
-
-export function ChannelMix({
-  lines,
-  formatValue,
-}: {
-  lines: MixLine[];
-  formatValue: (value: number) => string;
-}) {
-  const safe = lines.filter((line) => line.value > 0);
-  const total = safe.reduce((sum, line) => sum + line.value, 0);
-  if (!total) {
-    return (
-      <div className="flex h-full min-h-[220px] items-center justify-center text-sm text-muted">
-        ترکیب کانالی برای این بازه نیست.
-      </div>
-    );
-  }
-
-  const radius = 56;
-  const circumference = 2 * Math.PI * radius;
-  let cursor = 0;
-  const segments = safe.map((line) => {
-    const share = line.value / total;
-    const length = share * circumference;
-    const segment = { ...line, share, length, offset: cursor };
-    cursor += length;
-    return segment;
-  });
-  const lead = segments.reduce((best, segment) => (segment.value > best.value ? segment : best), segments[0]);
-
-  return (
-    <div className="flex h-full flex-col justify-between">
-      <div className="relative mx-auto mt-2 w-full max-w-[210px]">
-        <svg viewBox="0 0 160 160" className="w-full" role="img" aria-label="نمودار سهم کانال‌ها">
-          <circle cx="80" cy="80" r={radius} fill="none" stroke="var(--chart-track)" strokeWidth="13" />
-          <g transform="rotate(-90 80 80)">
-            {segments.map((segment) => (
-              <circle
-                key={segment.key}
-                cx="80"
-                cy="80"
-                r={radius}
-                fill="none"
-                stroke={channelColor(segment.key)}
-                strokeWidth="13"
-                strokeDasharray={`${Math.max(segment.length - (segments.length > 1 ? 3 : 0), 0)} ${circumference}`}
-                strokeDashoffset={-segment.offset}
-                strokeLinecap="round"
-                className="transition-all duration-700"
-              />
-            ))}
-          </g>
-        </svg>
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-4 text-center">
-          <div className="tabular text-[28px] font-black leading-none text-ink">
-            {formatNumber(Math.round(lead.share * 100))}٪
-          </div>
-          <div className="mt-1.5 text-[11px] font-bold text-muted truncate max-w-[120px]">
-            {shortLineLabel(lead.label)}
-          </div>
-        </div>
-      </div>
-
-      <ul className="mt-6 space-y-3">
-        {segments.map((segment) => (
-          <li key={segment.key} className="flex items-center justify-between gap-3 text-xs">
-            <span className="flex min-w-0 items-center gap-2 text-muted">
-              <span
-                className="h-2.5 w-2.5 shrink-0 rounded-full"
-                style={{ background: channelColor(segment.key) }}
-                aria-hidden="true"
-              />
-              <span className="truncate font-semibold text-ink">{shortLineLabel(segment.label)}</span>
-            </span>
-            <span className="tabular shrink-0 text-ink">
-              <span className="font-bold">{formatValue(segment.value)}</span>
-              <span className="mr-2 text-muted font-normal">
-                {formatNumber(Math.round(segment.share * 100))}٪
-              </span>
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
