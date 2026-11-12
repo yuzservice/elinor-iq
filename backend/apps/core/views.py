@@ -19,7 +19,8 @@ def home_summary(request):
     key = f"summary:{params['period']}:{params['from']}:{params['to']}"
     data = cached(key, lambda: home.summary(params))
     targets = cached("targets:month", lambda: progress("month"))
-    return Response({**data, "attention": home.attention(request.user, targets=targets)})
+    facts = cached("attention", home.attention_facts)
+    return Response({**data, "attention": home.attention(request.user, targets=targets, facts=facts)})
 
 
 @api_view(["GET"])

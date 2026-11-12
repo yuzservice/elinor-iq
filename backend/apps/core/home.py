@@ -215,52 +215,51 @@ def _last_hour_sales(start, end):
 MAX_ATTENTION = 5
 
 
-def attention(user, now=None, targets=None):
+def attention_facts(now=None):
+    """Role-independent counts behind «نیاز به توجه» (cached with the summary; roles are applied per request)."""
+    from apps.calls.models import CallEscalation, CallTask
+    from apps.customers.list_query import customer_list_queryset
+    from apps.products.models import Product, ProductStatusChange
+
+    now = timezone.localtime(now or timezone.now())
+    fresh = list(ProductStatusChange.objects.filter(new_status="driver", day__gt=now.date() - timedelta(days=7))
+                 .order_by("-day").values_list("product_id", flat=True).distinct()[:50])
+    titles = [t.split("|")[0].strip() for t in Product.objects.filter(pk__in=fresh[:3]).values_list("title", flat=True)]
+    since = (now.date() - timedelta(days=30)).isoformat()
+    return {
+        "drivers": {"count": len(fresh), "names": titles},
+        "calls": {"overdue": CallTask.objects.filter(status=CallTask.STATUS_OPEN, due_at__lt=now).count(),
+                  "escalations": CallEscalation.objects.filter(status=CallEscalation.STATUS_OPEN).count()},
+        "tier_drop": {"count": customer_list_queryset({"tier_change": "down", "tier_change_after": since}).count(), "since": since},
+        "sync_failed": last_sync()["failed"],
+    }
+
+
+def attention(user, now=None, targets=None, facts=None):
     """Up to five rule-based items, each linking to its module; only items the user's role may open."""
     from apps.accounts.permissions import is_super_admin
     from apps.calls.permissions import is_call_manager
     from apps.sales.views import can_edit_targets
 
-    now = timezone.localtime(now or timezone.now())
+    facts = facts if facts is not None else attention_facts(now)
     items = []
-
     behind = [row for row in (targets or {}).get("lines", []) if row["status"] == "behind"]
     if behind:
         worst = min(behind, key=lambda row: row["gap"])
         items.append({"kind": "target", "lines": [row["line"] for row in behind], "worst": worst,
                       "required_daily": _line_required_daily(worst, targets), "avg_daily": worst["actual"] / targets["elapsed_days"],
                       "link": "/settings#targets" if can_edit_targets(user) else "/#home-targets"})
-
-    from apps.products.models import ProductStatusChange
-
-    fresh = list(ProductStatusChange.objects.filter(new_status="driver", day__gt=now.date() - timedelta(days=7))
-                 .order_by("-day").values_list("product_id", flat=True).distinct()[:50])
-    if fresh:
-        from apps.products.models import Product
-
-        titles = [t.split("|")[0].strip() for t in Product.objects.filter(pk__in=fresh[:3]).values_list("title", flat=True)]
-        items.append({"kind": "drivers", "count": len(fresh), "names": titles, "link": "/products?status=driver"})
-
-    if is_call_manager(user):
-        from apps.calls.models import CallEscalation, CallTask
-
-        overdue = CallTask.objects.filter(status=CallTask.STATUS_OPEN, due_at__lt=now).count()
-        escalations = CallEscalation.objects.filter(status=CallEscalation.STATUS_OPEN).count()
-        if overdue or escalations:
-            items.append({"kind": "calls", "overdue": overdue, "escalations": escalations, "link": "/calls"})
-
-    from apps.customers.list_query import customer_list_queryset
-
-    since = (now.date() - timedelta(days=30)).isoformat()
-    dropped = customer_list_queryset({"tier_change": "down", "tier_change_after": since}).count()
-    if dropped:
-        items.append({"kind": "tier_drop", "count": dropped, "since": since,
-                      "link": f"/customers?tier_change=down&tier_change_after={since}"})
-
-    if is_super_admin(user):
-        failed = last_sync()["failed"]
-        if failed:
-            items.append({"kind": "sync_failed", "at": failed["started_at"], "sync_kind": failed["kind"], "link": "/settings"})
+    if facts["drivers"]["count"]:
+        items.append({"kind": "drivers", **facts["drivers"], "link": "/products?status=driver"})
+    calls = facts["calls"]
+    if is_call_manager(user) and (calls["overdue"] or calls["escalations"]):
+        items.append({"kind": "calls", **calls, "link": "/calls"})
+    drop = facts["tier_drop"]
+    if drop["count"]:
+        items.append({"kind": "tier_drop", **drop, "link": f"/customers?tier_change=down&tier_change_after={drop['since']}"})
+    failed = facts["sync_failed"]
+    if is_super_admin(user) and failed:
+        items.append({"kind": "sync_failed", "at": failed["started_at"], "sync_kind": failed["kind"], "link": "/settings"})
     return items[:MAX_ATTENTION]
 
 
