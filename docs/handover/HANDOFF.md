@@ -19,6 +19,9 @@ Update this file at the end of every implementation task (newest entry first in 
    - `fix/products-no-stock` (from `production`): stock disabled behind `PRODUCTS_STOCK_ENABLED` (default false); card 3 is
      «رو به رشد», Product 360 shows a 14-day forecast, stock params ignored, no stock API calls. Awaiting owner review; not merged.
 4. **Deferred decisions:**
+   - Home ideas from the owner (not built): a daily summary to the owner's Telegram group (aggregates only; first check that the
+     server can reach Telegram, which may be filtered); «امروز در برابر معمول همین ساعت» with an hourly chart; a role-based
+     default home (a branch manager sees their own branch); auto-refresh.
    - Products stock (central and branch) is off until the warehouse API exists; re-enable with `PRODUCTS_STOCK_ENABLED=true`.
    - Pulse stock alerts wait for branch stock (vendor warehouse API: receipts, transfers, manual adjustments,
      balance per warehouse).
@@ -159,6 +162,7 @@ Notes for the Product Architect / next task:
 - Step 3: removed the old home payload and fake numbers with the page rewrite, `apps/core/home_metrics.py` (only its test used it), `components/dashboard/metricCards.tsx`, `primitives.tsx`, `tokens.ts`, `ChannelMix`, the `HomeSummary`/`HomePeriod` types (callers checked; only `RevenueChart` remains, used by Sales). `test_api` checks the new payload.
 - Step 4 timings (local, API, after process warm-up): summary cold 48 ms (today) / 78 (30 d) / 255 (90 d) / 167 (custom month), cached ≤ 1 ms; targets cold 4–40 ms. The first request after a backend restart reached 502 ms (90 d) before the shared attention counts were cached; attention is now cached 60 s, with roles applied per request.
 - Step 5 tests: `test_home_summary.py` (7: figures from semantics, internal accounts not buyers, «—» before in-store history, no old payload keys, today vs same weekday, each attention rule, role filtering, agent 403) and `test_sales_targets.py` (9). Home, sales, customer-list and product files pass; known failures unchanged (`test_gateway_payments` 1, vitest theme 1).
+- Step 6 docs: `docs/business-rules/home-and-targets.md`, decision 0009, MODULE_REGISTRY §2, FEATURE_MATRIX, customer-list tier-change rule, deferred owner ideas in «Start here».
 
 ### 2026-11-10 — Products redesign (`feature/products-redesign`, from `production` `79e1cb8`), checkpoints
 - 2026-11-11: merged on the owner's go: `feature/products-redesign` (`98028b7`) → `production` (`44fb072`) → `main`. Server: run `update.sh`, then once `docker compose exec backend python manage.py products_daily`; central stock fills through the scheduler.
