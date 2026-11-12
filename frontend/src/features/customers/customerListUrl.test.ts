@@ -68,6 +68,12 @@ describe("customer list URL", () => {
     expect(chips[2].remove).toEqual({ last_after: null, last_before: null, last_days: null });
   });
 
+  it("shows the Home tier-drop scope as a removable chip with tier titles", () => {
+    const chip = activeChips(categories, url("tier_change=down&tier_change_from=VIP,GOLD_1")).find((c) => c.key === "tier_change_from");
+    expect(chip?.label).toBe("تنزل از سطوح: VIP، طلایی ۱");
+    expect(chip?.remove).toEqual({ tier_change_from: null });
+  });
+
   it("keeps old saved parameters visible and removable", () => {
     const chips = activeChips(categories, url("population=purchasing"));
     expect(chips).toEqual([{ key: "population", label: "جمعیت: purchasing", aria: "حذف فیلتر جمعیت", remove: { population: null } }]);

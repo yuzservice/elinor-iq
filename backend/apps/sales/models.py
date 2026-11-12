@@ -247,3 +247,38 @@ class PosSaleItem(models.Model):
 
     class Meta:
         db_table = "pos_sale_items"
+
+
+class SalesTarget(models.Model):
+    """Monthly sales target per sales line, in Jalali months; same unit (toman) and metric as the home revenue card.
+    The company target is the sum of the four lines. Rules: docs/business-rules/home-and-targets.md."""
+
+    year = models.PositiveSmallIntegerField()  # Jalali year
+    month = models.PositiveSmallIntegerField()  # Jalali month 1..12
+    sales_line = models.CharField(max_length=16, choices=SalesLine.choices)
+    amount = models.BigIntegerField()
+    created_by = models.ForeignKey("accounts.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    updated_by = models.ForeignKey("accounts.User", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "sales_targets"
+        constraints = [models.UniqueConstraint(fields=["year", "month", "sales_line"], name="uniq_sales_target_month_line")]
+
+
+class SalesTargetChange(models.Model):
+    """Audit: one row per changed cell (old → new; new None = cleared)."""
+
+    year = models.PositiveSmallIntegerField()
+    month = models.PositiveSmallIntegerField()
+    sales_line = models.CharField(max_length=16)
+    old_amount = models.BigIntegerField(null=True)
+    new_amount = models.BigIntegerField(null=True)
+    source = models.CharField(max_length=16, default="manual")  # manual, copy, clear
+    changed_by = models.ForeignKey("accounts.User", null=True, on_delete=models.SET_NULL, related_name="+")
+    changed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "sales_target_changes"
+        ordering = ["-changed_at", "-id"]

@@ -120,3 +120,56 @@ def product_list(request):
     payload = product_sales_report(start, end, sales_line, search, sort, order, page, per_page)
     payload["timing_ms"] = round((time.perf_counter() - started) * 1000, 1)
     return Response(payload)
+
+TARGET_EDITOR_ROLES = ("super_admin", "admin", "manager")
+
+
+def can_edit_targets(user):
+    return bool(user and user.is_authenticated and user.role in TARGET_EDITOR_ROLES)
+
+
+@api_view(["GET", "PUT"])
+@permission_classes([IsAuthenticated])
+def targets_view(request):
+    """«تارگت‌ها» in Settings: GET ?year= the 12 × 4 grid; PUT {year, cells: [{month, sales_line, amount|null}], source}."""
+    import jdatetime
+    from django.utils import timezone as tz
+
+    from apps.sales import targets
+
+    if not can_edit_targets(request.user):
+        return Response({"detail": "فقط مدیر یا ادمین می‌تواند تارگت‌ها را ببیند و تغییر دهد."}, status=403)
+    if request.method == "GET":
+        raw = request.query_params.get("year") or ""
+        year = int(raw) if raw.isdigit() else jdatetime.date.fromgregorian(date=tz.localdate()).year
+        return Response(targets.grid(year))
+    year, cells = request.data.get("year"), request.data.get("cells")
+    if not isinstance(year, int) or not isinstance(cells, list):
+        return Response({"detail": "سال یا خانه‌ها نامعتبر است."}, status=400)
+    source = "copy" if request.data.get("source") == "copy" else "manual"
+    try:
+        changed = targets.save_cells(request.user, year, cells, source=source)
+    except (ValueError, KeyError, TypeError) as exc:
+        return Response({"detail": str(exc) or "داده نامعتبر است."}, status=400)
+    from apps.core.home_cache import clear as clear_home_cache
+
+    clear_home_cache()
+    return Response({**targets.grid(year), "changed": changed})
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def targets_copy_preview(request):
+    """Preview «کپی از سال قبل + X٪» without saving: ?year=&growth="""
+    from apps.sales import targets
+
+    if not can_edit_targets(request.user):
+        return Response({"detail": "دسترسی ندارید."}, status=403)
+    try:
+        year = int(request.query_params.get("year"))
+        growth = float(request.query_params.get("growth") or 0)
+    except (TypeError, ValueError):
+        return Response({"detail": "سال یا درصد نامعتبر است."}, status=400)
+    if not -90 <= growth <= 500:
+        return Response({"detail": "درصد رشد باید بین −۹۰ و ۵۰۰ باشد."}, status=400)
+    return Response(targets.copy_preview(year, growth))

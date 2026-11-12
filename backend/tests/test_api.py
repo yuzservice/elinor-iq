@@ -52,11 +52,10 @@ def test_home_and_sales_use_date_range(auth_api):
 
     start = (timezone.now() - timedelta(days=7)).date().isoformat()
     end = timezone.now().date().isoformat()
-    home = auth_api.get("/api/home/summary/?period=month")
+    home = auth_api.get("/api/home/summary/?period=30", HTTP_HOST="localhost")
     assert home.status_code == 200
-    assert home.data["metrics"]["sales"] >= 0
-    assert len(home.data["metric_cards"]) == 4
-    assert home.data["metric_cards"][0]["lines"]
+    assert home.data["cards"]["sales"]["value"] == 500000  # the 40-day-old and canceled orders are out
+    assert home.data["cards"]["invoices"]["value"] == 1
 
     sales = auth_api.get(f"/api/sales/summary/?from={start}&to={end}")
     assert sales.status_code == 200

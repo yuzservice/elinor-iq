@@ -294,8 +294,16 @@ def _ids(raw):
     return [value for value in (_as_int(part) for part in _split(raw)) if value is not None]
 
 
+TIER_CHANGE_REASONS = (CustomerTierHistory.REASON_DAILY, CustomerTierHistory.REASON_SYNC)
+
+
 def _apply_tier_change(qs, params):
-    """ارتقا / تنزل in a date range, from CustomerTierHistory. A higher tier has a lower rank; no tier ranks last."""
+    """ارتقا / تنزل in a date range, from CustomerTierHistory. A higher tier has a lower rank.
+
+    Only natural changes count: reason daily or sync (activation, baseline, manual and internal-account rows are rule or
+    admin changes, not customer behaviour). Ranks are compared only within one channel (both empty = the same, non-channel
+    rules); a channel switch is neither up nor down. A move to no tier is not a drop (internal accounts cleared, rules
+    that no longer match); entering a tier from none still counts as up. Rules: docs/business-rules/customer-tiers.md."""
     direction = (params.get("tier_change") or "").strip().lower()
     if direction not in ("up", "down"):
         return qs
@@ -305,8 +313,16 @@ def _apply_tier_change(qs, params):
         return Case(*[When(**{field: code}, then=Value(index)) for index, code in enumerate(codes)], default=Value(len(codes)), output_field=IntegerField())
 
     # Uncorrelated: one pass over the history (hash semi-join), not one probe per customer.
-    history = CustomerTierHistory.objects.annotate(old_rank=rank("previous_tier_code"), new_rank=rank("tier_code"))
+    history = CustomerTierHistory.objects.filter(
+        Q(previous_channel=F("channel")) | Q(previous_channel__isnull=True, channel__isnull=True),
+        reason__in=TIER_CHANGE_REASONS, tier_code__isnull=False,
+    ).annotate(old_rank=rank("previous_tier_code"), new_rank=rank("tier_code"))
     history = history.filter(new_rank__lt=F("old_rank")) if direction == "up" else history.filter(new_rank__gt=F("old_rank"))
+    from_codes = [code.strip().upper() for code in _split(params.get("tier_change_from")) if code.strip()]
+    if from_codes:
+        # «از سطوح …»: only changes that started from these tiers (codes are unique per channel); internal accounts out.
+        history = history.filter(previous_tier_code__in=from_codes)
+        qs = exclude_operator_accounts(qs)
     after = _parse_bound(params.get("tier_change_after"), end_of_day=False) if params.get("tier_change_after") else None
     before = _parse_bound(params.get("tier_change_before"), end_of_day=True) if params.get("tier_change_before") else None
     if after:

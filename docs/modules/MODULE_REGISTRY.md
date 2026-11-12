@@ -46,35 +46,33 @@ This registry catalogs the core architectural modules of ELINOR IQ V2. Each entr
 
 ---
 
-## 2. Core Infrastructure & Dashboard Summary (`apps.core`)
+## 2. Core Infrastructure & Home Page (`apps.core`)
 
-- **Responsibility:** Provides platform-wide health monitoring, centralized REST exception handling, data coverage notices, and executive overview metrics.
-- **Traceability Status:** **Verified Implementation** (Confidence: HIGH).
+- **Responsibility:** Health checks, JSON error handling, data coverage notices, and the Home page: sales, invoices, basket and
+  buyers per period, today so far, branches, trend, sales target progress and «نیاز به توجه». Rules:
+  `docs/business-rules/home-and-targets.md`; decision `docs/decisions/0009-home-and-sales-targets.md`.
+- **Traceability Status:** **Verified Implementation** on `feature/home-redesign` (not merged).
 - **Key Source File Paths:**
-  - `backend/apps/core/health.py`
-  - `backend/apps/core/exceptions.py`
-  - `backend/apps/core/coverage.py`
-  - `backend/apps/core/views.py`
-  - `backend/apps/core/home_metrics.py`
-  - `backend/apps/core/metrics.py`
-  - `backend/apps/core/urls.py`
-  - `backend/apps/core/health_urls.py`
-- **Primary Database Models:**
-  - No dedicated tables; operates across `Order`, `PosSale`, and `Customer` models.
+  - `backend/apps/core/home.py` (windows, figures, attention), `home_cache.py` (60 s cache), `views.py`, `urls.py`
+  - `backend/apps/sales/targets.py` (targets, Jalali periods, progress, copy preview); models `SalesTarget`, `SalesTargetChange`
+  - `backend/apps/core/health.py`, `exceptions.py`, `coverage.py`, `metrics.py`, `health_urls.py`
+- **Primary Database Models:** `sales_targets`, `sales_target_changes` (`sales.0006`); reads `Order`, `PosSale`, `PosSaleItem`,
+  `CustomerMetrics`, `CustomerTierHistory`, `CallTask`, `CallEscalation`, `SyncRun`, `product_status_changes` (`products.0004`).
 - **Important Services & APIs:**
-  - `GET /api/health/` (`health_check`): Evaluates database connectivity and service readiness.
-  - `GET /api/home/summary/` (`home_summary`): Aggregates cross-channel executive metrics (order volume, gross merchandise value, store vs. online breakdown, recent trends).
-  - `coverage_payload()` (`apps.core.coverage`): Computes data freshness and lag across POS sales lines (`SARI`, `GORGAN`, `CAPRI`) against system date.
-  - `api_exception_handler()` (`apps.core.exceptions`): Enforces consistent JSON error schemas.
+  - `GET /api/health/` (`health_check`).
+  - `GET /api/home/summary/?period=today|7|30|90|custom&from&to`: figures (cached 60 s) and role-filtered attention items.
+  - `GET /api/home/targets/?scope=month|quarter|year`: target progress for the current Jalali period.
+  - `GET|PUT /api/sales/targets/?year=`, `GET /api/sales/targets/copy-preview/?year&growth`: Settings grid (super_admin, admin, manager).
+  - `coverage_payload()` (`apps.core.coverage`), `api_exception_handler()` (`apps.core.exceptions`).
+  - Removed 2026-11-13: `apps/core/home_metrics.py` and the old home payload (`metric_cards`, `recent_orders`, `needs_attention`).
 - **Frontend Entrypoints & Components:**
-  - Page: `frontend/src/pages/HomePage.tsx`
-  - Service: `frontend/src/services/home.ts`
-  - Components: `frontend/src/components/dashboard/metricCards.tsx`, `frontend/src/components/dashboard/charts.tsx`
+  - Page: `frontend/src/pages/HomePage.tsx`; Settings section `features/home/TargetsPanel.tsx`
+  - `frontend/src/features/home/` (`TargetsSection.tsx`, `types.ts`); service `frontend/src/services/home.ts`
+  - Only `components/dashboard/charts.tsx` `RevenueChart` remains (used by Sales).
 - **Dependencies on Other Modules:**
-  - `apps.sales` (queries `Order`, `PosSale`, and sales semantics).
-  - `apps.customers` (queries `Customer`).
-  - `apps.integrations.elinor` (inspects `SyncCursor`).
-- **Existing Technical Documentation:** [[architecture/SYSTEM_OVERVIEW#22-container-responsibilities--topology]], [[CORE_HISTORICAL_IMPORT#compatibility-notes]]
+  - `apps.sales` (semantics, targets), `apps.customers` (operators, metrics, tier-change filter), `apps.calls`, `apps.products`,
+    `apps.integrations.elinor` (`SyncRun`).
+- **Existing Technical Documentation:** [[home-and-targets]], [[architecture/SYSTEM_OVERVIEW#22-container-responsibilities--topology]]
 
 ---
 
