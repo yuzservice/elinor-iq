@@ -70,7 +70,7 @@ button:focus-visible,a:focus-visible{outline:2px solid #60a5fa;outline-offset:2p
       <a href="#" title="{{k.help}}" class="card col" style="padding: 15px 18px; gap: 6px; text-decoration: none; color: inherit;">
         <span class="row" style="justify-content: space-between;"><span style="font-size: 13px; color: #cbd5e1;">{{k.label}}</span><span class="mut">{{k.link}} ‹</span></span>
         <span style="display: flex; align-items: baseline; gap: 5px;"><span style="font-size: 26px; font-weight: 800;">{{k.value}}</span><span class="mut">{{k.unit}}</span></span>
-        <span style="{{k.deltaStyle}}">{{k.delta}}</span>
+        <span style="{{k.deltaStyle}}" title="{{k.cmpTip}}">{{k.delta}}</span>
         <span class="mut">{{k.note}}</span>
       </a>
     </sc-for>
@@ -85,7 +85,7 @@ button:focus-visible,a:focus-visible{outline:2px solid #60a5fa;outline-offset:2p
       <span>شعبه</span><span>فروش</span><span>فاکتور</span><span>کالا</span><span>سبد</span><span>تغییر</span>
     </div>
     <sc-for list="{{brRows}}" as="b" hint-placeholder-count="5">
-      <div style="{{b.rowStyle}}">
+      <div style="{{b.rowStyle}}" title="{{b.tip}}">
         <span class="row" style="gap: 7px; font-weight: 600;"><span style="{{b.dot}}"></span>{{b.name}}</span>
         <span class="col" style="gap: 4px;"><span><b>{{b.sales}}</b> <span class="mut">میلیون</span></span><span style="height: 4px; border-radius: 2px; background: rgba(255,255,255,.06);"><span style="{{b.bar}}"></span></span></span>
         <span>{{b.inv}}</span><span>{{b.items}}</span><span>{{b.basket}}</span>
@@ -96,13 +96,28 @@ button:focus-visible,a:focus-visible{outline:2px solid #60a5fa;outline-offset:2p
 
   <section class="card col" aria-label="روند فروش" style="padding: 16px 18px; gap: 10px;">
     <div class="row" style="justify-content: space-between;"><h2 class="h">روند فروش</h2><span class="row" style="gap: 12px; font-size: 12px; color: #cbd5e1;"><span class="row" style="gap: 5px;"><span style="width: 10px; height: 10px; border-radius: 2px; background: #3b82f6;"></span>{{curLegend}}</span><sc-if value="{{hasCmp}}" hint-placeholder-val="{{ true }}"><span class="row" style="gap: 5px;"><span style="width: 14px; height: 0; border-top: 2px dashed #f8fafc;"></span>{{cmpLegend}}</span></sc-if></span></div>
-    <div role="img" aria-label="نمودار روند فروش" style="display: flex; align-items: flex-end; gap: 3px; height: 190px; border-bottom: 1px solid rgba(255,255,255,.1);">
-      <sc-for list="{{bars}}" as="b" hint-placeholder-count="30">
-        <span title="{{b.tip}}" style="position: relative; flex: 1 1 0; height: 100%; display: flex; align-items: flex-end;">
-          <span style="{{b.style}}"></span>
-          <span style="{{b.cmp}}"></span>
-        </span>
-      </sc-for>
+    <div style="position: relative;" onMouseLeave="{{leave}}">
+      <div aria-label="نمودار روند فروش؛ برای جزئیات روی هر ستون بروید" style="display: flex; align-items: flex-end; gap: 3px; height: 190px; border-bottom: 1px solid rgba(255,255,255,.1);">
+        <sc-for list="{{bars}}" as="b" hint-placeholder-count="30">
+          <button type="button" aria-label="{{b.aria}}" onMouseEnter="{{b.enter}}" onFocus="{{b.enter}}" onClick="{{b.enter}}" style="position: relative; flex: 1 1 0; height: 100%; display: flex; align-items: flex-end; padding: 0; border: 0; background: transparent; cursor: pointer;">
+            <span style="{{b.style}}"></span>
+            <span style="{{b.cmp}}"></span>
+          </button>
+        </sc-for>
+      </div>
+      <sc-if value="{{hasTip}}" hint-placeholder-val="{{ false }}">
+        <div role="status" style="{{tip.box}}">
+          <span style="font-size: 12.5px; font-weight: 700; color: #f8fafc;">{{tip.title}}</span>
+          <div class="row" style="justify-content: space-between; gap: 14px;"><span class="mut">فروش</span><b style="font-size: 15px;">{{tip.sales}}</b></div>
+          <sc-if value="{{tip.hasCmp}}" hint-placeholder-val="{{ true }}"><div class="row" style="justify-content: space-between; gap: 14px;"><span class="mut">{{tip.cmpLabel}}</span><span>{{tip.cmp}} <span style="{{tip.deltaStyle}}">{{tip.delta}}</span></span></div></sc-if>
+          <div class="row" style="justify-content: space-between; gap: 14px;"><span class="mut">فاکتور / کالا</span><span>{{tip.inv}} / {{tip.items}}</span></div>
+          <sc-if value="{{tip.hasBranches}}" hint-placeholder-val="{{ true }}">
+            <div class="col" style="gap: 3px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,.08);">
+              <sc-for list="{{tip.branches}}" as="r" hint-placeholder-count="4"><div class="row" style="justify-content: space-between; gap: 14px; font-size: 12px;"><span class="row" style="gap: 6px;"><span style="{{r.dot}}"></span>{{r.name}}</span><span>{{r.v}}</span></div></sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
     </div>
     <div style="display: flex; gap: 3px;"><sc-for list="{{axis}}" as="l" hint-placeholder-count="30"><span style="flex: 1 1 0; text-align: center; font-size: 10.5px; color: #64748b; white-space: nowrap;">{{l}}</span></sc-for></div>
   </section>
@@ -123,7 +138,7 @@ button:focus-visible,a:focus-visible{outline:2px solid #60a5fa;outline-offset:2p
         </div>
         <div style="position: relative; height: 16px; border-radius: 8px; background: rgba(255,255,255,.07);">
           <div style="{{barStyle}}"></div>
-          <div title="جایی که باید تا امروز می‌رسیدیم" style="{{expectStyle}}"></div>
+          <div title="{{expectTip}}" style="{{expectStyle}}"></div>
         </div>
         <div class="row" style="justify-content: space-between;"><span class="mut">{{elapsed}}</span><span class="mut">خط عمودی: جایی که باید تا امروز می‌رسیدیم</span></div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.07);">
@@ -134,7 +149,7 @@ button:focus-visible,a:focus-visible{outline:2px solid #60a5fa;outline-offset:2p
         <sc-for list="{{tBranches}}" as="b" hint-placeholder-count="4">
           <div class="col" style="gap: 5px;">
             <div class="row" style="justify-content: space-between; font-size: 13px;"><span class="row" style="gap: 7px;"><span style="{{b.dot}}"></span>{{b.name}}</span><span><b>{{b.pct}}</b> <span class="mut">{{b.of}}</span></span></div>
-            <div style="position: relative; height: 8px; border-radius: 4px; background: rgba(255,255,255,.07);"><div style="{{b.bar}}"></div><div style="{{b.expect}}"></div></div>
+            <div title="{{b.tip}}" style="position: relative; height: 8px; border-radius: 4px; background: rgba(255,255,255,.07);"><div style="{{b.bar}}"></div><div style="{{b.expect}}"></div></div>
             <span style="{{b.statusStyle}}">{{b.status}}</span>
           </div>
         </sc-for>
@@ -159,7 +174,7 @@ button:focus-visible,a:focus-visible{outline:2px solid #60a5fa;outline-offset:2p
 class Component extends DCLogic {
   constructor(props) {
     super(props);
-    this.state = { period: 'today', cmp: 'prev', br: 'all', open: null, tp: 'month', range: [14050801, 14050820], cal: false, calY: 1405, calM: 8, pick: [] };
+    this.state = { hover: null, period: 'today', cmp: 'prev', br: 'all', open: null, tp: 'month', range: [14050801, 14050820], cal: false, calY: 1405, calM: 8, pick: [] };
   }
   renderVals() {
     var self = this, S = this.state;
@@ -199,7 +214,7 @@ class Component extends DCLogic {
     }
 
     var rangeText = isToday ? 'امروز ۱۴۰۵/۰۸/۲۰ تا ساعت ۱۵:۰۰' : (S.period === 'custom' ? faD(S.range[0]) + ' تا ' + faD(S.range[1]) : ({ '7': '۱۴۰۵/۰۸/۱۴ تا ۱۴۰۵/۰۸/۲۰', '30': '۱۴۰۵/۰۷/۲۱ تا ۱۴۰۵/۰۸/۲۰', '90': '۱۴۰۵/۰۵/۲۱ تا ۱۴۰۵/۰۸/۲۰' }[S.period]));
-    var cmpText = !hasCmp ? 'بدون مقایسه' : (isToday ? (S.cmp === 'yoy' ? '۱۴۰۴/۰۸/۲۰ تا همین ساعت' : 'سه‌شنبه ۱۴۰۵/۰۸/۱۳ تا همین ساعت') : (S.cmp === 'yoy' ? 'همین بازه در سال ۱۴۰۴' : 'بازه هم‌اندازه قبلی'));
+    var cmpText = !hasCmp ? 'بدون مقایسه' : (isToday ? (S.cmp === 'yoy' ? '۱۴۰۴/۰۸/۲۰ تا همین ساعت' : 'چهارشنبه ۱۴۰۵/۰۸/۱۳ تا همین ساعت') : (S.cmp === 'yoy' ? 'همین بازه در سال ۱۴۰۴' : 'بازه هم‌اندازه قبلی'));
 
     var BR = [['site', 'سایت', '#3b82f6'], ['sari', 'ساری', '#10b981'], ['gorgan', 'گرگان', '#f59e0b'], ['capri', 'کاپری', '#8b5cf6']];
     var data = isToday ? { site: [31, 16, 34, 8], sari: [33, 14, 38, 19], gorgan: [17, 8, 19, -6], capri: [5, 3, 6, 25] }
@@ -211,24 +226,43 @@ class Component extends DCLogic {
     var brRows = shown.map(function (b) {
       var d = data[b[0]];
       return { name: b[1], dot: 'width: 8px; height: 8px; border-radius: 50%; background: ' + b[2] + ';', sales: fa(d[0]), inv: fa(d[1]), items: fa(d[2]), basket: fa(Math.round(d[0] / d[1] * 10) / 10) + ' م',
+        tip: 'سهم از فروش: ' + fa(Math.round(d[0] / tot[0] * 100)) + '٪' + (hasCmp ? '؛ ' + (isToday ? 'همان زمان مقایسه' : 'دوره مقایسه') + ': ' + fa(Math.round(d[0] / (1 + d[3] / 100))) + ' میلیون' : ''),
         bar: 'display: block; height: 4px; border-radius: 2px; background: ' + b[2] + '; width: ' + Math.round(d[0] / mxS * 100) + '%;', delta: hasCmp ? arrow(d[3]) : '—', deltaStyle: hasCmp ? up(d[3]) : 'color: #64748b;', rowStyle: rowStyle(false) };
     });
-    if (S.br === 'all') brRows.unshift({ name: 'کل الینور', dot: 'display: none;', sales: fa(tot[0]), inv: fa(tot[1]), items: fa(tot[2]), basket: fa(Math.round(tot[0] / tot[1] * 10) / 10) + ' م', bar: 'display: none;', delta: hasCmp ? arrow(isToday ? 12 : 9) : '—', deltaStyle: hasCmp ? up(1) : 'color: #64748b;', rowStyle: rowStyle(true) });
+    if (S.br === 'all') brRows.unshift({ name: 'کل الینور', dot: 'display: none;', sales: fa(tot[0]), inv: fa(tot[1]), items: fa(tot[2]), basket: fa(Math.round(tot[0] / tot[1] * 10) / 10) + ' م', bar: 'display: none;', tip: 'جمع همه شعب', delta: hasCmp ? arrow(isToday ? 12 : 9) : '—', deltaStyle: hasCmp ? up(1) : 'color: #64748b;', rowStyle: rowStyle(true) });
 
     var series = isToday ? [0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 6, 9, 11, 13, 15, 12] : [62, 71, 58, 90, 104, 96, 70, 66, 80, 73, 95, 112, 99, 74, 68, 84, 88, 101, 120, 108, 79, 72, 86, 91, 97, 118, 126, 102, 83, 77];
     var cmpSeries = isToday ? [0, 0, 0, 0, 0, 0, 0, 0, 1, 3, 5, 8, 9, 12, 11, 10] : [60, 64, 61, 78, 92, 88, 66, 63, 71, 70, 86, 98, 90, 70, 65, 74, 80, 89, 104, 96, 74, 69, 78, 82, 88, 101, 109, 94, 79, 72];
     var slots = isToday ? 24 : series.length, share = S.br === 'all' ? 1 : data[S.br][0] / (data.site[0] + data.sari[0] + data.gorgan[0] + data.capri[0]);
     var mx = Math.max.apply(null, series.concat(cmpSeries)) * 1.1 * share || 1;
+    var WD = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه'];
+    var dayLabel = function (i) { var d = 21 + i, m = 7; if (d > 30) { d -= 30; m = 8; } var off = 6 * 31 + (m - 7) * 30 + d - 1; return WD[off % 7] + ' ' + P('1405/' + (m < 10 ? '0' : '') + m + '/' + (d < 10 ? '0' : '') + d); };
+    var SH = [['سایت', '#3b82f6', 0.38], ['ساری', '#10b981', 0.37], ['گرگان', '#f59e0b', 0.19], ['کاپری', '#8b5cf6', 0.06]];
     var bars = [], axis = [];
     for (var i = 0; i < slots; i++) {
       var v = series[i], c = cmpSeries[i], future = isToday && i >= series.length;
       var vv = (v || 0) * share, cc = (c || 0) * share;
-      bars.push({ tip: future ? P(i) + ':۰۰، هنوز نرسیده' : (isToday ? P(i) + ':۰۰' : 'روز ' + P(i + 1)) + ': ' + fa(Math.round(vv * 10) / 10) + ' میلیون' + (hasCmp ? '؛ مقایسه: ' + fa(Math.round(cc * 10) / 10) : ''),
+      (function (idx, vv, cc, future) {
+        bars.push({ aria: future ? '' : (isToday ? 'ساعت ' + P(idx) : dayLabel(idx)) + '، فروش ' + fa(Math.round(vv * 10) / 10) + ' میلیون', enter: function () { if (!future) self.setState({ hover: idx }); } });
+      })(i, vv, cc, future);
+      Object.assign(bars[bars.length - 1], { tip: future ? P(i) + ':۰۰، هنوز نرسیده' : (isToday ? P(i) + ':۰۰' : 'روز ' + P(i + 1)) + ': ' + fa(Math.round(vv * 10) / 10) + ' میلیون' + (hasCmp ? '؛ مقایسه: ' + fa(Math.round(cc * 10) / 10) : ''),
         style: 'width: 100%; border-radius: 3px 3px 0 0; background: ' + (future ? 'rgba(255,255,255,.035)' : '#3b82f6') + '; height: ' + (future ? '100%' : Math.max(1, Math.round(vv / mx * 100)) + '%') + ';',
         cmp: hasCmp && !future ? 'position: absolute; left: 0; right: 0; bottom: ' + Math.round(cc / mx * 100) + '%; border-top: 2px dashed rgba(248,250,252,.75);' : 'display: none;' });
+      bars[bars.length - 1].vv = vv; bars[bars.length - 1].cc = cc;
       axis.push(isToday ? (i % 3 === 0 ? P(i) : '') : (i % 5 === 0 ? P(i + 1) : ''));
     }
 
+    var H = S.hover !== null && S.hover < bars.length && bars[S.hover].vv !== undefined ? S.hover : null, tip = {};
+    if (H !== null) {
+      var hv = bars[H].vv, hc = bars[H].cc, dl = hc ? Math.round((hv / hc - 1) * 100) : 0, posPct = (H + 0.5) / slots * 100;
+      tip = { title: isToday ? 'امروز، ساعت ' + P(H) + ':۰۰ تا ' + P(H + 1) + ':۰۰' : dayLabel(H),
+        sales: fa(Math.round(hv * 10) / 10) + ' میلیون تومان', hasCmp: hasCmp, cmpLabel: isToday ? (S.cmp === 'yoy' ? 'همان ساعت سال قبل' : 'همان ساعت هفته قبل') : (S.cmp === 'yoy' ? 'همان روز سال قبل' : 'روز متناظر دوره قبل'),
+        cmp: fa(Math.round(hc * 10) / 10) + ' میلیون', delta: (dl >= 0 ? '▲ ' : '▼ ') + fa(Math.abs(dl)) + '٪', deltaStyle: 'font-size: 12px; font-weight: 600; color: ' + (dl >= 0 ? '#34d399' : '#fb7185') + ';',
+        inv: fa(Math.round(hv * 0.48)), items: fa(Math.round(hv * 1.15)), hasBranches: S.br === 'all',
+        branches: SH.map(function (b) { return { name: b[0], v: fa(Math.round(hv * b[2] * 10) / 10) + ' م', dot: 'width: 7px; height: 7px; border-radius: 50%; background: ' + b[1] + ';' }; }),
+        box: 'position: absolute; top: 8px; ' + (posPct > 50 ? 'left: calc(' + (100 - posPct) + '% + 14px);' : 'right: calc(' + posPct + '% + 14px);') + ' z-index: 10; min-width: 210px; display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 12px; background: #131924; border: 1px solid rgba(255,255,255,.16); box-shadow: 0 16px 36px -10px rgba(0,0,0,.8); font-size: 13px; pointer-events: none;' };
+      bars[H].style = bars[H].style.replace('background: #3b82f6', 'background: #60a5fa');
+    }
     var T = { month: { scope: 'آبان ۱۴۰۵، روز ۲۰ از ۳۰', target: 4000, actual: 2480, elapsedPct: 66.7, left: 10 }, quarter: { scope: 'پاییز ۱۴۰۵، روز ۵۰ از ۹۰', target: 11500, actual: 6480, elapsedPct: 55.6, left: 40 }, year: { scope: 'سال ۱۴۰۵، روز ۲۳۰ از ۳۶۵', target: 42000, actual: 26900, elapsedPct: 63, left: 135 } }[S.tp];
     var TB = [['site', 'سایت', '#3b82f6', 1600, 940], ['sari', 'ساری', '#10b981', 1300, 930], ['gorgan', 'گرگان', '#f59e0b', 800, 470], ['capri', 'کاپری', '#8b5cf6', 300, 140]];
     var k = T.target / 4000, fmtM = function (x) { return x >= 1000 ? fa(Math.round(x / 100) / 10) + ' میلیارد' : fa(Math.round(x)) + ' میلیون'; };
@@ -251,24 +285,25 @@ class Component extends DCLogic {
       calDoneStyle: 'min-height: 34px; padding: 0 16px; border-radius: 9px; border: 0; font-size: 12.5px; font-weight: 600; ' + (S.pick.length === 2 ? 'background: #3b82f6; color: #fff; cursor: pointer;' : 'background: #1e2633; color: #64748b; cursor: not-allowed;'),
       closeCal: function () { if (S.pick.length === 2) self.setState({ cal: false, range: S.pick }); },
       kpis: [
-        { label: 'فروش', value: fa(tot[0]), unit: 'میلیون تومان', delta: hasCmp ? arrow(9) + ' ' + (isToday ? 'نسبت به همان ساعت' : 'نسبت به مقایسه') : 'بدون مقایسه', deltaStyle: hasCmp ? up(9) : 'font-size: 12.5px; color: #64748b;', note: 'آنلاین ۳۸٪، حضوری ۶۲٪', link: 'فروش', help: 'فروش خالص.' },
-        { label: 'تعداد فاکتور', value: fa(tot[1]), unit: 'فاکتور', delta: hasCmp ? arrow(4) : 'بدون مقایسه', deltaStyle: hasCmp ? up(4) : 'font-size: 12.5px; color: #64748b;', note: fa(tot[2]) + ' کالا فروخته شد', link: 'فروش', help: 'فاکتورهای معتبر.' },
-        { label: 'میانگین سبد خرید', value: fa(Math.round(tot[0] / tot[1] * 100) / 100), unit: 'میلیون تومان', delta: hasCmp ? arrow(5) : 'بدون مقایسه', deltaStyle: hasCmp ? up(5) : 'font-size: 12.5px; color: #64748b;', note: 'فروش تقسیم بر فاکتور', link: 'فروش', help: '' },
-        { label: 'خریداران', value: isToday ? fa(38) : fa(1120), unit: 'نفر', delta: hasCmp ? arrow(-2) : 'بدون مقایسه', deltaStyle: hasCmp ? up(-2) : 'font-size: 12.5px; color: #64748b;', note: '۲۲٪ مشتری جدید', link: 'مشتریان', help: '' }
+        { cmpTip: hasCmp ? 'این بازه: ' + fa(tot[0]) + ' میلیون' + '؛ مقایسه: ' + cmpText + ' (' + arrow(9) + ')' : 'مقایسه خاموش است', label: 'فروش', value: fa(tot[0]), unit: 'میلیون تومان', delta: hasCmp ? arrow(9) + ' ' + (isToday ? 'نسبت به همان ساعت' : 'نسبت به مقایسه') : 'بدون مقایسه', deltaStyle: hasCmp ? up(9) : 'font-size: 12.5px; color: #64748b;', note: 'آنلاین ۳۸٪، حضوری ۶۲٪', link: 'فروش', help: 'فروش خالص.' },
+        { cmpTip: hasCmp ? 'این بازه: ' + fa(tot[1]) + '؛ مقایسه: ' + cmpText + ' (' + arrow(4) + ')' : 'مقایسه خاموش است', label: 'تعداد فاکتور', value: fa(tot[1]), unit: 'فاکتور', delta: hasCmp ? arrow(4) : 'بدون مقایسه', deltaStyle: hasCmp ? up(4) : 'font-size: 12.5px; color: #64748b;', note: fa(tot[2]) + ' کالا فروخته شد', link: 'فروش', help: 'فاکتورهای معتبر.' },
+        { cmpTip: hasCmp ? 'این بازه: ' + fa(Math.round(tot[0] / tot[1] * 100) / 100) + ' میلیون' + '؛ مقایسه: ' + cmpText + ' (' + arrow(5) + ')' : 'مقایسه خاموش است', label: 'میانگین سبد خرید', value: fa(Math.round(tot[0] / tot[1] * 100) / 100), unit: 'میلیون تومان', delta: hasCmp ? arrow(5) : 'بدون مقایسه', deltaStyle: hasCmp ? up(5) : 'font-size: 12.5px; color: #64748b;', note: 'فروش تقسیم بر فاکتور', link: 'فروش', help: '' },
+        { cmpTip: hasCmp ? 'این بازه: ' + (isToday ? fa(38) : fa(1120)) + '؛ مقایسه: ' + cmpText + ' (' + arrow(-2) + ')' : 'مقایسه خاموش است', label: 'خریداران', value: isToday ? fa(38) : fa(1120), unit: 'نفر', delta: hasCmp ? arrow(-2) : 'بدون مقایسه', deltaStyle: hasCmp ? up(-2) : 'font-size: 12.5px; color: #64748b;', note: '۲۲٪ مشتری جدید', link: 'مشتریان', help: '' }
       ],
       isToday: isToday,
       brTitle: isToday ? 'امروز تا این لحظه، به تفکیک شعبه' : 'فروش شعب',
       brSub: isToday ? 'در برابر ' + cmpText : rangeText,
       brRows: brRows,
-      bars: bars, axis: axis, hasCmp: hasCmp,
+      bars: bars, axis: axis, hasCmp: hasCmp, hasTip: H !== null, tip: tip, leave: function () { self.setState({ hover: null }); },
       curLegend: isToday ? 'امروز، ساعتی' : 'این بازه، روزانه',
-      cmpLegend: isToday ? (S.cmp === 'yoy' ? 'همان روز سال قبل' : 'سه‌شنبه هفته قبل') : (S.cmp === 'yoy' ? 'همین بازه سال قبل' : 'بازه هم‌اندازه قبلی'),
+      cmpLegend: isToday ? (S.cmp === 'yoy' ? 'همان روز سال قبل' : 'چهارشنبه هفته قبل') : (S.cmp === 'yoy' ? 'همین بازه سال قبل' : 'بازه هم‌اندازه قبلی'),
       tPeriods: [['month', 'ماه'], ['quarter', 'فصل'], ['year', 'سال']].map(function (p) { var on = S.tp === p[0]; return { label: p[1], pressed: on ? 'true' : 'false', style: seg(on), pick: function () { self.setState({ tp: p[0] }); } }; }),
       tScope: T.scope + (S.br === 'all' ? '' : '؛ فقط ' + labelOf(BRS, S.br)),
       tPct: fa(Math.round(pct)) + '٪', tOf: 'از ' + fmtM(T.target) + ' تومان؛ تا امروز ' + fmtM(T.actual),
       paceText: gap >= 0 ? 'جلوتر از برنامه: ' + fa(Math.round(gap)) + '٪' : 'عقب از برنامه: ' + fa(Math.round(-gap)) + '٪',
       paceStyle: 'padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; background: ' + (gap >= 0 ? 'rgba(52,211,153,.15)' : 'rgba(251,113,133,.15)') + '; color: ' + (gap >= 0 ? '#34d399' : '#fb7185') + ';',
       barStyle: 'position: absolute; top: 0; right: 0; height: 16px; border-radius: 8px; background: ' + (gap >= 0 ? '#34d399' : '#fbbf24') + '; width: ' + Math.min(100, pct) + '%;',
+      expectTip: 'تا امروز باید ' + fmtM(T.target * T.elapsedPct / 100) + ' تومان می‌فروختیم؛ فروش واقعی ' + fmtM(T.actual) + ' (' + (T.actual >= T.target * T.elapsedPct / 100 ? '+' : '−') + fmtM(Math.abs(T.actual - T.target * T.elapsedPct / 100)) + ')',
       expectStyle: 'position: absolute; top: -4px; right: calc(' + T.elapsedPct + '% - 1px); width: 2px; height: 24px; background: #f8fafc;',
       elapsed: fa(Math.round(T.elapsedPct)) + '٪ از زمان گذشته است',
       tFacts: [
@@ -282,6 +317,7 @@ class Component extends DCLogic {
         return { name: b[1], dot: 'width: 8px; height: 8px; border-radius: 50%; background: ' + b[2] + ';', pct: fa(Math.round(p)) + '٪', of: 'از ' + fmtM(tg),
           bar: 'position: absolute; top: 0; right: 0; height: 8px; border-radius: 4px; background: ' + b[2] + '; width: ' + Math.min(100, p) + '%;',
           expect: 'position: absolute; top: -3px; right: calc(' + T.elapsedPct + '% - 1px); width: 2px; height: 14px; background: #f8fafc;',
+          tip: 'تارگت ' + fmtM(tg) + '؛ فروش تا امروز ' + fmtM(ac) + '؛ باید تا امروز ' + fmtM(tg * T.elapsedPct / 100) + '؛ برای رسیدن، روزی ' + fmtM(Math.max(0, tg - ac) / T.left) + ' لازم است',
           status: st[0] + ' (' + (g >= 0 ? '+' : '−') + fa(Math.abs(Math.round(g))) + '٪)', statusStyle: 'font-size: 12px; color: ' + st[1] + ';' };
       }),
       alerts: [

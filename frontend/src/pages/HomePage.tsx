@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { JalaliRangePopover } from "../components/JalaliDatePicker";
 import { TargetsSection, money } from "../features/home/TargetsSection";
 import type { AttentionItem, HomeCompare, HomeData, HomePeriodKey } from "../features/home/types";
 import { LINES, delta, fa, jdate, pct } from "../features/products/display";
-import { formatJalali, toFaDigits } from "../lib/dates";
+import { formatJalali, jalaliWeekday, toFaDigits } from "../lib/dates";
 import { tehranTodayIso } from "../lib/format";
 import { homeService } from "../services/home";
 
@@ -27,7 +27,7 @@ function since(iso: string | null) {
 
 const clock = (iso: string | null) =>
   iso ? new Intl.DateTimeFormat("fa-IR", { timeZone: "Asia/Tehran", hour: "2-digit", minute: "2-digit" }).format(new Date(iso)) : "—";
-const weekday = (iso: string) => new Intl.DateTimeFormat("fa-IR", { timeZone: "Asia/Tehran", weekday: "long" }).format(new Date(iso));
+const weekday = jalaliWeekday;
 /** Last day of a window whose end is exclusive. */
 const lastDay = (iso: string) => new Date(Date.parse(iso) - 1).toISOString();
 
@@ -137,15 +137,15 @@ function Delta({ change, ok, suffix = "" }: { change: number | null; ok: boolean
   return <span className="text-[12.5px] font-semibold" style={{ color: d.color }}>{d.text}{change != null && suffix ? ` ${suffix}` : ""}</span>;
 }
 
-function Kpi({ to, label, link, value, unit, change, ok, compareNone, suffix, note, help }: {
+function Kpi({ to, label, link, value, unit, change, ok, compareNone, suffix, note, help, cmpTip }: {
   to: string; label: string; link: string; value: string; unit: string; change: number | null; ok: boolean; compareNone: boolean;
-  suffix?: string; note: string; help: string;
+  suffix?: string; note: string; help: string; cmpTip: string;
 }) {
   return (
     <Link to={to} title={help} className={`${CARD} flex flex-col gap-1.5 px-[18px] py-[15px] text-inherit no-underline hover:border-accent`}>
       <span className="flex justify-between"><span className="text-[13px] text-muted">{label}</span><span className="text-[12.5px] text-muted">{link} ‹</span></span>
       <span className="flex items-baseline gap-1.5"><span className="text-[26px] font-extrabold text-ink">{value}</span><span className="whitespace-nowrap text-[12.5px] text-muted">{unit}</span></span>
-      {compareNone ? <span className="text-[12.5px] text-faint">بدون مقایسه</span> : <Delta change={change} ok={ok} suffix={suffix} />}
+      <span title={cmpTip}>{compareNone ? <span className="text-[12.5px] text-faint">بدون مقایسه</span> : <Delta change={change} ok={ok} suffix={suffix} />}</span>
       <span className="text-[12.5px] text-muted">{note}</span>
     </Link>
   );
@@ -155,6 +155,9 @@ function Cards({ data }: { data: HomeData }) {
   const { sales, invoices, basket, buyers } = data.cards;
   const ok = data.range.comparable;
   const none = data.range.compare === "none";
+  const named = describe(data.range).compare;
+  const tip = (value: string, change: number | null) =>
+    none ? "مقایسه خاموش است" : !ok ? "مقایسه ممکن نیست: سابقه فروش حضوری از ۱۴۰۴/۰۳/۱۰" : `این بازه: ${value}؛ مقایسه: ${named} (${delta(change).text})`;
   const [salesValue, ...salesUnit] = money(sales.value).split(" ");
   const [basketValue, ...basketUnit] = money(basket.value).split(" ");
   return (
@@ -162,13 +165,13 @@ function Cards({ data }: { data: HomeData }) {
       <Kpi to="/sales" label="فروش" link="فروش" value={salesValue} unit={`${salesUnit.join(" ")} تومان`} change={sales.change} ok={ok} compareNone={none}
         suffix={data.range.period === "today" ? "نسبت به همان ساعت" : "نسبت به مقایسه"}
         note={sales.online_share == null ? (data.range.lines.length === 1 ? lineOf(data.range.lines[0])?.label ?? "" : "—") : `آنلاین ${pct(sales.online_share)}، حضوری ${pct(1 - sales.online_share)}`}
-        help="فروش خالص: ارزش سفارش‌های آنلاین + ردیف‌های فروش فروشگاه‌ها." />
+        help="فروش خالص: ارزش سفارش‌های آنلاین + ردیف‌های فروش فروشگاه‌ها." cmpTip={tip(`${money(sales.value)} تومان`, sales.change)} />
       <Kpi to="/sales" label="تعداد فاکتور" link="فروش" value={fa(invoices.value)} unit="فاکتور" change={invoices.change} ok={ok} compareNone={none}
-        note={`${fa(invoices.items)} کالا فروخته شد`} help="سفارش‌های آنلاین معتبر + فاکتورهای فروش فروشگاه‌ها." />
+        note={`${fa(invoices.items)} کالا فروخته شد`} help="سفارش‌های آنلاین معتبر + فاکتورهای فروش فروشگاه‌ها." cmpTip={tip(fa(invoices.value), invoices.change)} />
       <Kpi to="/sales" label="میانگین سبد خرید" link="فروش" value={basketValue} unit={`${basketUnit.join(" ")} تومان`} change={basket.change} ok={ok} compareNone={none}
-        note="فروش تقسیم بر فاکتور" help="فروش تقسیم بر تعداد فاکتور." />
+        note="فروش تقسیم بر فاکتور" help="فروش تقسیم بر تعداد فاکتور." cmpTip={tip(`${money(basket.value)} تومان`, basket.change)} />
       <Kpi to="/customers" label="خریداران" link="مشتریان" value={fa(buyers.value)} unit="نفر" change={buyers.change} ok={ok} compareNone={none}
-        note={buyers.new_share == null ? "—" : `${pct(buyers.new_share)} مشتری جدید`} help="مشتریانی که در این بازه خرید کرده‌اند، بدون اکانت‌های داخلی." />
+        note={buyers.new_share == null ? "—" : `${pct(buyers.new_share)} مشتری جدید`} help="مشتریانی که در این بازه خرید کرده‌اند، بدون اکانت‌های داخلی." cmpTip={tip(fa(buyers.value), buyers.change)} />
     </section>
   );
 }
@@ -177,6 +180,13 @@ function Branches({ data, compareText }: { data: HomeData; compareText: string |
   const today = data.range.period === "today";
   const ok = data.range.comparable;
   const max = Math.max(1, ...data.branches.map((b) => b.sales));
+  const totalSales = data.total?.sales ?? data.branches.reduce((sum, b) => sum + b.sales, 0);
+  const rowTip = (row: { sales: number; compare_sales: number | null }, whole = false) => {
+    const share = whole ? "جمع همه شعب" : `سهم از فروش: ${totalSales ? pct(row.sales / totalSales) : "—"}`;
+    if (data.range.compare === "none") return share;
+    if (!ok || row.compare_sales == null) return `${share}؛ مقایسه ممکن نیست`;
+    return `${share}؛ ${today ? "همان زمان مقایسه" : "دوره مقایسه"}: ${money(row.compare_sales)} تومان`;
+  };
   const cell = (row: HomeData["branches"][number] | NonNullable<HomeData["total"]>) => (
     <>
       <span className="flex flex-col gap-1">
@@ -205,9 +215,9 @@ function Branches({ data, compareText }: { data: HomeData; compareText: string |
       <div className="overflow-x-auto">
         <div className="min-w-[560px]">
           <div className={`${ROW_GRID} py-1.5 text-xs text-faint`}><span>شعبه</span><span>فروش</span><span>فاکتور</span><span>کالا</span><span>سبد</span><span>تغییر</span></div>
-          {data.total ? <div className={`${ROW_GRID} min-h-[46px] border-t border-line py-1.5 text-[13.5px] font-semibold`}><span>کل الینور</span>{cell(data.total)}</div> : null}
+          {data.total ? <div title={rowTip(data.total, true)} className={`${ROW_GRID} min-h-[46px] border-t border-line py-1.5 text-[13.5px] font-semibold`}><span>کل الینور</span>{cell(data.total)}</div> : null}
           {data.branches.map((b) => (
-            <div key={b.line} className={`${ROW_GRID} min-h-[46px] border-t border-line py-1.5 text-[13.5px]`}>
+            <div key={b.line} title={rowTip(b)} className={`${ROW_GRID} min-h-[46px] border-t border-line py-1.5 text-[13.5px]`}>
               <span className="flex items-center gap-[7px] font-semibold"><span className="h-2 w-2 rounded-full" style={{ background: lineOf(b.line)?.color }} />{lineOf(b.line)?.label}</span>
               {cell(b)}
             </div>
@@ -218,12 +228,26 @@ function Branches({ data, compareText }: { data: HomeData; compareText: string |
   );
 }
 
+const CARD_WIDTH = 220;
+
 function Trend({ data }: { data: HomeData }) {
   const hourly = data.range.bucket === "hour";
   const points = data.trend;
   const hasCompare = data.range.compare !== "none" && data.range.comparable;
+  const allBranches = data.range.lines.length > 1;
   const max = Math.max(1, ...points.map((p) => Math.max(p.sales ?? 0, p.compare ?? 0))) * 1.1;
-  const label = (key: string | number) => (hourly ? `${toFaDigits(key)}:۰۰` : jdate(String(key)));
+  const [hover, setHover] = useState<number | null>(null);
+  const [width, setWidth] = useState(0);
+  const chart = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const measure = () => setWidth(chart.current?.clientWidth ?? 0);
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
+  const hourLabel = (h: number) => `${toFaDigits(String(h).padStart(2, "0"))}:۰۰`;
+  const title = (key: string | number) =>
+    hourly ? `ساعت ${hourLabel(Number(key))} تا ${hourLabel(Number(key) + 1)}` : `${weekday(String(key))} ${jdate(String(key))}`;
   const axis = (key: string | number, index: number) =>
     hourly ? (index % 3 === 0 ? toFaDigits(key) : "") : index % Math.max(1, Math.ceil(points.length / 6)) === 0 ? formatJalali(String(key)).slice(5) : "";
   const compareLegend = data.range.compare === "none"
@@ -233,6 +257,23 @@ function Trend({ data }: { data: HomeData }) {
       : hourly
         ? data.range.compare === "yoy" ? "همان روز سال قبل" : `${weekday(data.range.compare_from ?? data.range.from)} هفته قبل`
         : data.range.compare === "yoy" ? "همین بازه سال قبل" : "بازه هم‌اندازه قبلی";
+  const compareLabel = hourly
+    ? data.range.compare === "yoy" ? "همان ساعت سال قبل" : "همان ساعت هفته قبل"
+    : data.range.compare === "yoy" ? "همان روز سال قبل" : "روز متناظر دوره قبل";
+  const open = (index: number) => !points[index].future && setHover(index);
+  const onKey = (event: ReactKeyboardEvent) => event.key === "Escape" && setHover(null);
+
+  const point = hover != null ? points[hover] : null;
+  // The card sits beside the hovered bar on the side with more room and never leaves the chart (RTL: bar 0 is on the right).
+  let left = 0;
+  if (point && width) {
+    const center = width - ((hover as number) + 0.5) * (width / points.length);
+    const cardWidth = Math.min(CARD_WIDTH, width);
+    left = center > width / 2 ? center - 14 - cardWidth : center + 14;
+    left = Math.max(0, Math.min(left, width - cardWidth));
+  }
+  const change = point && point.compare ? ((point.sales ?? 0) - point.compare) * 100 / point.compare : null;
+
   return (
     <section aria-label="روند فروش" className={`${CARD} flex flex-col gap-2.5 px-[18px] py-4`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -244,17 +285,51 @@ function Trend({ data }: { data: HomeData }) {
           ) : null}
         </span>
       </div>
-      <div role="img" aria-label="نمودار روند فروش" className="flex h-[190px] items-end gap-[3px] border-b border-line">
-        {points.map((p) => (
-          <span key={String(p.key)} className="relative flex h-full min-w-0 flex-1 items-end"
-            title={p.future ? `${label(p.key)}، هنوز نرسیده` : `${label(p.key)}: ${money(p.sales)} تومان${hasCompare && p.compare != null ? `؛ مقایسه: ${money(p.compare)}` : ""}`}>
-            <span className={`w-full rounded-t-[3px] ${p.future ? "bg-[var(--chart-track)] opacity-50" : "bg-accent"}`}
-              style={{ height: p.future ? "100%" : `${Math.max(1, ((p.sales ?? 0) / max) * 100)}%` }} />
-            {hasCompare && !p.future && p.compare != null ? (
-              <span className="absolute inset-x-0 border-t-2 border-dashed border-ink/75" style={{ bottom: `${(p.compare / max) * 100}%` }} />
+      <div ref={chart} className="relative" onMouseLeave={() => setHover(null)} onKeyDown={onKey}>
+        <div aria-label="نمودار روند فروش؛ برای جزئیات روی هر ستون بروید" className="flex h-[190px] items-end gap-[3px] border-b border-line">
+          {points.map((p, index) => (
+            <button
+              key={String(p.key)}
+              type="button"
+              disabled={p.future}
+              aria-label={p.future ? `${title(p.key)}، هنوز نرسیده` : `${title(p.key)}، فروش ${money(p.sales)} تومان`}
+              onMouseEnter={() => open(index)}
+              onFocus={() => open(index)}
+              onClick={() => open(index)}
+              className="relative flex h-full min-w-0 flex-1 cursor-pointer items-end border-0 bg-transparent p-0 disabled:cursor-default"
+            >
+              <span className={`w-full rounded-t-[3px] ${p.future ? "bg-[var(--chart-track)] opacity-50" : hover === index ? "bg-blue-400" : "bg-accent"}`}
+                style={{ height: p.future ? "100%" : `${Math.max(1, ((p.sales ?? 0) / max) * 100)}%` }} />
+              {hasCompare && !p.future && p.compare != null ? (
+                <span className="absolute inset-x-0 border-t-2 border-dashed border-ink/75" style={{ bottom: `${(p.compare / max) * 100}%` }} />
+              ) : null}
+            </button>
+          ))}
+        </div>
+        {point ? (
+          <div role="status" className="absolute top-2 z-10 flex flex-col gap-1.5 rounded-xl border border-line bg-elevated px-3.5 py-3 text-[13px] shadow-2xl"
+            style={{ left, width: Math.min(CARD_WIDTH, width || CARD_WIDTH) }}>
+            <span className="text-[12.5px] font-bold text-ink">{hourly ? `امروز، ${title(point.key)}` : title(point.key)}</span>
+            <div className="flex justify-between gap-3.5"><span className="text-[12.5px] text-muted">فروش</span><b className="text-[15px] text-ink">{money(point.sales)} تومان</b></div>
+            {hasCompare && point.compare != null ? (
+              <div className="flex justify-between gap-3.5">
+                <span className="text-[12.5px] text-muted">{compareLabel}</span>
+                <span>{money(point.compare)} <span className="text-xs font-semibold" style={{ color: delta(change).color }}>{delta(change).text}</span></span>
+              </div>
             ) : null}
-          </span>
-        ))}
+            <div className="flex justify-between gap-3.5"><span className="text-[12.5px] text-muted">فاکتور / کالا</span><span>{fa(point.invoices)} / {fa(point.items)}</span></div>
+            {allBranches && point.lines ? (
+              <div className="flex flex-col gap-[3px] border-t border-line pt-1.5">
+                {LINES.filter((l) => point.lines?.[l.key] != null).map((l) => (
+                  <div key={l.key} className="flex justify-between gap-3.5 text-xs">
+                    <span className="flex items-center gap-1.5"><span className="h-[7px] w-[7px] rounded-full" style={{ background: l.color }} />{l.label}</span>
+                    <span>{money(point.lines?.[l.key])}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
       <div className="flex gap-[3px]">
         {points.map((p, i) => <span key={String(p.key)} className="min-w-0 flex-1 whitespace-nowrap text-center text-[10.5px] text-faint">{axis(p.key, i)}</span>)}
