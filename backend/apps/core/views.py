@@ -8,7 +8,7 @@ from rest_framework.response import Response
 def home_summary(request):
     """Home page: period figures, today so far, branches, trend (cached 60 s) and role-filtered attention items."""
     from apps.core import home
-    from apps.core.home_cache import cached
+    from apps.core.home_cache import cached, summary_key
     from apps.sales.targets import progress
 
     params = {key: request.query_params.get(key) for key in ("period", "from", "to", "compare", "line")}
@@ -16,8 +16,7 @@ def home_summary(request):
         home.resolve_window(params)
     except ValueError:
         return Response({"detail": "بازه تاریخ نامعتبر است."}, status=400)
-    key = "summary:" + ":".join(str(params[k]) for k in ("period", "from", "to", "compare", "line"))
-    data = cached(key, lambda: home.summary(params))
+    data = cached(summary_key(params), lambda: home.summary(params))
     lines = home.parse_lines(params["line"])
     targets = cached(f"targets:month:{params['line']}", lambda: progress("month", lines=lines))
     facts = cached("attention", home.attention_facts)

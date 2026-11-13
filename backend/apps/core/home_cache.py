@@ -10,6 +10,15 @@ def _version():
     return cache.get_or_set(VERSION_KEY, 1, None)
 
 
+def summary_key(params, now=None):
+    """Home summary cache key: the Tehran date is part of it, so «امروز», «دیروز» and the rolling ranges roll over at
+    midnight instead of serving yesterday's window for up to a minute."""
+    from django.utils import timezone
+
+    day = timezone.localtime(now or timezone.now()).date().isoformat()
+    return f"summary:{day}:" + ":".join(str(params.get(k)) for k in ("period", "from", "to", "compare", "line"))
+
+
 def cached(key, build):
     from apps.sales.semantics import visible_sales_lines
 

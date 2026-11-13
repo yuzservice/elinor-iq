@@ -102,6 +102,10 @@ def test_hidden_line_params_are_dropped(settings, data, client):
 
     home = client.get("/api/home/summary/", {"period": "7", "line": "CAPRI"}).json()
     assert [row["line"] for row in home["branches"]] == ["ONLINE", "SARI", "GORGAN"]
+    for period in ("today", "yesterday", "30"):
+        payload = client.get("/api/home/summary/", {"period": period, "line": "CAPRI"}).json()
+        assert payload["range"]["lines"] == ["ONLINE", "SARI", "GORGAN"], period
+        assert all(set(p.get("lines", {})) <= {"ONLINE", "SARI", "GORGAN"} for p in payload["trend"]), period
     targets = client.get("/api/home/targets/", {"line": "CAPRI"}).json()
     assert [row["line"] for row in targets["lines"]] == ["ONLINE", "SARI", "GORGAN"]
     options = client.get("/api/sales/filters/").json()

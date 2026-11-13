@@ -249,3 +249,51 @@ def test_trend_buckets_carry_invoices_items_and_lines_that_add_up(period):
     assert all("invoices" not in p for p in data["trend"] if p["future"])
     branch = {row["line"]: row for row in data["branches"]}
     assert branch["ONLINE"]["compare_sales"] == 0 and data["total"]["compare_sales"] == 0
+
+
+@pytest.mark.django_db
+def test_yesterday_is_the_whole_previous_day_hourly_against_the_same_weekday():
+    c = _customer()
+    yesterday = NOW - timedelta(days=1)
+    _order(c, 100, yesterday.replace(hour=9))
+    _order(c, 70, yesterday.replace(hour=22, minute=40))  # late evening counts: the whole day
+    _order(c, 40, yesterday.replace(hour=22) - timedelta(days=7))  # same weekday last week
+    _order(c, 999, NOW - timedelta(minutes=5))  # today is not yesterday
+    data = home.summary({"period": "yesterday"}, now=NOW)
+    r = data["range"]
+    assert r["period"] == "yesterday" and r["bucket"] == "hour"
+    assert r["from"] == home._day_start(yesterday.date()) and r["to"] == home._day_start(NOW.date())
+    assert r["compare_from"] == r["from"] - timedelta(days=7) and r["compare_to"] == r["to"] - timedelta(days=7)
+    trend = data["trend"]
+    assert [p["key"] for p in trend] == list(range(24)) and not any(p["future"] for p in trend)
+    assert trend[9]["sales"] == 100 and trend[22]["sales"] == 70 and trend[22]["compare"] == 40
+    assert data["cards"]["sales"]["value"] == 170
+    yoy = home.summary({"period": "yesterday", "compare": "yoy"}, now=NOW)["range"]
+    assert timezone.localtime(yoy["compare_from"]).date() == date(2025, 11, 11)  # 1404/08/20
+    assert yoy["compare_to"] - yoy["compare_from"] == timedelta(days=1)
+    assert home.summary({"period": "yesterday", "compare": "none"}, now=NOW)["range"]["compare_from"] is None
+
+
+@pytest.mark.django_db
+def test_custom_up_to_three_days_is_hourly_with_iso_keys_and_future_hours():
+    c = _customer()
+    _order(c, 100, timezone.make_aware(datetime(2026, 11, 5, 14, 20)))
+    one = home.summary({"period": "custom", "from": "2026-11-05", "to": "2026-11-05"}, now=NOW)
+    assert one["range"]["bucket"] == "hour" and len(one["trend"]) == 24
+    assert one["trend"][14]["key"] == "2026-11-05T14:00" and one["trend"][14]["sales"] == 100
+    assert not any(p["future"] for p in one["trend"])
+
+    _order(c, 300, NOW - timedelta(minutes=20))  # today 15:10
+    _order(c, 50, timezone.make_aware(datetime(2026, 11, 10, 8, 5)))
+    _order(c, 20, timezone.make_aware(datetime(2026, 11, 7, 8, 5)))  # previous equal range, same hour of its first day
+    three = home.summary({"period": "custom", "from": "2026-11-10", "to": "2026-11-12"}, now=NOW)
+    trend = three["trend"]
+    assert three["range"]["bucket"] == "hour" and len(trend) == 72
+    assert trend[0]["key"] == "2026-11-10T00:00" and trend[71]["key"] == "2026-11-12T23:00"
+    assert trend[8]["sales"] == 50 and trend[8]["compare"] == 20
+    assert trend[48 + 15]["sales"] == 300 and not trend[48 + 15]["future"]
+    assert all(p["future"] and p["sales"] is None for p in trend[48 + 16:]) and not any(p["future"] for p in trend[:64])
+    assert sum(p["sales"] for p in trend if not p["future"]) == three["cards"]["sales"]["value"] == 350
+
+    four = home.summary({"period": "custom", "from": "2026-11-09", "to": "2026-11-12"}, now=NOW)
+    assert four["range"]["bucket"] == "day" and [p["key"] for p in four["trend"]] == ["2026-11-09", "2026-11-10", "2026-11-11", "2026-11-12"]
