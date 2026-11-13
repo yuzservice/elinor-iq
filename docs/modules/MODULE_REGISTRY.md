@@ -62,7 +62,7 @@ This registry catalogs the core architectural modules of ELINOR IQ V2. Each entr
   `CustomerMetrics`, `CustomerTierHistory`, `CallTask`, `CallEscalation`, `SyncRun`, `product_status_changes` (`products.0004`).
 - **Important Services & APIs:**
   - `GET /api/health/` (`health_check`).
-  - `GET /api/home/summary/?period=today|7|30|90|custom&from&to&compare=prev|yoy|none&line=ONLINE|SARI|GORGAN|CAPRI`: cards, branch rows, total, trend (cached 60 s) and role-filtered attention items.
+  - `GET /api/home/summary/?period=today|yesterday|7|30|90|custom&from&to&compare=prev|yoy|none&line=ONLINE|SARI|GORGAN|CAPRI`: cards, branch rows, total, trend (cached 60 s) and role-filtered attention items.
   - `GET /api/home/targets/?scope=…&line=…`: target progress, optionally for one branch.
   - `GET /api/home/targets/?scope=month|quarter|year`: target progress for the current Jalali period.
   - `GET|PUT /api/sales/targets/?year=`, `GET /api/sales/targets/copy-preview/?year&growth`: Settings grid (super_admin, admin, manager).
