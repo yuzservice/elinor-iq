@@ -15,14 +15,18 @@ Update this file at the end of every implementation task (newest entry first in 
    custom ranges, branch tiles above the cards, and `HIDDEN_SALES_LINES` (default `CAPRI`) removing a store line from
    every report. Next: the owner runs `update.sh`, then once `docker compose exec backend python manage.py products_daily`,
    and reviews on real data.
-4. **Open items:**
+4. **Sales merged into home** (`feature/sales-merge`, pushed, not merged; waiting for the owner's «Approved»): «خانه» renamed
+   «فروش», the sales page and its frontend code removed (`/sales` → `/`), «شلوغ‌ترین ساعت‌ها» heatmap on home, and Products
+   «سایز و رنگ پرفروش» + «مرجوعی و تعویض شعب». Backend `/api/sales/{filters,kpis,trend,summary,orders,products}/` are kept
+   but no longer used by the frontend.
+5. **Open items:**
    - Local online item details are incomplete from 2026-09 (the dev Mac cannot reach the Elinor API).
    - `docs/stock-discovery` branch (`docs/SOURCE_STOCK_DISCOVERY.md`) is pushed but not merged.
    - The Graphify graph was built from `3bc0a48` and is stale.
    - The "Last updated" line below predates the Call Center, Pulse and products work; the Log entries are current.
    - `fix/products-no-stock` (from `production`): stock disabled behind `PRODUCTS_STOCK_ENABLED` (default false); card 3 is
      «رو به رشد», Product 360 shows a 14-day forecast, stock params ignored, no stock API calls. Awaiting owner review; not merged.
-5. **Deferred decisions:**
+6. **Deferred decisions:**
    - Home ideas from the owner (not built): a daily summary to the owner's Telegram group (aggregates only; first check that the
      server can reach Telegram, which may be filtered); «امروز در برابر معمول همین ساعت» with an hourly chart; a role-based
      default home (a branch manager sees their own branch); auto-refresh.

@@ -82,3 +82,27 @@ export type ProductDetail = {
   buyers: { buyers: number; new_share: number; repeat_share: number; avg_basket: number | null; tiers: { code: string; label: string; count: number }[] } | null;
   prospects: number;
 };
+
+export type SizeColor = {
+  range: { from: string; to: string };
+  category_id: number | null;
+  categories: { id: number; label: string }[];
+  total_units: number;
+  no_size_share: number | null;
+  no_color_share: number | null;
+  sizes: { label: string; units: number; share: number | null }[];
+  colors: { label: string; hex: string | null; units: number; share: number | null }[];
+};
+
+type ReturnCounts = {
+  refund_invoices: number; exchange_invoices: number; refunded_units: number; replacement_units: number; refunded_amount: number;
+  sold_units: number; rate: number | null;
+};
+
+export type ReturnsBreakdown = {
+  range: { from: string; to: string; compare_from: string | null; compare_to: string | null; compare: string; comparable: boolean };
+  online_note: string;
+  totals: ReturnCounts & { refunded_amount_share: number | null; rate_points: number | null };
+  branches: (ReturnCounts & { line: LineKey })[];
+  products: { id: number; title: string; category: string; units: number; returned: number; rate: number }[];
+};

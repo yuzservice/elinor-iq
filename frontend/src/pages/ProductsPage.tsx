@@ -4,6 +4,7 @@ import { JalaliRangePopover } from "../components/JalaliDatePicker";
 import { CategoryTreeSelect } from "../features/categories/CategoryTreeSelect";
 import { useCategoryTree } from "../features/categories/useCategoryTree";
 import { MultiSelect } from "../features/customers/MultiSelect";
+import { ReturnsSection, SizeColorSection } from "../features/products/MixAndReturns";
 import { COLUMNS, FILTER_LABELS, FILTER_OPTIONS, STATUS, delta, fa, fa1, jdate, million, pct, sparkPoints, visibleLines } from "../features/products/display";
 import {
   DEFAULT_STATE, apiParams, clearFilters, isFiltered, parseState, serializeState, toggleList, type Compare, type ListKey, type Period, type ProductsState,
@@ -623,6 +624,8 @@ export function ProductsPage() {
       )}
       <ProductTable table={table.data} loading={table.loading} state={state} update={update} stockOn={stockOn} />
       <Bundles state={state} update={update} />
+      <SizeColorSection params={scopeParams} />
+      <ReturnsSection params={scopeParams} compareOff={state.compare === "none"} suffix={rangeSuffix(state)} />
     </div>
   );
 }

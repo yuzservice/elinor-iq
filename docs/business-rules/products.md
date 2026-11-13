@@ -56,6 +56,15 @@ Precedence: راکد > پیشران فروش > رو به رشد > کند > عا�
 - Cards 2–4 count every product of the scope with that status or flag, whether or not it sold in the range, and filter the table. The branch strip ignores the channel filter and sets it.
 - Table «فروش هفتگی»: net units in the range ÷ weeks (the range capped at the product's age, at least 7 days). «نسبت به دسته»: the 28-day ratio. «تغییر»: net units vs the comparison range.
 - Bundles: invoices (baskets) per product or primary category, per channel (online, in-store, both). Lift = shared × all baskets ÷ (baskets of A × baskets of B); «اگر اولی خریده شود» = shared ÷ baskets of the item with fewer baskets. Pairs under 5 shared baskets are hidden. «سیگنال اولیه»: fewer than 15 shared baskets and lift ≥ 3. «فقط سیگنال‌های تازه»: new in the range, or shared baskets up at least 50% vs the comparison.
+- «سایز و رنگ پرفروش» (`GET /api/products/size-color/`, 2026-11-14): shares of net units (`product_daily_sales`) in the
+  page's scope (period, lines, search, categories). Sizes are upper-cased; variants with a blank size or colour are left out of
+  the bars and reported as «… از اقلام سایز ثبت‌شده ندارند». Category toggle: «همه» plus the top 3 categories by revenue.
+- «مرجوعی و تعویض شعب» (`GET /api/products/returns/`, 2026-11-14): in-store POS only (`pos_refund_*`, `pos_exchange_*`);
+  online returns are not in Elinor data. Cards: نرخ مرجوعی = refunded units ÷ in-store units sold (change in points against
+  the comparison when comparable), مرجوعی (refund invoices, units), تعویض (exchange invoices, replacement units), مبلغ برگشتی
+  (share = refunded ÷ (net in-store revenue + refunded)). Branch table sorted by rate; «بیشترین مرجوعی» = top 5 products with
+  ≥ 10 sold and at least one return, each opening Product 360. Visible lines only. «—» when the scope is empty, never 0 or a
+  fallback.
 
 ## Product 360
 - The page's range and comparison come from the link. Daily chart from the first sale (the last 180 days for older products), with the category's typical day (median speed ÷ 7) as a dashed line.

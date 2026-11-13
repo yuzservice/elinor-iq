@@ -22,7 +22,7 @@ describe("product scope and coverage", () => {
     expect(NAV_ITEMS.map((item) => item.to)).not.toContain("/sales");
     expect(NAV_ITEMS.filter((item) => item.label === "فروش")).toHaveLength(1);
     expect(NAV_ITEMS.find((item) => item.to === "/")?.label).toBe("فروش");
-    expect(NAV_ITEMS.some((item) => item.label === "خانه")).toBe(false);
+    expect(NAV_ITEMS.some((item) => (item.label as string) === "خانه")).toBe(false);
   });
 });
 
