@@ -11,4 +11,4 @@ prototype here as its first step and adds a row.
 | `call-center-prototype.html` | Call Center | Implemented | `feature/call-center`, merged `61d7ece` |
 | `products-prototype.html` | Products page | Implemented | `feature/products-redesign`, merged `44fb072` |
 | `product-360-prototype.html` | Product 360 | Implemented | `feature/products-redesign`, merged `44fb072` |
-| `home-prototype.html` | Home v2 + hover details (trend bar card, tooltips on deltas, branch rows, targets) | In progress | `feature/home-hovers` (v2 merged `ef47b78`) |
+| `home-prototype.html` | Home v3: «دیروز», hourly custom ranges (1–3 days), branch tiles with donut and sparklines above the KPI cards | In progress | `feature/home-v3` (v2 `ef47b78`, hovers `514e542`) |
