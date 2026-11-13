@@ -6,8 +6,10 @@ rule-based «نیاز به توجه» items. Every figure comes from apps.sales.
 - invoices = qualifying online orders + qualifying POS sales; items = sold units of their qualifying lines.
 - buyers = distinct customers of those invoices, internal accounts excluded.
 
-Comparison: «امروز» against the same weekday last week or the same Jalali day last year, each up to the same time of day;
-other ranges against the previous equal range or the same Jalali range a year earlier. A change exists only when every
+Comparison: «امروز» and «دیروز» against the same weekday last week or the same Jalali day last year («امروز» up to the
+same time of day, «دیروز» the whole day); other ranges against the previous equal range or the same Jalali range a year
+earlier. Buckets: hourly for «امروز», «دیروز» and custom ranges of up to three days (keys are the hour 0..23 for the two
+single-day presets, ISO hours such as "2026-11-12T14:00" for custom ranges), daily otherwise. A change exists only when every
 selected line has history for the whole comparison window (in-store from 2025-05-31); otherwise None («—»).
 Rules: docs/business-rules/home-and-targets.md."""
 
@@ -28,6 +30,7 @@ from apps.sales.targets import LINES, POS_START, month_days
 TEHRAN = ZoneInfo("Asia/Tehran")
 PERIODS = {"7": 7, "30": 30, "90": 90}
 COMPARES = ("prev", "yoy", "none")
+HOURLY_MAX_DAYS = 3  # custom ranges up to this many days are hourly
 ONLINE_START = date(2022, 1, 12)
 
 
@@ -59,7 +62,10 @@ def resolve_window(params, now=None):
     if period == "custom" and params.get("from") and params.get("to"):
         a, b = sorted([date.fromisoformat(params["from"]), date.fromisoformat(params["to"])])
         b = min(b, today)
-        start, end, bucket = _day_start(a), (now if b == today else _day_start(b + timedelta(days=1))), "day"
+        bucket = "hour" if (b - a).days + 1 <= HOURLY_MAX_DAYS else "day"
+        start, end = _day_start(a), (now if b == today else _day_start(b + timedelta(days=1)))
+    elif period == "yesterday":
+        start, end, bucket = _day_start(today - timedelta(days=1)), _day_start(today), "hour"
     elif period in PERIODS:
         start, end, bucket = _day_start(today - timedelta(days=PERIODS[period] - 1)), now, "day"
     else:
@@ -68,7 +74,7 @@ def resolve_window(params, now=None):
         return start, end, None, None, bucket, period, compare
     if compare == "yoy":
         return start, end, shift_year(start), shift_year(end), bucket, period, compare
-    if period == "today":  # same weekday last week, up to the same time of day
+    if period in ("today", "yesterday"):  # same weekday last week (today: up to the same time of day)
         return start, end, start - timedelta(days=7), end - timedelta(days=7), bucket, period, compare
     shift = timedelta(days=len(_days(start, end)))  # whole days, so day i compares with day i and today stops at the same time
     return start, end, start - shift, end - shift, bucket, period, compare
@@ -86,12 +92,18 @@ def _trunc(field, bucket):
 
 
 def _key(value, bucket):
-    """Bucket key: the hour of day (0..23) or the date."""
+    """Bucket key: the Tehran wall-clock hour (naive datetime) or the date."""
     if bucket == "hour":
         if timezone.is_naive(value):  # raw SQL gives the Tehran wall-clock hour
             value = timezone.make_aware(value, TEHRAN)
-        return timezone.localtime(value).hour
+        return timezone.localtime(value).replace(minute=0, second=0, microsecond=0, tzinfo=None)
     return value
+
+
+def _hours(start, count):
+    """`count` consecutive Tehran wall-clock hours from the local midnight of `start` (naive, like `_key`)."""
+    first = datetime.combine(timezone.localtime(start).date(), time.min)
+    return [first + timedelta(hours=i) for i in range(count)]
 
 
 def _days(start, end):
@@ -232,16 +244,18 @@ def summary(params, now=None):
         return {"sales": s, "invoices": n, "items": _total(cur, "items", selected), "basket": s / n if n else None,
                 "change": _pct(s, before, ok) if prev else None, "compare_sales": before if prev else None}
 
-    if bucket == "hour":
-        keys = list(range(24))
-        future = {h for h in keys if h > now.hour}
+    if bucket == "hour":  # every hour of every day in the range; hours after now are future
+        keys = _hours(start, 24 * len(_days(start, end)))
+        current_hour = _key(now, "hour")
+        future = {k for k in keys if k > current_hour}
+        ckeys = _hours(cstart, len(keys)) if prev else []
     else:
         keys = _days(start, end)
         future = set()
-    ckeys = list(range(24)) if bucket == "hour" else (_days(cstart, cend) if prev else [])
+        ckeys = _days(cstart, cend) if prev else []
     trend = []
     for index, key in enumerate(keys):
-        point = {"key": key.isoformat() if hasattr(key, "isoformat") else key, "future": key in future,
+        point = {"key": _trend_key(key, period), "future": key in future,
                  "sales": None if key in future else _total(cur, "sales", keys=[key])}
         if key not in future:  # hover card: invoices, items and sales per line of this bucket (no extra request)
             point["invoices"] = _total(cur, "invoices", keys=[key])
@@ -267,6 +281,13 @@ def summary(params, now=None):
         "total": row(lines) if len(lines) > 1 else None,
         "trend": trend,
     }
+
+
+def _trend_key(key, period):
+    """Hour 0..23 for «امروز» / «دیروز», ISO hour ("2026-11-12T14:00") for hourly custom ranges, ISO date for days."""
+    if isinstance(key, datetime):
+        return key.hour if period in ("today", "yesterday") else key.strftime("%Y-%m-%dT%H:00")
+    return key.isoformat()
 
 
 def last_sync():
