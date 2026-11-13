@@ -1,3 +1,4 @@
+from django.contrib.postgres.indexes import GinIndex
 from django.conf import settings
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
@@ -321,6 +322,8 @@ class CustomerMetrics(models.Model):
 
     class Meta:
         db_table = "customer_metrics"
+        # The list's product and category filters use `product_ids && ARRAY[...]`; without this they scan the table.
+        indexes = [GinIndex(fields=["product_ids"], name="cm_product_ids_gin")]
 
 
 class CustomerListView(models.Model):

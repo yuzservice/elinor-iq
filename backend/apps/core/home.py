@@ -128,9 +128,16 @@ def _raw_facts(start, end, bucket, lines):
     return out
 
 
-def _buyers(start, end, lines):
-    """(distinct buyers, of whom new) across the selected lines; one customer who bought online and in store counts once."""
-    parts, params = [], []
+def _buyers(start, end, lines, split=None):
+    """(distinct buyers, of whom new) across the selected lines; one customer who bought online and in store counts once.
+    Days before `split` come from sales_daily_summary.buyer_ids; [split, end) from the sales tables."""
+    parts, params, window_start = [], [], start
+    if split and split > start:
+        parts.append("SELECT unnest(buyer_ids) AS cid FROM sales_daily_summary WHERE day >= %s AND day < %s AND sales_line = ANY(%s)")
+        params += [timezone.localtime(start).date(), timezone.localtime(split).date(), list(lines)]
+        start = split
+    if start >= end and parts:
+        lines = []  # nothing live
     if SalesLine.ONLINE in lines:
         sql, p = (qualifying_online_orders().filter(created_at__gte=start, created_at__lt=end, customer_id__isnull=False)
                   .annotate(cid=F("customer_id")).order_by().values("cid").query.sql_with_params())
@@ -145,18 +152,51 @@ def _buyers(start, end, lines):
     union = " UNION ".join(f"({part})" for part in parts)
     with connection.cursor() as cursor:
         cursor.execute(
-            f"""WITH y(cid) AS (SELECT * FROM ({union}) u WHERE u.cid <> ALL(%s))
+            f"""WITH y(cid) AS (SELECT DISTINCT u.cid FROM ({union}) u WHERE u.cid <> ALL(%s))
                 SELECT (SELECT COUNT(*) FROM y),
                        (SELECT COUNT(*) FROM y JOIN customer_metrics m ON m.customer_id = y.cid
                         WHERE m.first_purchase_at >= %s AND m.first_purchase_at < %s)""",
-            [*params, list(operator_customer_ids()) or [0], start, end],
+            [*params, list(operator_customer_ids()) or [0], window_start, end],
         )
         total, new = cursor.fetchone()
     return total, new
 
 
+def _summary_until():
+    from apps.sales.models import SalesDailySummary
+
+    return SalesDailySummary.objects.order_by("-day").values_list("day", flat=True).first()
+
+
+def _split(start, end):
+    """Where the stored days end: whole days covered by sales_daily_summary come first, the rest (days after the last
+    nightly build, and a partial last day) is read live. Returns start when nothing stored applies."""
+    covered = _summary_until()
+    if covered is None:
+        return start
+    split = _day_start(covered + timedelta(days=1))
+    local_end = timezone.localtime(end)
+    last_whole = end if local_end.time() == time.min else _day_start(local_end.date())
+    return max(start, min(split, last_whole))
+
+
+def _stored_rows(start, split, lines):
+    from apps.sales.models import SalesDailySummary
+
+    rows = {}
+    for r in SalesDailySummary.objects.filter(day__gte=timezone.localtime(start).date(), day__lt=timezone.localtime(split).date(), sales_line__in=lines):
+        rows[(r.day, r.sales_line)] = {"sales": r.sales, "invoices": r.invoices, "items": r.items}
+    return rows
+
+
 def _facts(start, end, bucket, lines):
-    return {"rows": _raw_facts(start, end, bucket, lines), "buyers": _buyers(start, end, lines)}
+    """Closed whole days from sales_daily_summary (daily buckets only); everything else live from the sales tables."""
+    split = _split(start, end) if bucket == "day" else start
+    rows = _stored_rows(start, split, lines) if split > start else {}
+    if split < end:
+        for key, value in _raw_facts(split, end, bucket, lines).items():
+            rows[key] = value
+    return {"rows": rows, "buyers": _buyers(start, end, lines, split=split if split > start else None)}
 
 
 def _total(facts, field, lines=None, keys=None):

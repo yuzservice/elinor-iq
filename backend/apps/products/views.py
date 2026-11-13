@@ -34,9 +34,21 @@ def products_table(request):
 @permission_classes([IsAuthenticated])
 def product_pairs(request):
     """Co-purchase pairs (product or category level, by channel) for the range."""
-    from apps.products.report import bundles
+    from django.core.cache import cache
 
-    return Response(bundles(request.query_params))
+    from apps.products.report import _as_of, bundles
+
+    # Pair tables change only on the nightly rebuild; a 12-month range aggregates ~335k rows, so answers are cached
+    # for an hour per parameter set and per metrics date.
+    import hashlib
+
+    digest = hashlib.sha1(repr(sorted(request.query_params.items())).encode()).hexdigest()
+    key = f"product-pairs:{_as_of()}:{digest}"
+    data = cache.get(key)
+    if data is None:
+        data = bundles(request.query_params)
+        cache.set(key, data, 3600)
+    return Response(data)
 
 
 @api_view(["GET"])
