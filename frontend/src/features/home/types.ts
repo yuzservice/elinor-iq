@@ -36,23 +36,25 @@ export type CopyPreview = {
 };
 
 export type HomePeriodKey = "today" | "7" | "30" | "90" | "custom";
-type Card = { value: number | null; change: number | null; spark: number[] };
+export type HomeCompare = "prev" | "yoy" | "none";
+type Change = { value: number | null; change: number | null };
+type BranchRow = { sales: number; invoices: number; items: number; basket: number | null; change: number | null };
 
 export type HomeData = {
-  range: { from: string; to: string; compare_from: string; compare_to: string; bucket: "hour" | "day"; comparable: boolean };
+  range: {
+    period: HomePeriodKey; from: string; to: string; bucket: "hour" | "day"; compare: HomeCompare;
+    compare_from: string | null; compare_to: string | null; comparable: boolean; lines: LineKey[];
+  };
   sync: { last_success_at: string | null; failed: { started_at: string; kind: string } | null };
-  today: {
-    sales: number; invoices: number; buyers: number; sales_change: number | null; invoices_change: number | null; buyers_change: number | null;
-    last_hour_sales: number; compare_day: string;
-  };
-  trend: { current: { at: string; sales: number }[]; compare: number[] };
-  branches: { line: LineKey; sales: number; invoices: number; basket: number | null; change: number | null }[];
   cards: {
-    sales: Card & { online_share: number | null };
-    invoices: Card & { online: number; in_store: number };
-    basket: Card & { best_line: LineKey | null; best_value: number | null };
-    buyers: Card & { new_share: number | null };
+    sales: Change & { online_share: number | null };
+    invoices: Change & { items: number };
+    basket: Change;
+    buyers: Change & { new_share: number | null };
   };
+  branches: (BranchRow & { line: LineKey })[];
+  total: BranchRow | null;
+  trend: { key: string | number; future: boolean; sales: number | null; compare?: number }[];
   attention: AttentionItem[];
 };
 

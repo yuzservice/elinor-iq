@@ -1,3 +1,4 @@
+from django.contrib.postgres.fields import ArrayField
 from django.db import models
 
 
@@ -282,3 +283,19 @@ class SalesTargetChange(models.Model):
     class Meta:
         db_table = "sales_target_changes"
         ordering = ["-changed_at", "-id"]
+
+
+class SalesDailySummary(models.Model):
+    """One closed Tehran day × sales line, built nightly by `sales_daily_summary` from apps.sales.semantics (same figures
+    as the home page). buyer_ids holds every customer id of the day's invoices (internal accounts removed when read)."""
+
+    day = models.DateField()
+    sales_line = models.CharField(max_length=16)
+    sales = models.BigIntegerField(default=0)
+    invoices = models.IntegerField(default=0)
+    items = models.IntegerField(default=0)
+    buyer_ids = ArrayField(models.BigIntegerField(), default=list)
+
+    class Meta:
+        db_table = "sales_daily_summary"
+        constraints = [models.UniqueConstraint(fields=["day", "sales_line"], name="uniq_sales_daily_summary")]

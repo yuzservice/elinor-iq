@@ -11,4 +11,4 @@ prototype here as its first step and adds a row.
 | `call-center-prototype.html` | Call Center | Implemented | `feature/call-center`, merged `61d7ece` |
 | `products-prototype.html` | Products page | Implemented | `feature/products-redesign`, merged `44fb072` |
 | `product-360-prototype.html` | Product 360 | Implemented | `feature/products-redesign`, merged `44fb072` |
-| `home-prototype.html` | Home (executive dashboard, sales targets) | In progress | `feature/home-redesign` |
+| `home-prototype.html` | Home v2 (range / comparison / branch pickers, branch table, one trend chart, targets) | In progress | `feature/home-v2-performance` (v1 merged `766bff9`) |

@@ -26,17 +26,19 @@ function points(gap: number) {
   return `${gap >= 0 ? "+" : "−"}${toFaDigits(Math.round(Math.abs(gap)))}٪`;
 }
 
-export function TargetsSection() {
+/** `line` = the home «شعبه» filter: only that branch's target. */
+export function TargetsSection({ line }: { line?: string }) {
   const [scope, setScope] = useState<TargetScope>("month");
   const [data, setData] = useState<TargetProgress | null>(null);
   const [error, setError] = useState(false);
   useEffect(() => {
     let alive = true;
-    homeService.targets(scope).then((d) => alive && (setData(d), setError(false))).catch(() => alive && setError(true));
+    homeService.targets(scope, line).then((d) => alive && (setData(d), setError(false))).catch(() => alive && setError(true));
     return () => {
       alive = false;
     };
-  }, [scope]);
+  }, [scope, line]);
+  const branch = line ? LINES.find((l) => l.key === line)?.label : null;
 
   const d = data?.scope === scope ? data : null;
   const c = d?.company;
@@ -48,7 +50,7 @@ export function TargetsSection() {
         <div className="flex flex-col gap-[3px]">
           <h2 className="m-0 text-[15px] font-semibold text-ink">تارگت فروش</h2>
           <span className="text-[12.5px] text-muted">
-            {d ? `${toFaDigits(d.label)}، روز ${fa(d.elapsed_days)} از ${fa(d.total_days)}` : error ? "تارگت بارگیری نشد." : "…"}
+            {d ? `${toFaDigits(d.label)}، روز ${fa(d.elapsed_days)} از ${fa(d.total_days)}${branch ? `؛ فقط ${branch}` : ""}` : error ? "تارگت بارگیری نشد." : "…"}
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -66,7 +68,7 @@ export function TargetsSection() {
 
       {d && !c ? (
         <div className="flex flex-col items-start gap-2.5 rounded-[14px] border border-dashed border-blue-300/40 p-[22px]">
-          <span className="text-sm font-semibold text-ink">تارگت {EMPTY_TEXT[scope]} هنوز تعریف نشده است.</span>
+          <span className="text-sm font-semibold text-ink">تارگت {branch ? `${branch} برای ` : ""}{EMPTY_TEXT[scope]} هنوز تعریف نشده است.</span>
           <span className="text-[12.5px] text-muted">
             {scope === "month" ? "تارگت هر شعبه را وارد کنید یا از ماه مشابه سال قبل با درصد رشد دلخواه کپی کنید." : "برای همه ماه‌های این بازه تارگت تعریف کنید."}
           </span>
@@ -101,7 +103,7 @@ export function TargetsSection() {
               <span>{fa(d.expected_pct)}٪ از زمان گذشته است</span>
               <span>خط عمودی: جایی که باید تا امروز می‌رسیدیم</span>
             </div>
-            {c.lines_included.length < LINES.length ? (
+            {!branch && c.lines_included.length < LINES.length ? (
               <span className="text-xs text-muted">
                 فقط شعبه‌های دارای تارگت جمع شده‌اند: {c.lines_included.map((key) => LINES.find((l) => l.key === key)?.label).join("، ")}
               </span>
@@ -125,8 +127,8 @@ export function TargetsSection() {
             </div>
           </div>
           <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-2.5">
-            <span className="text-[13px] font-semibold text-muted">شعب</span>
-            {LINES.map((line) => {
+            {!branch ? <span className="text-[13px] font-semibold text-muted">شعب</span> : null}
+            {LINES.filter((l) => d.lines.some((r) => r.line === l.key)).map((line) => {
               const row = d.lines.find((r) => r.line === line.key);
               const status = row?.status ? STATUS[row.status] : null;
               return (

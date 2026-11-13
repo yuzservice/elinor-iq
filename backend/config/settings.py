@@ -53,6 +53,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "apps.core.timing.SlowRequestMiddleware",  # first, so the duration covers every other middleware
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -64,6 +65,9 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = "config.urls"
+
+# Requests to /api/ at or above this many milliseconds are logged as SLOW_API (apps/core/timing.py).
+SLOW_REQUEST_MS = int(os.environ.get("SLOW_REQUEST_MS", "300"))
 
 TEMPLATES = [
     {
