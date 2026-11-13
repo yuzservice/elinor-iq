@@ -1,6 +1,6 @@
 """Home summary on synthetic data: real figures only, «—» without comparison history, each attention rule and its roles."""
 
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from itertools import count
 
 import pytest
@@ -13,7 +13,7 @@ from apps.core import home
 from apps.customers.models import Customer, CustomerTierHistory, InternalAccount
 from apps.integrations.elinor.models import SyncRun
 from apps.products.models import Product, ProductStatusChange
-from apps.sales.models import Order, PosSale, PosSaleItem, SalesLine, SalesTarget
+from apps.sales.models import Order, OrderItem, PosSale, PosSaleItem, SalesLine, SalesTarget
 from apps.sales.targets import progress
 
 _ids = count(5000)
@@ -36,50 +36,6 @@ def _pos(customer, amount, at, line=SalesLine.SARI, quantity=1):
     sale = PosSale.objects.create(source_id=next(_ids), customer=customer, store_source_id=3, sales_line=line, type="sell", created_at=at)
     PosSaleItem.objects.create(source_id=next(_ids), pos_sale=sale, quantity=quantity, amount=amount, type="sell")
     return sale
-
-
-@pytest.mark.django_db
-def test_period_figures_from_semantics_and_internal_accounts_not_buyers():
-    a, b, desk = _customer(), _customer(), _customer()
-    InternalAccount.objects.create(customer=desk, kind="desk", is_active=True)
-    day = NOW - timedelta(days=2)
-    _order(a, 1_000_000, day)
-    _order(a, 9_999_999, day, status="canceled")  # not a sale, not an invoice
-    _order(desk, 500_000, day)  # a sale and an invoice, but not a buyer
-    _pos(b, 200_000, day, quantity=3)
-    data = home.summary({"period": "7"}, now=NOW)
-    cards = data["cards"]
-    assert cards["sales"]["value"] == 1_000_000 + 500_000 + 600_000
-    assert cards["invoices"]["value"] == 3 and cards["invoices"]["online"] == 2 and cards["invoices"]["in_store"] == 1
-    assert cards["buyers"]["value"] == 2
-    assert cards["basket"]["value"] == pytest.approx(2_100_000 / 3)
-    assert cards["sales"]["online_share"] == pytest.approx(1_500_000 / 2_100_000)
-    assert cards["sales"]["change"] is None  # nothing in the previous 7 days
-    branches = {b["line"]: b for b in data["branches"]}
-    assert branches["SARI"]["sales"] == 600_000 and branches["SARI"]["invoices"] == 1
-    assert sum(p["sales"] for p in data["trend"]["current"]) == 2_100_000 and len(data["trend"]["current"]) == 7
-
-
-@pytest.mark.django_db
-def test_no_comparison_before_in_store_history_and_no_fake_numbers():
-    empty = home.summary({"period": "custom", "from": "2025-06-01", "to": "2025-06-30"}, now=NOW)
-    assert empty["range"]["comparable"] is False and empty["trend"]["compare"] == []
-    assert all(card["change"] is None for card in empty["cards"].values())
-    assert empty["cards"]["sales"]["value"] == 0 and empty["cards"]["basket"]["value"] is None
-    assert empty["today"]["sales"] == 0 and empty["today"]["sales_change"] is None
-    assert not {"metric_cards", "recent_orders", "needs_attention", "metrics"} & set(empty)
-
-
-@pytest.mark.django_db
-def test_today_vs_same_weekday_last_week_and_last_hour():
-    c = _customer()
-    _order(c, 300, NOW - timedelta(minutes=20))
-    _order(c, 100, NOW.replace(hour=9))
-    _order(c, 200, NOW.replace(hour=9) - timedelta(days=7))
-    _order(c, 999, NOW.replace(hour=18) - timedelta(days=7))  # later in the day than now: not compared
-    today = home.summary({"period": "today"}, now=NOW)["today"]
-    assert today["sales"] == 400 and today["last_hour_sales"] == 300
-    assert today["sales_change"] == pytest.approx(100) and today["compare_day"] == (NOW - timedelta(days=7)).date()
 
 
 def _facts(**over):
@@ -130,20 +86,6 @@ def test_attention_facts_each_rule():
     assert facts["sync_failed"]["kind"] == "hourly"
     SyncRun.objects.filter(pk=failed.pk).update(started_at=NOW - timedelta(hours=5))  # an older failure was followed by a success
     assert home.attention_facts(now=NOW)["sync_failed"] is None
-
-
-@pytest.mark.django_db
-def test_summary_endpoint_role_filtered_and_bad_range():
-    analyst = _user("analyst")
-    client = APIClient(HTTP_HOST="localhost")
-    client.force_authenticate(analyst)
-    data = client.get("/api/home/summary/?period=today").json()
-    assert {"range", "sync", "today", "trend", "branches", "cards", "attention"} <= set(data)
-    assert not any(item["kind"] in ("calls", "sync_failed") for item in data["attention"])
-    assert client.get("/api/home/summary/?period=custom&from=bad&to=2026-01-01").status_code == 400
-    agent = APIClient(HTTP_HOST="localhost")
-    agent.force_login(_user("sales_agent", "agent2"))  # the role middleware reads the session user
-    assert agent.get("/api/home/summary/").status_code == 403
 
 
 def _drop(customer, previous, new, reason="daily", days=3, previous_channel=None, channel=None):
@@ -199,3 +141,91 @@ def test_top_tiers_per_channel(settings, monkeypatch):
     monkeypatch.setattr(tier_rules, "tier_lists", lambda rules: lists)
     settings.HOME_TIER_DROP_TOP_N = 2
     assert [code for code, _ in home.top_tiers()] == ["ON_VIP", "ON_GOLD", "ST_VIP", "ST_GOLD"]  # disabled skipped, per channel
+
+
+@pytest.mark.django_db
+def test_period_figures_branch_rows_and_internal_accounts_not_buyers():
+    a, b, desk = _customer(), _customer(), _customer()
+    InternalAccount.objects.create(customer=desk, kind="desk", is_active=True)
+    day = NOW - timedelta(days=2)
+    order = _order(a, 1_000_000, day)
+    OrderItem.objects.create(source_id=next(_ids), order=order, quantity=2, amount=500_000, status=1)
+    _order(a, 9_999_999, day, status="canceled")  # not a sale, not an invoice
+    _order(desk, 500_000, day)  # a sale and an invoice, but not a buyer
+    _pos(b, 200_000, day, quantity=3)
+    data = home.summary({"period": "7"}, now=NOW)
+    cards = data["cards"]
+    assert cards["sales"]["value"] == 2_100_000 and cards["invoices"]["value"] == 3 and cards["invoices"]["items"] == 5
+    assert cards["buyers"]["value"] == 2 and cards["basket"]["value"] == pytest.approx(2_100_000 / 3)
+    assert cards["sales"]["online_share"] == pytest.approx(1_500_000 / 2_100_000)
+    rows = {row["line"]: row for row in data["branches"]}
+    assert rows["SARI"] == {"line": "SARI", "sales": 600_000, "invoices": 1, "items": 3, "basket": 600_000, "change": None}
+    assert data["total"]["sales"] == 2_100_000 and len(data["branches"]) == 4
+    assert sum(p["sales"] for p in data["trend"]) == 2_100_000 and len(data["trend"]) == 7
+
+
+@pytest.mark.django_db
+def test_branch_filter_applies_to_cards_rows_trend_and_targets():
+    a, b = _customer(), _customer()
+    _order(a, 1_000_000, NOW - timedelta(days=1))
+    _pos(b, 200_000, NOW - timedelta(days=1), line=SalesLine.GORGAN)
+    data = home.summary({"period": "7", "line": "GORGAN"}, now=NOW)
+    assert data["cards"]["sales"]["value"] == 200_000 and data["cards"]["buyers"]["value"] == 1
+    assert [row["line"] for row in data["branches"]] == ["GORGAN"] and data["total"] is None
+    assert sum(p["sales"] for p in data["trend"]) == 200_000
+    assert data["cards"]["sales"]["online_share"] is None
+    SalesTarget.objects.create(year=1405, month=8, sales_line="GORGAN", amount=1_000)
+    SalesTarget.objects.create(year=1405, month=8, sales_line="ONLINE", amount=9_000)
+    t = progress("month", now=NOW, actuals={"ONLINE": 0, "SARI": 0, "GORGAN": 100, "CAPRI": 0}, lines=["GORGAN"])
+    assert [row["line"] for row in t["lines"]] == ["GORGAN"] and t["company"]["target"] == 1_000
+
+
+@pytest.mark.django_db
+def test_today_comparisons_same_time_of_day_and_hourly_buckets():
+    c = _customer()
+    _order(c, 300, NOW - timedelta(minutes=20))  # 15:10 today
+    _order(c, 100, NOW.replace(hour=9))
+    _order(c, 200, NOW.replace(hour=9) - timedelta(days=7))  # same weekday last week, earlier in the day
+    _order(c, 999, NOW.replace(hour=18) - timedelta(days=7))  # later in the day than now: not compared
+    _order(c, 50, NOW.replace(hour=23) - timedelta(days=1))  # yesterday evening is never today's comparison
+    data = home.summary({"period": "today"}, now=NOW)
+    assert data["range"]["compare_from"] == home._day_start(NOW.date() - timedelta(days=7))
+    assert data["range"]["compare_to"] == NOW - timedelta(days=7)
+    assert data["cards"]["sales"]["value"] == 400 and data["cards"]["sales"]["change"] == pytest.approx(100)
+    trend = data["trend"]
+    assert [p["key"] for p in trend] == list(range(24))  # every hour, none skipped
+    assert trend[9]["sales"] == 100 and trend[9]["compare"] == 200 and trend[3]["sales"] == 0
+    assert all(p["future"] and p["sales"] is None for p in trend[16:]) and not trend[15]["future"]
+    yoy = home.summary({"period": "today", "compare": "yoy"}, now=NOW)["range"]
+    assert timezone.localtime(yoy["compare_from"]).date() == date(2025, 11, 12)  # 1404/08/21, the same Jalali day
+    assert yoy["compare_to"] - yoy["compare_from"] == NOW - home._day_start(NOW.date())
+    none = home.summary({"period": "today", "compare": "none"}, now=NOW)
+    assert none["range"]["compare_from"] is None and none["cards"]["sales"]["change"] is None and "compare" not in none["trend"][9]
+
+
+@pytest.mark.django_db
+def test_no_comparison_before_in_store_history_but_online_alone_compares():
+    c = _customer()
+    _order(c, 100, timezone.make_aware(datetime(2025, 5, 10, 12)))
+    _order(c, 200, timezone.make_aware(datetime(2025, 6, 10, 12)))
+    params = {"period": "custom", "from": "2025-06-01", "to": "2025-06-30"}
+    both = home.summary(params, now=NOW)
+    assert both["range"]["comparable"] is False and all(card["change"] is None for card in both["cards"].values())
+    online = home.summary({**params, "line": "ONLINE"}, now=NOW)
+    assert online["range"]["comparable"] is True and online["cards"]["sales"]["change"] == pytest.approx(100)
+    assert not {"metric_cards", "recent_orders", "needs_attention", "metrics", "today"} & set(both)
+
+
+@pytest.mark.django_db
+def test_summary_endpoint_role_filtered_and_bad_range():
+    analyst = _user("analyst")
+    client = APIClient(HTTP_HOST="localhost")
+    client.force_authenticate(analyst)
+    data = client.get("/api/home/summary/?period=today&line=SARI&compare=yoy").json()
+    assert {"range", "sync", "cards", "branches", "total", "trend", "attention"} <= set(data)
+    assert data["range"]["lines"] == ["SARI"] and data["range"]["compare"] == "yoy"
+    assert not any(item["kind"] in ("calls", "sync_failed") for item in data["attention"])
+    assert client.get("/api/home/summary/?period=custom&from=bad&to=2026-01-01").status_code == 400
+    agent = APIClient(HTTP_HOST="localhost")
+    agent.force_login(_user("sales_agent", "agent2"))  # the role middleware reads the session user
+    assert agent.get("/api/home/summary/").status_code == 403

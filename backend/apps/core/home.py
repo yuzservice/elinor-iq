@@ -1,17 +1,20 @@
-"""Home page summary: sales, invoices, basket and buyers for a period vs the previous equal period, today so far, branches,
-daily trend, and rule-based «نیاز به توجه» items. Every figure comes from apps.sales.semantics:
+"""Home page summary for one range, comparison and branch filter: four cards, a branch table, the sales trend, and
+rule-based «نیاز به توجه» items. Every figure comes from apps.sales.semantics:
 
 - sales = online order value (`online_order_value_orders`, `Order.total_amount`) + in-store sold lines
   (`qualifying_pos_items`, amount × quantity); the two channels are only added up, never mixed.
-- invoices = qualifying online orders + qualifying POS sales (as on the Sales page).
+- invoices = qualifying online orders + qualifying POS sales; items = sold units of their qualifying lines.
 - buyers = distinct customers of those invoices, internal accounts excluded.
 
-A comparison exists only when every included channel has history for the whole comparison window
-(in-store from 2025-05-31); otherwise the change is None («—»). Rules: docs/business-rules/home-and-targets.md."""
+Comparison: «امروز» against the same weekday last week or the same Jalali day last year, each up to the same time of day;
+other ranges against the previous equal range or the same Jalali range a year earlier. A change exists only when every
+selected line has history for the whole comparison window (in-store from 2025-05-31); otherwise None («—»).
+Rules: docs/business-rules/home-and-targets.md."""
 
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
+import jdatetime
 from django.db import connection
 from django.db.models import BigIntegerField, Count, ExpressionWrapper, F, Sum
 from django.db.models.functions import TruncDate, TruncHour
@@ -19,38 +22,63 @@ from django.utils import timezone
 
 from apps.customers.operators import operator_customer_ids
 from apps.sales.models import SalesLine
-from apps.sales.semantics import online_order_value_orders, qualifying_online_orders, qualifying_pos_items, qualifying_pos_sales
-from apps.sales.targets import LINES, POS_START
+from apps.sales.semantics import online_order_value_orders, qualifying_online_items, qualifying_online_orders, qualifying_pos_items, qualifying_pos_sales
+from apps.sales.targets import LINES, POS_START, month_days
 
 TEHRAN = ZoneInfo("Asia/Tehran")
 PERIODS = {"7": 7, "30": 30, "90": 90}
+COMPARES = ("prev", "yoy", "none")
+ONLINE_START = date(2022, 1, 12)
 
 
 def _day_start(day):
     return timezone.make_aware(datetime.combine(day, time.min))
 
 
+def parse_lines(raw):
+    """«شعبه» filter: one sales line, or all four."""
+    return [raw] if raw in LINES else list(LINES)
+
+
+def shift_year(moment):
+    """Same Jalali date and time of day one year earlier (Esfand 30 → 29 when the earlier year is shorter)."""
+    local = timezone.localtime(moment)
+    j = jdatetime.date.fromgregorian(date=local.date())
+    day = min(j.day, month_days(j.year - 1, j.month))
+    earlier = jdatetime.date(j.year - 1, j.month, day).togregorian()
+    return timezone.make_aware(datetime.combine(earlier, local.time()))
+
+
 def resolve_window(params, now=None):
-    """(start, end, compare_start, compare_end, bucket) as aware datetimes, end exclusive. «امروز» is hourly."""
+    """(start, end, compare_start, compare_end, bucket, period, compare) as aware datetimes, end exclusive.
+    compare_start/end are None for «بدون مقایسه». Raises ValueError for a bad custom date."""
     now = timezone.localtime(now or timezone.now())
     today = now.date()
-    period = params.get("period") or "30"
-    if period == "today":
-        start, end, bucket = _day_start(today), now, "hour"
-    elif period == "custom" and params.get("from") and params.get("to"):
+    period = params.get("period") or "today"
+    compare = params.get("compare") if params.get("compare") in COMPARES else "prev"
+    if period == "custom" and params.get("from") and params.get("to"):
         a, b = sorted([date.fromisoformat(params["from"]), date.fromisoformat(params["to"])])
         b = min(b, today)
         start, end, bucket = _day_start(a), (now if b == today else _day_start(b + timedelta(days=1))), "day"
+    elif period in PERIODS:
+        start, end, bucket = _day_start(today - timedelta(days=PERIODS[period] - 1)), now, "day"
     else:
-        days = PERIODS.get(period, 30)
-        start, end, bucket = _day_start(today - timedelta(days=days - 1)), now, "day"
-    span = end - start
-    return start, end, start - span, start, bucket
+        period, start, end, bucket = "today", _day_start(today), now, "hour"
+    if compare == "none":
+        return start, end, None, None, bucket, period, compare
+    if compare == "yoy":
+        return start, end, shift_year(start), shift_year(end), bucket, period, compare
+    if period == "today":  # same weekday last week, up to the same time of day
+        return start, end, start - timedelta(days=7), end - timedelta(days=7), bucket, period, compare
+    shift = timedelta(days=len(_days(start, end)))  # whole days, so day i compares with day i and today stops at the same time
+    return start, end, start - shift, end - shift, bucket, period, compare
 
 
-def comparable(compare_start):
-    """In-store history starts 2025-05-31; both channels are always included on the home page."""
-    return timezone.localtime(compare_start).date() >= POS_START
+def comparable(lines, compare_start):
+    if compare_start is None:
+        return False
+    first = POS_START if any(line != SalesLine.ONLINE for line in lines) else ONLINE_START
+    return timezone.localtime(compare_start).date() >= first
 
 
 def _trunc(field, bucket):
@@ -58,78 +86,143 @@ def _trunc(field, bucket):
 
 
 def _key(value, bucket):
+    """Bucket key: the hour of day (0..23) or the date."""
     if bucket == "hour":
         if timezone.is_naive(value):  # raw SQL gives the Tehran wall-clock hour
             value = timezone.make_aware(value, TEHRAN)
-        return timezone.localtime(value).replace(minute=0, second=0, microsecond=0)
+        return timezone.localtime(value).hour
     return value
 
 
-def _buckets(start, end, bucket):
-    step = timedelta(hours=1) if bucket == "hour" else timedelta(days=1)
-    current = timezone.localtime(start)
-    keys = []
-    while current < end:
-        keys.append(current.replace(minute=0, second=0, microsecond=0) if bucket == "hour" else current.date())
-        current += step
-    return keys
+def _days(start, end):
+    first, last = timezone.localtime(start).date(), timezone.localtime(end - timedelta(microseconds=1)).date()
+    return [first + timedelta(days=i) for i in range((last - first).days + 1)]
 
 
-def _window_facts(start, end, bucket):
-    """Per bucket and line: sales and invoices; per bucket and in total: distinct buyers; new buyers in total."""
+def _raw_facts(start, end, bucket, lines):
+    """{(key, line): {sales, invoices, items}} and distinct/new buyers for start ≤ t < end, read from the sales tables."""
+    out = {}
+
+    def add(key, line, field, value):
+        out.setdefault((_key(key, bucket), line), {"sales": 0, "invoices": 0, "items": 0})[field] += int(value or 0)
+
     line_amount = ExpressionWrapper(F("amount") * F("quantity"), output_field=BigIntegerField())
-    sales, invoices = {}, {}
-    for row in (online_order_value_orders().filter(created_at__gte=start, created_at__lt=end)
-                .annotate(b=_trunc("created_at", bucket)).values("b").annotate(v=Sum("total_amount"))):
-        sales[(_key(row["b"], bucket), SalesLine.ONLINE)] = int(row["v"] or 0)
-    for row in (qualifying_online_orders().filter(created_at__gte=start, created_at__lt=end)
-                .annotate(b=_trunc("created_at", bucket)).values("b").annotate(n=Count("id"))):
-        invoices[(_key(row["b"], bucket), SalesLine.ONLINE)] = row["n"]
-    for row in (qualifying_pos_items().filter(pos_sale__created_at__gte=start, pos_sale__created_at__lt=end)
-                .annotate(b=_trunc("pos_sale__created_at", bucket)).values("b", "pos_sale__sales_line").annotate(v=Sum(line_amount))):
-        sales[(_key(row["b"], bucket), row["pos_sale__sales_line"])] = int(row["v"] or 0)
-    for row in (qualifying_pos_sales().filter(created_at__gte=start, created_at__lt=end)
-                .annotate(b=_trunc("created_at", bucket)).values("b", "sales_line").annotate(n=Count("id"))):
-        invoices[(_key(row["b"], bucket), row["sales_line"])] = row["n"]
+    pos_lines = [line for line in lines if line != SalesLine.ONLINE]
+    if SalesLine.ONLINE in lines:
+        window = {"created_at__gte": start, "created_at__lt": end}
+        for row in online_order_value_orders().filter(**window).annotate(b=_trunc("created_at", bucket)).values("b").annotate(v=Sum("total_amount")):
+            add(row["b"], SalesLine.ONLINE, "sales", row["v"])
+        for row in qualifying_online_orders().filter(**window).annotate(b=_trunc("created_at", bucket)).values("b").annotate(n=Count("id")):
+            add(row["b"], SalesLine.ONLINE, "invoices", row["n"])
+        for row in (qualifying_online_items().filter(order__created_at__gte=start, order__created_at__lt=end)
+                    .annotate(b=_trunc("order__created_at", bucket)).values("b").annotate(n=Sum("quantity"))):
+            add(row["b"], SalesLine.ONLINE, "items", row["n"])
+    if pos_lines:
+        for row in (qualifying_pos_items().filter(pos_sale__created_at__gte=start, pos_sale__created_at__lt=end, pos_sale__sales_line__in=pos_lines)
+                    .annotate(b=_trunc("pos_sale__created_at", bucket)).values("b", "pos_sale__sales_line").annotate(v=Sum(line_amount), n=Sum("quantity"))):
+            add(row["b"], row["pos_sale__sales_line"], "sales", row["v"])
+            add(row["b"], row["pos_sale__sales_line"], "items", row["n"])
+        for row in (qualifying_pos_sales().filter(created_at__gte=start, created_at__lt=end, sales_line__in=pos_lines)
+                    .annotate(b=_trunc("created_at", bucket)).values("b", "sales_line").annotate(n=Count("id"))):
+            add(row["b"], row["sales_line"], "invoices", row["n"])
+    return out
 
-    # Buyers: one statement over both channels so a customer who bought online and in store counts once.
-    online_sql, online_params = (qualifying_online_orders().filter(created_at__gte=start, created_at__lt=end, customer_id__isnull=False)
-                                 .annotate(b=_trunc("created_at", bucket), cid=F("customer_id")).order_by().values("b", "cid").query.sql_with_params())
-    pos_sql, pos_params = (qualifying_pos_sales().filter(created_at__gte=start, created_at__lt=end, customer_id__isnull=False)
-                           .annotate(b=_trunc("created_at", bucket), cid=F("customer_id")).order_by().values("b", "cid").query.sql_with_params())
-    internal = list(operator_customer_ids()) or [0]
+
+def _buyers(start, end, lines):
+    """(distinct buyers, of whom new) across the selected lines; one customer who bought online and in store counts once."""
+    parts, params = [], []
+    if SalesLine.ONLINE in lines:
+        sql, p = (qualifying_online_orders().filter(created_at__gte=start, created_at__lt=end, customer_id__isnull=False)
+                  .annotate(cid=F("customer_id")).order_by().values("cid").query.sql_with_params())
+        parts.append(sql)
+        params += p
+    pos_lines = [line for line in lines if line != SalesLine.ONLINE]
+    if pos_lines:
+        sql, p = (qualifying_pos_sales().filter(created_at__gte=start, created_at__lt=end, customer_id__isnull=False, sales_line__in=pos_lines)
+                  .annotate(cid=F("customer_id")).order_by().values("cid").query.sql_with_params())
+        parts.append(sql)
+        params += p
+    union = " UNION ".join(f"({part})" for part in parts)
     with connection.cursor() as cursor:
         cursor.execute(
-            f"""WITH x(b, cid) AS (({online_sql}) UNION ALL ({pos_sql})), y AS (SELECT * FROM x WHERE cid <> ALL(%s))
-                SELECT 'bucket', b, COUNT(DISTINCT cid) FROM y GROUP BY b
-                UNION ALL SELECT 'total', NULL, COUNT(DISTINCT cid) FROM y
-                UNION ALL SELECT 'new', NULL, COUNT(DISTINCT y.cid) FROM y JOIN customer_metrics m ON m.customer_id = y.cid
-                          WHERE m.first_purchase_at >= %s AND m.first_purchase_at < %s""",
-            [*online_params, *pos_params, internal, start, end],
+            f"""WITH y(cid) AS (SELECT * FROM ({union}) u WHERE u.cid <> ALL(%s))
+                SELECT (SELECT COUNT(*) FROM y),
+                       (SELECT COUNT(*) FROM y JOIN customer_metrics m ON m.customer_id = y.cid
+                        WHERE m.first_purchase_at >= %s AND m.first_purchase_at < %s)""",
+            [*params, list(operator_customer_ids()) or [0], start, end],
         )
-        rows = cursor.fetchall()
-    buyers, totals = {}, {"total": 0, "new": 0}
-    for tag, b, n in rows:
-        if tag == "bucket":
-            buyers[_key(b, bucket)] = n
-        else:
-            totals[tag] = n
-    total_buyers, new_buyers = totals["total"], totals["new"]
-    return {"sales": sales, "invoices": invoices, "buyers": buyers, "total_buyers": total_buyers, "new_buyers": new_buyers}
+        total, new = cursor.fetchone()
+    return total, new
 
 
-def _sum(facts, kind, lines=LINES, keys=None):
-    return sum(v for (b, line), v in facts[kind].items() if line in lines and (keys is None or b in keys))
+def _facts(start, end, bucket, lines):
+    return {"rows": _raw_facts(start, end, bucket, lines), "buyers": _buyers(start, end, lines)}
+
+
+def _total(facts, field, lines=None, keys=None):
+    return sum(v[field] for (k, line), v in facts["rows"].items() if (lines is None or line in lines) and (keys is None or k in keys))
 
 
 def _pct(now_value, before, ok=True):
     return (now_value - before) * 100.0 / before if ok and before else None
 
 
-def _series(facts, keys, kind):
-    if kind == "buyers":
-        return [facts["buyers"].get(k, 0) for k in keys]
-    return [sum(v for (b, _), v in facts[kind].items() if b == k) for k in keys]
+def summary(params, now=None):
+    now = timezone.localtime(now or timezone.now())
+    start, end, cstart, cend, bucket, period, compare = resolve_window(params, now)
+    lines = parse_lines(params.get("line"))
+    ok = comparable(lines, cstart)
+    cur = _facts(start, end, bucket, lines)
+    prev = _facts(cstart, cend, bucket, lines) if ok else None
+
+    def card(field):
+        value = _total(cur, field)
+        return value, _pct(value, _total(prev, field), ok) if prev else None
+
+    sales, sales_change = card("sales")
+    invoices, invoices_change = card("invoices")
+    items, _ = card("items")
+    basket = sales / invoices if invoices else None
+    prev_basket = (_total(prev, "sales") / _total(prev, "invoices")) if prev and _total(prev, "invoices") else None
+    buyers, new_buyers = cur["buyers"]
+
+    def row(selected):
+        s, n = _total(cur, "sales", selected), _total(cur, "invoices", selected)
+        before = _total(prev, "sales", selected) if prev else 0
+        return {"sales": s, "invoices": n, "items": _total(cur, "items", selected), "basket": s / n if n else None,
+                "change": _pct(s, before, ok) if prev else None}
+
+    if bucket == "hour":
+        keys = list(range(24))
+        future = {h for h in keys if h > now.hour}
+    else:
+        keys = _days(start, end)
+        future = set()
+    ckeys = list(range(24)) if bucket == "hour" else (_days(cstart, cend) if prev else [])
+    trend = []
+    for index, key in enumerate(keys):
+        point = {"key": key.isoformat() if hasattr(key, "isoformat") else key, "future": key in future,
+                 "sales": None if key in future else _total(cur, "sales", keys=[key])}
+        if prev and index < len(ckeys) and key not in future:
+            point["compare"] = _total(prev, "sales", keys=[ckeys[index]])
+        trend.append(point)
+
+    return {
+        "range": {"period": period, "from": start, "to": end, "bucket": bucket, "compare": compare,
+                  "compare_from": cstart, "compare_to": cend, "comparable": ok, "lines": lines},
+        "sync": last_sync(),
+        "cards": {
+            "sales": {"value": sales, "change": sales_change,
+                      "online_share": (_total(cur, "sales", [SalesLine.ONLINE]) / sales) if sales and len(lines) > 1 else None},
+            "invoices": {"value": invoices, "change": invoices_change, "items": items},
+            "basket": {"value": basket, "change": _pct(basket, prev_basket, ok) if basket and prev_basket else None},
+            "buyers": {"value": buyers, "change": _pct(buyers, prev["buyers"][0], ok) if prev else None,
+                       "new_share": new_buyers / buyers if buyers else None},
+        },
+        "branches": [{"line": line, **row([line])} for line in lines],
+        "total": row(lines) if len(lines) > 1 else None,
+        "trend": trend,
+    }
 
 
 def last_sync():
@@ -140,74 +233,6 @@ def last_sync():
     if failed and ok and failed["started_at"] < ok:
         failed = None
     return {"last_success_at": ok, "failed": failed}
-
-
-def summary(params, now=None):
-    now = timezone.localtime(now or timezone.now())
-    start, end, cstart, cend, bucket = resolve_window(params, now)
-    ok = comparable(cstart)
-    cur, prev = _window_facts(start, end, bucket), _window_facts(cstart, cend, bucket)
-    keys, ckeys = _buckets(start, end, bucket), _buckets(cstart, cend, bucket)
-
-    sales, prev_sales = _sum(cur, "sales"), _sum(prev, "sales")
-    inv, prev_inv = _sum(cur, "invoices"), _sum(prev, "invoices")
-    online_sales, online_inv = _sum(cur, "sales", [SalesLine.ONLINE]), _sum(cur, "invoices", [SalesLine.ONLINE])
-    basket = sales / inv if inv else None
-    prev_basket = prev_sales / prev_inv if prev_inv else None
-    sales_series, inv_series = _series(cur, keys, "sales"), _series(cur, keys, "invoices")
-
-    branches = []
-    for line in LINES:
-        amount, count = _sum(cur, "sales", [line]), _sum(cur, "invoices", [line])
-        before = _sum(prev, "sales", [line])
-        line_ok = ok or line == SalesLine.ONLINE
-        branches.append({"line": line, "sales": amount, "invoices": count, "basket": amount / count if count else None,
-                         "change": _pct(amount, before, line_ok)})
-    best = max((b for b in branches if b["basket"]), key=lambda b: b["basket"], default=None)
-
-    # Today so far vs the same weekday last week up to the same time; last hour.
-    today0 = _day_start(now.date())
-    t_cur, t_prev = _window_facts(today0, now, "hour"), _window_facts(today0 - timedelta(days=7), now - timedelta(days=7), "hour")
-    last_hour = [k for k in _buckets(today0, now, "hour")]
-    hour_ago = now - timedelta(hours=1)
-    last_hour_sales = _last_hour_sales(hour_ago, now)
-    today = {
-        "sales": _sum(t_cur, "sales"), "invoices": _sum(t_cur, "invoices"), "buyers": t_cur["total_buyers"],
-        "sales_change": _pct(_sum(t_cur, "sales"), _sum(t_prev, "sales")),
-        "invoices_change": _pct(_sum(t_cur, "invoices"), _sum(t_prev, "invoices")),
-        "buyers_change": _pct(t_cur["total_buyers"], t_prev["total_buyers"]),
-        "last_hour_sales": last_hour_sales, "compare_day": (now - timedelta(days=7)).date(), "hours": len(last_hour),
-    }
-
-    return {
-        "range": {"from": start, "to": end, "compare_from": cstart, "compare_to": cend, "bucket": bucket, "comparable": ok},
-        "sync": last_sync(),
-        "today": today,
-        "trend": {
-            "current": [{"at": k, "sales": v} for k, v in zip(keys, sales_series)],
-            "compare": _series(prev, ckeys, "sales") if ok else [],
-        },
-        "branches": branches,
-        "cards": {
-            "sales": {"value": sales, "change": _pct(sales, prev_sales, ok), "online_share": online_sales / sales if sales else None,
-                      "spark": sales_series},
-            "invoices": {"value": inv, "change": _pct(inv, prev_inv, ok), "online": online_inv, "in_store": inv - online_inv,
-                         "spark": inv_series},
-            "basket": {"value": basket, "change": _pct(basket or 0, prev_basket or 0, ok) if basket and prev_basket else None,
-                       "best_line": best["line"] if best else None, "best_value": best["basket"] if best else None,
-                       "spark": [s / n if n else 0 for s, n in zip(sales_series, inv_series)]},
-            "buyers": {"value": cur["total_buyers"], "change": _pct(cur["total_buyers"], prev["total_buyers"], ok),
-                       "new_share": cur["new_buyers"] / cur["total_buyers"] if cur["total_buyers"] else None,
-                       "spark": _series(cur, keys, "buyers")},
-        },
-    }
-
-
-def _last_hour_sales(start, end):
-    line_amount = ExpressionWrapper(F("amount") * F("quantity"), output_field=BigIntegerField())
-    online = online_order_value_orders().filter(created_at__gte=start, created_at__lt=end).aggregate(v=Sum("total_amount"))["v"] or 0
-    pos = qualifying_pos_items().filter(pos_sale__created_at__gte=start, pos_sale__created_at__lt=end).aggregate(v=Sum(line_amount))["v"] or 0
-    return int(online) + int(pos)
 
 
 # ---- «نیاز به توجه» -------------------------------------------------------------------------------------------------

@@ -155,6 +155,7 @@ Notes for the Product Architect / next task:
 
 ### 2026-11-13 — Home v2 and speed pass (`feature/home-v2-performance`, from `production` `766bff9`), checkpoints
 - Step 0: reference v2 saved as `docs/design/home-prototype.html` (sha256 3b124b47…, replaces v1); sample data only. Not merged; owner reviews locally.
+- Step 1: Home rebuilt to v2: pickers «بازه» (امروز default) / «مقایسه» / «شعبه» in the URL with a range line; four cards → branch table (with «کل الینور») → one «روند فروش» (hourly 0..23 for امروز, future hours faded; dashed comparison markers) → targets (branch-aware) → attention. Fixed: «امروز» compared against the previous 24 h; now the same weekday last week or the same Jalali day last year, up to the same time. Other ranges shift by whole days. `test_home_summary` rewritten (14 with targets file: 20 passed).
 
 ### 2026-11-12 — Home redesign with sales targets (`feature/home-redesign`, from `production` `401c018`), checkpoints
 - Step 0: reference saved as `docs/design/home-prototype.html` (sha256 2bd24581…); sample data only. Not merged; owner reviews locally.

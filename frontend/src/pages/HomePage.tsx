@@ -1,16 +1,20 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { JalaliRangePopover } from "../components/JalaliDatePicker";
 import { TargetsSection, money } from "../features/home/TargetsSection";
-import type { AttentionItem, HomeData, HomePeriodKey } from "../features/home/types";
+import type { AttentionItem, HomeCompare, HomeData, HomePeriodKey } from "../features/home/types";
 import { LINES, delta, fa, jdate, pct } from "../features/products/display";
-import { toFaDigits } from "../lib/dates";
+import { formatJalali, toFaDigits } from "../lib/dates";
 import { tehranTodayIso } from "../lib/format";
 import { homeService } from "../services/home";
 
 const CARD = "rounded-[18px] border border-line bg-surface";
-const PERIODS: [HomePeriodKey, string][] = [["today", "امروز"], ["7", "۷ روز"], ["30", "۳۰ روز"], ["90", "۹۰ روز"], ["custom", "دلخواه"]];
+const PERIODS: [HomePeriodKey, string][] = [["today", "امروز"], ["7", "۷ روز اخیر"], ["30", "۳۰ روز اخیر"], ["90", "۹۰ روز اخیر"], ["custom", "بازه دلخواه…"]];
+const COMPARE_TODAY: [HomeCompare, string][] = [["prev", "همان روز هفته قبل"], ["yoy", "همان روز سال قبل"], ["none", "بدون مقایسه"]];
+const COMPARE_RANGE: [HomeCompare, string][] = [["prev", "دوره قبل"], ["yoy", "همین بازه سال قبل"], ["none", "بدون مقایسه"]];
+const BRANCHES: [string, string][] = [["all", "همه شعب"], ...LINES.map((l) => [l.key, l.label] as [string, string])];
 const lineOf = (key: string | null) => LINES.find((line) => line.key === key);
+const ROW_GRID = "grid grid-cols-[minmax(90px,1.2fr)_minmax(120px,2fr)_repeat(3,minmax(70px,0.8fr))_minmax(60px,0.6fr)] items-center gap-2.5";
 
 function since(iso: string | null) {
   if (!iso) return "هنوز انجام نشده";
@@ -21,200 +25,127 @@ function since(iso: string | null) {
   return jdate(iso);
 }
 
-function clock(iso: string | null) {
-  return iso ? new Intl.DateTimeFormat("fa-IR", { timeZone: "Asia/Tehran", hour: "2-digit", minute: "2-digit" }).format(new Date(iso)) : "—";
+const clock = (iso: string | null) =>
+  iso ? new Intl.DateTimeFormat("fa-IR", { timeZone: "Asia/Tehran", hour: "2-digit", minute: "2-digit" }).format(new Date(iso)) : "—";
+const weekday = (iso: string) => new Intl.DateTimeFormat("fa-IR", { timeZone: "Asia/Tehran", weekday: "long" }).format(new Date(iso));
+/** Last day of a window whose end is exclusive. */
+const lastDay = (iso: string) => new Date(Date.parse(iso) - 1).toISOString();
+
+/** «امروز ۱۴۰۵/۰۸/۲۰ تا ساعت ۱۵:۰۰  •  در برابر سه‌شنبه ۱۴۰۵/۰۸/۱۳ تا همین ساعت» */
+function describe(range: HomeData["range"]) {
+  const today = range.period === "today";
+  const current = today ? `امروز ${jdate(range.from)} تا ساعت ${clock(range.to)}` : `${jdate(range.from)} تا ${jdate(lastDay(range.to))}`;
+  if (range.compare === "none" || !range.compare_from || !range.compare_to) return { current, compare: null as string | null };
+  const compare = today
+    ? `${range.compare === "prev" ? `${weekday(range.compare_from)} ` : ""}${jdate(range.compare_from)} تا همین ساعت`
+    : `${jdate(range.compare_from)} تا ${jdate(lastDay(range.compare_to))}${range.compare === "prev" ? " (بازه هم‌اندازه قبلی)" : " (همین بازه سال قبل)"}`;
+  return { current, compare };
 }
 
-function weekday(iso: string) {
-  return new Intl.DateTimeFormat("fa-IR", { timeZone: "Asia/Tehran", weekday: "long" }).format(new Date(`${iso}T12:00:00+03:30`));
+function Picker({ label, value, options, current, onPick }: {
+  label: string; value: string; options: [string, string][]; current: string; onPick: (key: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: MouseEvent) => root.current && !root.current.contains(event.target as Node) && setOpen(false);
+    const esc = (event: KeyboardEvent) => event.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+  return (
+    <span ref={root} className="relative">
+      <button type="button" aria-expanded={open} aria-haspopup="listbox" onClick={() => setOpen(!open)}
+        className="inline-flex min-h-[38px] cursor-pointer items-center gap-2 rounded-[11px] border border-line bg-elevated px-3 text-[13px] text-ink">
+        <span className="text-[12.5px] text-muted">{label}</span>
+        <b className="font-semibold">{value}</b>
+        <span aria-hidden="true" className="text-[10px] text-faint">▾</span>
+      </button>
+      {open ? (
+        <div role="listbox" aria-label={label} className="absolute right-0 top-[calc(100%+6px)] z-40 flex min-w-[190px] flex-col gap-0.5 rounded-xl border border-line bg-elevated p-1.5 shadow-2xl">
+          {options.map(([key, text]) => (
+            <button key={key} type="button" role="option" aria-selected={current === key} onClick={() => (onPick(key), setOpen(false))}
+              className={`flex min-h-[34px] cursor-pointer items-center justify-between gap-3 rounded-lg border-0 px-2.5 text-right text-[13px] ${current === key ? "bg-accent/15 text-ink" : "bg-transparent text-muted hover:bg-hover"}`}>
+              {text}
+              <span className={`text-xs text-accent ${current === key ? "visible" : "invisible"}`}>✓</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </span>
+  );
 }
 
-function Delta({ change, suffix = "" }: { change: number | null | undefined; suffix?: string }) {
+function Filters({ data, params, setParams }: { data: HomeData | null; params: URLSearchParams; setParams: (p: URLSearchParams) => void }) {
+  const [calendar, setCalendar] = useState(false);
+  const period = (PERIODS.find(([key]) => key === params.get("period"))?.[0] ?? "today") as HomePeriodKey;
+  const compares = period === "today" ? COMPARE_TODAY : COMPARE_RANGE;
+  const compare = (compares.find(([key]) => key === params.get("compare"))?.[0] ?? "prev") as HomeCompare;
+  const line = params.get("line") ?? "all";
+  const today = tehranTodayIso();
+  const set = (changes: Record<string, string | null>) => {
+    const next = new URLSearchParams(params);
+    Object.entries(changes).forEach(([key, value]) => (value == null ? next.delete(key) : next.set(key, value)));
+    setParams(next);
+  };
+  const pickPeriod = (key: string) => {
+    if (key === "custom") {
+      set({ period: "custom", from: params.get("from") || data?.range.from.slice(0, 10) || today, to: params.get("to") || today });
+      setCalendar(true);
+    } else set({ period: key === "today" ? null : key, from: null, to: null });
+  };
+  const from = params.get("from") ?? "";
+  const to = params.get("to") ?? "";
+  const periodValue = period === "custom" && from && to ? `${formatJalali(from)} تا ${formatJalali(to)}` : PERIODS.find(([k]) => k === period)?.[1] ?? "";
+  const text = data ? describe(data.range) : null;
+  return (
+    <section aria-label="تنظیمات صفحه" className={`${CARD} relative z-20 flex flex-wrap items-center justify-between gap-2 px-3 py-2.5`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <Picker label="بازه" value={periodValue} options={PERIODS} current={period} onPick={pickPeriod} />
+        <Picker label="مقایسه" value={compares.find(([k]) => k === compare)?.[1] ?? ""} options={compares} current={compare}
+          onPick={(key) => set({ compare: key === "prev" ? null : key })} />
+        <Picker label="شعبه" value={BRANCHES.find(([k]) => k === line)?.[1] ?? "همه شعب"} options={BRANCHES} current={line}
+          onPick={(key) => set({ line: key === "all" ? null : key })} />
+      </div>
+      <span className="text-[12.5px] text-muted">{text ? `${text.current}${text.compare ? `  •  در برابر ${text.compare}` : ""}` : ""}</span>
+      {calendar ? (
+        <div className="absolute right-3 top-full z-40 w-[292px]">
+          <JalaliRangePopover
+            from={from}
+            to={to}
+            max={today}
+            onClose={() => setCalendar(false)}
+            onApply={(a, b) => {
+              set({ period: "custom", from: a, to: b });
+              setCalendar(false);
+            }}
+          />
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function Delta({ change, ok, suffix = "" }: { change: number | null; ok: boolean; suffix?: string }) {
+  if (!ok) return <span className="text-[12.5px] text-faint">—</span>;
   const d = delta(change);
   return <span className="text-[12.5px] font-semibold" style={{ color: d.color }}>{d.text}{change != null && suffix ? ` ${suffix}` : ""}</span>;
 }
 
-function Spark({ values, color }: { values: number[]; color: string }) {
-  if (values.length < 2) return <span className="w-[90px]" />;
-  const min = Math.min(...values);
-  const range = Math.max(...values) - min || 1;
-  // RTL: the newest point is on the left.
-  const points = values.map((v, i) => `${(88 - (i * 86) / (values.length - 1)).toFixed(1)},${(28 - ((v - min) / range) * 26).toFixed(1)}`).join(" ");
-  return (
-    <svg width="90" height="30" viewBox="0 0 90 30" aria-hidden="true" className="flex-none">
-      <polyline points={points} fill="none" stroke={color} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function Header({ data, params, setParams }: { data: HomeData | null; params: URLSearchParams; setParams: (p: URLSearchParams) => void }) {
-  const [calendar, setCalendar] = useState(false);
-  const period = (PERIODS.find(([key]) => key === params.get("period"))?.[0] ?? "30") as HomePeriodKey;
-  const from = params.get("from") ?? "";
-  const to = params.get("to") ?? "";
-  const today = tehranTodayIso();
-  const pick = (key: HomePeriodKey) => {
-    const next = new URLSearchParams();
-    if (key !== "30") next.set("period", key);
-    if (key === "custom") {
-      next.set("from", from || data?.range.from.slice(0, 10) || today);
-      next.set("to", to || today);
-      setCalendar(true);
-    }
-    setParams(next);
-  };
-  const failed = Boolean(data?.sync.failed);
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-2.5">
-      <div className="flex flex-col gap-1">
-        <h1 className="m-0 text-2xl font-extrabold text-ink">خانه</h1>
-        <span className="text-[12.5px] text-muted">ارقام از داده همگام‌شده با سایت و فروشگاه‌هاست، نه لحظه‌ای.</span>
-      </div>
-      <div className="relative flex flex-wrap items-center gap-2">
-        <span className="flex items-center gap-[7px] rounded-full border border-line bg-surface px-3 py-1.5 text-[12.5px] text-muted">
-          <span className="h-2 w-2 rounded-full" style={{ background: failed ? "var(--delta-down)" : "var(--delta-up)" }} />
-          آخرین همگام‌سازی: {since(data?.sync.last_success_at ?? null)}
-        </span>
-        <div role="group" aria-label="بازه" className="flex flex-wrap gap-0.5 rounded-[11px] bg-elevated p-[3px]">
-          {PERIODS.map(([key, label]) => (
-            <button key={key} type="button" aria-pressed={period === key} onClick={() => pick(key)}
-              className={`min-h-8 cursor-pointer rounded-[9px] border-0 px-3 text-[12.5px] ${period === key ? "bg-accent font-semibold text-on-accent" : "bg-transparent text-muted hover:text-ink"}`}>
-              {label}
-            </button>
-          ))}
-        </div>
-        {period === "custom" ? (
-          <button type="button" aria-expanded={calendar} onClick={() => setCalendar(!calendar)}
-            className={`inline-flex min-h-[34px] cursor-pointer items-center gap-2 rounded-[10px] border bg-elevated px-3 text-[13px] text-ink ${calendar ? "border-accent" : "border-line"}`}>
-            {jdate(from)} تا {jdate(to)}
-            <span aria-hidden="true" className="text-[10px] text-faint">▾</span>
-          </button>
-        ) : null}
-        {calendar ? (
-          <div className="absolute left-0 top-full z-40 w-[292px]">
-            <JalaliRangePopover
-              from={from}
-              to={to}
-              max={today}
-              onClose={() => setCalendar(false)}
-              onApply={(a, b) => {
-                setParams(new URLSearchParams({ period: "custom", from: a, to: b }));
-                setCalendar(false);
-              }}
-            />
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function Today({ data }: { data: HomeData }) {
-  const t = data.today;
-  const day = weekday(t.compare_day);
-  const items: [string, string, ReactNode][] = [
-    ["فروش", money(t.sales), <Delta key="s" change={t.sales_change} suffix={`نسبت به ${day} قبل`} />],
-    ["فاکتور", fa(t.invoices), <Delta key="i" change={t.invoices_change} />],
-    ["خریدار", fa(t.buyers), <Delta key="b" change={t.buyers_change} />],
-    ["یک ساعت اخیر", money(t.last_hour_sales), null],
-  ];
-  return (
-    <section aria-label="امروز" className={`${CARD} flex flex-wrap items-center justify-between gap-x-7 gap-y-3 px-5 py-3.5`}>
-      <span className="flex flex-col gap-0.5">
-        <span className="flex items-center gap-2 text-[15px] font-bold text-ink">
-          <span className="h-[9px] w-[9px] rounded-full bg-[var(--delta-up)] shadow-[0_0_0_4px_var(--delta-up-bg)]" />
-          امروز تا این لحظه
-        </span>
-        <span className="text-[11.5px] text-faint">تا آخرین همگام‌سازی، ساعت {clock(data.sync.last_success_at)}</span>
-      </span>
-      {items.map(([label, value, change]) => (
-        <span key={label} className="flex flex-wrap items-center gap-2 text-[13px]">
-          <span className="text-[12.5px] text-muted">{label}</span>
-          <b className="text-base text-ink">{value}</b>
-          {change}
-        </span>
-      ))}
-    </section>
-  );
-}
-
-function Trend({ data }: { data: HomeData }) {
-  const cur = data.trend.current;
-  const cmp = data.trend.compare;
-  const max = Math.max(1, ...cur.map((p) => p.sales), ...cmp);
-  const hourly = data.range.bucket === "hour";
-  const label = (iso: string) => (hourly ? clock(iso) : jdate(iso));
-  const n = Math.max(cur.length, 1);
-  const line = cmp.length
-    ? cmp.slice(0, n).map((v, i) => `${(300 - ((i + 0.5) * 300) / n).toFixed(1)},${(100 - (v / max) * 100).toFixed(1)}`).join(" ")
-    : "";
-  return (
-    <section aria-label="روند فروش" className={`${CARD} flex min-w-0 flex-[2_1_520px] flex-col gap-2.5 px-[18px] py-4`}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="m-0 text-[15px] font-semibold text-ink">{hourly ? "روند فروش امروز (ساعتی)" : "روند فروش روزانه"}</h2>
-        <span className="flex items-center gap-3 text-xs text-muted">
-          <span className="flex items-center gap-[5px]"><span className="h-2.5 w-2.5 rounded-sm bg-accent" />این بازه</span>
-          <span className="flex items-center gap-[5px]"><span className="w-3.5 border-t-2 border-dashed border-[var(--text-secondary)]" />{cmp.length ? "بازه مقایسه" : "مقایسه ندارد"}</span>
-        </span>
-      </div>
-      <div className="relative h-[180px]">
-        <div role="img" aria-label="نمودار فروش" className="absolute inset-0 flex items-end gap-[3px] border-b border-line">
-          {cur.map((p, i) => (
-            <span key={p.at} title={`${label(p.at)}: ${money(p.sales)} تومان`} className="min-w-0 flex-1 rounded-t-[3px] bg-accent"
-              style={{ height: `${Math.max(1, (p.sales / max) * 100)}%`, opacity: i === cur.length - 1 ? 1 : 0.75 }} />
-          ))}
-        </div>
-        {line ? (
-          <svg viewBox="0 0 300 100" preserveAspectRatio="none" aria-hidden="true" className="absolute inset-0 h-full w-full">
-            <polyline points={line} fill="none" stroke="var(--text-secondary)" strokeWidth="1.2" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
-          </svg>
-        ) : null}
-      </div>
-      <div className="flex justify-between text-[12.5px] text-muted">
-        <span>{cur[0] ? label(cur[0].at) : ""}</span>
-        <span>{cur.length ? label(cur[cur.length - 1].at) : ""}</span>
-      </div>
-    </section>
-  );
-}
-
-function Branches({ data }: { data: HomeData }) {
-  const max = Math.max(1, ...data.branches.map((b) => b.sales));
-  return (
-    <section aria-label="شعب" className={`${CARD} flex min-w-0 flex-[1_1_300px] flex-col gap-3 px-[18px] py-4`}>
-      <h2 className="m-0 text-[15px] font-semibold text-ink">فروش شعب</h2>
-      {data.branches.map((b) => {
-        const line = lineOf(b.line);
-        return (
-          <div key={b.line} className="flex flex-col gap-[5px]">
-            <div className="flex justify-between text-[13px]">
-              <span className="flex items-center gap-[7px]"><span className="h-2 w-2 rounded-full" style={{ background: line?.color }} />{line?.label}</span>
-              <span className="flex items-center gap-2"><b>{money(b.sales)}</b><Delta change={b.change} /></span>
-            </div>
-            <div className="h-1.5 rounded-[3px] bg-[var(--chart-track)]">
-              <div className="h-1.5 rounded-[3px]" style={{ background: line?.color, width: `${(b.sales / max) * 100}%` }} />
-            </div>
-            <span className="text-[12.5px] text-muted">{fa(b.invoices)} فاکتور</span>
-          </div>
-        );
-      })}
-    </section>
-  );
-}
-
-function Kpi({ to, label, link, value, unit, change, note, spark, color, help }: {
-  to: string; label: string; link: string; value: string; unit: string; change: number | null; note: string; spark: number[]; color: string; help: string;
+function Kpi({ to, label, link, value, unit, change, ok, compareNone, suffix, note, help }: {
+  to: string; label: string; link: string; value: string; unit: string; change: number | null; ok: boolean; compareNone: boolean;
+  suffix?: string; note: string; help: string;
 }) {
   return (
     <Link to={to} title={help} className={`${CARD} flex flex-col gap-1.5 px-[18px] py-[15px] text-inherit no-underline hover:border-accent`}>
       <span className="flex justify-between"><span className="text-[13px] text-muted">{label}</span><span className="text-[12.5px] text-muted">{link} ‹</span></span>
-      <span className="flex items-end justify-between gap-2.5">
-        <span className="flex flex-col gap-1">
-          <span className="flex items-baseline gap-1.5"><span className="text-[26px] font-extrabold text-ink">{value}</span><span className="whitespace-nowrap text-[12.5px] text-muted">{unit}</span></span>
-          <Delta change={change} suffix="نسبت به دوره قبل" />
-        </span>
-        <Spark values={spark} color={color} />
-      </span>
+      <span className="flex items-baseline gap-1.5"><span className="text-[26px] font-extrabold text-ink">{value}</span><span className="whitespace-nowrap text-[12.5px] text-muted">{unit}</span></span>
+      {compareNone ? <span className="text-[12.5px] text-faint">بدون مقایسه</span> : <Delta change={change} ok={ok} suffix={suffix} />}
       <span className="text-[12.5px] text-muted">{note}</span>
     </Link>
   );
@@ -222,20 +153,112 @@ function Kpi({ to, label, link, value, unit, change, note, spark, color, help }:
 
 function Cards({ data }: { data: HomeData }) {
   const { sales, invoices, basket, buyers } = data.cards;
-  const split = (n: number | null) => (n == null ? "—" : pct(n));
-  const [salesValue, salesUnit] = (money(sales.value) || "—").split(" ");
-  const [basketValue, basketUnit] = (money(basket.value) || "—").split(" ");
-  const best = lineOf(basket.best_line);
+  const ok = data.range.comparable;
+  const none = data.range.compare === "none";
+  const [salesValue, ...salesUnit] = money(sales.value).split(" ");
+  const [basketValue, ...basketUnit] = money(basket.value).split(" ");
   return (
     <section aria-label="شاخص‌ها" className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(230px,1fr))]">
-      <Kpi to="/sales" label="فروش" link="فروش" value={salesValue} unit={`${salesUnit ?? ""} تومان`} change={sales.change} spark={sales.spark} color="var(--accent)"
-        note={sales.online_share == null ? "فروشی ثبت نشده" : `آنلاین ${split(sales.online_share)}، حضوری ${split(1 - sales.online_share)}`} help="فروش خالص بازه: ارزش سفارش‌های آنلاین + ردیف‌های فروش فروشگاه‌ها." />
-      <Kpi to="/sales" label="تعداد فاکتور" link="فروش" value={fa(invoices.value)} unit="فاکتور" change={invoices.change} spark={invoices.spark} color="var(--delta-up)"
-        note={`آنلاین ${fa(invoices.online)}، حضوری ${fa(invoices.in_store)}`} help="سفارش‌های آنلاین معتبر + فاکتورهای فروش فروشگاه‌ها." />
-      <Kpi to="/sales" label="میانگین سبد خرید" link="فروش" value={basketValue} unit={`${basketUnit ?? ""} تومان`} change={basket.change} spark={basket.spark} color="#a78bfa"
-        note={best ? `بیشترین: ${best.label} ${money(basket.best_value)}` : "—"} help="فروش تقسیم بر تعداد فاکتور." />
-      <Kpi to="/customers" label="خریداران فعال" link="مشتریان" value={fa(buyers.value)} unit="نفر" change={buyers.change} spark={buyers.spark} color="var(--warning)"
-        note={buyers.new_share == null ? "—" : `${pct(buyers.new_share)} مشتری جدید`} help="مشتریانی که در این بازه خرید کرده‌اند، بدون اکانت‌های داخلی. مشتری جدید: اولین خریدش در همین بازه بوده." />
+      <Kpi to="/sales" label="فروش" link="فروش" value={salesValue} unit={`${salesUnit.join(" ")} تومان`} change={sales.change} ok={ok} compareNone={none}
+        suffix={data.range.period === "today" ? "نسبت به همان ساعت" : "نسبت به مقایسه"}
+        note={sales.online_share == null ? (data.range.lines.length === 1 ? lineOf(data.range.lines[0])?.label ?? "" : "—") : `آنلاین ${pct(sales.online_share)}، حضوری ${pct(1 - sales.online_share)}`}
+        help="فروش خالص: ارزش سفارش‌های آنلاین + ردیف‌های فروش فروشگاه‌ها." />
+      <Kpi to="/sales" label="تعداد فاکتور" link="فروش" value={fa(invoices.value)} unit="فاکتور" change={invoices.change} ok={ok} compareNone={none}
+        note={`${fa(invoices.items)} کالا فروخته شد`} help="سفارش‌های آنلاین معتبر + فاکتورهای فروش فروشگاه‌ها." />
+      <Kpi to="/sales" label="میانگین سبد خرید" link="فروش" value={basketValue} unit={`${basketUnit.join(" ")} تومان`} change={basket.change} ok={ok} compareNone={none}
+        note="فروش تقسیم بر فاکتور" help="فروش تقسیم بر تعداد فاکتور." />
+      <Kpi to="/customers" label="خریداران" link="مشتریان" value={fa(buyers.value)} unit="نفر" change={buyers.change} ok={ok} compareNone={none}
+        note={buyers.new_share == null ? "—" : `${pct(buyers.new_share)} مشتری جدید`} help="مشتریانی که در این بازه خرید کرده‌اند، بدون اکانت‌های داخلی." />
+    </section>
+  );
+}
+
+function Branches({ data, compareText }: { data: HomeData; compareText: string | null }) {
+  const today = data.range.period === "today";
+  const ok = data.range.comparable;
+  const max = Math.max(1, ...data.branches.map((b) => b.sales));
+  const cell = (row: HomeData["branches"][number] | NonNullable<HomeData["total"]>) => (
+    <>
+      <span className="flex flex-col gap-1">
+        <span><b>{money(row.sales)}</b></span>
+        {"line" in row ? (
+          <span className="h-1 rounded-sm bg-[var(--chart-track)]"><span className="block h-1 rounded-sm" style={{ background: lineOf(row.line)?.color, width: `${(row.sales / max) * 100}%` }} /></span>
+        ) : null}
+      </span>
+      <span>{fa(row.invoices)}</span>
+      <span>{fa(row.items)}</span>
+      <span>{row.basket == null ? "—" : money(row.basket)}</span>
+      {data.range.compare === "none" ? <span className="text-faint">—</span> : <Delta change={row.change} ok={ok} />}
+    </>
+  );
+  return (
+    <section aria-label="فروش شعب" className={`${CARD} flex flex-col gap-1 px-[18px] py-4`}>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-1">
+        <span className="flex items-center gap-2">
+          {today ? <span className="h-[9px] w-[9px] rounded-full bg-[var(--delta-up)] shadow-[0_0_0_4px_var(--delta-up-bg)]" /> : null}
+          <h2 className="m-0 text-[15px] font-semibold text-ink">{today ? "امروز تا این لحظه، به تفکیک شعبه" : "فروش شعب"}</h2>
+        </span>
+        <span className="text-[12.5px] text-muted">
+          {today ? (compareText ? `در برابر ${compareText}؛ تا آخرین همگام‌سازی، ساعت ${clock(data.sync.last_success_at)}` : `تا آخرین همگام‌سازی، ساعت ${clock(data.sync.last_success_at)}`) : describe(data.range).current}
+        </span>
+      </div>
+      <div className="overflow-x-auto">
+        <div className="min-w-[560px]">
+          <div className={`${ROW_GRID} py-1.5 text-xs text-faint`}><span>شعبه</span><span>فروش</span><span>فاکتور</span><span>کالا</span><span>سبد</span><span>تغییر</span></div>
+          {data.total ? <div className={`${ROW_GRID} min-h-[46px] border-t border-line py-1.5 text-[13.5px] font-semibold`}><span>کل الینور</span>{cell(data.total)}</div> : null}
+          {data.branches.map((b) => (
+            <div key={b.line} className={`${ROW_GRID} min-h-[46px] border-t border-line py-1.5 text-[13.5px]`}>
+              <span className="flex items-center gap-[7px] font-semibold"><span className="h-2 w-2 rounded-full" style={{ background: lineOf(b.line)?.color }} />{lineOf(b.line)?.label}</span>
+              {cell(b)}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Trend({ data }: { data: HomeData }) {
+  const hourly = data.range.bucket === "hour";
+  const points = data.trend;
+  const hasCompare = data.range.compare !== "none" && data.range.comparable;
+  const max = Math.max(1, ...points.map((p) => Math.max(p.sales ?? 0, p.compare ?? 0))) * 1.1;
+  const label = (key: string | number) => (hourly ? `${toFaDigits(key)}:۰۰` : jdate(String(key)));
+  const axis = (key: string | number, index: number) =>
+    hourly ? (index % 3 === 0 ? toFaDigits(key) : "") : index % Math.max(1, Math.ceil(points.length / 6)) === 0 ? formatJalali(String(key)).slice(5) : "";
+  const compareLegend = data.range.compare === "none"
+    ? null
+    : !data.range.comparable
+      ? "مقایسه ندارد (سابقه حضوری از ۱۴۰۴/۰۳/۱۰)"
+      : hourly
+        ? data.range.compare === "yoy" ? "همان روز سال قبل" : `${weekday(data.range.compare_from ?? data.range.from)} هفته قبل`
+        : data.range.compare === "yoy" ? "همین بازه سال قبل" : "بازه هم‌اندازه قبلی";
+  return (
+    <section aria-label="روند فروش" className={`${CARD} flex flex-col gap-2.5 px-[18px] py-4`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="m-0 text-[15px] font-semibold text-ink">روند فروش</h2>
+        <span className="flex flex-wrap items-center gap-3 text-xs text-muted">
+          <span className="flex items-center gap-[5px]"><span className="h-2.5 w-2.5 rounded-sm bg-accent" />{hourly ? "امروز، ساعتی" : "این بازه، روزانه"}</span>
+          {compareLegend ? (
+            <span className="flex items-center gap-[5px]">{hasCompare ? <span className="w-3.5 border-t-2 border-dashed border-ink" /> : null}{compareLegend}</span>
+          ) : null}
+        </span>
+      </div>
+      <div role="img" aria-label="نمودار روند فروش" className="flex h-[190px] items-end gap-[3px] border-b border-line">
+        {points.map((p) => (
+          <span key={String(p.key)} className="relative flex h-full min-w-0 flex-1 items-end"
+            title={p.future ? `${label(p.key)}، هنوز نرسیده` : `${label(p.key)}: ${money(p.sales)} تومان${hasCompare && p.compare != null ? `؛ مقایسه: ${money(p.compare)}` : ""}`}>
+            <span className={`w-full rounded-t-[3px] ${p.future ? "bg-[var(--chart-track)] opacity-50" : "bg-accent"}`}
+              style={{ height: p.future ? "100%" : `${Math.max(1, ((p.sales ?? 0) / max) * 100)}%` }} />
+            {hasCompare && !p.future && p.compare != null ? (
+              <span className="absolute inset-x-0 border-t-2 border-dashed border-ink/75" style={{ bottom: `${(p.compare / max) * 100}%` }} />
+            ) : null}
+          </span>
+        ))}
+      </div>
+      <div className="flex gap-[3px]">
+        {points.map((p, i) => <span key={String(p.key)} className="min-w-0 flex-1 whitespace-nowrap text-center text-[10.5px] text-faint">{axis(p.key, i)}</span>)}
+      </div>
     </section>
   );
 }
@@ -276,7 +299,7 @@ function Attention({ items }: { items: AttentionItem[] }) {
     <section aria-label="نیاز به توجه" className={`${CARD} flex flex-col gap-1 px-[18px] py-4`}>
       <div className="mb-1.5 flex flex-wrap items-center justify-between gap-1">
         <h2 className="m-0 text-[15px] font-semibold text-ink">نیاز به توجه</h2>
-        <span className="text-[12.5px] text-muted">از همه بخش‌ها، فقط چیزهایی که اقدام می‌خواهند</span>
+        <span className="text-[12.5px] text-muted">فقط چیزهایی که اقدام می‌خواهند</span>
       </div>
       {items.map((item) => {
         const copy = attentionCopy(item);
@@ -298,8 +321,10 @@ function Attention({ items }: { items: AttentionItem[] }) {
 export function HomePage() {
   const [params, setParams] = useSearchParams();
   const query = useMemo(() => {
-    const period = params.get("period") ?? "30";
-    return period === "custom" ? { period, from: params.get("from") ?? "", to: params.get("to") ?? "" } : { period };
+    const out: Record<string, string> = {};
+    ["period", "from", "to", "compare", "line"].forEach((key) => params.get(key) && (out[key] = params.get(key) as string));
+    if (out.period !== "custom") (delete out.from, delete out.to);
+    return out;
   }, [params]);
   const key = JSON.stringify(query);
   const [data, setData] = useState<HomeData | null>(null);
@@ -316,20 +341,29 @@ export function HomePage() {
       alive = false;
     };
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const line = params.get("line") ?? undefined;
+  const text = data ? describe(data.range) : null;
 
   return (
     <div className="mx-auto flex w-full max-w-[1360px] flex-col gap-3.5 pb-14">
-      <Header data={data} params={params} setParams={setParams} />
+      <div className="flex flex-wrap items-center justify-between gap-2.5">
+        <div className="flex flex-col gap-1">
+          <h1 className="m-0 text-2xl font-extrabold text-ink">خانه</h1>
+          <span className="text-[12.5px] text-muted">ارقام از داده همگام‌شده با سایت و فروشگاه‌هاست، نه لحظه‌ای.</span>
+        </div>
+        <span className="flex items-center gap-[7px] rounded-full border border-line bg-surface px-3 py-1.5 text-[12.5px] text-muted">
+          <span className="h-2 w-2 rounded-full" style={{ background: data?.sync.failed ? "var(--delta-down)" : "var(--delta-up)" }} />
+          آخرین همگام‌سازی: {since(data?.sync.last_success_at ?? null)}
+        </span>
+      </div>
+      <Filters data={data} params={params} setParams={setParams} />
       {error ? <p className={`${CARD} m-0 p-4 text-[13px] text-[var(--delta-down)]`}>صفحه خانه بارگیری نشد. دوباره تلاش کنید.</p> : null}
       {data ? (
         <div className={`flex flex-col gap-3.5 ${loading ? "opacity-60" : ""}`}>
-          <Today data={data} />
-          <div className="flex flex-wrap items-stretch gap-3">
-            <Trend data={data} />
-            <Branches data={data} />
-          </div>
-          <TargetsSection />
           <Cards data={data} />
+          <Branches data={data} compareText={text?.compare ?? null} />
+          <Trend data={data} />
+          <TargetsSection line={line && line !== "all" ? line : undefined} />
           <Attention items={data.attention} />
         </div>
       ) : (
@@ -338,4 +372,3 @@ export function HomePage() {
     </div>
   );
 }
-

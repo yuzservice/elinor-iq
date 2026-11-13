@@ -71,9 +71,10 @@ def line_status(gap):
     return "ahead" if gap >= STATUS_BAND else ("on_plan" if gap >= -STATUS_BAND else "behind")
 
 
-def progress(scope="month", now=None, actuals=None):
+def progress(scope="month", now=None, actuals=None, lines=None):
     """Target progress for the current Jalali period. A line has a target only when every month of the period has one;
-    the company figures add up the lines that have a target. Expected = elapsed days (today counted) ÷ total days."""
+    the company figures add up the lines that have a target. Expected = elapsed days (today counted) ÷ total days.
+    `lines` limits everything to those sales lines (the home «شعبه» filter)."""
     now = timezone.localtime(now or timezone.now())
     today = now.date()
     start, end, months, label = period_bounds(scope, today)
@@ -89,14 +90,14 @@ def progress(scope="month", now=None, actuals=None):
         counts[row.sales_line] = counts.get(row.sales_line, 0) + 1
     actual = actuals if actuals is not None else net_sales_by_line(_aware(start), now)
 
-    lines = []
-    for line in LINES:
+    rows_out = []
+    for line in (lines or LINES):
         target = sums.get(line) if counts.get(line) == len(months) else None
         pct = actual[line] * 100.0 / target if target else None
         gap = pct - expected if pct is not None else None
-        lines.append({"line": line, "target": target, "actual": actual[line], "pct": pct, "gap": gap, "status": line_status(gap)})
+        rows_out.append({"line": line, "target": target, "actual": actual[line], "pct": pct, "gap": gap, "status": line_status(gap)})
 
-    with_target = [row for row in lines if row["target"]]
+    with_target = [row for row in rows_out if row["target"]]
     company = None
     if with_target:
         target = sum(row["target"] for row in with_target)
@@ -113,7 +114,7 @@ def progress(scope="month", now=None, actuals=None):
     return {
         "scope": scope, "label": label, "start": start, "end": end, "today": today,
         "elapsed_days": elapsed, "total_days": total_days, "remaining_days": remaining, "expected_pct": expected,
-        "has_target": company is not None, "company": company, "lines": lines,
+        "has_target": company is not None, "company": company, "lines": rows_out,
         "month": {"year": months[0][0], "month": jdatetime.date.fromgregorian(date=today).month},
     }
 

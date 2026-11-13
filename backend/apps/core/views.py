@@ -11,14 +11,15 @@ def home_summary(request):
     from apps.core.home_cache import cached
     from apps.sales.targets import progress
 
-    params = {key: request.query_params.get(key) for key in ("period", "from", "to")}
+    params = {key: request.query_params.get(key) for key in ("period", "from", "to", "compare", "line")}
     try:
         home.resolve_window(params)
     except ValueError:
         return Response({"detail": "بازه تاریخ نامعتبر است."}, status=400)
-    key = f"summary:{params['period']}:{params['from']}:{params['to']}"
+    key = "summary:" + ":".join(str(params[k]) for k in ("period", "from", "to", "compare", "line"))
     data = cached(key, lambda: home.summary(params))
-    targets = cached("targets:month", lambda: progress("month"))
+    lines = home.parse_lines(params["line"])
+    targets = cached(f"targets:month:{params['line']}", lambda: progress("month", lines=lines))
     facts = cached("attention", home.attention_facts)
     return Response({**data, "attention": home.attention(request.user, targets=targets, facts=facts)})
 
@@ -31,7 +32,10 @@ def home_targets(request):
     from apps.sales.targets import progress
     from apps.sales.views import can_edit_targets
 
+    from apps.core.home import parse_lines
+
     scope = request.query_params.get("scope")
     scope = scope if scope in ("month", "quarter", "year") else "month"
-    data = cached(f"targets:{scope}", lambda: progress(scope))
+    line = request.query_params.get("line")
+    data = cached(f"targets:{scope}:{line}", lambda: progress(scope, lines=parse_lines(line)))
     return Response({**data, "can_edit": can_edit_targets(request.user)})
