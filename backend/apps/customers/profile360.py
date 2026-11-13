@@ -22,6 +22,7 @@ from apps.sales.semantics import (
     qualifying_online_orders,
     qualifying_pos_items,
     qualifying_pos_sales,
+    sales_line_label,
 )
 
 TIER_AVERAGES_SECONDS = 24 * 60 * 60
@@ -179,7 +180,7 @@ def customer_taste(customer):
         "category": _most_common((row[0], row[3]) for row in items),
         "size": _most_common((row[1], row[3]) for row in items),
         "color": _most_common((row[2], row[3]) for row in items),
-        "branch": _most_common([(BRANCH_LABELS[SalesLine.ONLINE], row[1]) for row in online] + [(BRANCH_LABELS.get(row[1], row[1]), row[0]) for row in pos]),
+        "branch": _most_common([(BRANCH_LABELS[SalesLine.ONLINE], row[1]) for row in online] + [(sales_line_label(row[1], BRANCH_LABELS), row[0]) for row in pos]),
         "payment": _most_common(payments),
         "discount_percent": int(round(discounted * 100 / invoices)) if invoices else None,
     }
@@ -299,7 +300,7 @@ def timeline(customer, kind="all", page=1, per_page=TIMELINE_PER_PAGE):
             events.append({"type": "invoice", "at": order.created_at, "channel": "online", "branch": BRANCH_LABELS[SalesLine.ONLINE], "source_id": order.source_id, "amount": order.total_amount, "discount_amount": order.discount_amount, "qualifying": ref in qualifying_online, "status": order.status, "payment": payments.get(("online", ref)), "products": products.get(("online", ref), [])})
         elif row["kind"] == 2:
             sale = sales[ref]
-            events.append({"type": "invoice", "at": sale.created_at, "channel": "pos", "branch": BRANCH_LABELS.get(sale.sales_line, sale.sales_line), "source_id": sale.source_id, "amount": int(sale_amounts.get(ref) or 0), "discount_amount": sale.discount_amount, "qualifying": ref in qualifying_pos, "status": sale.type, "payment": payments.get(("pos", ref)), "products": products.get(("pos", ref), [])})
+            events.append({"type": "invoice", "at": sale.created_at, "channel": "pos", "branch": sales_line_label(sale.sales_line, BRANCH_LABELS), "source_id": sale.source_id, "amount": int(sale_amounts.get(ref) or 0), "discount_amount": sale.discount_amount, "qualifying": ref in qualifying_pos, "status": sale.type, "payment": payments.get(("pos", ref)), "products": products.get(("pos", ref), [])})
         elif row["kind"] == 3:
             events.append({"type": "call", "at": logs[ref].created_at, "call": log_payload(logs[ref])})
         else:

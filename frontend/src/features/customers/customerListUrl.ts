@@ -1,6 +1,7 @@
 import { formatJalali } from "../../lib/dates";
 import { indexTree, parseIds, type CategoryNode } from "../categories/categoryTree";
 import { formatNumber } from "../../lib/format";
+import { onlyVisible, visibleSalesLines } from "../../lib/salesLines";
 
 /** All filters, sort and page live in the URL, using the API's own parameter names. */
 
@@ -96,7 +97,7 @@ export function buildCategories(dynamic: DynamicOptions): Category[] {
       label: "کانال و پرداخت",
       fields: [
         { key: "channels", label: "کانال", kind: "multi", param: "channels", options: [{ value: "online", label: "آنلاین" }, { value: "physical", label: "حضوری" }, { value: "both", label: "ترکیبی" }] },
-        { key: "branch", label: "شعبه", kind: "multi", param: "branches", options: [{ value: "ONLINE", label: "سایت" }, { value: "SARI", label: "ساری" }, { value: "GORGAN", label: "گرگان" }, { value: "CAPRI", label: "کاپری" }] },
+        { key: "branch", label: "شعبه", kind: "multi", param: "branches", options: visibleSalesLines().map((line) => ({ value: line, label: BRANCHES[line] })) },
         { key: "pay", label: "روش پرداخت", kind: "multi", param: "payments", options: [{ value: "snappay", label: "اسنپ‌پی" }, { value: "digipay", label: "دیجی‌پی" }, { value: "shopino", label: "شاپینو" }] },
         { key: "discount", label: "تخفیف", kind: "single", param: "discount", options: [{ value: "yes", label: "دارد" }, { value: "no", label: "ندارد" }] },
       ],
@@ -415,7 +416,7 @@ const CHANNELS: Record<string, { label: string; color: string }> = {
 export function channelCell(channel: string, lines: string[]): { text: string; color: string | null } {
   const meta = CHANNELS[channel];
   if (!meta) return { text: "—", color: null };
-  const branches = lines.map((line) => BRANCHES[line] ?? line).join("، ");
+  const branches = onlyVisible(lines, (line) => line).map((line) => BRANCHES[line] ?? line).join("، ");
   return { text: branches ? `${meta.label}، ${branches}` : meta.label, color: meta.color };
 }
 

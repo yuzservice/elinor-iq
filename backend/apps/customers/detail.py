@@ -24,6 +24,7 @@ from apps.customers.internal_accounts import internal_account_payload
 from apps.customers.profile360 import call_header, customer_taste, invoice_payments, pos_amounts, value_summary
 from apps.customers.tiers import tier_channel_label, tier_label
 from apps.sales.models import OrderItem, PosSaleItem, SalesLine
+from apps.sales.semantics import hidden_sales_lines, sales_line_label
 
 POS_TYPE_LABELS = {
     "sell": "فروش",
@@ -161,7 +162,7 @@ def _purchase_events(customer):
                 "pk": row["id"],
                 "kind": "pos",
                 "sales_line": row["sales_line"],
-                "sales_line_label": SALES_LINE_LABELS.get(row["sales_line"], row["sales_line"]),
+                "sales_line_label": sales_line_label(row["sales_line"]),
                 "source_id": row["source_id"],
                 "created_at": row["created_at"],
                 "receiver": "",
@@ -367,9 +368,11 @@ def _sales_line_usage(customer, online_count):
         for row in qualifying_pos(customer.pos_sales.all()).values("sales_line").annotate(c=Count("id"))
     }
     rows = []
-    for key, label in SALES_LINE_LABELS.items():
+    for key in SALES_LINE_LABELS:
         count = online_count if key == SalesLine.ONLINE else int(pos_counts.get(key) or 0)
-        rows.append({"key": key, "label": label, "purchase_count": count, "used": count > 0})
+        if key in hidden_sales_lines() and not count:
+            continue  # a hidden line appears only in the history of customers who bought there, under «فروشگاه حضوری»
+        rows.append({"key": key, "label": sales_line_label(key), "purchase_count": count, "used": count > 0})
     return rows
 
 
@@ -424,7 +427,7 @@ def _discounts(customer):
                 "source_id": sale.source_id,
                 "kind": "pos",
                 "sales_line": sale.sales_line,
-                "sales_line_label": SALES_LINE_LABELS.get(sale.sales_line, sale.sales_line),
+                "sales_line_label": sales_line_label(sale.sales_line),
                 "created_at": sale.created_at,
                 "discount_amount": sale.discount_amount,
                 "status": _pos_status({"type": sale.type, "is_cancelled": sale.is_cancelled, "deleted_at": sale.deleted_at}),

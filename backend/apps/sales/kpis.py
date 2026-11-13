@@ -7,12 +7,14 @@ from apps.sales.analysis import _pct_change, _pos_line_total_expr
 from apps.sales.models import Order, PosSale, SalesLine
 from apps.sales.semantics import (
     ONLINE_GATEWAY_SUCCESS,
+    exclude_hidden_lines,
     online_order_value_orders,
     pos_refund_items,
     qualifying_online_items,
     qualifying_online_orders,
-    qualifying_pos_items,
-    qualifying_pos_sales,
+    visible_pos_items,
+    visible_pos_sales,
+    visible_sales_lines,
 )
 
 ONLINE_CHANNEL_FILTERS = {
@@ -26,9 +28,6 @@ GATEWAY_PAYMENTS = {
     "digipay": {"gateway": "digipay", "pos_field": "digipay_cashier_amount"},
 }
 
-VALID_BRANCHES = frozenset({SalesLine.ONLINE, SalesLine.SARI, SalesLine.GORGAN, SalesLine.CAPRI})
-
-
 def parse_csv_param(raw):
     if not raw:
         return []
@@ -36,10 +35,12 @@ def parse_csv_param(raw):
 
 
 def parse_branch_filter(raw):
+    """Unknown and hidden lines are dropped silently (an empty result means all visible lines)."""
+    valid = visible_sales_lines()
     values = []
     for item in parse_csv_param(raw):
         key = item.strip().upper()
-        if key in VALID_BRANCHES and key not in values:
+        if key in valid and key not in values:
             values.append(key)
     return values
 
@@ -141,7 +142,7 @@ def filtered_pos_sales(start, end, branches, channels, payments):
     pos_branches = [branch for branch in branches if branch != SalesLine.ONLINE]
     if branches and not pos_branches:
         return PosSale.objects.none()
-    qs = qualifying_pos_sales().filter(created_at__gte=start, created_at__lt=end)
+    qs = visible_pos_sales().filter(created_at__gte=start, created_at__lt=end)
     if pos_branches:
         qs = qs.filter(sales_line__in=pos_branches)
     if payments:
@@ -154,7 +155,7 @@ def _refund_amount(start, end, branches, channels):
     pos_branches = [branch for branch in branches if branch != SalesLine.ONLINE]
     if branches and not pos_branches:
         return 0
-    items = pos_refund_items().filter(
+    items = exclude_hidden_lines(pos_refund_items()).filter(
         pos_sale__created_at__gte=start,
         pos_sale__created_at__lt=end,
     )
@@ -175,7 +176,7 @@ def compute_overview_kpis(start, end, branches=None, channels=None, payments=Non
 
     online_sales = int(online_value_orders.aggregate(total=Sum("total_amount"))["total"] or 0)
     pos_sales_amount = int(
-        qualifying_pos_items()
+        visible_pos_items()
         .filter(pos_sale__in=pos_sales)
         .aggregate(total=Sum(_pos_line_total_expr()))["total"]
         or 0
@@ -192,7 +193,7 @@ def compute_overview_kpis(start, end, branches=None, channels=None, payments=Non
         or 0
     )
     pos_units = int(
-        qualifying_pos_items()
+        visible_pos_items()
         .filter(pos_sale__in=pos_sales)
         .aggregate(total=Sum("quantity"))["total"]
         or 0
@@ -293,7 +294,7 @@ def _bucket_points(start, end, branches, channels, payments, group):
     pos_sales = filtered_pos_sales(start, end, branches, channels, payments)
     for row in pos_sales.order_by().values("created_at").annotate(orders=Count("id")):
         add(row["created_at"], order_count=row["orders"])
-    for row in qualifying_pos_items().filter(pos_sale__in=pos_sales).order_by().values("pos_sale__created_at").annotate(
+    for row in visible_pos_items().filter(pos_sale__in=pos_sales).order_by().values("pos_sale__created_at").annotate(
         amount=Sum(_pos_line_total_expr()),
         units=Sum("quantity"),
     ):
@@ -301,7 +302,7 @@ def _bucket_points(start, end, branches, channels, payments, group):
 
     branches = branches or []
     pos_branches = [branch for branch in branches if branch != SalesLine.ONLINE]
-    refunds = pos_refund_items().filter(pos_sale__created_at__gte=start, pos_sale__created_at__lt=end)
+    refunds = exclude_hidden_lines(pos_refund_items()).filter(pos_sale__created_at__gte=start, pos_sale__created_at__lt=end)
     if branches and not pos_branches:
         refunds = refunds.none()
     elif pos_branches:

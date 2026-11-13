@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AuthContext } from "../hooks/useAuth";
+import { setVisibleSalesLines } from "../lib/salesLines";
 import { AppShell } from "../layouts/AppShell";
 import { authService } from "../services/auth";
 import { ThemeProvider } from "../theme/ThemeProvider";
@@ -32,8 +33,12 @@ function AgentRedirect({ user }: { user: User }) {
 }
 
 export function App() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUserState] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
+  const setUser = (next: User | null) => {
+    setVisibleSalesLines(next?.visible_sales_lines);
+    setUserState(next);
+  };
 
   useEffect(() => {
     authService

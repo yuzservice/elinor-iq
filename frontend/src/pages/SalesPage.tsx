@@ -18,6 +18,8 @@ import {
   type SalesFilterValues,
 } from "../features/sales/salesPageFilters";
 import { useApi } from "../hooks/useApi";
+import { toFaDigits } from "../lib/dates";
+import { isVisibleLine, onlyVisible, storeLinesText, visibleSalesLines } from "../lib/salesLines";
 import { customerDisplayName } from "../lib/customerDisplay";
 import { formatCompactToman, formatDate, formatNumber, toInputDate } from "../lib/format";
 import { formatJalali } from "../lib/dates";
@@ -45,6 +47,20 @@ const SALES_TABS = [
   { key: "returns", label: "پایش مرجوعی و تعویض شعب" },
   { key: "orders", label: "استریم فاکتورهای اخیر" },
 ];
+
+const STORE_NAMES: Record<string, string> = { SARI: "ساری", GORGAN: "گرگان", CAPRI: "کاپری" };
+const LINE_OPTION_LABELS: Record<string, string> = {
+  ONLINE: "فروشگاه آنلاین (سایت)",
+  SARI: "شعبه ساری (حضوری)",
+  GORGAN: "شعبه گرگان (حضوری)",
+  CAPRI: "شعبه کاپری (حضوری)",
+};
+const UNIT_COLUMNS = [
+  { line: "ONLINE", title: "آنلاین", field: "online_units", tone: "text-blue-500" },
+  { line: "SARI", title: "ساری", field: "sari_units", tone: "text-emerald-500" },
+  { line: "GORGAN", title: "گرگان", field: "gorgan_units", tone: "text-amber-500" },
+  { line: "CAPRI", title: "کاپری", field: "capri_units", tone: "text-purple-500" },
+] as const;
 
 export function SalesPage() {
   const [params, setParams] = useSearchParams();
@@ -203,12 +219,12 @@ export function SalesPage() {
       });
     }
     // High-fidelity fallback based on boutique branches
-    return [
+    return onlyVisible([
       { key: "ONLINE" as const, label: "فروشگاه آنلاین (سایت)", revenue: 1_040_000_000, orders: 620, share: 42, color: "#3b82f6" },
       { key: "SARI" as const, label: "شعبه ساری (حضوری)", revenue: 695_000_000, orders: 390, share: 28, color: "#10b981" },
       { key: "GORGAN" as const, label: "شعبه گرگان (حضوری)", revenue: 450_000_000, orders: 250, share: 18, color: "#f59e0b" },
       { key: "CAPRI" as const, label: "شعبه کاپری (حضوری)", revenue: 300_600_000, orders: 160, share: 12, color: "#8b5cf6" },
-    ];
+    ], (row) => row.key);
   }, [summaryDetails.data?.sales_lines]);
 
 
@@ -275,11 +291,11 @@ export function SalesPage() {
           <div className="flex items-center gap-2.5">
             <h1 className="text-xl sm:text-2xl font-black tracking-tight text-ink">تحلیل پیشرفته و هوش فروش</h1>
             <span className="text-xs px-2.5 py-0.5 rounded-full bg-accent/15 text-accent font-bold border border-accent/25">
-              تلفیق زنده ۴ کانال فروش
+              تلفیق زنده {toFaDigits(visibleSalesLines().length)} کانال فروش
             </span>
           </div>
           <p className="text-xs text-muted mt-1 leading-5">
-            پایش عملکرد درآمدی وبسایت آنلاین و پایانه‌های صندوق شعب ساری، گرگان و کاپری • الگوهای رشد و رفتار مرجوعی‌ها
+            پایش عملکرد درآمدی وبسایت آنلاین و پایانه‌های صندوق شعب {storeLinesText(STORE_NAMES)} • الگوهای رشد و رفتار مرجوعی‌ها
           </p>
         </div>
 
@@ -293,11 +309,10 @@ export function SalesPage() {
               onChange={(e) => handleBranchChange(e.target.value)}
               className="bg-elevated border border-line rounded-2xl px-3 py-1.5 text-xs font-bold text-ink focus:outline-none focus:border-accent cursor-pointer pr-3 pl-8 shadow-sm transition-all"
             >
-              <option value="all">همه خطوط فروش (۴ شعبه)</option>
-              <option value="ONLINE">فروشگاه آنلاین (سایت)</option>
-              <option value="SARI">شعبه ساری (حضوری)</option>
-              <option value="GORGAN">شعبه گرگان (حضوری)</option>
-              <option value="CAPRI">شعبه کاپری (حضوری)</option>
+              <option value="all">همه خطوط فروش ({toFaDigits(visibleSalesLines().length)} شعبه)</option>
+              {visibleSalesLines().map((key) => (
+                <option key={key} value={key}>{LINE_OPTION_LABELS[key]}</option>
+              ))}
             </select>
             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none text-xs">▾</span>
           </div>
@@ -686,10 +701,7 @@ export function SalesPage() {
                     "فاکتورها",
                     "خریداران",
                     "آخرین فروش",
-                    "آنلاین",
-                    "ساری",
-                    "گرگان",
-                    "کاپری",
+                    ...UNIT_COLUMNS.filter((col) => isVisibleLine(col.line)).map((col) => col.title),
                   ]}
                 >
                   {products.data.results.map((row) => (
@@ -701,10 +713,9 @@ export function SalesPage() {
                       <td className="px-3 py-3.5 tabular text-ink">{formatNumber(row.purchase_count)}</td>
                       <td className="px-3 py-3.5 tabular text-muted">{formatNumber(row.customer_count)}</td>
                       <td className="px-3 py-3.5 text-muted text-xs">{formatDate(row.last_sale_at)}</td>
-                      <td className="px-3 py-3.5 tabular text-blue-500 font-semibold">{formatNumber(row.online_units)}</td>
-                      <td className="px-3 py-3.5 tabular text-emerald-500 font-semibold">{formatNumber(row.sari_units)}</td>
-                      <td className="px-3 py-3.5 tabular text-amber-500 font-semibold">{formatNumber(row.gorgan_units)}</td>
-                      <td className="px-3 py-3.5 tabular text-purple-500 font-semibold">{formatNumber(row.capri_units)}</td>
+                      {UNIT_COLUMNS.filter((col) => isVisibleLine(col.line)).map((col) => (
+                        <td key={col.line} className={`px-3 py-3.5 tabular font-semibold ${col.tone}`}>{formatNumber(row[col.field])}</td>
+                      ))}
                     </TableRow>
                   ))}
                 </Table>
@@ -849,11 +860,11 @@ export function SalesPage() {
               </Table>
             ) : (
               <Table columns={["شعبه حضوری", "تعداد مرجوعی", "تعداد تعویض", "آیتم مرجوعی", "آیتم جایگزین"]}>
-                {[
-                  { label: "شعبه ساری", refunds: 14, exchanges: 12, refUnits: 15, repUnits: 14 },
-                  { label: "شعبه گرگان", refunds: 9, exchanges: 8, refUnits: 10, repUnits: 9 },
-                  { label: "شعبه کاپری", refunds: 8, exchanges: 4, refUnits: 8, repUnits: 5 },
-                ].map((row) => (
+                {onlyVisible([
+                  { line: "SARI", label: "شعبه ساری", refunds: 14, exchanges: 12, refUnits: 15, repUnits: 14 },
+                  { line: "GORGAN", label: "شعبه گرگان", refunds: 9, exchanges: 8, refUnits: 10, repUnits: 9 },
+                  { line: "CAPRI", label: "شعبه کاپری", refunds: 8, exchanges: 4, refUnits: 8, repUnits: 5 },
+                ], (row) => row.line).map((row) => (
                   <TableRow key={row.label}>
                     <td className="px-3.5 py-3.5 font-bold text-ink">{row.label}</td>
                     <td className="px-3 py-3.5 tabular text-rose-500 font-bold">{formatNumber(row.refunds)}</td>

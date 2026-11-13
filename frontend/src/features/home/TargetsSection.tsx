@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { toFaDigits } from "../../lib/dates";
 import { formatCompactToman } from "../../lib/format";
 import { homeService } from "../../services/home";
-import { LINES, fa, jdate } from "../products/display";
+import { LINES, fa, jdate, visibleLines } from "../products/display";
 import type { LineStatus, TargetProgress, TargetScope } from "./types";
 
 const CARD = "rounded-[18px] border border-line bg-surface";
@@ -112,7 +112,7 @@ export function TargetsSection({ line }: { line?: string }) {
               <span>{fa(d.expected_pct)}٪ از زمان گذشته است</span>
               <span>خط عمودی: جایی که باید تا امروز می‌رسیدیم</span>
             </div>
-            {!branch && c.lines_included.length < LINES.length ? (
+            {!branch && c.lines_included.length < visibleLines().length ? (
               <span className="text-xs text-muted">
                 فقط شعبه‌های دارای تارگت جمع شده‌اند: {c.lines_included.map((key) => LINES.find((l) => l.key === key)?.label).join("، ")}
               </span>
@@ -137,7 +137,7 @@ export function TargetsSection({ line }: { line?: string }) {
           </div>
           <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-2.5">
             {!branch ? <span className="text-[13px] font-semibold text-muted">شعب</span> : null}
-            {LINES.filter((l) => d.lines.some((r) => r.line === l.key)).map((line) => {
+            {visibleLines().filter((l) => d.lines.some((r) => r.line === l.key)).map((line) => {
               const row = d.lines.find((r) => r.line === line.key);
               const status = row?.status ? STATUS[row.status] : null;
               return (

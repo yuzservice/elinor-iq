@@ -9,6 +9,7 @@ import {
   type CustomerRedemption,
 } from "../../services/campaigns";
 import { EmptyState, ErrorState, Skeleton } from "../../components/Table";
+import { onlyVisible } from "../../lib/salesLines";
 
 const BRANCH_OPTIONS = [
   { value: "", label: "همه شعب" },
@@ -342,7 +343,7 @@ export function CustomerCampaignsPanel() {
           <div className="flex flex-wrap items-center gap-2">
             {/* Branch Filter Pills */}
             <div className="flex items-center bg-elevated p-0.5 rounded-xl border border-line text-[11px] overflow-x-auto no-scrollbar">
-              {BRANCH_OPTIONS.map((br) => {
+              {onlyVisible(BRANCH_OPTIONS, (br) => br.value).map((br) => {
                 const active = selectedBranch === br.value;
                 return (
                   <button

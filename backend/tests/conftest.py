@@ -16,6 +16,12 @@ from apps.products.models import Product, Variant
 from apps.sales.models import Order, OrderItem
 
 
+@pytest.fixture(autouse=True)
+def _show_all_sales_lines(settings):
+    """Existing tests assert all-line figures; tests of the hidden-line setting override this (tests/test_hidden_sales_lines.py)."""
+    settings.HIDDEN_SALES_LINES = ""
+
+
 @pytest.fixture
 def api():
     return APIClient()

@@ -6,7 +6,7 @@ import { formatNumber } from "../../lib/format";
 import { customersService } from "../../services/customers";
 import type { CustomerOverviewData, OverviewCompare, OverviewLens, OverviewMetric, OverviewPeriod } from "../../types";
 import {
-  LENSES,
+  visibleLenses,
   METRICS,
   PERIODS,
   barWidth,
@@ -201,9 +201,9 @@ function Expanded({ data, lens, setLens, focus, setFocus, canManage, onEditTierR
     <div className="flex flex-col gap-3.5">
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="me-1 text-xs text-faint">نمایش برای</span>
-        {LENSES.filter((meta) => meta.group !== "pay").map(lensButton)}
+        {visibleLenses().filter((meta) => meta.group !== "pay").map(lensButton)}
         <span className="mx-1 h-[22px] w-px bg-black/[0.12] dark:bg-white/[0.12]" />
-        {LENSES.filter((meta) => meta.group === "pay").map(lensButton)}
+        {visibleLenses().filter((meta) => meta.group === "pay").map(lensButton)}
         <span className="ms-auto text-[11.5px] text-faint">
           {toFaDate(data.window.start_jalali)} تا {toFaDate(data.window.end_jalali)}
           {data.compare === "yoy" ? " · در برابر سال قبل" : " · در برابر دوره قبل"}
@@ -295,7 +295,7 @@ function ComparisonPanel({
   focus: OverviewMetric;
 }) {
   const metric = METRICS.find((item) => item.key === focus)!;
-  const rows = LENSES.filter((meta) => meta.group !== "all");
+  const rows = visibleLenses().filter((meta) => meta.group !== "all");
   const max = Math.max(0, ...rows.map((meta) => data.lenses[meta.key][focus].value ?? 0));
   return (
     <section className={`${PANEL} gap-3`}>

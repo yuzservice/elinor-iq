@@ -1,7 +1,10 @@
 """Daily product summaries: set-based rebuilds of the tables in apps.products.models from apps.sales.semantics.
 
 Every rebuild replaces its table inside one transaction, so a run is idempotent and readers keep the old rows until
-commit. Rules and thresholds: docs/business-rules/products.md and settings.PRODUCTS_RULES."""
+commit. Rules and thresholds: docs/business-rules/products.md and settings.PRODUCTS_RULES.
+
+Hidden sales lines (settings.HIDDEN_SALES_LINES): product_daily_sales is keyed by line and keeps every line (reports
+filter at read time); the cross-line tables (baskets, product_metrics and status changes) are built from visible lines only."""
 
 import logging
 import time
@@ -15,7 +18,7 @@ from django.utils import timezone
 
 from apps.customers.operators import exclude_operator_sales
 from apps.integrations.elinor.models import SyncCursor
-from apps.sales.semantics import pos_refund_items, qualifying_online_items, qualifying_pos_items
+from apps.sales.semantics import pos_refund_items, qualifying_online_items, qualifying_pos_items, visible_pos_items, visible_sales_lines
 
 logger = logging.getLogger(__name__)
 TEHRAN = ZoneInfo("Asia/Tehran")
@@ -96,7 +99,7 @@ PRIMARY_CATEGORY_SQL = """
 def refresh_bundles():
     """Invoice (basket) counts per product and per primary category, and their pairs, per day and channel."""
     online = _online().annotate(ch=Value("online", output_field=CharField()), pid=F("product_id"))
-    store = _pos(qualifying_pos_items()).annotate(ch=Value("store", output_field=CharField()), pid=F("product_id"))
+    store = _pos(visible_pos_items()).annotate(ch=Value("store", output_field=CharField()), pid=F("product_id"))
     union, params = _union([_sql(online, BASKET_COLUMNS), _sql(store, BASKET_COLUMNS)])
     with transaction.atomic(), connection.cursor() as cursor:
         cursor.execute("SET LOCAL jit = off")
@@ -132,7 +135,8 @@ def refresh_metrics(as_of=None):
     """ProductMetrics as of `as_of` (default today, Tehran) from product_daily_sales and product_central_stock."""
     rules = settings.PRODUCTS_RULES
     # Stock off: no central stock, so no stock flags; statuses stay speed-only.
-    params = {**rules, "d": as_of or timezone.localdate(), "stock_enabled": settings.PRODUCTS_STOCK_ENABLED}
+    params = {**rules, "d": as_of or timezone.localdate(), "stock_enabled": settings.PRODUCTS_STOCK_ENABLED,
+              "lines": list(visible_sales_lines())}
     sql = f"""
     WITH RECURSIVE {PRIMARY_CATEGORY_SQL},
     s AS (
@@ -154,16 +158,16 @@ def refresh_metrics(as_of=None):
             COALESCE(SUM(units) FILTER (WHERE day > %(d)s::date - 90), 0) AS u90,
             COALESCE(SUM(discounted_units) FILTER (WHERE day > %(d)s::date - 90), 0) AS disc90,
             COALESCE(SUM(units - net_units) FILTER (WHERE day > %(d)s::date - 90), 0) AS ret90
-        FROM product_daily_sales WHERE day <= %(d)s::date GROUP BY product_id
+        FROM product_daily_sales WHERE day <= %(d)s::date AND sales_line = ANY(%(lines)s) GROUP BY product_id
     ),
     first14 AS (
         SELECT p.product_id, SUM(p.units) AS u FROM product_daily_sales p JOIN s ON s.product_id = p.product_id
-        WHERE p.day < s.first_day + 14 GROUP BY p.product_id
+        WHERE p.day < s.first_day + 14 AND p.sales_line = ANY(%(lines)s) GROUP BY p.product_id
     ),
     by_line AS (
         SELECT product_id, jsonb_object_agg(sales_line, last_day) AS lines FROM (
             SELECT product_id, sales_line, MAX(day)::text AS last_day FROM product_daily_sales
-            WHERE units > 0 AND day <= %(d)s::date GROUP BY product_id, sales_line) l
+            WHERE units > 0 AND day <= %(d)s::date AND sales_line = ANY(%(lines)s) GROUP BY product_id, sales_line) l
         GROUP BY product_id
     ),
     stock AS (SELECT product_id, SUM(GREATEST(balance, 0)) AS bal FROM product_central_stock

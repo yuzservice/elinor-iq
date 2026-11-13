@@ -1,8 +1,8 @@
 """Monthly sales targets per sales line and their progress over a Jalali month, season or year.
 
 The measured amount is `net_sales_by_line`, the home revenue card's figure: online order value (`online_order_value_orders`,
-`Order.total_amount`) plus in-store sold lines (`qualifying_pos_items`, amount × quantity). Online and POS are computed
-apart and only added per line. Rules: docs/business-rules/home-and-targets.md."""
+`Order.total_amount`) plus in-store sold lines (`visible_pos_items`, amount × quantity). Online and POS are computed
+apart and only added per line. Only visible lines (`visible_sales_lines()`) are shown or saved. Rules: docs/business-rules/home-and-targets.md."""
 
 from datetime import date, datetime, time, timedelta
 
@@ -15,9 +15,8 @@ from django.utils import timezone
 from apps.core.dates import JALALI_MONTHS_FA
 
 from .models import SalesLine, SalesTarget, SalesTargetChange
-from .semantics import online_order_value_orders, qualifying_pos_items
+from .semantics import online_order_value_orders, visible_pos_items, visible_sales_lines
 
-LINES = (SalesLine.ONLINE, SalesLine.SARI, SalesLine.GORGAN, SalesLine.CAPRI)
 POS_START = date(2025, 5, 31)  # in-store history starts 1404/03/10
 SEASONS = ("بهار", "تابستان", "پاییز", "زمستان")
 STATUS_BAND = 3  # points: ahead ≥ +3, on plan within ±3, behind < −3
@@ -34,10 +33,10 @@ def net_sales_by_line(start, end):
     line_total = Coalesce(F("amount"), Value(0)) * Coalesce(F("quantity"), Value(0))
     pos = {
         row["pos_sale__sales_line"]: int(row["total"] or 0)
-        for row in qualifying_pos_items().filter(pos_sale__created_at__gte=start, pos_sale__created_at__lt=end)
+        for row in visible_pos_items().filter(pos_sale__created_at__gte=start, pos_sale__created_at__lt=end)
         .values("pos_sale__sales_line").annotate(total=Sum(line_total))
     }
-    return {line: int(online) if line == SalesLine.ONLINE else pos.get(line, 0) for line in LINES}
+    return {line: int(online) if line == SalesLine.ONLINE else pos.get(line, 0) for line in visible_sales_lines()}
 
 
 def month_days(jy, jm):
@@ -91,7 +90,7 @@ def progress(scope="month", now=None, actuals=None, lines=None):
     actual = actuals if actuals is not None else net_sales_by_line(_aware(start), now)
 
     rows_out = []
-    for line in (lines or LINES):
+    for line in (lines or visible_sales_lines()):
         target = sums.get(line) if counts.get(line) == len(months) else None
         pct = actual[line] * 100.0 / target if target else None
         gap = pct - expected if pct is not None else None
@@ -120,12 +119,12 @@ def progress(scope="month", now=None, actuals=None, lines=None):
 
 
 def grid(year):
-    """12 months × 4 lines of the year, plus the latest changes (audit)."""
+    """12 months × the visible lines of the year, plus the latest changes (audit)."""
     cells = {(t.month, t.sales_line): t.amount for t in SalesTarget.objects.filter(year=year)}
     changes = SalesTargetChange.objects.filter(year=year).select_related("changed_by")[:30]
     return {
         "year": year,
-        "months": [{"month": m, "name": JALALI_MONTHS_FA[m - 1], "lines": {line: cells.get((m, line)) for line in LINES}} for m in range(1, 13)],
+        "months": [{"month": m, "name": JALALI_MONTHS_FA[m - 1], "lines": {line: cells.get((m, line)) for line in visible_sales_lines()}} for m in range(1, 13)],
         "changes": [
             {"month": c.month, "sales_line": c.sales_line, "old": c.old_amount, "new": c.new_amount, "source": c.source,
              "by": c.changed_by.username if c.changed_by else None, "at": c.changed_at}
@@ -148,7 +147,7 @@ def copy_preview(year, growth_pct):
         start = jdatetime.date(year - 1, m, 1).togregorian()
         end = start + timedelta(days=month_days(year - 1, m))
         sales = None
-        for line in LINES:
+        for line in visible_sales_lines():
             if (m, line) in last:
                 source, base = "target", last[(m, line)]
             elif line != SalesLine.ONLINE and start < POS_START:
@@ -167,7 +166,7 @@ def save_cells(user, year, cells, source="manual"):
     clean = []
     for cell in cells:
         month, line, amount = int(cell["month"]), cell["sales_line"], cell.get("amount")
-        if not 1 <= month <= 12 or line not in LINES:
+        if not 1 <= month <= 12 or line not in visible_sales_lines():
             raise ValueError("ماه یا شعبه نامعتبر است.")
         amount = int(amount) if amount not in (None, "") else None
         if amount is not None and amount < 0:
