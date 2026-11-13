@@ -3,18 +3,20 @@ import { Link, useSearchParams } from "react-router-dom";
 import { JalaliRangePopover } from "../components/JalaliDatePicker";
 import { TargetsSection, money } from "../features/home/TargetsSection";
 import type { AttentionItem, HomeCompare, HomeData, HomePeriodKey } from "../features/home/types";
+import { donutStops, rankBranches, sparkBars, toggleLine } from "../features/home/tiles";
 import { LINES, delta, fa, jdate, pct } from "../features/products/display";
 import { formatJalali, jalaliWeekday, toFaDigits } from "../lib/dates";
 import { tehranTodayIso } from "../lib/format";
 import { homeService } from "../services/home";
 
 const CARD = "rounded-[18px] border border-line bg-surface";
-const PERIODS: [HomePeriodKey, string][] = [["today", "امروز"], ["7", "۷ روز اخیر"], ["30", "۳۰ روز اخیر"], ["90", "۹۰ روز اخیر"], ["custom", "بازه دلخواه…"]];
+const PERIODS: [HomePeriodKey, string][] = [["today", "امروز"], ["yesterday", "دیروز"], ["7", "۷ روز اخیر"], ["30", "۳۰ روز اخیر"], ["90", "۹۰ روز اخیر"], ["custom", "بازه دلخواه…"]];
 const COMPARE_TODAY: [HomeCompare, string][] = [["prev", "همان روز هفته قبل"], ["yoy", "همان روز سال قبل"], ["none", "بدون مقایسه"]];
 const COMPARE_RANGE: [HomeCompare, string][] = [["prev", "دوره قبل"], ["yoy", "همین بازه سال قبل"], ["none", "بدون مقایسه"]];
 const BRANCHES: [string, string][] = [["all", "همه شعب"], ...LINES.map((l) => [l.key, l.label] as [string, string])];
 const lineOf = (key: string | null) => LINES.find((line) => line.key === key);
-const ROW_GRID = "grid grid-cols-[minmax(90px,1.2fr)_minmax(120px,2fr)_repeat(3,minmax(70px,0.8fr))_minmax(60px,0.6fr)] items-center gap-2.5";
+/** «امروز» and «دیروز» are single days compared with the same weekday last week (or the same day last year). */
+const isDay = (period: HomePeriodKey) => period === "today" || period === "yesterday";
 
 function since(iso: string | null) {
   if (!iso) return "هنوز انجام نشده";
@@ -31,14 +33,29 @@ const weekday = jalaliWeekday;
 /** Last day of a window whose end is exclusive. */
 const lastDay = (iso: string) => new Date(Date.parse(iso) - 1).toISOString();
 
-/** «امروز ۱۴۰۵/۰۸/۲۰ تا ساعت ۱۵:۰۰  •  در برابر سه‌شنبه ۱۴۰۵/۰۸/۱۳ تا همین ساعت» */
+/** A window that ends at midnight is whole; one that ends now stops «تا ساعت …». */
+const wholeDay = (iso: string) => (Date.parse(iso) + 3.5 * 3_600_000) % 86_400_000 === 0;
+
+/** «امروز ۱۴۰۵/۰۸/۲۰ تا ساعت ۱۵:۰۰  •  در برابر سه‌شنبه ۱۴۰۵/۰۸/۱۳ تا همین ساعت»;
+ *  «دیروز سه‌شنبه ۱۴۰۵/۰۸/۱۹، کل روز  •  در برابر سه‌شنبه ۱۴۰۵/۰۸/۱۲، کل روز». */
 function describe(range: HomeData["range"]) {
   const today = range.period === "today";
-  const current = today ? `امروز ${jdate(range.from)} تا ساعت ${clock(range.to)}` : `${jdate(range.from)} تا ${jdate(lastDay(range.to))}`;
+  const yesterday = range.period === "yesterday";
+  const oneDay = range.period === "custom" && jdate(range.from) === jdate(lastDay(range.to));
+  const current = today
+    ? `امروز ${jdate(range.from)} تا ساعت ${clock(range.to)}`
+    : yesterday
+      ? `دیروز ${weekday(range.from)} ${jdate(range.from)}، کل روز`
+      : oneDay
+        ? `${weekday(range.from)} ${jdate(range.from)}${wholeDay(range.to) ? "، کل روز" : ` تا ساعت ${clock(range.to)}`}`
+        : `${jdate(range.from)} تا ${jdate(lastDay(range.to))}`;
   if (range.compare === "none" || !range.compare_from || !range.compare_to) return { current, compare: null as string | null };
+  const named = `${range.compare === "prev" ? `${weekday(range.compare_from)} ` : ""}${jdate(range.compare_from)}`;
   const compare = today
-    ? `${range.compare === "prev" ? `${weekday(range.compare_from)} ` : ""}${jdate(range.compare_from)} تا همین ساعت`
-    : `${jdate(range.compare_from)} تا ${jdate(lastDay(range.compare_to))}${range.compare === "prev" ? " (بازه هم‌اندازه قبلی)" : " (همین بازه سال قبل)"}`;
+    ? `${named} تا همین ساعت`
+    : yesterday
+      ? `${named}، کل روز`
+      : `${jdate(range.compare_from)} تا ${jdate(lastDay(range.compare_to))}${range.compare === "prev" ? " (بازه هم‌اندازه قبلی)" : " (همین بازه سال قبل)"}`;
   return { current, compare };
 }
 
@@ -84,7 +101,7 @@ function Picker({ label, value, options, current, onPick }: {
 function Filters({ data, params, setParams }: { data: HomeData | null; params: URLSearchParams; setParams: (p: URLSearchParams) => void }) {
   const [calendar, setCalendar] = useState(false);
   const period = (PERIODS.find(([key]) => key === params.get("period"))?.[0] ?? "today") as HomePeriodKey;
-  const compares = period === "today" ? COMPARE_TODAY : COMPARE_RANGE;
+  const compares = isDay(period) ? COMPARE_TODAY : COMPARE_RANGE;
   const compare = (compares.find(([key]) => key === params.get("compare"))?.[0] ?? "prev") as HomeCompare;
   const line = params.get("line") ?? "all";
   const today = tehranTodayIso();
@@ -98,6 +115,7 @@ function Filters({ data, params, setParams }: { data: HomeData | null; params: U
       set({ period: "custom", from: params.get("from") || data?.range.from.slice(0, 10) || today, to: params.get("to") || today });
       setCalendar(true);
     } else set({ period: key === "today" ? null : key, from: null, to: null });
+    if (key !== "custom") setCalendar(false);
   };
   const from = params.get("from") ?? "";
   const to = params.get("to") ?? "";
@@ -163,7 +181,7 @@ function Cards({ data }: { data: HomeData }) {
   return (
     <section aria-label="شاخص‌ها" className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(230px,1fr))]">
       <Kpi to="/sales" label="فروش" link="فروش" value={salesValue} unit={`${salesUnit.join(" ")} تومان`} change={sales.change} ok={ok} compareNone={none}
-        suffix={data.range.period === "today" ? "نسبت به همان ساعت" : "نسبت به مقایسه"}
+        suffix={data.range.period === "today" ? "نسبت به همان ساعت" : data.range.period === "yesterday" ? "نسبت به همان روز" : "نسبت به مقایسه"}
         note={sales.online_share == null ? (data.range.lines.length === 1 ? lineOf(data.range.lines[0])?.label ?? "" : "—") : `آنلاین ${pct(sales.online_share)}، حضوری ${pct(1 - sales.online_share)}`}
         help="فروش خالص: ارزش سفارش‌های آنلاین + ردیف‌های فروش فروشگاه‌ها." cmpTip={tip(`${money(sales.value)} تومان`, sales.change)} />
       <Kpi to="/sales" label="تعداد فاکتور" link="فروش" value={fa(invoices.value)} unit="فاکتور" change={invoices.change} ok={ok} compareNone={none}
@@ -176,53 +194,116 @@ function Cards({ data }: { data: HomeData }) {
   );
 }
 
-function Branches({ data, compareText }: { data: HomeData; compareText: string | null }) {
-  const today = data.range.period === "today";
-  const ok = data.range.comparable;
-  const max = Math.max(1, ...data.branches.map((b) => b.sales));
-  const totalSales = data.total?.sales ?? data.branches.reduce((sum, b) => sum + b.sales, 0);
-  const rowTip = (row: { sales: number; compare_sales: number | null }, whole = false) => {
-    const share = whole ? "جمع همه شعب" : `سهم از فروش: ${totalSales ? pct(row.sales / totalSales) : "—"}`;
-    if (data.range.compare === "none") return share;
-    if (!ok || row.compare_sales == null) return `${share}؛ مقایسه ممکن نیست`;
-    return `${share}؛ ${today ? "همان زمان مقایسه" : "دوره مقایسه"}: ${money(row.compare_sales)} تومان`;
-  };
-  const cell = (row: HomeData["branches"][number] | NonNullable<HomeData["total"]>) => (
-    <>
-      <span className="flex flex-col gap-1">
-        <span><b>{money(row.sales)}</b></span>
-        {"line" in row ? (
-          <span className="h-1 rounded-sm bg-[var(--chart-track)]"><span className="block h-1 rounded-sm" style={{ background: lineOf(row.line)?.color, width: `${(row.sales / max) * 100}%` }} /></span>
-        ) : null}
-      </span>
-      <span>{fa(row.invoices)}</span>
-      <span>{fa(row.items)}</span>
-      <span>{row.basket == null ? "—" : money(row.basket)}</span>
-      {data.range.compare === "none" ? <span className="text-faint">—</span> : <Delta change={row.change} ok={ok} />}
-    </>
-  );
+/** Rank, sales, change, a sparkline from trend[].lines, a bar with the comparison marker; click toggles «شعبه». */
+function BranchTile({ row, data, selected, onPick }: {
+  row: ReturnType<typeof rankBranches>[number]; data: HomeData; selected: string | null; onPick: () => void;
+}) {
+  const line = lineOf(row.line);
+  const color = line?.color ?? "var(--accent)";
+  const on = selected === row.line;
+  const dim = selected != null && !on;
+  const none = data.range.compare === "none";
+  const ok = data.range.comparable && !none && row.compare_sales != null;
+  const day = isDay(data.range.period);
+  const bars = sparkBars(data.trend, row.line);
+  const sparkMax = Math.max(1, ...bars.map((v) => v ?? 0));
+  const lastShown = bars.reduce<number>((last, v, i) => (v == null ? last : i), -1);
+  const scale = Math.max(row.sales, ok ? row.compare_sales ?? 0 : 0) * 1.08 || 1;
+  const [value, ...unit] = money(row.sales).split(" ");
+  const share = row.share == null ? "—" : pct(row.share);
+  const tip = `${line?.label}: ${money(row.sales)} تومان، ${fa(row.invoices)} فاکتور، ${fa(row.items)} کالا، سهم ${share}`
+    + (none ? "" : ok ? `؛ ${day ? "همان زمان مقایسه" : "دوره مقایسه"}: ${money(row.compare_sales)} تومان` : "؛ مقایسه ممکن نیست");
   return (
-    <section aria-label="فروش شعب" className={`${CARD} flex flex-col gap-1 px-[18px] py-4`}>
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-1">
+    <button type="button" onClick={onPick} title={tip} aria-pressed={on} aria-label={`${line?.label}، فروش ${money(row.sales)} تومان؛ برای فیلتر کلیک کنید`}
+      className="flex min-w-0 flex-[1_1_190px] cursor-pointer flex-col gap-[9px] rounded-[18px] border px-4 py-3.5 text-start text-inherit transition-[opacity,border-color] duration-150"
+      style={{
+        background: `linear-gradient(180deg, color-mix(in srgb, ${color} 8%, transparent), transparent 55%), var(--surface)`,
+        borderColor: on ? color : "var(--border)",
+        boxShadow: on ? `0 0 0 3px color-mix(in srgb, ${color} 20%, transparent)` : "none",
+        opacity: dim ? 0.45 : 1,
+      }}>
+      <span className="flex items-center justify-between">
+        <span className="flex items-center gap-[7px] text-[13.5px] font-semibold text-ink"><span className="h-[9px] w-[9px] rounded-[3px]" style={{ background: color }} />{line?.label}</span>
+        <span className={`rounded-full px-[7px] py-0.5 text-[11px] font-bold ${row.rank === 1 ? "bg-[color-mix(in_srgb,var(--warning)_16%,transparent)] text-[var(--warning)]" : "bg-hover text-muted"}`}>#{toFaDigits(row.rank)}</span>
+      </span>
+      <span className="flex items-baseline gap-[5px]">
+        <span className="text-2xl font-extrabold text-ink">{value}</span>
+        <span className="text-[12.5px] text-muted">{unit.join(" ")}</span>
+        {none ? null : <span className="ms-auto"><Delta change={row.change} ok={ok} /></span>}
+      </span>
+      <span aria-hidden="true" className="flex h-[38px] items-end gap-0.5">
+        {bars.map((v, i) => (
+          <span key={i} className="min-w-[2px] flex-1"
+            style={v == null
+              ? { height: "10%", borderRadius: 2, background: "var(--chart-track)" }
+              : { height: `${Math.max(4, (v / sparkMax) * 80)}%`, borderRadius: "2px 2px 0 0", background: color, opacity: i === lastShown ? 1 : 0.55 }} />
+        ))}
+      </span>
+      <span aria-hidden="true" className="relative h-1.5 rounded-[3px] bg-[var(--chart-track)]">
+        <span className="absolute inset-y-0 right-0 rounded-[3px]" style={{ background: color, width: `${(row.sales / scale) * 100}%` }} />
+        {ok ? <span className="absolute -inset-y-[3px] w-0.5 rounded-[1px] bg-[var(--text)]" style={{ right: `${((row.compare_sales ?? 0) / scale) * 100}%` }} /> : null}
+      </span>
+      <span className="flex justify-between gap-2 text-[11.5px] text-muted">
+        <span>{fa(row.invoices)} فاکتور · سبد {row.basket == null ? "—" : money(row.basket)}</span>
+        <span>{ok ? `مقایسه ${money(row.compare_sales)}` : `سهم ${share}`}</span>
+      </span>
+    </button>
+  );
+}
+
+/** «کل الینور» with a donut of branch shares, then one tile per branch; above the four cards. `all` is the unfiltered
+ *  payload of the same range (so every branch stays visible while one is selected), `data` until it arrives. */
+function BranchTiles({ data, all, selected, compareText, onPick }: {
+  data: HomeData; all: HomeData; selected: string | null; compareText: string | null; onPick: (line: HomeData["branches"][number]["line"]) => void;
+}) {
+  const period = data.range.period;
+  const ranked = rankBranches(all.branches);
+  const total = all.total ?? all.branches[0];
+  const none = all.range.compare === "none";
+  const ok = all.range.comparable && !none;
+  const [value, ...unit] = money(total?.sales ?? 0).split(" ");
+  const top = ranked[0];
+  const stops = donutStops(LINES.filter((l) => all.branches.some((b) => b.line === l.key))
+    .map((l) => ({ color: l.color, value: all.branches.find((b) => b.line === l.key)?.sales ?? 0 })));
+  const title = period === "today" ? "امروز تا این لحظه، به تفکیک شعبه" : period === "yesterday" ? "دیروز، به تفکیک شعبه" : "فروش شعب";
+  const sub = period === "today"
+    ? (compareText ? `در برابر ${compareText}؛ تا آخرین همگام‌سازی، ساعت ${clock(data.sync.last_success_at)}` : `تا آخرین همگام‌سازی، ساعت ${clock(data.sync.last_success_at)}`)
+    : period === "yesterday" && compareText ? `در برابر ${compareText}` : describe(data.range).current;
+  return (
+    <section aria-label="فروش شعب" className="flex flex-col gap-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-1.5">
         <span className="flex items-center gap-2">
-          {today ? <span className="h-[9px] w-[9px] rounded-full bg-[var(--delta-up)] shadow-[0_0_0_4px_var(--delta-up-bg)]" /> : null}
-          <h2 className="m-0 text-[15px] font-semibold text-ink">{today ? "امروز تا این لحظه، به تفکیک شعبه" : "فروش شعب"}</h2>
+          {period === "today" ? <span className="h-[9px] w-[9px] rounded-full bg-[var(--delta-up)] shadow-[0_0_0_4px_var(--delta-up-bg)]" /> : null}
+          <h2 className="m-0 text-[15px] font-semibold text-ink">{title}</h2>
         </span>
-        <span className="text-[12.5px] text-muted">
-          {today ? (compareText ? `در برابر ${compareText}؛ تا آخرین همگام‌سازی، ساعت ${clock(data.sync.last_success_at)}` : `تا آخرین همگام‌سازی، ساعت ${clock(data.sync.last_success_at)}`) : describe(data.range).current}
-        </span>
+        <span className="text-[12.5px] text-muted">{sub}</span>
       </div>
-      <div className="overflow-x-auto">
-        <div className="min-w-[560px]">
-          <div className={`${ROW_GRID} py-1.5 text-xs text-faint`}><span>شعبه</span><span>فروش</span><span>فاکتور</span><span>کالا</span><span>سبد</span><span>تغییر</span></div>
-          {data.total ? <div title={rowTip(data.total, true)} className={`${ROW_GRID} min-h-[46px] border-t border-line py-1.5 text-[13.5px] font-semibold`}><span>کل الینور</span>{cell(data.total)}</div> : null}
-          {data.branches.map((b) => (
-            <div key={b.line} title={rowTip(b)} className={`${ROW_GRID} min-h-[46px] border-t border-line py-1.5 text-[13.5px]`}>
-              <span className="flex items-center gap-[7px] font-semibold"><span className="h-2 w-2 rounded-full" style={{ background: lineOf(b.line)?.color }} />{lineOf(b.line)?.label}</span>
-              {cell(b)}
+      <div className="flex flex-wrap gap-3">
+        <div title={`جمع همه شعب: ${money(total?.sales ?? 0)} تومان، ${fa(total?.invoices ?? 0)} فاکتور`}
+          className={`${CARD} flex min-w-0 flex-[1.5_1_300px] items-center gap-[18px] px-[18px] py-4`}
+          style={{ background: "radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 60%), var(--surface)" }}>
+          <div aria-hidden="true" className="relative h-[116px] w-[116px] flex-none rounded-full" style={{ background: `conic-gradient(${stops})` }}>
+            <div className="absolute inset-[14px] flex flex-col items-center justify-center gap-px rounded-full bg-surface">
+              <span className="text-[11px] text-muted">سهم شعب</span>
+              <b className="text-[15px] text-ink">{top && top.share != null ? `${lineOf(top.line)?.label} ${pct(top.share)}` : "—"}</b>
             </div>
-          ))}
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <span className="text-[13px] text-muted">کل الینور</span>
+            <span className="flex items-baseline gap-[5px]"><span className="text-[30px] font-extrabold tracking-[-.5px] text-ink">{value}</span><span className="text-[12.5px] text-muted">{unit.join(" ")} تومان</span></span>
+            {none ? <span className="text-[12.5px] text-faint">بدون مقایسه</span>
+              : <Delta change={total?.change ?? null} ok={ok} suffix={period === "today" ? "نسبت به همان ساعت" : "نسبت به مقایسه"} />}
+            <div className="mt-1 flex flex-col gap-[3px]">
+              {ranked.map((b) => (
+                <span key={b.line} className="flex items-center gap-1.5 text-xs text-muted">
+                  <span className="h-[7px] w-[7px] rounded-[2px]" style={{ background: lineOf(b.line)?.color }} />{lineOf(b.line)?.label}
+                  <span className="ms-auto text-xs text-faint">{b.share == null ? "—" : pct(b.share)}</span>
+                </span>
+              ))}
+            </div>
+          </div>
         </div>
+        {ranked.map((row) => <BranchTile key={row.line} row={row} data={all} selected={selected} onPick={() => onPick(row.line)} />)}
       </div>
     </section>
   );
@@ -245,21 +326,36 @@ function Trend({ data }: { data: HomeData }) {
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
   }, []);
+  const period = data.range.period;
+  const day = isDay(period); // «امروز» / «دیروز»: keys are the hour 0..23
+  const multi = hourly && !day && points.length > 24; // custom 2–3 days, keys "2026-11-12T14:00"
+  const yoy = data.range.compare === "yoy";
   const hourLabel = (h: number) => `${toFaDigits(String(h).padStart(2, "0"))}:۰۰`;
+  const hourOf = (key: string | number) => (typeof key === "number" ? key : Number(String(key).slice(11, 13)));
+  const dateOf = (key: string | number) => String(key).slice(0, 10);
+  const hours = (key: string | number) => `ساعت ${hourLabel(hourOf(key))} تا ${hourLabel(hourOf(key) + 1)}`;
   const title = (key: string | number) =>
-    hourly ? `ساعت ${hourLabel(Number(key))} تا ${hourLabel(Number(key) + 1)}` : `${weekday(String(key))} ${jdate(String(key))}`;
+    !hourly ? `${weekday(String(key))} ${jdate(String(key))}`
+      : day ? hours(key) : `${weekday(dateOf(key))} ${jdate(dateOf(key))}، ${hours(key)}`;
+  const cardTitle = (key: string | number) => (period === "today" ? `امروز، ${title(key)}` : period === "yesterday" ? `دیروز، ${title(key)}` : title(key));
   const axis = (key: string | number, index: number) =>
-    hourly ? (index % 3 === 0 ? toFaDigits(key) : "") : index % Math.max(1, Math.ceil(points.length / 6)) === 0 ? formatJalali(String(key)).slice(5) : "";
+    multi ? (hourOf(key) === 0 ? formatJalali(dateOf(key)).slice(5) : hourOf(key) === 12 ? "۱۲" : "")
+      : hourly ? (index % 3 === 0 ? toFaDigits(hourOf(key)) : "")
+        : index % Math.max(1, Math.ceil(points.length / 10)) === 0 ? formatJalali(String(key)).slice(5) : "";
+  const gap = points.length > 40 ? "gap-px" : "gap-[3px]";
+  const legend = period === "today" ? "امروز، ساعتی" : period === "yesterday" ? "دیروز، ساعتی" : hourly ? "این بازه، ساعتی" : "این بازه، روزانه";
   const compareLegend = data.range.compare === "none"
     ? null
     : !data.range.comparable
       ? "مقایسه ندارد (سابقه حضوری از ۱۴۰۴/۰۳/۱۰)"
-      : hourly
-        ? data.range.compare === "yoy" ? "همان روز سال قبل" : `${weekday(data.range.compare_from ?? data.range.from)} هفته قبل`
-        : data.range.compare === "yoy" ? "همین بازه سال قبل" : "بازه هم‌اندازه قبلی";
-  const compareLabel = hourly
-    ? data.range.compare === "yoy" ? "همان ساعت سال قبل" : "همان ساعت هفته قبل"
-    : data.range.compare === "yoy" ? "همان روز سال قبل" : "روز متناظر دوره قبل";
+      : day
+        ? yoy ? "همان روز سال قبل" : `${weekday(data.range.compare_from ?? data.range.from)} هفته قبل`
+        : yoy ? "همین بازه سال قبل" : "بازه هم‌اندازه قبلی";
+  const compareLabel = day
+    ? yoy ? "همان ساعت سال قبل" : "همان ساعت هفته قبل"
+    : hourly
+      ? yoy ? "همان ساعت سال قبل" : "همان ساعت دوره قبل"
+      : yoy ? "همان روز سال قبل" : "روز متناظر دوره قبل";
   const open = (index: number) => !points[index].future && setHover(index);
   const onKey = (event: ReactKeyboardEvent) => event.key === "Escape" && setHover(null);
 
@@ -279,14 +375,14 @@ function Trend({ data }: { data: HomeData }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="m-0 text-[15px] font-semibold text-ink">روند فروش</h2>
         <span className="flex flex-wrap items-center gap-3 text-xs text-muted">
-          <span className="flex items-center gap-[5px]"><span className="h-2.5 w-2.5 rounded-sm bg-accent" />{hourly ? "امروز، ساعتی" : "این بازه، روزانه"}</span>
+          <span className="flex items-center gap-[5px]"><span className="h-2.5 w-2.5 rounded-sm bg-accent" />{legend}</span>
           {compareLegend ? (
             <span className="flex items-center gap-[5px]">{hasCompare ? <span className="w-3.5 border-t-2 border-dashed border-ink" /> : null}{compareLegend}</span>
           ) : null}
         </span>
       </div>
       <div ref={chart} className="relative" onMouseLeave={() => setHover(null)} onKeyDown={onKey}>
-        <div aria-label="نمودار روند فروش؛ برای جزئیات روی هر ستون بروید" className="flex h-[190px] items-end gap-[3px] border-b border-line">
+        <div aria-label="نمودار روند فروش؛ برای جزئیات روی هر ستون بروید" className={`flex h-[190px] items-end ${gap} border-b border-line`}>
           {points.map((p, index) => (
             <button
               key={String(p.key)}
@@ -303,13 +399,16 @@ function Trend({ data }: { data: HomeData }) {
               {hasCompare && !p.future && p.compare != null ? (
                 <span className="absolute inset-x-0 border-t-2 border-dashed border-ink/75" style={{ bottom: `${(p.compare / max) * 100}%` }} />
               ) : null}
+              {multi && index > 0 && hourOf(p.key) === 0 ? (
+                <span aria-hidden="true" className="pointer-events-none absolute -right-px -top-1.5 bottom-0 border-r border-dashed border-faint/50" />
+              ) : null}
             </button>
           ))}
         </div>
         {point ? (
           <div role="status" className="absolute top-2 z-10 flex flex-col gap-1.5 rounded-xl border border-line bg-elevated px-3.5 py-3 text-[13px] shadow-2xl"
             style={{ left, width: Math.min(CARD_WIDTH, width || CARD_WIDTH) }}>
-            <span className="text-[12.5px] font-bold text-ink">{hourly ? `امروز، ${title(point.key)}` : title(point.key)}</span>
+            <span className="text-[12.5px] font-bold text-ink">{cardTitle(point.key)}</span>
             <div className="flex justify-between gap-3.5"><span className="text-[12.5px] text-muted">فروش</span><b className="text-[15px] text-ink">{money(point.sales)} تومان</b></div>
             {hasCompare && point.compare != null ? (
               <div className="flex justify-between gap-3.5">
@@ -331,7 +430,7 @@ function Trend({ data }: { data: HomeData }) {
           </div>
         ) : null}
       </div>
-      <div className="flex gap-[3px]">
+      <div className={`flex ${gap}`}>
         {points.map((p, i) => <span key={String(p.key)} className="min-w-0 flex-1 whitespace-nowrap text-center text-[10.5px] text-faint">{axis(p.key, i)}</span>)}
       </div>
     </section>
@@ -418,6 +517,26 @@ export function HomePage() {
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
   const line = params.get("line") ?? undefined;
   const text = data ? describe(data.range) : null;
+  // Branch tiles keep every branch visible while one is selected: the same range without «شعبه» (cached server-side).
+  const allQuery = useMemo(() => {
+    const out = { ...query };
+    delete out.line;
+    return out;
+  }, [query]);
+  const allKey = JSON.stringify(allQuery);
+  const [all, setAll] = useState<{ key: string; data: HomeData } | null>(null);
+  useEffect(() => {
+    if (!query.line) return;
+    let alive = true;
+    homeService.summary(allQuery).then((d) => alive && setAll({ key: allKey, data: d })).catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [allKey, query.line]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (data && !query.line && JSON.stringify(query) === key) setAll({ key, data });
+  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
+  const tilesData = all && all.key === allKey ? all.data : data;
 
   return (
     <div className="mx-auto flex w-full max-w-[1360px] flex-col gap-3.5 pb-14">
@@ -435,8 +554,9 @@ export function HomePage() {
       {error ? <p className={`${CARD} m-0 p-4 text-[13px] text-[var(--delta-down)]`}>صفحه خانه بارگیری نشد. دوباره تلاش کنید.</p> : null}
       {data ? (
         <div className={`flex flex-col gap-3.5 ${loading ? "opacity-60" : ""}`}>
+          <BranchTiles data={data} all={tilesData ?? data} selected={line && line !== "all" ? line : null} compareText={text?.compare ?? null}
+            onPick={(picked) => setParams(toggleLine(params, picked))} />
           <Cards data={data} />
-          <Branches data={data} compareText={text?.compare ?? null} />
           <Trend data={data} />
           <TargetsSection line={line && line !== "all" ? line : undefined} />
           <Attention items={data.attention} />

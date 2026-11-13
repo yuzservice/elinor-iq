@@ -35,7 +35,7 @@ export type CopyPreview = {
   cells: { month: number; sales_line: LineKey; amount: number | null; source: "target" | "sales" | "incomplete"; base: number | null }[];
 };
 
-export type HomePeriodKey = "today" | "7" | "30" | "90" | "custom";
+export type HomePeriodKey = "today" | "yesterday" | "7" | "30" | "90" | "custom";
 export type HomeCompare = "prev" | "yoy" | "none";
 type Change = { value: number | null; change: number | null };
 type BranchRow = { sales: number; invoices: number; items: number; basket: number | null; change: number | null; compare_sales: number | null };

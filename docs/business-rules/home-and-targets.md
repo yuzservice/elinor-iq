@@ -15,11 +15,11 @@ Status: v1 released (`766bff9`); v2 (pickers, branch table, one trend, daily sum
 - **Items** = sold units of those invoices' qualifying lines.
 
 ## Filters (all in the URL; every section follows them)
-- «بازه»: امروز (default; midnight Tehran to now, hourly), ۷ / ۳۰ / ۹۰ روز اخیر (whole days ending now), بازه دلخواه
-  (Jalali range; to now when it ends today).
+- «بازه»: امروز (default; midnight Tehran to now, hourly), دیروز (the whole previous Tehran day, hourly), ۷ / ۳۰ / ۹۰ روز اخیر
+  (whole days ending now), بازه دلخواه (Jalali range; to now when it ends today; hourly when it spans 1–3 days, daily after).
 - «مقایسه», always named on the range line:
   - for امروز: همان روز هفته قبل (default) or همان روز سال قبل (the same Jalali day), each from midnight up to the same time
-    of day; or بدون مقایسه. (Before v2, today was compared with the previous 24 hours: yesterday evening to midnight.)
+    of day; or بدون مقایسه. دیروز uses the same choices for the whole day (−7 days, or the same Jalali day last year). (Before v2, today was compared with the previous 24 hours: yesterday evening to midnight.)
   - for other ranges: دوره قبل (default; the same number of whole days just before, the last day cut at the same time), همین
     بازه سال قبل (the same Jalali dates a year earlier), or بدون مقایسه.
   - A change exists only when every selected line has history for the whole comparison window (in-store from 2025-05-31 =
@@ -28,12 +28,18 @@ Status: v1 released (`766bff9`); v2 (pickers, branch table, one trend, daily sum
   the targets (only that branch's target). «نیاز به توجه» stays company-wide, except the target item, which follows the branch.
 
 ## Sections (top to bottom)
+- Branch tiles (v3, above the cards): «کل الینور» with a donut of branch shares and a share legend, then one tile per branch
+  ranked by sales: rank, sales, change, a sparkline from the trend's per-bucket `lines` (up to 24 bars), a bar with the
+  comparison marker, invoices / basket and the comparison (or share). Clicking a tile toggles «شعبه» to that branch; while one
+  is selected the others stay visible, dimmed, from the unfiltered payload of the same range (cached server-side).
 - Four cards: فروش (online / in-store share when all branches), تعداد فاکتور (with items sold), میانگین سبد خرید, خریداران
   (new share). Each shows its change against the named comparison.
-- Branch table «امروز تا این لحظه، به تفکیک شعبه» (live dot, labelled with the last sync time) for امروز, «فروش شعب» otherwise:
-  sales with a bar, invoices, items, basket, change; «کل الینور» first when all branches are shown.
-- «روند فروش», the only chart: امروز → 24 hourly bars (0..23; hours after now are faded, never skipped); other ranges → daily
-  bars. The comparison is a dashed marker on each bar, with the comparison named in the legend.
+- Tiles heading «امروز تا این لحظه، به تفکیک شعبه» (live dot, last sync time) for امروز, «دیروز، به تفکیک شعبه» for دیروز,
+  «فروش شعب» otherwise. (The v2 branch table was replaced by the tiles.)
+- «روند فروش», the only chart: امروز / دیروز → 24 hourly bars (keys 0..23; hours after now are faded, never skipped); custom
+  ranges of 1–3 days → hourly bars across the days (keys "YYYY-MM-DDTHH:00", hours after now are future; axis MM/DD at hour 0,
+  «۱۲» at noon, dashed separators between days); other ranges → daily bars (axis: Jalali MM/DD). More than 40 bars use a 1 px
+  gap. Hourly comparisons align hour by hour with the comparison window. The comparison is a dashed marker on each bar, with the comparison named in the legend.
 - Targets, then «نیاز به توجه».
 
 ## Speed
