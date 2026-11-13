@@ -38,3 +38,16 @@ def home_targets(request):
     line = request.query_params.get("line")
     data = cached(f"targets:{scope}:{line}", lambda: progress(scope, lines=parse_lines(line)))
     return Response({**data, "can_edit": can_edit_targets(request.user)})
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def home_busiest_hours(request):
+    """«شلوغ‌ترین ساعت‌ها» heatmap: weekday × hour average sales, cached 10 min. Separate from the summary so it
+    never blocks the main page load."""
+    from apps.core import heatmap
+    from apps.core.home_cache import HEATMAP_TTL, cached, heatmap_key
+
+    params = {key: request.query_params.get(key) for key in ("period", "from", "to", "line")}
+    data = cached(heatmap_key(params), lambda: heatmap.busiest_hours(params), ttl=HEATMAP_TTL)
+    return Response(data)

@@ -1,8 +1,9 @@
 import { api, queryPath } from "./api";
-import type { CopyPreview, HomeData, TargetGrid, TargetProgress, TargetScope } from "../features/home/types";
+import type { BusiestHours, CopyPreview, HomeData, TargetGrid, TargetProgress, TargetScope } from "../features/home/types";
 
 export const homeService = {
   summary: (params: Record<string, string | undefined>) => api<HomeData>(queryPath("/home/summary/", params)),
+  busiestHours: (params: Record<string, string | undefined>) => api<BusiestHours>(queryPath("/home/busiest-hours/", params)),
   targets: (scope: TargetScope, line?: string) => api<TargetProgress>(queryPath("/home/targets/", { scope, line })),
   targetGrid: (year?: number) => api<TargetGrid>(queryPath("/sales/targets/", { year })),
   saveTargets: (year: number, cells: { month: number; sales_line: string; amount: number | null }[], source: "manual" | "copy" = "manual") =>

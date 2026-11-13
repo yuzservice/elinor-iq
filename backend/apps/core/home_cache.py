@@ -3,6 +3,7 @@
 from django.core.cache import cache
 
 TTL = 60
+HEATMAP_TTL = 600  # ≥10 min: the busiest-hours heatmap is a separate lazy load, cheap to serve stale a bit longer
 VERSION_KEY = "home:version"
 
 
@@ -19,14 +20,22 @@ def summary_key(params, now=None):
     return f"summary:{day}:" + ":".join(str(params.get(k)) for k in ("period", "from", "to", "compare", "line"))
 
 
-def cached(key, build):
+def heatmap_key(params, now=None):
+    """Busiest-hours cache key: same day rollover as ``summary_key``, only the inputs the heatmap reads."""
+    from django.utils import timezone
+
+    day = timezone.localtime(now or timezone.now()).date().isoformat()
+    return f"heatmap:{day}:" + ":".join(str(params.get(k)) for k in ("period", "from", "to", "line"))
+
+
+def cached(key, build, ttl=TTL):
     from apps.sales.semantics import visible_sales_lines
 
     full = f"home:{_version()}:{','.join(visible_sales_lines())}:{key}"
     value = cache.get(full)
     if value is None:
         value = build()
-        cache.set(full, value, TTL)
+        cache.set(full, value, ttl)
     return value
 
 

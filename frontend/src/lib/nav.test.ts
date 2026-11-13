@@ -17,6 +17,13 @@ describe("product scope and coverage", () => {
     expect(NAV_ITEMS.map((item) => item.to)).not.toContain("/smart-direct");
     expect(NAV_ITEMS.some((item) => item.label.includes("دایرکت"))).toBe(false);
   });
+
+  it("merges the sales page into home: one «فروش» item on «/»", () => {
+    expect(NAV_ITEMS.map((item) => item.to)).not.toContain("/sales");
+    expect(NAV_ITEMS.filter((item) => item.label === "فروش")).toHaveLength(1);
+    expect(NAV_ITEMS.find((item) => item.to === "/")?.label).toBe("فروش");
+    expect(NAV_ITEMS.some((item) => (item.label as string) === "خانه")).toBe(false);
+  });
 });
 
 const keys = (user: Parameters<typeof visibleNavItems>[0]) => visibleNavItems(user).map((item) => item.key);

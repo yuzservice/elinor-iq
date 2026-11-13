@@ -353,3 +353,206 @@ def bundles(params, today=None):
                     "confidence": r["n"] / n_first, "lift": lift, "trend": trend, "new": has_compare and r["prev"] is None,
                     "early": r["n"] < rules["bundle_early_baskets"] and lift >= rules["bundle_early_lift"]})
     return {"level": level, "channel": channel, "comparable": has_compare, "results": out[:30]}
+
+
+# ---- «سایز و رنگ پرفروش» -------------------------------------------------------------------------------------------
+
+SIZE_COLOR_TOP = 8  # rows per list, as in the reference
+CATEGORY_TOGGLES = 3  # «همه» plus this many categories
+
+
+def size_color(params, today=None):
+    """Best-selling sizes and colours for the scope, from product_daily_sales joined to variants (the same stored
+    table the table and cards read, so the figures always agree). Follows the page's period, branch («lines») and
+    every product filter; `sc_cat` narrows it to one category. Colours carry the website's own hex code where the
+    `colors` table has one. Net units (sold − in-store returns) so a returned item does not inflate a size."""
+    params = _plain(params)
+    scope = Scope(params, today)
+    where, where_params = scope.where()
+    category_id = params.get("sc_cat")
+    category_id = int(category_id) if str(category_id or "").isdigit() else None
+
+    base = f"""FROM product_daily_sales d
+        JOIN product_metrics m ON m.product_id = d.product_id
+        JOIN products p ON p.id = d.product_id
+        LEFT JOIN variants v ON v.id = d.variant_id
+        LEFT JOIN colors c ON c.id = v.color_id
+        WHERE d.day BETWEEN %s AND %s AND d.sales_line = ANY(%s) AND {where}"""
+    base_params = [scope.start, scope.end, scope.lines] + where_params
+    if category_id is not None:
+        base += " AND m.category_id = %s"
+        base_params.append(category_id)
+
+    sizes = _fetch(
+        f"""SELECT UPPER(TRIM(v.size)) AS label, SUM(d.net_units)::bigint AS units
+            {base} AND COALESCE(TRIM(v.size), '') <> '' GROUP BY 1 HAVING SUM(d.net_units) > 0 ORDER BY units DESC, label LIMIT %s""",
+        base_params + [SIZE_COLOR_TOP],
+    )
+    colors = _fetch(
+        f"""SELECT COALESCE(NULLIF(TRIM(v.color_name), ''), NULLIF(TRIM(c.name), '')) AS label,
+                   MAX(NULLIF(TRIM(c.code), '')) AS hex, SUM(d.net_units)::bigint AS units
+            {base} AND COALESCE(NULLIF(TRIM(v.color_name), ''), NULLIF(TRIM(c.name), '')) IS NOT NULL
+            GROUP BY 1 HAVING SUM(d.net_units) > 0 ORDER BY units DESC, label LIMIT %s""",
+        base_params + [SIZE_COLOR_TOP],
+    )
+    # Shares are of the whole scope, not of the shown rows, so «سایر» is implicit and the bars stay honest.
+    # Variants without a recorded size or colour are counted in the total and reported apart, never shown as a «size».
+    counts = _fetch(
+        f"""SELECT COALESCE(SUM(d.net_units), 0)::bigint AS units,
+                   COALESCE(SUM(d.net_units) FILTER (WHERE COALESCE(TRIM(v.size), '') = ''), 0)::bigint AS no_size,
+                   COALESCE(SUM(d.net_units) FILTER (WHERE COALESCE(NULLIF(TRIM(v.color_name), ''), NULLIF(TRIM(c.name), '')) IS NULL), 0)::bigint AS no_color
+            {base}""",
+        base_params,
+    )[0]
+    total = counts["units"]
+
+    # The toggles are the scope's own biggest categories by revenue, never a hard-coded list.
+    cat_where, cat_params = Scope({**params, "sc_cat": ""}, today).where()
+    top = _fetch(
+        f"""SELECT m.category_id, SUM(d.revenue)::bigint AS revenue FROM product_daily_sales d
+            JOIN product_metrics m ON m.product_id = d.product_id JOIN products p ON p.id = d.product_id
+            WHERE d.day BETWEEN %s AND %s AND d.sales_line = ANY(%s) AND m.category_id IS NOT NULL AND {cat_where}
+            GROUP BY 1 ORDER BY revenue DESC NULLS LAST LIMIT %s""",
+        [scope.start, scope.end, scope.lines] + cat_params + [CATEGORY_TOGGLES],
+    )
+    labels = _labels()
+
+    def share(units):
+        return units / total if total else None
+
+    return {
+        "range": {"from": scope.start, "to": scope.end},
+        "category_id": category_id,
+        "categories": [{"id": row["category_id"], "label": labels.get(row["category_id"], "")} for row in top],
+        "total_units": total,
+        "no_size_share": share(counts["no_size"]), "no_color_share": share(counts["no_color"]),
+        "sizes": [{"label": row["label"], "units": row["units"], "share": share(row["units"])} for row in sizes],
+        "colors": [{"label": row["label"], "hex": row["hex"], "units": row["units"], "share": share(row["units"])} for row in colors],
+    }
+
+
+# ---- «مرجوعی و تعویض شعب» ------------------------------------------------------------------------------------------
+
+RETURN_PRODUCT_MIN_SALES = 10  # «بیشترین مرجوعی (حداقل ۱۰ فروش)»
+RETURN_PRODUCTS_TOP = 5
+
+
+def _returns_rows(scope, start, end, lines):
+    """Per-line refund/exchange invoice counts, returned units and refunded amount from the POS tables.
+
+    Real POS facts only (apps.sales.semantics.pos_refund_sales / pos_exchange_sales / pos_refund_items /
+    pos_exchange_replacement_items): online returns are not recorded in the Elinor data, so there is no online row
+    and nothing is estimated. A hidden line is never in `lines`, so its rows never appear."""
+    from django.db.models import Count, Sum
+    from django.db.models.functions import Coalesce
+
+    from apps.sales.semantics import (
+        pos_exchange_replacement_items,
+        pos_exchange_sales,
+        pos_refund_items,
+        pos_refund_sales,
+    )
+
+    pos_lines = [line for line in lines if line != "ONLINE"]
+    window = {"created_at__date__gte": start, "created_at__date__lte": end, "sales_line__in": pos_lines}
+    item_window = {"pos_sale__created_at__date__gte": start, "pos_sale__created_at__date__lte": end,
+                   "pos_sale__sales_line__in": pos_lines}
+    out = {line: {"refund_invoices": 0, "exchange_invoices": 0, "refunded_units": 0, "replacement_units": 0, "refunded_amount": 0}
+           for line in pos_lines}
+    if not pos_lines:
+        return out
+    for row in pos_refund_sales().filter(**window).values("sales_line").annotate(n=Count("id")):
+        out[row["sales_line"]]["refund_invoices"] = row["n"]
+    for row in pos_exchange_sales().filter(**window).values("sales_line").annotate(n=Count("id")):
+        out[row["sales_line"]]["exchange_invoices"] = row["n"]
+    for row in (pos_refund_items().filter(**item_window).values("pos_sale__sales_line")
+                .annotate(units=Coalesce(Sum("quantity"), 0), amount=Coalesce(Sum(_amount_expr()), 0))):
+        cell = out[row["pos_sale__sales_line"]]
+        cell["refunded_units"], cell["refunded_amount"] = int(row["units"] or 0), int(row["amount"] or 0)
+    for row in (pos_exchange_replacement_items().filter(**item_window).values("pos_sale__sales_line")
+                .annotate(units=Coalesce(Sum("quantity"), 0))):
+        out[row["pos_sale__sales_line"]]["replacement_units"] = int(row["units"] or 0)
+    return out
+
+
+def _amount_expr():
+    from django.db.models import BigIntegerField, ExpressionWrapper, F
+
+    return ExpressionWrapper(F("amount") * F("quantity"), output_field=BigIntegerField())
+
+
+def _sold_units_by_line(scope, start, end, lines):
+    """In-store units sold and net revenue per line over [start, end], from product_daily_sales (the return-rate
+    denominator; net revenue + refunded amount = the in-store amount sold)."""
+    where, where_params = scope.where()
+    rows = _fetch(
+        f"""SELECT d.sales_line, COALESCE(SUM(d.units), 0)::bigint AS units, COALESCE(SUM(d.revenue), 0)::bigint AS revenue
+            FROM product_daily_sales d
+            JOIN product_metrics m ON m.product_id = d.product_id JOIN products p ON p.id = d.product_id
+            WHERE d.day BETWEEN %s AND %s AND d.sales_line = ANY(%s) AND {where} GROUP BY 1""",
+        [start, end, [line for line in lines if line != "ONLINE"]] + where_params,
+    )
+    return {row["sales_line"]: (row["units"], row["revenue"]) for row in rows}
+
+
+def returns_breakdown(params, today=None):
+    """«مرجوعی و تعویض شعب»: the four cards, the per-branch table with its return rate, and the products with the
+    highest return rate (at least RETURN_PRODUCT_MIN_SALES sold). In-store only — the Elinor data records no online
+    returns — and «—» (None) wherever the scope has nothing, never a stand-in figure."""
+    params = _plain(params)
+    scope = Scope(params, today)
+    lines = [line for line in scope.lines if line != "ONLINE"]
+    has_compare = comparable(lines, scope.cfrom) if lines else False
+
+    def window(start, end):
+        rows = _returns_rows(scope, start, end, lines)
+        sold = _sold_units_by_line(scope, start, end, lines)
+        totals = {key: sum(cell[key] for cell in rows.values()) for key in
+                  ("refund_invoices", "exchange_invoices", "refunded_units", "replacement_units", "refunded_amount")}
+        totals["sold_units"] = sum(units for units, _ in sold.values())
+        gross = sum(revenue for _, revenue in sold.values()) + totals["refunded_amount"]
+        totals["refunded_amount_share"] = totals["refunded_amount"] / gross if gross > 0 else None
+        totals["rate"] = totals["refunded_units"] / totals["sold_units"] if totals["sold_units"] else None
+        return rows, sold, totals
+
+    rows, sold, totals = window(scope.start, scope.end)
+    before = window(scope.cfrom, scope.cto)[2] if has_compare and scope.cfrom and scope.cto else None
+
+    branches = []
+    for line in lines:
+        cell, units = rows[line], sold.get(line, (0, 0))[0]
+        branches.append({"line": line, **cell, "sold_units": units,
+                         "rate": cell["refunded_units"] / units if units else None})
+    branches.sort(key=lambda row: (row["rate"] is None, -(row["rate"] or 0)))
+
+    # In-store sales of the scope: revenue is the whole-range figure, so the rate here is units-based like the cards.
+    where, where_params = scope.where()
+    products = _fetch(
+        f"""WITH sold AS (
+                SELECT d.product_id, SUM(d.units)::bigint AS units, SUM(d.units - d.net_units)::bigint AS returned
+                FROM product_daily_sales d JOIN product_metrics m ON m.product_id = d.product_id JOIN products p ON p.id = d.product_id
+                WHERE d.day BETWEEN %s AND %s AND d.sales_line = ANY(%s) AND {where}
+                GROUP BY d.product_id)
+            SELECT s.product_id AS id, split_part(p.title, '|', 1) AS title, m.category_id, s.units, s.returned,
+                   (s.returned::float / s.units) AS rate
+            FROM sold s JOIN products p ON p.id = s.product_id JOIN product_metrics m ON m.product_id = s.product_id
+            WHERE s.units >= %s AND s.returned > 0 ORDER BY rate DESC, s.returned DESC LIMIT %s""",
+        [scope.start, scope.end, lines or [""]] + where_params + [RETURN_PRODUCT_MIN_SALES, RETURN_PRODUCTS_TOP],
+    )
+    labels = _labels()
+
+    def rate_points(now_rate, before_rate):
+        """Change in percentage points, which is how a rate is read («۰٫۳ واحد»), not a percent of a percent."""
+        if now_rate is None or before_rate is None:
+            return None
+        return (now_rate - before_rate) * 100
+
+    return {
+        "range": {"from": scope.start, "to": scope.end, "compare_from": scope.cfrom, "compare_to": scope.cto,
+                  "compare": scope.compare, "comparable": has_compare},
+        "online_note": "فقط فروش حضوری؛ مرجوعی سایت در داده‌های الینور ثبت نمی‌شود",
+        "totals": {**totals, "rate_points": rate_points(totals["rate"], before["rate"] if before else None)},
+        "branches": branches,
+        "products": [{"id": row["id"], "title": row["title"].strip(), "category": labels.get(row["category_id"], ""),
+                      "units": row["units"], "returned": row["returned"], "rate": row["rate"]} for row in products],
+    }

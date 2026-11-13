@@ -11,7 +11,6 @@ import type { User } from "../types";
 // Every route is its own chunk: the first load fetches only the shell and the page being opened.
 const LoginPage = lazy(() => import("../pages/LoginPage").then((module) => ({ default: module.LoginPage })));
 const HomePage = lazy(() => import("../pages/HomePage").then((module) => ({ default: module.HomePage })));
-const SalesPage = lazy(() => import("../pages/SalesPage").then((module) => ({ default: module.SalesPage })));
 const CustomersPage = lazy(() => import("../pages/CustomersPage").then((module) => ({ default: module.CustomersPage })));
 const Customer360Page = lazy(() => import("../pages/Customer360Page").then((module) => ({ default: module.Customer360Page })));
 const ProductsPage = lazy(() => import("../pages/ProductsPage").then((module) => ({ default: module.ProductsPage })));
@@ -91,7 +90,7 @@ export function App() {
             }
           >
             <Route path="/" element={page(<HomePage />)} />
-            <Route path="/sales" element={page(<SalesPage />)} />
+            <Route path="/sales" element={<Navigate to="/" replace />} />
             <Route path="/customers" element={page(<CustomersPage />)} />
             <Route path="/customers/:id" element={page(<Customer360Page />)} />
             <Route path="/products" element={page(<ProductsPage />)} />

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { JalaliRangePopover } from "../components/JalaliDatePicker";
+import { BusiestHoursSection } from "../features/home/BusiestHoursSection";
 import { TargetsSection, money } from "../features/home/TargetsSection";
 import type { AttentionItem, HomeCompare, HomeData, HomePeriodKey } from "../features/home/types";
 import { donutStops, rankBranches, sparkBars, toggleLine } from "../features/home/tiles";
@@ -156,16 +157,23 @@ function Delta({ change, ok, suffix = "" }: { change: number | null; ok: boolean
 }
 
 function Kpi({ to, label, link, value, unit, change, ok, compareNone, suffix, note, help, cmpTip }: {
-  to: string; label: string; link: string; value: string; unit: string; change: number | null; ok: boolean; compareNone: boolean;
+  to?: string; label: string; link?: string; value: string; unit: string; change: number | null; ok: boolean; compareNone: boolean;
   suffix?: string; note: string; help: string; cmpTip: string;
 }) {
-  return (
-    <Link to={to} title={help} className={`${CARD} flex flex-col gap-1.5 px-[18px] py-[15px] text-inherit no-underline hover:border-accent`}>
-      <span className="flex justify-between"><span className="text-[13px] text-muted">{label}</span><span className="text-[12.5px] text-muted">{link} ‹</span></span>
+  const body = (
+    <>
+      <span className="flex justify-between"><span className="text-[13px] text-muted">{label}</span>{link ? <span className="text-[12.5px] text-muted">{link} ‹</span> : null}</span>
       <span className="flex items-baseline gap-1.5"><span className="text-[26px] font-extrabold text-ink">{value}</span><span className="whitespace-nowrap text-[12.5px] text-muted">{unit}</span></span>
       <span title={cmpTip}>{compareNone ? <span className="text-[12.5px] text-faint">بدون مقایسه</span> : <Delta change={change} ok={ok} suffix={suffix} />}</span>
       <span className="text-[12.5px] text-muted">{note}</span>
-    </Link>
+    </>
+  );
+  const shell = `${CARD} flex flex-col gap-1.5 px-[18px] py-[15px] text-inherit no-underline`;
+  // Sales, invoices and basket now live on this page itself, so only «خریداران» still links away.
+  return to ? (
+    <Link to={to} title={help} className={`${shell} hover:border-accent`}>{body}</Link>
+  ) : (
+    <div title={help} className={shell}>{body}</div>
   );
 }
 
@@ -180,13 +188,13 @@ function Cards({ data }: { data: HomeData }) {
   const [basketValue, ...basketUnit] = money(basket.value).split(" ");
   return (
     <section aria-label="شاخص‌ها" className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(230px,1fr))]">
-      <Kpi to="/sales" label="فروش" link="فروش" value={salesValue} unit={`${salesUnit.join(" ")} تومان`} change={sales.change} ok={ok} compareNone={none}
+      <Kpi label="فروش" value={salesValue} unit={`${salesUnit.join(" ")} تومان`} change={sales.change} ok={ok} compareNone={none}
         suffix={data.range.period === "today" ? "نسبت به همان ساعت" : data.range.period === "yesterday" ? "نسبت به همان روز" : "نسبت به مقایسه"}
         note={sales.online_share == null ? (data.range.lines.length === 1 ? lineOf(data.range.lines[0])?.label ?? "" : "—") : `آنلاین ${pct(sales.online_share)}، حضوری ${pct(1 - sales.online_share)}`}
         help="فروش خالص: ارزش سفارش‌های آنلاین + ردیف‌های فروش فروشگاه‌ها." cmpTip={tip(`${money(sales.value)} تومان`, sales.change)} />
-      <Kpi to="/sales" label="تعداد فاکتور" link="فروش" value={fa(invoices.value)} unit="فاکتور" change={invoices.change} ok={ok} compareNone={none}
+      <Kpi label="تعداد فاکتور" value={fa(invoices.value)} unit="فاکتور" change={invoices.change} ok={ok} compareNone={none}
         note={`${fa(invoices.items)} کالا فروخته شد`} help="سفارش‌های آنلاین معتبر + فاکتورهای فروش فروشگاه‌ها." cmpTip={tip(fa(invoices.value), invoices.change)} />
-      <Kpi to="/sales" label="میانگین سبد خرید" link="فروش" value={basketValue} unit={`${basketUnit.join(" ")} تومان`} change={basket.change} ok={ok} compareNone={none}
+      <Kpi label="میانگین سبد خرید" value={basketValue} unit={`${basketUnit.join(" ")} تومان`} change={basket.change} ok={ok} compareNone={none}
         note="فروش تقسیم بر فاکتور" help="فروش تقسیم بر تعداد فاکتور." cmpTip={tip(`${money(basket.value)} تومان`, basket.change)} />
       <Kpi to="/customers" label="خریداران" link="مشتریان" value={fa(buyers.value)} unit="نفر" change={buyers.change} ok={ok} compareNone={none}
         note={buyers.new_share == null ? "—" : `${pct(buyers.new_share)} مشتری جدید`} help="مشتریانی که در این بازه خرید کرده‌اند، بدون اکانت‌های داخلی." cmpTip={tip(fa(buyers.value), buyers.change)} />
@@ -524,7 +532,12 @@ export function HomePage() {
     return out;
   }, [query]);
   const allKey = JSON.stringify(allQuery);
-  const [all, setAll] = useState<{ key: string; data: HomeData } | null>(null);
+  // The heatmap reads only the range and the branch: a comparison change must not re-request it.
+  const heatmapQuery = useMemo(() => {
+    const out = { ...query };
+    delete out.compare;
+    return out;
+  }, [query]);  const [all, setAll] = useState<{ key: string; data: HomeData } | null>(null);
   useEffect(() => {
     if (!query.line) return;
     let alive = true;
@@ -542,7 +555,7 @@ export function HomePage() {
     <div className="mx-auto flex w-full max-w-[1360px] flex-col gap-3.5 pb-14">
       <div className="flex flex-wrap items-center justify-between gap-2.5">
         <div className="flex flex-col gap-1">
-          <h1 className="m-0 text-2xl font-extrabold text-ink">خانه</h1>
+          <h1 className="m-0 text-2xl font-extrabold text-ink">فروش</h1>
           <span className="text-[12.5px] text-muted">ارقام از داده همگام‌شده با سایت و فروشگاه‌هاست، نه لحظه‌ای.</span>
         </div>
         <span className="flex items-center gap-[7px] rounded-full border border-line bg-surface px-3 py-1.5 text-[12.5px] text-muted">
@@ -559,6 +572,7 @@ export function HomePage() {
           <Cards data={data} />
           <Trend data={data} />
           <TargetsSection line={line && line !== "all" ? line : undefined} />
+          <BusiestHoursSection params={heatmapQuery} />
           <Attention items={data.attention} />
         </div>
       ) : (

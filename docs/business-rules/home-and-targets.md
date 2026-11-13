@@ -40,7 +40,12 @@ Status: v1 released (`766bff9`); v2 (pickers, branch table, one trend, daily sum
   ranges of 1–3 days → hourly bars across the days (keys "YYYY-MM-DDTHH:00", hours after now are future; axis MM/DD at hour 0,
   «۱۲» at noon, dashed separators between days); other ranges → daily bars (axis: Jalali MM/DD). More than 40 bars use a 1 px
   gap. Hourly comparisons align hour by hour with the comparison window. The comparison is a dashed marker on each bar, with the comparison named in the legend.
-- Targets, then «نیاز به توجه».
+- Targets, then «شلوغ‌ترین ساعت‌ها» (2026-11-14, `GET /api/home/busiest-hours/`, loaded lazily after the page): weekday ×
+  hours 8–23 (Tehran time); a cell = sales in that weekday-hour ÷ the number of those weekdays in the window, so an average
+  per hour. Window: the selected range when it spans ≥ 28 days, otherwise the last 8 weeks ending today (the note says so).
+  Follows «شعبه» and visible lines only (`HIDDEN_SALES_LINES`). Peak pill «اوج: {روز} ساعت H تا H+1»; the peak cell is
+  outlined; each cell has a tooltip. Cached 10 minutes (`HEATMAP_TTL`). Then «نیاز به توجه».
+- The old «فروش» page is gone: «خانه» is now labelled «فروش» (route `/`, Live badge kept), `/sales` redirects to `/`.
 
 ## Speed
 - Closed days come from `sales_daily_summary` (one row per day and sales line: sales, invoices, items, buyer ids), rebuilt

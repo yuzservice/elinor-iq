@@ -28,7 +28,7 @@ button:focus-visible,a:focus-visible{outline:2px solid #60a5fa;outline-offset:2p
 <div style="max-width: 1360px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px;">
 
   <div class="row" style="justify-content: space-between; gap: 10px;">
-    <div class="col" style="gap: 4px;"><h1 style="margin: 0; font-size: 24px; font-weight: 800;">خانه</h1><span class="mut">داده‌ها نمونه است.</span></div>
+    <div class="col" style="gap: 4px;"><h1 style="margin: 0; font-size: 24px; font-weight: 800;">فروش</h1><span class="mut">داده‌ها نمونه است. منوی «خانه» و «فروش» یکی شده‌اند.</span></div>
     <span class="row" style="gap: 7px; padding: 6px 12px; border-radius: 999px; background: #0c1017; border: 1px solid rgba(255,255,255,.08); font-size: 12.5px; color: #cbd5e1;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #34d399;"></span>آخرین همگام‌سازی: ۱۲ دقیقه پیش</span>
   </div>
 
@@ -177,6 +177,23 @@ button:focus-visible,a:focus-visible{outline:2px solid #60a5fa;outline-offset:2p
       </a>
     </sc-for>
   </section>
+  <section class="card col" aria-label="شلوغ‌ترین ساعت‌ها" style="padding: 16px 18px; gap: 12px;">
+    <div class="row" style="justify-content: space-between; gap: 10px;">
+      <div class="col" style="gap: 3px;"><h2 class="h">شلوغ‌ترین ساعت‌ها</h2><span class="mut">{{hmSub}}</span></div>
+      <span style="padding: 5px 12px; border-radius: 999px; background: rgba(59,130,246,.14); color: #93c5fd; font-size: 12.5px; font-weight: 600;">{{hmPeak}}</span>
+    </div>
+    <div style="overflow-x: auto;">
+      <div role="table" aria-label="فروش به تفکیک روز هفته و ساعت" style="display: grid; grid-template-columns: 62px repeat(16, minmax(26px, 1fr)); gap: 3px; min-width: 560px;">
+        <span></span><sc-for list="{{hmHours}}" as="h" hint-placeholder-count="16"><span style="font-size: 10.5px; color: #64748b; text-align: center;">{{h}}</span></sc-for>
+        <sc-for list="{{hmRows}}" as="r" hint-placeholder-count="7">
+          <span style="font-size: 12px; color: #cbd5e1; align-self: center;">{{r.day}}</span>
+          <sc-for list="{{r.cells}}" as="c" hint-placeholder-count="16"><span role="cell" title="{{c.tip}}" style="{{c.style}}"></span></sc-for>
+        </sc-for>
+      </div>
+    </div>
+    <div class="row" style="justify-content: space-between; font-size: 11.5px; color: #64748b;"><span>{{hmNote}}</span><span class="row" style="gap: 6px;">کم<span style="width: 90px; height: 8px; border-radius: 4px; background: linear-gradient(270deg, #2563eb, rgba(59,130,246,.08));"></span>زیاد</span></div>
+  </section>
+
 </div>
 </div>
 </x-dc>
@@ -198,7 +215,7 @@ class Component extends DCLogic {
 
     var PER = [['today', 'امروز'], ['yesterday', 'دیروز'], ['7', '۷ روز اخیر'], ['30', '۳۰ روز اخیر'], ['90', '۹۰ روز اخیر'], ['custom', 'بازه دلخواه…']];
     var CMP = isToday ? [['prev', 'همان روز هفته قبل'], ['yoy', 'همان روز سال قبل'], ['none', 'بدون مقایسه']] : [['prev', 'دوره قبل'], ['yoy', 'همین بازه سال قبل'], ['none', 'بدون مقایسه']];
-    var BRS = [['all', 'همه شعب'], ['site', 'سایت'], ['sari', 'ساری'], ['gorgan', 'گرگان'], ['capri', 'کاپری']];
+    var BRS = [['all', 'همه شعب'], ['site', 'سایت'], ['sari', 'ساری'], ['gorgan', 'گرگان']];
     var labelOf = function (list, v) { return list.filter(function (x) { return x[0] === v; })[0][1]; };
     var periodValue = S.period === 'custom' ? (S.range[0] === S.range[1] ? faD(S.range[0]) : faD(S.range[0]) + ' تا ' + faD(S.range[1])) : labelOf(PER, S.period);
     var optStyle = function (on) { return 'display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 34px; padding: 0 10px; border: 0; border-radius: 8px; text-align: right; font-size: 13px; cursor: pointer; background: ' + (on ? 'rgba(59,130,246,.16)' : 'transparent') + '; color: ' + (on ? '#fff' : '#cbd5e1') + ';'; };
@@ -234,7 +251,7 @@ class Component extends DCLogic {
     var rangeText = isCustom && nDays === 1 ? dayLabel(0) + '، کل روز' : isYesterday ? 'دیروز سه‌شنبه ۱۴۰۵/۰۸/۱۹، کل روز' : isLive ? 'امروز ۱۴۰۵/۰۸/۲۰ تا ساعت ۱۵:۰۰' : (S.period === 'custom' ? faD(S.range[0]) + ' تا ' + faD(S.range[1]) : ({ '7': '۱۴۰۵/۰۸/۱۴ تا ۱۴۰۵/۰۸/۲۰', '30': '۱۴۰۵/۰۷/۲۱ تا ۱۴۰۵/۰۸/۲۰', '90': '۱۴۰۵/۰۵/۲۱ تا ۱۴۰۵/۰۸/۲۰' }[S.period]));
     var cmpText = !hasCmp ? 'بدون مقایسه' : (isYesterday ? (S.cmp === 'yoy' ? '۱۴۰۴/۰۸/۱۹، کل روز' : 'سه‌شنبه ۱۴۰۵/۰۸/۱۲، کل روز') : isLive ? (S.cmp === 'yoy' ? '۱۴۰۴/۰۸/۲۰ تا همین ساعت' : 'چهارشنبه ۱۴۰۵/۰۸/۱۳ تا همین ساعت') : (S.cmp === 'yoy' ? 'همین بازه در سال ۱۴۰۴' : 'بازه هم‌اندازه قبلی'));
 
-    var BR = [['site', 'سایت', '#3b82f6'], ['sari', 'ساری', '#10b981'], ['gorgan', 'گرگان', '#f59e0b'], ['capri', 'کاپری', '#8b5cf6']];
+    var BR = [['site', 'سایت', '#3b82f6'], ['sari', 'ساری', '#10b981'], ['gorgan', 'گرگان', '#f59e0b']];
     var data = isToday ? { site: [31, 16, 34, 8], sari: [33, 14, 38, 19], gorgan: [17, 8, 19, -6], capri: [5, 3, 6, 25] }
                        : { site: [940, 491, 1020, 6], sari: [930, 420, 1110, 14], gorgan: [470, 298, 560, -4], capri: [140, 75, 160, 22] };
     if (!isToday) Object.keys(data).forEach(function (key) { var f = nDays / 30, d = data[key]; data[key] = [Math.round(d[0] * f), Math.max(1, Math.round(d[1] * f)), Math.round(d[2] * f), d[3]]; });
@@ -252,9 +269,9 @@ class Component extends DCLogic {
     else if (isYesterday) { series = DAYP.slice(); cmpSeries = DAYP.map(function (v, h) { return Math.round(v * (0.86 + 0.1 * Math.cos(h)) * 10) / 10; }); }
     else if (isHourly) { for (var dd2 = 0; dd2 < nDays; dd2++) for (var hh = 0; hh < 24; hh++) { var w = 0.5 * (1 + 0.18 * Math.sin(dd2 * 2.3 + 1)); series.push(Math.round(DAYP[hh] * w * 10) / 10); cmpSeries.push(Math.round(DAYP[hh] * 0.5 * (0.85 + 0.1 * Math.cos(dd2 + hh)) * 10) / 10); } }
     else { for (var di = 0; di < nDays; di++) { series.push(DAILY[di % 30]); cmpSeries.push(DAILYC[di % 30]); } }
-    var slots = isLive ? 24 : series.length, share = S.br === 'all' ? 1 : data[S.br][0] / (data.site[0] + data.sari[0] + data.gorgan[0] + data.capri[0]);
+    var slots = isLive ? 24 : series.length, share = S.br === 'all' ? 1 : data[S.br][0] / (data.site[0] + data.sari[0] + data.gorgan[0]);
     var mx = Math.max.apply(null, series.concat(cmpSeries)) * 1.1 * share || 1;
-    var SH = [['سایت', '#3b82f6', 0.38], ['ساری', '#10b981', 0.37], ['گرگان', '#f59e0b', 0.19], ['کاپری', '#8b5cf6', 0.06]];
+    var SH = [['سایت', '#3b82f6', 0.38], ['ساری', '#10b981', 0.37], ['گرگان', '#f59e0b', 0.19]];
     var bars = [], axis = [], multi = isHourly && nDays > 1, dStep = Math.max(1, Math.ceil(nDays / 10));
     var hourName = function (i) { return (multi ? dayLabel(Math.floor(i / 24)) + '، ' : '') + 'ساعت ' + P(i % 24); };
     for (var i = 0; i < slots; i++) {
@@ -301,11 +318,27 @@ class Component extends DCLogic {
     });
     var allDelta = Math.round((allTot / BR.reduce(function (x, b) { return x + cmpOf(data[b[0]]); }, 0) - 1) * 100);
     var T = { month: { scope: 'آبان ۱۴۰۵، روز ۲۰ از ۳۰', target: 4000, actual: 2480, elapsedPct: 66.7, left: 10 }, quarter: { scope: 'پاییز ۱۴۰۵، روز ۵۰ از ۹۰', target: 11500, actual: 6480, elapsedPct: 55.6, left: 40 }, year: { scope: 'سال ۱۴۰۵، روز ۲۳۰ از ۳۶۵', target: 42000, actual: 26900, elapsedPct: 63, left: 135 } }[S.tp];
-    var TB = [['site', 'سایت', '#3b82f6', 1600, 940], ['sari', 'ساری', '#10b981', 1300, 930], ['gorgan', 'گرگان', '#f59e0b', 800, 470], ['capri', 'کاپری', '#8b5cf6', 300, 140]];
+    var TB = [['site', 'سایت', '#3b82f6', 1600, 940], ['sari', 'ساری', '#10b981', 1300, 930], ['gorgan', 'گرگان', '#f59e0b', 800, 470]];
     var k = T.target / 4000, fmtM = function (x) { return x >= 1000 ? fa(Math.round(x / 100) / 10) + ' میلیارد' : fa(Math.round(x)) + ' میلیون'; };
     if (S.br !== 'all') { var tb = TB.filter(function (b) { return b[0] === S.br; })[0]; T = Object.assign({}, T, { target: tb[3] * k, actual: tb[4] * k * (T.actual / 2480) }); }
     var pct = T.actual / T.target * 100, gap = pct - T.elapsedPct, forecast = T.actual / (T.elapsedPct / 100), need = (T.target - T.actual) / T.left;
 
+    var HH = [], hmRows = [], hmMax = 0, hmBest = null, DAYS = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه'];
+    var hmBrF = S.br === 'all' ? 1 : (S.br === 'site' ? 0.4 : (S.br === 'sari' ? 0.38 : 0.22));
+    var hmVal = function (d, h) { var day = [1, 0.85, 0.8, 0.9, 1.05, 1.35, 0.7][d], hr = Math.exp(-Math.pow((h - 18.5) / 3.2, 2)) + 0.55 * Math.exp(-Math.pow((h - 12) / 2, 2)); return Math.round(day * hr * 9 * hmBrF * 10) / 10; };
+    for (var hh2 = 8; hh2 < 24; hh2++) HH.push(P(hh2));
+    for (var d7 = 0; d7 < 7; d7++) for (var h7 = 8; h7 < 24; h7++) { var vv7 = hmVal(d7, h7); if (vv7 > hmMax) { hmMax = vv7; hmBest = [d7, h7]; } }
+    for (var d8 = 0; d8 < 7; d8++) (function (d) {
+      hmRows.push({ day: DAYS[d], cells: HH.map(function (_, i) { var h = i + 8, v = hmVal(d, h), t = v / hmMax;
+        return { tip: DAYS[d] + '، ساعت ' + P(h) + ' تا ' + P(h + 1) + ': میانگین ' + fa(v) + ' میلیون تومان', style: 'height: 26px; border-radius: 5px; background: rgba(37,99,235,' + (0.06 + t * 0.94).toFixed(2) + ');' + (hmBest[0] === d && hmBest[1] === h ? ' outline: 2px solid #f8fafc; outline-offset: -2px;' : '') }; }) });
+    })(d8);
+    var hmLong = !isToday && nDays >= 28;
+    var INV = [['۱۵:۰۲', 'sari', 3, 4.8, 'ثبت‌شده'], ['۱۴:۵۸', 'site', 1, 2.1, 'جدید'], ['۱۴:۵۱', 'gorgan', 2, 3.4, 'ثبت‌شده'], ['۱۴:۴۴', 'sari', 1, 1.6, 'مهمان'], ['۱۴:۳۹', 'site', 4, 7.9, 'ثبت‌شده'], ['۱۴:۳۰', 'sari', 2, 2.9, 'جدید'], ['۱۴:۲۲', 'gorgan', 1, 1.2, 'ثبت‌شده'], ['۱۴:۱۵', 'site', 2, 3.8, 'ثبت‌شده'], ['۱۴:۰۹', 'sari', 5, 9.6, 'ثبت‌شده'], ['۱۴:۰۱', 'gorgan', 1, 2.2, 'مهمان'], ['۱۳:۵۵', 'site', 3, 5.1, 'جدید'], ['۱۳:۴۸', 'sari', 2, 3.3, 'ثبت‌شده']];
+    var BRN = { site: ['سایت', '#3b82f6'], sari: ['ساری', '#10b981'], gorgan: ['گرگان', '#f59e0b'] };
+    var invoices = INV.filter(function (v) { return S.br === 'all' || v[1] === S.br; }).slice(0, 10).map(function (v, i) {
+      return { time: isLive ? v[0] : (isYesterday ? 'دیروز ' + v[0] : '۰۸/۲۰ ' + v[0]), branch: BRN[v[1]][0], dot: 'width: 8px; height: 8px; border-radius: 3px; background: ' + BRN[v[1]][1] + ';', no: (v[1] === 'site' ? 'سفارش ' : 'فاکتور ') + P(48210 - i * 7), items: fa(v[2]), amount: fa(v[3]) + ' م',
+        cust: v[4], custStyle: 'font-size: 12px; color: ' + (v[4] === 'جدید' ? '#34d399' : (v[4] === 'مهمان' ? '#64748b' : '#cbd5e1')) + ';' };
+    });
     return {
       pickers: [
         picker('period', 'بازه', PER, S.period, periodValue, function (v) { if (v === 'custom') self.setState({ period: 'custom', open: null, cal: true, pick: S.range.slice(), calY: Math.floor(S.range[0] / 10000), calM: Math.floor(S.range[0] / 100) % 100 }); else self.setState({ period: v, open: null, cal: false }); }),
@@ -330,6 +363,10 @@ class Component extends DCLogic {
       isToday: isToday, isLive: isLive,
       brTitle: isLive ? 'امروز تا این لحظه، به تفکیک شعبه' : (isYesterday ? 'دیروز، به تفکیک شعبه' : 'فروش شعب'),
       brSub: isToday ? 'در برابر ' + cmpText : rangeText,
+      hmHours: HH, hmRows: hmRows, hmPeak: 'اوج: ' + DAYS[hmBest[0]] + ' ساعت ' + P(hmBest[1]) + ' تا ' + P(hmBest[1] + 1),
+      hmSub: 'میانگین فروش هر ساعت؛ ' + (hmLong ? rangeText : '۸ هفته اخیر') + (S.br === 'all' ? '' : '، ' + labelOf(BRS, S.br)),
+      hmNote: hmLong ? 'بر اساس بازه انتخاب‌شده' : 'برای بازه‌های کوتاه‌تر از ۴ هفته، ۸ هفته اخیر حساب می‌شود تا الگو قابل اعتماد باشد',
+      invoices: invoices, invSub: isLive ? 'زنده؛ هر ۶۰ ثانیه به‌روز می‌شود' : '۱۰ فاکتور آخر بازه انتخاب‌شده',
       brTiles: brTiles, totSales: fa(allTot), totDelta: hasCmp ? arrow(allDelta) + ' ' + (isLive ? 'نسبت به همان ساعت' : 'نسبت به مقایسه') : 'بدون مقایسه', totDeltaStyle: hasCmp ? up(allDelta) : 'font-size: 12.5px; color: #64748b;',
       totTip: 'جمع همه شعب: ' + fa(allTot) + ' میلیون، ' + fa(allInv) + ' فاکتور',
       donut: 'position: relative; flex: none; width: 116px; height: 116px; border-radius: 50%; background: conic-gradient(' + stops.join(', ') + ');',
