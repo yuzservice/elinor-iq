@@ -2,21 +2,26 @@ import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AuthContext } from "../hooks/useAuth";
 import { AppShell } from "../layouts/AppShell";
-import { LoginPage } from "../pages/LoginPage";
-import { HomePage } from "../pages/HomePage";
-import { SalesPage } from "../pages/SalesPage";
-import { CustomersPage } from "../pages/CustomersPage";
-import { Customer360Page } from "../pages/Customer360Page";
-import { ProductsPage } from "../pages/ProductsPage";
-import { Product360Page } from "../pages/Product360Page";
-import { SettingsPage } from "../pages/SettingsPage";
 import { authService } from "../services/auth";
 import { ThemeProvider } from "../theme/ThemeProvider";
 import { CONTENT_ROLE, SALES_AGENT_ROLE } from "../lib/nav";
 import type { User } from "../types";
 
+// Every route is its own chunk: the first load fetches only the shell and the page being opened.
+const LoginPage = lazy(() => import("../pages/LoginPage").then((module) => ({ default: module.LoginPage })));
+const HomePage = lazy(() => import("../pages/HomePage").then((module) => ({ default: module.HomePage })));
+const SalesPage = lazy(() => import("../pages/SalesPage").then((module) => ({ default: module.SalesPage })));
+const CustomersPage = lazy(() => import("../pages/CustomersPage").then((module) => ({ default: module.CustomersPage })));
+const Customer360Page = lazy(() => import("../pages/Customer360Page").then((module) => ({ default: module.Customer360Page })));
+const ProductsPage = lazy(() => import("../pages/ProductsPage").then((module) => ({ default: module.ProductsPage })));
+const Product360Page = lazy(() => import("../pages/Product360Page").then((module) => ({ default: module.Product360Page })));
+const SettingsPage = lazy(() => import("../pages/SettingsPage").then((module) => ({ default: module.SettingsPage })));
 const CallCenterPage = lazy(() => import("../pages/CallCenterPage").then((module) => ({ default: module.CallCenterPage })));
 const PulsePage = lazy(() => import("../pages/PulsePage").then((module) => ({ default: module.PulsePage })));
+
+function page(element: JSX.Element) {
+  return <Suspense fallback={<div className="p-8 text-sm text-muted">در حال دریافت اطلاعات...</div>}>{element}</Suspense>;
+}
 
 /** Agents only reach /calls and Customer 360, the content team only /pulse; the API enforces the same rules. */
 function AgentRedirect({ user }: { user: User }) {
@@ -70,7 +75,7 @@ export function App() {
     <ThemeProvider>
       <AuthContext.Provider value={value}>
         <Routes>
-          <Route path="/login" element={<LoginPage />} />
+          <Route path="/login" element={page(<LoginPage />)} />
           <Route
             element={
               user ? (
@@ -80,13 +85,13 @@ export function App() {
               )
             }
           >
-            <Route path="/" element={<HomePage />} />
-            <Route path="/sales" element={<SalesPage />} />
-            <Route path="/customers" element={<CustomersPage />} />
-            <Route path="/customers/:id" element={<Customer360Page />} />
-            <Route path="/products" element={<ProductsPage />} />
-            <Route path="/products/:id" element={<Product360Page />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/" element={page(<HomePage />)} />
+            <Route path="/sales" element={page(<SalesPage />)} />
+            <Route path="/customers" element={page(<CustomersPage />)} />
+            <Route path="/customers/:id" element={page(<Customer360Page />)} />
+            <Route path="/products" element={page(<ProductsPage />)} />
+            <Route path="/products/:id" element={page(<Product360Page />)} />
+            <Route path="/settings" element={page(<SettingsPage />)} />
             <Route
               path="/calls"
               element={

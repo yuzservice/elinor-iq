@@ -26,8 +26,15 @@ git reset --hard "origin/$DEPLOY_BRANCH"
 rm -f frontend/dist/index.html
 
 echo "در حال به‌روزرسانی سرویس‌ها..."
-if ! docker compose up -d --build --force-recreate; then
-  echo "ساخت ایمیج از داکرهاب ناموفق بود. سرویس‌ها با ایمیج‌های موجود دوباره بالا می‌آیند..."
+# Optional package mirrors (APT_MIRROR, PIP_INDEX_URL, PIP_TRUSTED_HOST) are read from .env by docker compose as build args.
+if grep -qE '^(APT_MIRROR|PIP_INDEX_URL)=.+' .env 2>/dev/null; then
+  echo "میرور بسته‌ها از .env استفاده می‌شود."
+fi
+# The build gets at most 30 minutes; on failure or timeout the services start again with the existing images.
+if timeout 1800 docker compose build; then
+  docker compose up -d --force-recreate
+else
+  echo "ساخت ایمیج ناموفق بود یا بیش از ۳۰ دقیقه طول کشید. سرویس‌ها با ایمیج‌های موجود دوباره بالا می‌آیند..."
   docker compose up -d --force-recreate --no-build --pull never
 fi
 

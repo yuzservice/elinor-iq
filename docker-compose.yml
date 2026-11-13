@@ -1,6 +1,26 @@
 services:
   postgres:
     image: postgres:16-alpine
+    # Sized for the 8 GB / 4 vCPU server; each value can be overridden in .env. Explained in docs/runbooks/performance.md.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=${PG_SHARED_BUFFERS:-2GB}
+      - -c
+      - effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:-5GB}
+      - -c
+      - work_mem=${PG_WORK_MEM:-16MB}
+      - -c
+      - maintenance_work_mem=${PG_MAINTENANCE_WORK_MEM:-512MB}
+      - -c
+      - random_page_cost=${PG_RANDOM_PAGE_COST:-1.1}
+      - -c
+      - effective_io_concurrency=${PG_EFFECTIVE_IO_CONCURRENCY:-200}
+      - -c
+      - max_parallel_workers_per_gather=${PG_MAX_PARALLEL_WORKERS_PER_GATHER:-2}
+      - -c
+      - log_min_duration_statement=${PG_LOG_MIN_DURATION_STATEMENT:-500ms}
+    shm_size: ${PG_SHM_SIZE:-1g}
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-elinor_iq}
       POSTGRES_USER: ${POSTGRES_USER:-elinor}
@@ -20,6 +40,10 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
+      args:
+        APT_MIRROR: ${APT_MIRROR:-}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+        PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-}
     env_file:
       - .env
     environment:
@@ -99,16 +123,22 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
+      args:
+        APT_MIRROR: ${APT_MIRROR:-}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+        PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-}
     env_file:
       - .env
     environment:
       POSTGRES_HOST: postgres
     volumes:
       - ./backend:/app
+      # Mounted like backend-entrypoint.sh: a scheduler change takes effect on restart, without an image rebuild.
+      - ./docker/scheduler-entrypoint.sh:/scheduler-entrypoint.sh:ro
     depends_on:
       postgres:
         condition: service_healthy
-    entrypoint: ["/scheduler-entrypoint.sh"]
+    entrypoint: ["/bin/sh", "/scheduler-entrypoint.sh"]
     restart: unless-stopped
 
   pulse-scheduler:
