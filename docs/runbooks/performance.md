@@ -34,3 +34,36 @@ the values in `.env` (for example `PG_SHARED_BUFFERS=128MB`) and run `update.sh`
 Heavy daily jobs run once between `NIGHTLY_FROM_HOUR` and `NIGHTLY_TO_HOUR` (default 02:00–05:00): customer tiers and
 metrics, Call Center daily, products daily, sales daily summary. Each skips itself when it already ran that day. The hourly
 Elinor sync is unchanged. A first fill of customer metrics still runs at any hour when the table is empty.
+
+## Scheduler changes no longer need an image rebuild
+`docker/scheduler-entrypoint.sh` is bind-mounted into the `scheduler` container (like `backend-entrypoint.sh`), so a change
+takes effect after `update.sh` restarts the container. Once this release is on the server, remove the temporary crontab line
+that ran `products_daily` (the scheduler now runs it in the nightly window):
+```bash
+sudo crontab -l | grep -n products_daily
+sudo crontab -l | grep -v products_daily | sudo crontab -
+sudo crontab -l
+```
+Then check that the scheduler runs the nightly jobs (after 02:00 Tehran):
+```bash
+cd /opt/elinor-iq && docker compose logs --since 12h scheduler | grep -E 'Nightly jobs|products_daily|sales_daily_summary'
+```
+
+## Optional package mirrors for image builds (for Pillow / Pulse)
+When the server cannot reach Debian or PyPI, the image build fails and `update.sh` keeps the old image (so new packages such
+as Pillow never arrive). Three optional `.env` values are passed to the build; empty means the default sources:
+- `APT_MIRROR`: a Debian mirror base URL that replaces `http://deb.debian.org/debian`, for example `https://<mirror>/debian`.
+- `PIP_INDEX_URL`: a PyPI simple index, for example `https://<mirror>/simple`.
+- `PIP_TRUSTED_HOST`: only for a mirror without valid HTTPS (its host name).
+
+Test a mirror on the server first; each command must print `200`:
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' "https://<mirror>/debian/dists/bookworm/Release"
+curl -sS -o /dev/null -w '%{http_code}\n' "https://<mirror>/simple/pillow/"
+```
+Then add the values to `/opt/elinor-iq/.env` and run `update.sh`. The build has a 30-minute limit; on failure the services
+start again with the existing images. Check that Pillow is in the image afterwards:
+```bash
+cd /opt/elinor-iq && docker compose exec -T backend python -c "import PIL; print(PIL.__version__)"
+```
+To go back to the default sources, empty or remove the three values and run `update.sh` again.

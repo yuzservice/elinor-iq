@@ -40,6 +40,10 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
+      args:
+        APT_MIRROR: ${APT_MIRROR:-}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+        PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-}
     env_file:
       - .env
     environment:
@@ -119,16 +123,22 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
+      args:
+        APT_MIRROR: ${APT_MIRROR:-}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+        PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-}
     env_file:
       - .env
     environment:
       POSTGRES_HOST: postgres
     volumes:
       - ./backend:/app
+      # Mounted like backend-entrypoint.sh: a scheduler change takes effect on restart, without an image rebuild.
+      - ./docker/scheduler-entrypoint.sh:/scheduler-entrypoint.sh:ro
     depends_on:
       postgres:
         condition: service_healthy
-    entrypoint: ["/scheduler-entrypoint.sh"]
+    entrypoint: ["/bin/sh", "/scheduler-entrypoint.sh"]
     restart: unless-stopped
 
   pulse-scheduler:
