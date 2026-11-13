@@ -1,6 +1,6 @@
 # Home page and sales targets
 
-Status: implemented on `feature/home-redesign` (2026-11-13), not merged; owner reviews locally. Reference:
+Status: v1 released (`766bff9`); v2 (pickers, branch table, one trend, daily summary) on `feature/home-v2-performance` (2026-11-13), not merged. Reference:
 `docs/design/home-prototype.html` (sample data). Source: `apps/core/home.py`, `apps/core/views.py`, `apps/core/home_cache.py`,
 `apps/sales/targets.py`; `pages/HomePage.tsx`, `features/home/`. Decision: [[0009-home-and-sales-targets]].
 
@@ -12,11 +12,35 @@ Status: implemented on `feature/home-redesign` (2026-11-13), not merged; owner r
   the best branch is the line with the highest basket.
 - **Active buyers** = distinct customers of those invoices, counted once across channels, internal accounts excluded.
   **New** = buyers whose first purchase (`CustomerMetrics.first_purchase_at`) falls in the period.
-- Periods: امروز (hourly, midnight Tehran to now), ۷ / ۳۰ / ۹۰ روز (ending now), دلخواه (Jalali range, to now if it ends today).
-  The comparison is the previous window of the same length. Where it starts before in-store history (2025-05-31 =
-  1404/03/10) every combined change is «—» and the dashed comparison line is hidden; online-only figures still compare.
-- «امروز تا این لحظه»: today from midnight to now vs the same weekday last week up to the same time; «یک ساعت اخیر» = the
-  last 60 minutes. Labelled with the last successful sync time: figures are as fresh as the sync, not real time.
+- **Items** = sold units of those invoices' qualifying lines.
+
+## Filters (all in the URL; every section follows them)
+- «بازه»: امروز (default; midnight Tehran to now, hourly), ۷ / ۳۰ / ۹۰ روز اخیر (whole days ending now), بازه دلخواه
+  (Jalali range; to now when it ends today).
+- «مقایسه», always named on the range line:
+  - for امروز: همان روز هفته قبل (default) or همان روز سال قبل (the same Jalali day), each from midnight up to the same time
+    of day; or بدون مقایسه. (Before v2, today was compared with the previous 24 hours: yesterday evening to midnight.)
+  - for other ranges: دوره قبل (default; the same number of whole days just before, the last day cut at the same time), همین
+    بازه سال قبل (the same Jalali dates a year earlier), or بدون مقایسه.
+  - A change exists only when every selected line has history for the whole comparison window (in-store from 2025-05-31 =
+    1404/03/10, online from 2022-01-12); otherwise «—» and the trend shows no dashed markers.
+- «شعبه»: همه شعب, سایت, ساری, گرگان, کاپری. One branch limits the cards, the branch table (no «کل الینور» row), the trend and
+  the targets (only that branch's target). «نیاز به توجه» stays company-wide, except the target item, which follows the branch.
+
+## Sections (top to bottom)
+- Four cards: فروش (online / in-store share when all branches), تعداد فاکتور (with items sold), میانگین سبد خرید, خریداران
+  (new share). Each shows its change against the named comparison.
+- Branch table «امروز تا این لحظه، به تفکیک شعبه» (live dot, labelled with the last sync time) for امروز, «فروش شعب» otherwise:
+  sales with a bar, invoices, items, basket, change; «کل الینور» first when all branches are shown.
+- «روند فروش», the only chart: امروز → 24 hourly bars (0..23; hours after now are faded, never skipped); other ranges → daily
+  bars. The comparison is a dashed marker on each bar, with the comparison named in the legend.
+- Targets, then «نیاز به توجه».
+
+## Speed
+- Closed days come from `sales_daily_summary` (one row per day and sales line: sales, invoices, items, buyer ids), rebuilt
+  nightly by `sales_daily_summary --if-due` with the same definitions; only today, days after the last nightly build and a
+  partial last day are read live from the sales tables. Buyers are counted distinct across the stored ids and the live ids,
+  internal accounts removed at read time. Tests check stored = live on several ranges.
 - Payloads are cached 60 s; a target edit clears the cache. No number on the page is hard-coded or a fallback.
 
 ## Sales targets (`sales_targets`, audit `sales_target_changes`)
