@@ -67,3 +67,10 @@ export type AttentionItem =
   | { kind: "calls"; overdue: number; escalations: number; link: string }
   | { kind: "tier_drop"; count: number; since: string; from: string; titles: string[]; link: string }
   | { kind: "sync_failed"; at: string; sync_kind: string; link: string };
+
+/** «شلوغ‌ترین ساعت‌ها»: weekday × hour average sales, from the separate lazy endpoint. */
+export type BusiestHours = {
+  range: { from: string; to: string; is_selected_range: boolean; lines: LineKey[] };
+  rows: { weekday: number; day: string; cells: { hour: number; avg_sales: number }[] }[];
+  peak: { weekday: number; day: string; hour: number; avg_sales: number } | null;
+};

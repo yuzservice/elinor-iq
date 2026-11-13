@@ -5,4 +5,5 @@ from . import views
 urlpatterns = [
     path("summary/", views.home_summary),
     path("targets/", views.home_targets),
+    path("busiest-hours/", views.home_busiest_hours),
 ]

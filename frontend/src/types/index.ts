@@ -51,45 +51,6 @@ export type Paginated<T> = {
 
 export type SalesLineKey = "ONLINE" | "SARI" | "GORGAN" | "CAPRI";
 
-export type SalesLineComparison = {
-  key: SalesLineKey;
-  label: string;
-  purchase_count: number;
-  customer_count: number;
-  units_sold: number;
-  avg_units_per_purchase: number;
-  new_customers: number;
-  repeat_customers: number;
-  online_order_value?: number;
-  previous_period: {
-    purchase_count: number;
-    customer_count: number;
-    units_sold: number;
-    avg_units_per_purchase: number;
-    new_customers: number;
-    repeat_customers: number;
-  };
-  change_pct: {
-    purchase_count: number | null;
-    units_sold: number | null;
-  };
-};
-
-export type SalesTrendPoint = {
-  date: string;
-  date_label: string;
-  purchase_count: number;
-  units_sold: number;
-  amount: number;
-};
-
-export type SalesInsight = {
-  key: string;
-  label: string;
-  value: string;
-  detail: string;
-};
-
 export type PhysicalReturnsBranch = {
   key: SalesLineKey;
   label: string;
@@ -101,76 +62,6 @@ export type PhysicalReturnsBranch = {
 
 export type SizeColorRow = { label: string; units_sold: number };
 
-export type SalesProductRow = {
-  product: string;
-  units_sold: number;
-  purchase_count: number;
-  customer_count: number;
-  last_sale_at: string | null;
-  online_units: number;
-  sari_units: number;
-  gorgan_units: number;
-  capri_units: number;
-};
-
-export type SalesSummary = {
-  window: WindowMeta;
-  semantics_note: string;
-  data_coverage: DataCoverage;
-  filters: { sales_line: SalesLineKey | "all"; group: TrendGroup; section?: string };
-  metrics?: {
-    purchase_count: number;
-    customer_count: number;
-    units_sold: number;
-    avg_units_per_purchase: number;
-    new_customers: number;
-    repeat_customers: number;
-    online_order_value?: number;
-  };
-  returns_canceled?: {
-    online_canceled: number;
-    online_failed: number;
-    online_wait_for_payment: number;
-    pos_refunds: number;
-    pos_cancelled: number;
-  };
-  physical_returns?: {
-    branches: PhysicalReturnsBranch[];
-    totals: {
-      refund_count: number;
-      exchange_count: number;
-      refunded_item_units: number;
-      replacement_item_units: number;
-    };
-  };
-  sales_lines?: SalesLineComparison[];
-  trend?: {
-    group: TrendGroup;
-    points: SalesTrendPoint[];
-  };
-  size_color?: {
-    sizes: SizeColorRow[];
-    colors: SizeColorRow[];
-  };
-  insights?: SalesInsight[];
-  timing_ms?: number;
-};
-
-export type TrendGroup = "daily" | "weekly" | "monthly" | "weekday" | "hourly";
-
-export type SalesOrder = {
-  created_at: string;
-  sales_line: SalesLineKey;
-  sales_line_label: string;
-  id: number;
-  customer_id: number | null;
-  customer_name: string;
-  customer_name_is_fallback?: boolean;
-  kind: "online" | "pos";
-  status: string;
-  status_label: string;
-  item_count: number;
-};
 
 export type CustomerListTotals = { count: number; total_amount: number; avg_basket: number | null; avg_invoice_count: number | null };
 export type CustomerListSummary = CustomerListTotals & { share: number | null; baseline: CustomerListTotals };
