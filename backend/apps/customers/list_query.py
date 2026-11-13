@@ -31,10 +31,10 @@ from apps.customers.tiers import (
     tier_purchase_count_expression,
 )
 from apps.sales.models import OnlinePayment, Order, OrderItem, PosSale, PosSaleItem, SalesLine
+from apps.sales.semantics import visible_sales_lines
 from apps.sales.services import _parse_bound
 
 LIST_DEFER = ("source_payload", "addresses", "summary")
-VALID_SALES_LINES = {SalesLine.ONLINE, SalesLine.SARI, SalesLine.GORGAN, SalesLine.CAPRI}
 MAX_SELECTED_IDS = 1000
 NO_CALL = "none"
 # value -> (older than, days)
@@ -236,6 +236,8 @@ def _apply_metric_filters(qs, params):
         ("cities", "metrics__cities__overlap"),
     ):
         values = _split(params.get(param))
+        if param == "branches":  # a hidden or unknown line is dropped silently
+            values = [value.upper() for value in values if value.upper() in visible_sales_lines()]
         if values:
             qs = qs.filter(**{lookup: values})
     qs = _apply_category(qs, params)
@@ -537,7 +539,7 @@ def parse_sales_lines_filter(params):
     for value in raw_values:
         for part in str(value).split(","):
             normalized = part.strip().upper()
-            if normalized and normalized not in lines and normalized in VALID_SALES_LINES:
+            if normalized and normalized not in lines and normalized in visible_sales_lines():
                 lines.append(normalized)
     return lines
 
@@ -581,6 +583,7 @@ def hydrate_customer_rows(customers):
     ):
         cities.setdefault(customer_id, city_name or linked or "")
 
+    visible = visible_sales_lines()  # counts stay all-line (customer history); hidden lines get no branch tag
     payloads = []
     for customer in customers:
         online_row = online.get(customer.pk) or {}
@@ -591,7 +594,7 @@ def hydrate_customer_rows(customers):
         lines = []
         if online_count:
             lines.append(SalesLine.ONLINE)
-        lines.extend(sorted(line for line in pos_lines.get(customer.pk, set()) if line))
+        lines.extend(sorted(line for line in pos_lines.get(customer.pk, set()) if line and line in visible))
         channel_key, channel_label = channel_for(online_count, pos_count)
         payload = list_payload(customer, accounts)
         metric = metrics.get(customer.pk)

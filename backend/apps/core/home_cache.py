@@ -11,7 +11,9 @@ def _version():
 
 
 def cached(key, build):
-    full = f"home:{_version()}:{key}"
+    from apps.sales.semantics import visible_sales_lines
+
+    full = f"home:{_version()}:{','.join(visible_sales_lines())}:{key}"
     value = cache.get(full)
     if value is None:
         value = build()

@@ -31,9 +31,21 @@ Sales lines
   GORGAN — ``store_id`` 2
   CAPRI  — ``store_id`` 4
   store_id 1 (central warehouse) is NOT a sales line.
+
+Hidden sales lines
+------------------
+``settings.HIDDEN_SALES_LINES`` (comma list, default ``CAPRI``) hides store lines from every report. Rows stay in the
+database and sync keeps importing them. Reports use ``visible_sales_lines()``, ``visible_pos_sales()``,
+``visible_pos_items()`` and ``exclude_hidden_lines()``. The ``qualifying_*`` helpers stay all-line: the tier engine,
+``CustomerMetrics``, campaigns and Customer 360 history read them and must not change (decision 0010).
 """
 
+from django.conf import settings
+
 from apps.sales.models import Order, OnlinePayment, PosSale, PosSaleItem, SalesLine, STORE_SALES_LINE
+
+ALL_SALES_LINES = (SalesLine.ONLINE, SalesLine.SARI, SalesLine.GORGAN, SalesLine.CAPRI)
+POS_SALES_LINES = (SalesLine.SARI, SalesLine.GORGAN, SalesLine.CAPRI)
 
 # --- Online status groups ---------------------------------------------------
 
@@ -127,12 +139,56 @@ def sales_line_for_store(store_id):
     return STORE_SALES_LINE.get(store_id, "")
 
 
+def parse_hidden_sales_lines(raw):
+    """Parse a ``HIDDEN_SALES_LINES`` value. Unknown codes and ONLINE are ignored, so ONLINE always stays visible and
+    the setting can never hide every line."""
+    codes = {part.strip().upper() for part in str(raw or "").split(",") if part.strip()}
+    return frozenset(str(line.value) for line in POS_SALES_LINES if line in codes)
+
+
+def hidden_sales_lines():
+    return parse_hidden_sales_lines(getattr(settings, "HIDDEN_SALES_LINES", ""))
+
+
+def visible_sales_lines():
+    """Visible lines in canonical order (ONLINE, SARI, GORGAN, CAPRI)."""
+    hidden = hidden_sales_lines()
+    return tuple(str(line.value) for line in ALL_SALES_LINES if line not in hidden)
+
+
+def visible_pos_lines():
+    return tuple(line for line in visible_sales_lines() if line != SalesLine.ONLINE)
+
+
+def is_visible_line(line):
+    return str(line or "").strip().upper() in visible_sales_lines()
+
+
+HIDDEN_LINE_LABEL = "فروشگاه حضوری"
+
+
+def sales_line_label(line, labels=None):
+    """Label for a customer's own history row: a hidden line keeps its rows but shows the generic «فروشگاه حضوری»."""
+    if line in hidden_sales_lines():
+        return HIDDEN_LINE_LABEL
+    return (labels or SALES_LINE_LABELS).get(line, line)
+
+
+def exclude_hidden_lines(qs):
+    """Drop hidden-line rows from a PosSale, PosSaleItem or any model with a ``sales_line`` field."""
+    hidden = hidden_sales_lines()
+    if not hidden:
+        return qs
+    field = "pos_sale__sales_line" if qs.model is PosSaleItem else "sales_line"
+    return qs.exclude(**{f"{field}__in": hidden})
+
+
 def parse_sales_line_filter(raw):
+    """A filter naming a hidden or unknown line is dropped (returns None = all visible lines)."""
     if not raw or raw == "all":
         return None
     value = str(raw).strip().upper()
-    valid = {SalesLine.ONLINE, SalesLine.SARI, SalesLine.GORGAN, SalesLine.CAPRI}
-    return value if value in valid else None
+    return value if value in visible_sales_lines() else None
 
 
 # --- Query helpers ----------------------------------------------------------
@@ -151,6 +207,11 @@ def online_order_value_orders(qs=None):
 def qualifying_pos_sales(qs=None):
     qs = PosSale.objects.all() if qs is None else qs
     return qs.filter(deleted_at__isnull=True, is_cancelled=False, type__in=POS_QUALIFYING_TYPES)
+
+
+def visible_pos_sales(qs=None):
+    """Qualifying POS headers on visible lines only. Use in reports; tiers/metrics keep ``qualifying_pos_sales``."""
+    return exclude_hidden_lines(qualifying_pos_sales(qs))
 
 
 def pos_refund_sales(qs=None):
@@ -228,6 +289,11 @@ def qualifying_pos_items(qs=None):
     )
 
 
+def visible_pos_items(qs=None):
+    """Qualifying POS sold lines on visible lines only. Use in reports."""
+    return exclude_hidden_lines(qualifying_pos_items(qs))
+
+
 def filter_by_sales_line_online(qs, sales_line):
     if sales_line and sales_line != SalesLine.ONLINE:
         return qs.none()
@@ -235,6 +301,8 @@ def filter_by_sales_line_online(qs, sales_line):
 
 
 def filter_by_sales_line_pos(qs, sales_line):
+    """Report filter: hidden lines are always excluded, then the chosen visible line (if any) is kept."""
+    qs = exclude_hidden_lines(qs)
     if sales_line is None:
         return qs
     if sales_line == SalesLine.ONLINE:

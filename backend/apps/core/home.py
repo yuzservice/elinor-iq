@@ -2,7 +2,7 @@
 rule-based «نیاز به توجه» items. Every figure comes from apps.sales.semantics:
 
 - sales = online order value (`online_order_value_orders`, `Order.total_amount`) + in-store sold lines
-  (`qualifying_pos_items`, amount × quantity); the two channels are only added up, never mixed.
+  (`visible_pos_items`, amount × quantity; hidden lines excluded); the two channels are only added up, never mixed.
 - invoices = qualifying online orders + qualifying POS sales; items = sold units of their qualifying lines.
 - buyers = distinct customers of those invoices, internal accounts excluded.
 
@@ -22,8 +22,10 @@ from django.utils import timezone
 
 from apps.customers.operators import operator_customer_ids
 from apps.sales.models import SalesLine
-from apps.sales.semantics import online_order_value_orders, qualifying_online_items, qualifying_online_orders, qualifying_pos_items, qualifying_pos_sales
-from apps.sales.targets import LINES, POS_START, month_days
+from apps.sales.semantics import (
+    online_order_value_orders, qualifying_online_items, qualifying_online_orders, visible_pos_items, visible_pos_sales, visible_sales_lines,
+)
+from apps.sales.targets import POS_START, month_days
 
 TEHRAN = ZoneInfo("Asia/Tehran")
 PERIODS = {"7": 7, "30": 30, "90": 90}
@@ -36,8 +38,9 @@ def _day_start(day):
 
 
 def parse_lines(raw):
-    """«شعبه» filter: one sales line, or all four."""
-    return [raw] if raw in LINES else list(LINES)
+    """«شعبه» filter: one visible sales line, or all visible lines (a hidden or unknown line is dropped)."""
+    lines = visible_sales_lines()
+    return [raw] if raw in lines else list(lines)
 
 
 def shift_year(moment):
@@ -118,11 +121,11 @@ def _raw_facts(start, end, bucket, lines):
                     .annotate(b=_trunc("order__created_at", bucket)).values("b").annotate(n=Sum("quantity"))):
             add(row["b"], SalesLine.ONLINE, "items", row["n"])
     if pos_lines:
-        for row in (qualifying_pos_items().filter(pos_sale__created_at__gte=start, pos_sale__created_at__lt=end, pos_sale__sales_line__in=pos_lines)
+        for row in (visible_pos_items().filter(pos_sale__created_at__gte=start, pos_sale__created_at__lt=end, pos_sale__sales_line__in=pos_lines)
                     .annotate(b=_trunc("pos_sale__created_at", bucket)).values("b", "pos_sale__sales_line").annotate(v=Sum(line_amount), n=Sum("quantity"))):
             add(row["b"], row["pos_sale__sales_line"], "sales", row["v"])
             add(row["b"], row["pos_sale__sales_line"], "items", row["n"])
-        for row in (qualifying_pos_sales().filter(created_at__gte=start, created_at__lt=end, sales_line__in=pos_lines)
+        for row in (visible_pos_sales().filter(created_at__gte=start, created_at__lt=end, sales_line__in=pos_lines)
                     .annotate(b=_trunc("created_at", bucket)).values("b", "sales_line").annotate(n=Count("id"))):
             add(row["b"], row["sales_line"], "invoices", row["n"])
     return out
@@ -145,7 +148,7 @@ def _buyers(start, end, lines, split=None):
         params += p
     pos_lines = [line for line in lines if line != SalesLine.ONLINE]
     if pos_lines:
-        sql, p = (qualifying_pos_sales().filter(created_at__gte=start, created_at__lt=end, customer_id__isnull=False, sales_line__in=pos_lines)
+        sql, p = (visible_pos_sales().filter(created_at__gte=start, created_at__lt=end, customer_id__isnull=False, sales_line__in=pos_lines)
                   .annotate(cid=F("customer_id")).order_by().values("cid").query.sql_with_params())
         parts.append(sql)
         params += p

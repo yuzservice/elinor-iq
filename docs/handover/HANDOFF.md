@@ -153,6 +153,9 @@ Notes for the Product Architect / next task:
 
 ## 9. Log
 
+### 2026-11-14 — Hide Capri (`feature/hide-capri`, from `production` `514e542`)
+- `HIDDEN_SALES_LINES` (default `CAPRI`) removes a store line from every report; data, sync, tiers, `CustomerMetrics` and campaigns unchanged (decision 0010, `docs/business-rules/hidden-sales-lines.md`). Server after merge: `update.sh`, then once `docker compose exec backend python manage.py products_daily`. Not merged; owner reviews locally.
+
 ### 2026-11-13 — Home hover details (`feature/home-hovers`, from `production` `ef47b78`)
 - Reference updated (`home-prototype.html`, sha256 b7275afd…). «روند فروش» bars are buttons (hover, Tab focus, tap) opening a card beside the bar, clamped inside the chart: time («ساعت ۱۴:۰۰ تا ۱۵:۰۰» / weekday + date), sales, named comparison with change (hidden when off or not comparable), invoices / items, per-branch sales for «همه شعب»; Escape and leaving the chart close it. The summary payload carries per-bucket `invoices`, `items`, `lines` and per-row `compare_sales`; no extra request on hover.
 - Native tooltips on card deltas, branch rows, the target «expected by today» marker (now with a 10 px hit area) and each line's target bar. Weekday names come from `jalaliWeekday()` (fixed +03:30 offset; 1405/08/20 = چهارشنبه). Tests: `test_home_summary` 13, `test_home_performance` 7, vitest weekday test. Not merged; owner reviews locally.

@@ -50,6 +50,7 @@ def me(request):
 def _user_payload(user):
     from apps.calls.permissions import is_call_manager
     from apps.pulse.permissions import has_pulse_access
+    from apps.sales.semantics import visible_sales_lines
 
     from .permissions import is_super_admin
 
@@ -60,4 +61,6 @@ def _user_payload(user):
         "can_manage_platform": is_super_admin(user),
         "can_manage_calls": is_call_manager(user),
         "features": {"pulse": has_pulse_access(user)},
+        # Sales lines shown in every report (settings.HIDDEN_SALES_LINES); the frontend builds branch lists from it.
+        "visible_sales_lines": list(visible_sales_lines()),
     }

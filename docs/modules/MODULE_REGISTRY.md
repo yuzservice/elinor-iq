@@ -160,6 +160,7 @@ This registry catalogs the core architectural modules of ELINOR IQ V2. Each entr
   - `GET /api/sales/orders/` (`order_list`): Paginated order inspection table.
   - `GET /api/sales/products/` (`product_list`): Product sales performance by channel.
   - `qualifying_online_orders()`, `online_order_value_orders()`, `qualifying_pos_sales()` (`apps.sales.semantics`): Central authority preventing invalid mixing of online revenues with physical store tickets.
+  - Hidden sales lines (`HIDDEN_SALES_LINES`, default `CAPRI`; decision 0010, [[hidden-sales-lines]]): reports use `visible_sales_lines()`, `visible_pos_sales()`, `visible_pos_items()`, `exclude_hidden_lines()`; the `qualifying_*` helpers stay all-line for tiers, `CustomerMetrics` and campaigns. `/api/auth/me/` returns `visible_sales_lines`; frontend helper `frontend/src/lib/salesLines.ts`. Test: `tests/test_hidden_sales_lines.py`.
 - **Frontend Entrypoints & Components:**
   - Page: `frontend/src/pages/SalesPage.tsx`
   - Components: `frontend/src/features/sales/FilterMultiSelect.tsx`, `frontend/src/components/dashboard/charts.tsx`

@@ -1,13 +1,17 @@
 /** Labels, column help and number formats for the Products pages (copy from docs/design/products-prototype.html). */
 import { formatJalali, toFaDigits } from "../../lib/dates";
+import { isVisibleLine } from "../../lib/salesLines";
 import type { LineKey, ProductStatus } from "./types";
 
+/** Every line, for label/colour lookups. Lists, columns and pickers use `visibleLines()` (hidden lines left out). */
 export const LINES: { key: LineKey; label: string; color: string }[] = [
   { key: "ONLINE", label: "سایت", color: "var(--ch-online)" },
   { key: "SARI", label: "ساری", color: "var(--ch-sari)" },
   { key: "GORGAN", label: "گرگان", color: "var(--ch-gorgan)" },
   { key: "CAPRI", label: "کاپری", color: "var(--ch-capri)" },
 ];
+
+export const visibleLines = () => LINES.filter((line) => isVisibleLine(line.key));
 
 export const STATUS: Record<ProductStatus, { label: string; color: string }> = {
   driver: { label: "پیشران فروش", color: "var(--delta-up)" },
@@ -18,7 +22,9 @@ export const STATUS: Record<ProductStatus, { label: string; color: string }> = {
 };
 
 export const FILTER_OPTIONS = {
-  lines: LINES.map((line) => ({ value: line.key, label: line.label })),
+  get lines() {
+    return visibleLines().map((line) => ({ value: line.key, label: line.label }));
+  },
   status: (Object.keys(STATUS) as ProductStatus[]).map((key) => ({ value: key, label: STATUS[key].label })),
   age: [
     { value: "30", label: "تا ۳۰ روز" },

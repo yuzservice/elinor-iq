@@ -13,6 +13,7 @@ from apps.core.dates import format_jalali_date
 from apps.customers.operators import exclude_operator_sales, operator_customer_ids
 from apps.sales.models import OrderItem, PosSale, PosSaleItem, SalesLine
 from apps.sales.semantics import (
+    POS_SALES_LINES,
     POS_TYPE_BOTH,
     POS_TYPE_REFUND,
     POS_TYPE_SELL,
@@ -26,8 +27,10 @@ from apps.sales.semantics import (
     pos_refund_sales,
     qualifying_online_items,
     qualifying_online_orders,
-    qualifying_pos_items,
-    qualifying_pos_sales,
+    visible_pos_items,
+    visible_pos_lines,
+    visible_pos_sales,
+    visible_sales_lines,
 )
 
 WEEKDAY_LABELS = (
@@ -80,7 +83,7 @@ def _new_repeat_counts_online(online_qs, start):
 
 
 def _new_repeat_counts_pos(pos_qs, sales_line, start):
-    prior = qualifying_pos_sales().filter(
+    prior = visible_pos_sales().filter(
         customer_id=OuterRef("customer_id"),
         created_at__lt=start,
     )
@@ -98,7 +101,7 @@ def core_metrics(start, end, sales_line=None):
         sales_line,
     )
     pos_qs = filter_by_sales_line_pos(
-        qualifying_pos_sales().filter(created_at__gte=start, created_at__lt=end),
+        visible_pos_sales().filter(created_at__gte=start, created_at__lt=end),
         sales_line,
     )
     purchase_count = online_qs.count() + pos_qs.count()
@@ -113,7 +116,7 @@ def core_metrics(start, end, sales_line=None):
     )
     pos_units = (
         filter_by_sales_line_pos(
-            qualifying_pos_items().filter(pos_sale__created_at__gte=start, pos_sale__created_at__lt=end),
+            visible_pos_items().filter(pos_sale__created_at__gte=start, pos_sale__created_at__lt=end),
             sales_line,
         ).aggregate(v=Sum("quantity"))["v"]
         or 0
@@ -155,7 +158,7 @@ def _merge_unique_customer_counts(online_qs, pos_qs, start, kind):
         customer_id=OuterRef("pk"),
         created_at__lt=start,
     )
-    pos_prior = qualifying_pos_sales().filter(
+    pos_prior = visible_pos_sales().filter(
         customer_id=OuterRef("pk"),
         created_at__lt=start,
     )
@@ -195,7 +198,7 @@ def sales_line_comparison(start, end):
     current = _all_line_metrics(start, end)
     previous = _all_line_metrics(prev_start, prev_end)
     rows = []
-    for key in (SalesLine.ONLINE, SalesLine.SARI, SalesLine.GORGAN, SalesLine.CAPRI):
+    for key in visible_sales_lines():
         cur = current[key]
         prev = previous[key]
         row = {
@@ -239,7 +242,7 @@ def _all_line_metrics(start, end):
         or 0
     )
 
-    pos_base = qualifying_pos_sales().filter(created_at__gte=start, created_at__lt=end)
+    pos_base = visible_pos_sales().filter(created_at__gte=start, created_at__lt=end)
     operator_ids = operator_customer_ids()
     customer_count = Count("customer_id", distinct=True)
     if operator_ids:
@@ -253,7 +256,7 @@ def _all_line_metrics(start, end):
     }
     pos_units = {
         row["pos_sale__sales_line"]: int(row["units"] or 0)
-        for row in qualifying_pos_items()
+        for row in visible_pos_items()
         .filter(pos_sale__created_at__gte=start, pos_sale__created_at__lt=end)
         .values("pos_sale__sales_line")
         .annotate(units=Sum("quantity"))
@@ -272,7 +275,7 @@ def _all_line_metrics(start, end):
         "online_order_value": online_value,
     }
 
-    for key in (SalesLine.SARI, SalesLine.GORGAN, SalesLine.CAPRI):
+    for key in visible_pos_lines():
         stats = pos_stats.get(key, {})
         purchase_count = int(stats.get("purchase_count") or 0)
         pos_qs = pos_base.filter(sales_line=key)
@@ -338,7 +341,7 @@ def _accumulate_daily_purchases(buckets, start, end, sales_line):
         buckets.setdefault(iso, _empty_trend_bucket())["purchase_count"] += row["purchase_count"]
 
     pos_qs = filter_by_sales_line_pos(
-        qualifying_pos_sales().filter(created_at__gte=start, created_at__lt=end),
+        visible_pos_sales().filter(created_at__gte=start, created_at__lt=end),
         sales_line,
     )
     for row in pos_qs.annotate(day=TruncDate("created_at", tzinfo=TEHRAN)).values("day").annotate(
@@ -360,7 +363,7 @@ def _accumulate_daily_amounts(buckets, start, end, sales_line):
         buckets.setdefault(iso, _empty_trend_bucket())["amount"] += int(row["amount"] or 0)
 
     pos_items = filter_by_sales_line_pos(
-        qualifying_pos_items().filter(pos_sale__created_at__gte=start, pos_sale__created_at__lt=end),
+        visible_pos_items().filter(pos_sale__created_at__gte=start, pos_sale__created_at__lt=end),
         sales_line,
     )
     for row in pos_items.annotate(day=TruncDate("pos_sale__created_at", tzinfo=TEHRAN)).values("day").annotate(
@@ -396,7 +399,7 @@ def _accumulate_hourly_purchases(buckets, start, end, sales_line):
         buckets[str(row["hour"])]["purchase_count"] += row["purchase_count"]
 
     pos_qs = filter_by_sales_line_pos(
-        qualifying_pos_sales().filter(created_at__gte=start, created_at__lt=end),
+        visible_pos_sales().filter(created_at__gte=start, created_at__lt=end),
         sales_line,
     )
     for row in pos_qs.annotate(hour=ExtractHour("created_at")).values("hour").annotate(
@@ -418,7 +421,7 @@ def _accumulate_weekday_purchases(buckets, start, end, sales_line):
         buckets[str(index)]["purchase_count"] += 1
 
     pos_qs = filter_by_sales_line_pos(
-        qualifying_pos_sales().filter(created_at__gte=start, created_at__lt=end),
+        visible_pos_sales().filter(created_at__gte=start, created_at__lt=end),
         sales_line,
     )
     for row in pos_qs.only("created_at"):
@@ -482,7 +485,7 @@ def product_sales_report(start, end, sales_line=None, search="", sort="units", o
             bucket["last_sale_at"] = created
 
     pos_items = filter_by_sales_line_pos(
-        qualifying_pos_items().filter(pos_sale__created_at__gte=start, pos_sale__created_at__lt=end),
+        visible_pos_items().filter(pos_sale__created_at__gte=start, pos_sale__created_at__lt=end),
         sales_line,
     ).values(
         "product_id",
@@ -500,12 +503,9 @@ def product_sales_report(start, end, sales_line=None, search="", sort="units", o
         qty = int(row["quantity"] or 0)
         line = row["pos_sale__sales_line"]
         bucket["units_sold"] += qty
-        if line == SalesLine.SARI:
-            bucket["sari_units"] += qty
-        elif line == SalesLine.GORGAN:
-            bucket["gorgan_units"] += qty
-        elif line == SalesLine.CAPRI:
-            bucket["capri_units"] += qty
+        line_key = f"{str(line).lower()}_units"
+        if line_key in bucket:
+            bucket[line_key] += qty
         bucket["purchase_ids"].add(f"pos:{row['pos_sale_id']}")
         if row["pos_sale__customer_id"] and row["pos_sale__customer_id"] not in operator_ids:
             bucket["customer_ids"].add(row["pos_sale__customer_id"])
@@ -523,9 +523,8 @@ def product_sales_report(start, end, sales_line=None, search="", sort="units", o
                 "customer_count": len(bucket["customer_ids"]),
                 "last_sale_at": bucket["last_sale_at"],
                 "online_units": bucket["online_units"],
-                "sari_units": bucket["sari_units"],
-                "gorgan_units": bucket["gorgan_units"],
-                "capri_units": bucket["capri_units"],
+                # One key per store line keeps the API shape; a hidden line is always 0 (its rows are excluded).
+                **{f"{line.lower()}_units": bucket[f"{line.lower()}_units"] for line in POS_SALES_LINES},
             }
         )
 
@@ -556,9 +555,7 @@ def _ensure_product_bucket(buckets, key, title):
             "product": title or "کالا",
             "units_sold": 0,
             "online_units": 0,
-            "sari_units": 0,
-            "gorgan_units": 0,
-            "capri_units": 0,
+            **{f"{line.lower()}_units": 0 for line in POS_SALES_LINES},
             "purchase_ids": set(),
             "customer_ids": set(),
             "last_sale_at": None,
@@ -583,7 +580,7 @@ def size_color_report(start, end, sales_line=None, limit=8):
         _add_variant_count(color_counts, row["variant__color_name"], row["quantity"])
 
     pos_items = filter_by_sales_line_pos(
-        qualifying_pos_items()
+        visible_pos_items()
         .filter(pos_sale__created_at__gte=start, pos_sale__created_at__lt=end)
         .select_related("variant"),
         sales_line,
@@ -620,7 +617,7 @@ def physical_returns_report(start, end, sales_line=None):
     branch_lines = (
         [sales_line]
         if sales_line and sales_line != SalesLine.ONLINE
-        else [SalesLine.SARI, SalesLine.GORGAN, SalesLine.CAPRI]
+        else list(visible_pos_lines())
     )
     if sales_line == SalesLine.ONLINE:
         branch_lines = []
@@ -733,7 +730,7 @@ def _top_product_by_branch(start, end, sales_line=None):
     targets = (
         [sales_line]
         if sales_line
-        else [SalesLine.ONLINE, SalesLine.SARI, SalesLine.GORGAN, SalesLine.CAPRI]
+        else list(visible_sales_lines())
     )
     for line in targets:
         top = _top_product_for_line(start, end, line)
@@ -755,7 +752,7 @@ def _top_product_for_line(start, end, sales_line):
         )
     else:
         rows = (
-            qualifying_pos_items()
+            visible_pos_items()
             .filter(
                 pos_sale__created_at__gte=start,
                 pos_sale__created_at__lt=end,

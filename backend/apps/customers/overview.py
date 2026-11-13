@@ -22,12 +22,15 @@ from apps.sales.semantics import (
     pos_refund_sales,
     qualifying_online_gateway_payments,
     qualifying_online_orders,
+    exclude_hidden_lines,
+    hidden_sales_lines,
     qualifying_pos_sales,
 )
 
 PERIODS = ("30", "month", "90", "365")
 COMPARES = ("prev", "yoy")
 LENSES = ("total", "site", "sari", "gorgan", "capri", "shopino", "snappay", "digipay")
+LENS_LINE = {"sari": SalesLine.SARI, "gorgan": SalesLine.GORGAN, "capri": SalesLine.CAPRI}
 ONLINE_DATA_START = date(2022, 1, 12)
 POS_DATA_START = date(2025, 5, 31)
 # A lens that mixes POS has no full history before POS data starts.
@@ -46,6 +49,12 @@ _LENS_SQL = {
     "snappay": "snappay",
     "digipay": "digipay",
 }
+
+
+def visible_lenses():
+    """LENSES without the lens of a hidden sales line (settings.HIDDEN_SALES_LINES)."""
+    hidden = hidden_sales_lines()
+    return tuple(lens for lens in LENSES if LENS_LINE.get(lens) not in hidden)
 
 
 def parse_overview_params(params):
@@ -114,7 +123,8 @@ def _flag(q):
     return ExpressionWrapper(q, output_field=BooleanField())
 
 
-def _events_sql(include_internal=False):
+def _events_sql(include_internal=False, visible_only=False):
+    """`visible_only` drops hidden sales lines (overview report only). CustomerMetrics and call jobs keep every line."""
     scope = (lambda qs: qs) if include_internal else exclude_operator_sales
 
     def gateway(name):
@@ -153,6 +163,7 @@ def _events_sql(include_internal=False):
     selects = [f"SELECT cid, at, amt, inv, line, shopino, snappay, digipay FROM ({online_sql}) part"]
     params = list(params)
     for qs, invoice in ((qualifying_pos_sales(), True), (pos_refund_sales().filter(is_cancelled=False), False)):
+        qs = exclude_hidden_lines(qs) if visible_only else qs
         pos_sql, pos_params = compiled(pos(qs, invoice), "sid", "cid", "at", "inv", "line", "shopino", "snappay", "digipay")
         selects.append(
             "SELECT cid, at, COALESCE(pa.total, 0) AS amt, inv, line, shopino, snappay, digipay "
@@ -164,13 +175,15 @@ def _events_sql(include_internal=False):
 
 def _aggregate(windows):
     """{window index: {lens: {...}}} for every lens, one query. windows = [current, compare, *contiguous buckets]."""
-    events_sql, params = _events_sql()
+    events_sql, params = _events_sql(visible_only=True)
+    lenses = visible_lenses()
     tz = timezone.get_current_timezone_name()
     values_sql = ", ".join("(%s, %s::timestamptz, %s::timestamptz)" for _ in windows)
     bounds = [(_aware(start), _aware(end + timedelta(days=1))) for start, end in windows]
     window_params = [value for i, (ws, we) in enumerate(bounds) for value in (i, ws, we)]
     per_customer, activity, firsts, lens_firsts = [], [], [], []
-    for lens, cond in _LENS_SQL.items():
+    for lens in lenses:
+        cond = _LENS_SQL[lens]
         # Per (window, customer) first, so the outer counts need no COUNT(DISTINCT).
         per_customer += [
             f"COUNT(*) FILTER (WHERE ew.inv AND {cond}) AS inv_{lens}",
@@ -215,7 +228,7 @@ def _aggregate(windows):
         spark = bounds[2:]
         edges = [ws for ws, _ in spark] + [spark[-1][1]]
         ew_params = [*bounds[0], *bounds[1], edges, edges[0], edges[-1]]
-        cursor.execute(sql, params + window_params + ew_params + [tz] * len(LENSES))
+        cursor.execute(sql, params + window_params + ew_params + [tz] * len(lenses))
         act_rows, hist_rows = cursor.fetchone()
     by_window = {row["idx"]: row for row in act_rows or []}
     first_days = {}
@@ -225,7 +238,7 @@ def _aggregate(windows):
     for i, (start, end) in enumerate(windows):
         row = by_window.get(i, {})
         result[i] = {}
-        for lens in LENSES:
+        for lens in lenses:
             days = first_days.get(lens, [])
             result[i][lens] = {
                 "customers": sum(n for day, n in days if day <= end),
@@ -319,7 +332,7 @@ def _tier_payload(window):
 
 
 def _insights(lenses, tiers):
-    deltas = [(lens, lenses[lens]["active"]["delta"]) for lens in LENSES[1:] if lenses[lens]["active"]["delta"] is not None]
+    deltas = [(lens, lenses[lens]["active"]["delta"]) for lens in visible_lenses()[1:] if lenses[lens]["active"]["delta"] is not None]
     best = max(deltas, key=lambda item: item[1]) if deltas else None
     worst = min(deltas, key=lambda item: item[1]) if deltas else None
     rows = [tier for panel in tiers["panels"] for tier in panel["tiers"] if tier["net"] > 0]
@@ -345,7 +358,7 @@ def _window_meta(window):
 
 def overview_payload(period, compare, today=None):
     today = today or timezone.localdate()
-    key = f"customers-overview:{period}:{compare}:{today.isoformat()}"
+    key = f"customers-overview:{period}:{compare}:{today.isoformat()}:{','.join(visible_lenses())}"
     cached = cache.get(key)
     if cached is not None:
         return cached
@@ -353,8 +366,8 @@ def overview_payload(period, compare, today=None):
     cmp_window = compare_window(window, compare)
     buckets = spark_windows(period, today)
     raw = _aggregate([window, cmp_window, *buckets])
-    lenses = {lens: _lens_payload(raw[0], raw[1], lens, window, cmp_window) for lens in LENSES}
-    for lens in LENSES:
+    lenses = {lens: _lens_payload(raw[0], raw[1], lens, window, cmp_window) for lens in visible_lenses()}
+    for lens in visible_lenses():
         series = [_metrics(raw[i + 2], lens, bucket) for i, bucket in enumerate(buckets)]
         lenses[lens]["spark"] = {metric: [point[metric] for point in series] for metric in ("customers", "active", "basket", "repeat")}
     tiers = _tier_payload(window)

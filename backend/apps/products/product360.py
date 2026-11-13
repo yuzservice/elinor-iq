@@ -16,11 +16,11 @@ from django.utils import timezone
 from apps.customers.models import Customer, CustomerMetrics
 from apps.customers.operators import operator_customer_ids
 from apps.customers.tiers import tier_label, tier_title_map
-from apps.sales.semantics import qualifying_online_items, qualifying_pos_items
+from apps.sales.semantics import qualifying_online_items, visible_pos_items, visible_sales_lines
 
 from .categories import descendant_ids, tree
 from .models import CentralStock, Product, ProductMetrics, Variant
-from .report import LINES, Scope, _fetch, _plain, bundles, comparable, stock_enabled
+from .report import Scope, _fetch, _plain, bundles, comparable, stock_enabled
 
 CHART_DAYS = 180
 PROSPECT_DAYS = 90
@@ -30,8 +30,8 @@ def _line_rows(product_ids, start, end):
     rows = _fetch(
         """SELECT product_id, sales_line, SUM(units)::bigint AS units, SUM(net_units)::bigint AS net, SUM(revenue)::bigint AS revenue,
                   SUM(discounted_units)::bigint AS disc
-           FROM product_daily_sales WHERE product_id = ANY(%s) AND day BETWEEN %s AND %s GROUP BY 1, 2""",
-        [list(product_ids), start, end],
+           FROM product_daily_sales WHERE product_id = ANY(%s) AND day BETWEEN %s AND %s AND sales_line = ANY(%s) GROUP BY 1, 2""",
+        [list(product_ids), start, end, list(visible_sales_lines())],
     )
     return rows
 
@@ -39,7 +39,7 @@ def _line_rows(product_ids, start, end):
 def _purchases(product_ids, since=None):
     """(customer_id, invoice key, created_at, quantity) of qualifying sold lines of these products, internal accounts left out."""
     online = qualifying_online_items().filter(product_id__in=product_ids, order__customer_id__isnull=False)
-    pos = qualifying_pos_items().filter(product_id__in=product_ids, pos_sale__customer_id__isnull=False)
+    pos = visible_pos_items().filter(product_id__in=product_ids, pos_sale__customer_id__isnull=False)
     if since:
         online, pos = online.filter(order__created_at__gte=since), pos.filter(pos_sale__created_at__gte=since)
     internal = operator_customer_ids()
@@ -81,7 +81,7 @@ def _buyers(product_id):
     line = ExpressionWrapper(F("amount") * F("quantity"), output_field=BigIntegerField())
     for order_id, amount in qualifying_online_items().filter(order_id__in=orders).values_list("order_id", line):
         totals[f"o{order_id}"] += amount or 0
-    for sale_id, amount in qualifying_pos_items().filter(pos_sale_id__in=sales).values_list("pos_sale_id", line):
+    for sale_id, amount in visible_pos_items().filter(pos_sale_id__in=sales).values_list("pos_sale_id", line):
         totals[f"p{sale_id}"] += amount or 0
     titles = tier_title_map()
     tiers = Counter(Customer.objects.filter(pk__in=per_customer).values_list("tier_code", flat=True))
@@ -101,8 +101,8 @@ def _variant_needs(product_id, as_of, first_sale, lead, with_stock=True):
     days = max(min(28, (as_of - first_sale).days + 1), 7)
     rows = _fetch(
         """SELECT d.variant_id, SUM(d.net_units)::bigint AS net FROM product_daily_sales d
-           WHERE d.product_id = %s AND d.day BETWEEN %s AND %s AND d.variant_id IS NOT NULL GROUP BY 1""",
-        [product_id, start, end],
+           WHERE d.product_id = %s AND d.day BETWEEN %s AND %s AND d.variant_id IS NOT NULL AND d.sales_line = ANY(%s) GROUP BY 1""",
+        [product_id, start, end, list(visible_sales_lines())],
     )
     stock = dict(CentralStock.objects.filter(product_id=product_id).values_list("variant_id", "balance")) if with_stock else None
     variants = {v.pk: v for v in Variant.objects.filter(pk__in=[r["variant_id"] for r in rows])}
@@ -125,7 +125,7 @@ def product_detail(product_id, params, today=None):
         return None
     scope = Scope({**params, "lines": ""}, today)
     start, end, days = scope.start, scope.end, (scope.end - scope.start).days + 1
-    has_compare = comparable(list(LINES), scope.cfrom)
+    has_compare = comparable(scope.lines, scope.cfrom)
     nodes = {n["id"]: n for n in tree(include_inactive=True)}
     category_id = metrics.category_id if metrics else None
     category = nodes.get(category_id, {})
@@ -151,7 +151,7 @@ def product_detail(product_id, params, today=None):
     by_line = {r["sales_line"]: r for r in cur}
     last = (metrics.last_sale_by_line if metrics else {}) or {}
     branches = []
-    for line in LINES:
+    for line in scope.lines:
         line_units = by_line.get(line, {}).get("units", 0)
         share = line_units / units if units else None
         cat_share = cat_lines[line] / cat_total if cat_total else None
@@ -161,16 +161,17 @@ def product_detail(product_id, params, today=None):
     # Daily chart from the first sale (last 180 days for older products), with the category's typical day.
     chart_start = max(first_sale or start, end - timedelta(days=CHART_DAYS - 1))
     daily = {r["day"]: r["n"] for r in _fetch(
-        "SELECT day, SUM(net_units)::bigint AS n FROM product_daily_sales WHERE product_id = %s AND day BETWEEN %s AND %s GROUP BY day",
-        [product_id, chart_start, end])}
+        "SELECT day, SUM(net_units)::bigint AS n FROM product_daily_sales WHERE product_id = %s AND day BETWEEN %s AND %s"
+        " AND sales_line = ANY(%s) GROUP BY day",
+        [product_id, chart_start, end, scope.lines])}
     series = [{"day": chart_start + timedelta(days=i), "units": daily.get(chart_start + timedelta(days=i), 0)} for i in range((end - chart_start).days + 1)]
 
     sizes = _fetch(
         """SELECT COALESCE(NULLIF(TRIM(v.color_name), ''), '—') AS color, COALESCE(NULLIF(UPPER(TRIM(v.size)), ''), '—') AS size,
                   SUM(d.net_units)::bigint AS units
            FROM product_daily_sales d JOIN variants v ON v.id = d.variant_id
-           WHERE d.product_id = %s AND d.day BETWEEN %s AND %s GROUP BY 1, 2""",
-        [product_id, start, end],
+           WHERE d.product_id = %s AND d.day BETWEEN %s AND %s AND d.sales_line = ANY(%s) GROUP BY 1, 2""",
+        [product_id, start, end, scope.lines],
     )
     price = Variant.objects.filter(product_id=product_id, deleted_at__isnull=True).values_list("final_price", "price")
     prices = [fp or p for fp, p in price if (fp or p)]

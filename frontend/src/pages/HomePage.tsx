@@ -3,7 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { JalaliRangePopover } from "../components/JalaliDatePicker";
 import { TargetsSection, money } from "../features/home/TargetsSection";
 import type { AttentionItem, HomeCompare, HomeData, HomePeriodKey } from "../features/home/types";
-import { LINES, delta, fa, jdate, pct } from "../features/products/display";
+import { LINES, delta, fa, jdate, pct, visibleLines } from "../features/products/display";
 import { formatJalali, jalaliWeekday, toFaDigits } from "../lib/dates";
 import { tehranTodayIso } from "../lib/format";
 import { homeService } from "../services/home";
@@ -12,7 +12,7 @@ const CARD = "rounded-[18px] border border-line bg-surface";
 const PERIODS: [HomePeriodKey, string][] = [["today", "امروز"], ["7", "۷ روز اخیر"], ["30", "۳۰ روز اخیر"], ["90", "۹۰ روز اخیر"], ["custom", "بازه دلخواه…"]];
 const COMPARE_TODAY: [HomeCompare, string][] = [["prev", "همان روز هفته قبل"], ["yoy", "همان روز سال قبل"], ["none", "بدون مقایسه"]];
 const COMPARE_RANGE: [HomeCompare, string][] = [["prev", "دوره قبل"], ["yoy", "همین بازه سال قبل"], ["none", "بدون مقایسه"]];
-const BRANCHES: [string, string][] = [["all", "همه شعب"], ...LINES.map((l) => [l.key, l.label] as [string, string])];
+const branches = (): [string, string][] => [["all", "همه شعب"], ...visibleLines().map((l) => [l.key, l.label] as [string, string])];
 const lineOf = (key: string | null) => LINES.find((line) => line.key === key);
 const ROW_GRID = "grid grid-cols-[minmax(90px,1.2fr)_minmax(120px,2fr)_repeat(3,minmax(70px,0.8fr))_minmax(60px,0.6fr)] items-center gap-2.5";
 
@@ -109,7 +109,7 @@ function Filters({ data, params, setParams }: { data: HomeData | null; params: U
         <Picker label="بازه" value={periodValue} options={PERIODS} current={period} onPick={pickPeriod} />
         <Picker label="مقایسه" value={compares.find(([k]) => k === compare)?.[1] ?? ""} options={compares} current={compare}
           onPick={(key) => set({ compare: key === "prev" ? null : key })} />
-        <Picker label="شعبه" value={BRANCHES.find(([k]) => k === line)?.[1] ?? "همه شعب"} options={BRANCHES} current={line}
+        <Picker label="شعبه" value={branches().find(([k]) => k === line)?.[1] ?? "همه شعب"} options={branches()} current={line}
           onPick={(key) => set({ line: key === "all" ? null : key })} />
       </div>
       <span className="text-[12.5px] text-muted">{text ? `${text.current}${text.compare ? `  •  در برابر ${text.compare}` : ""}` : ""}</span>
@@ -320,7 +320,7 @@ function Trend({ data }: { data: HomeData }) {
             <div className="flex justify-between gap-3.5"><span className="text-[12.5px] text-muted">فاکتور / کالا</span><span>{fa(point.invoices)} / {fa(point.items)}</span></div>
             {allBranches && point.lines ? (
               <div className="flex flex-col gap-[3px] border-t border-line pt-1.5">
-                {LINES.filter((l) => point.lines?.[l.key] != null).map((l) => (
+                {visibleLines().filter((l) => point.lines?.[l.key] != null).map((l) => (
                   <div key={l.key} className="flex justify-between gap-3.5 text-xs">
                     <span className="flex items-center gap-1.5"><span className="h-[7px] w-[7px] rounded-full" style={{ background: l.color }} />{l.label}</span>
                     <span>{money(point.lines?.[l.key])}</span>
