@@ -159,7 +159,7 @@ def test_period_figures_branch_rows_and_internal_accounts_not_buyers():
     assert cards["buyers"]["value"] == 2 and cards["basket"]["value"] == pytest.approx(2_100_000 / 3)
     assert cards["sales"]["online_share"] == pytest.approx(1_500_000 / 2_100_000)
     rows = {row["line"]: row for row in data["branches"]}
-    assert rows["SARI"] == {"line": "SARI", "sales": 600_000, "invoices": 1, "items": 3, "basket": 600_000, "change": None}
+    assert rows["SARI"] == {"line": "SARI", "sales": 600_000, "invoices": 1, "items": 3, "basket": 600_000, "change": None, "compare_sales": 0}
     assert data["total"]["sales"] == 2_100_000 and len(data["branches"]) == 4
     assert sum(p["sales"] for p in data["trend"]) == 2_100_000 and len(data["trend"]) == 7
 
@@ -229,3 +229,23 @@ def test_summary_endpoint_role_filtered_and_bad_range():
     agent = APIClient(HTTP_HOST="localhost")
     agent.force_login(_user("sales_agent", "agent2"))  # the role middleware reads the session user
     assert agent.get("/api/home/summary/").status_code == 403
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("period", ["today", "30"])
+def test_trend_buckets_carry_invoices_items_and_lines_that_add_up(period):
+    a, b = _customer(), _customer()
+    for minutes in (20, 200):
+        order = _order(a, 1_000, NOW - timedelta(minutes=minutes))
+        OrderItem.objects.create(source_id=next(_ids), order=order, quantity=2, amount=500, status=1)
+    _pos(b, 300, NOW - timedelta(minutes=50), quantity=3)
+    _pos(b, 100, NOW - timedelta(days=3), line=SalesLine.CAPRI)
+    data = home.summary({"period": period}, now=NOW)
+    shown = [p for p in data["trend"] if not p["future"]]
+    for p in shown:
+        assert sum(p["lines"].values()) == p["sales"] and set(p["lines"]) == {"ONLINE", "SARI", "GORGAN", "CAPRI"}
+    assert sum(p["invoices"] for p in shown) == data["cards"]["invoices"]["value"]
+    assert sum(p["items"] for p in shown) == data["cards"]["invoices"]["items"]
+    assert all("invoices" not in p for p in data["trend"] if p["future"])
+    branch = {row["line"]: row for row in data["branches"]}
+    assert branch["ONLINE"]["compare_sales"] == 0 and data["total"]["compare_sales"] == 0

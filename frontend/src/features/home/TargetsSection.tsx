@@ -44,6 +44,13 @@ export function TargetsSection({ line }: { line?: string }) {
   const c = d?.company;
   const ahead = (c?.gap ?? 0) >= 0;
   const expected = d ? Math.min(100, d.expected_pct) : 0;
+  const signed = (value: number) => `${value >= 0 ? "+" : "−"}${money(Math.abs(value))}`;
+  const expectTip = c && d
+    ? `تا امروز باید ${money((c.target * d.expected_pct) / 100)} تومان می‌فروختیم؛ فروش واقعی ${money(c.actual)} (${signed(c.actual - (c.target * d.expected_pct) / 100)})`
+    : "";
+  const lineTip = (target: number, actual: number) =>
+    d ? `تارگت ${money(target)}؛ فروش تا امروز ${money(actual)}؛ باید تا امروز ${money((target * d.expected_pct) / 100)}${
+      d.remaining_days > 0 ? `؛ برای رسیدن، روزی ${money(Math.max(0, target - actual) / d.remaining_days)} لازم است` : ""}` : "";
   return (
     <section id="home-targets" aria-label="تارگت" className={`${CARD} flex flex-col gap-4 px-5 py-[18px]`}>
       <div className="flex flex-wrap items-center justify-between gap-2.5">
@@ -97,7 +104,9 @@ export function TargetsSection({ line }: { line?: string }) {
             </div>
             <div className="relative h-4 rounded-lg bg-[var(--chart-track)]">
               <div className="absolute right-0 top-0 h-4 rounded-lg" style={{ width: `${Math.min(100, c.pct)}%`, background: ahead ? "var(--delta-up)" : "var(--warning)" }} />
-              <div title="جایی که باید تا امروز می‌رسیدیم" className="absolute -top-1 h-6 w-0.5 bg-ink" style={{ right: `calc(${expected}% - 1px)` }} />
+              <div title={expectTip} className="absolute -top-1 flex h-6 w-2.5 cursor-help justify-center" style={{ right: `calc(${expected}% - 5px)` }}>
+                <span className="h-full w-0.5 bg-ink" />
+              </div>
             </div>
             <div className="flex flex-wrap justify-between gap-1 text-[12.5px] text-muted">
               <span>{fa(d.expected_pct)}٪ از زمان گذشته است</span>
@@ -141,7 +150,7 @@ export function TargetsSection({ line }: { line?: string }) {
                       <span className="text-[12.5px] text-muted">تارگت ندارد</span>
                     )}
                   </div>
-                  <div className="relative h-2 rounded bg-[var(--chart-track)]">
+                  <div title={row?.target ? lineTip(row.target, row.actual) : undefined} className="relative h-2 rounded bg-[var(--chart-track)]">
                     {row?.target ? (
                       <>
                         <div className="absolute right-0 top-0 h-2 rounded" style={{ width: `${Math.min(100, row.pct ?? 0)}%`, background: line.color }} />

@@ -38,7 +38,7 @@ export type CopyPreview = {
 export type HomePeriodKey = "today" | "7" | "30" | "90" | "custom";
 export type HomeCompare = "prev" | "yoy" | "none";
 type Change = { value: number | null; change: number | null };
-type BranchRow = { sales: number; invoices: number; items: number; basket: number | null; change: number | null };
+type BranchRow = { sales: number; invoices: number; items: number; basket: number | null; change: number | null; compare_sales: number | null };
 
 export type HomeData = {
   range: {
@@ -54,7 +54,10 @@ export type HomeData = {
   };
   branches: (BranchRow & { line: LineKey })[];
   total: BranchRow | null;
-  trend: { key: string | number; future: boolean; sales: number | null; compare?: number }[];
+  trend: {
+    key: string | number; future: boolean; sales: number | null; compare?: number;
+    invoices?: number; items?: number; lines?: Partial<Record<LineKey, number>>;
+  }[];
   attention: AttentionItem[];
 };
 
