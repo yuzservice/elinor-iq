@@ -10,7 +10,8 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.sales.models import Order, SalesTarget, SalesTargetChange
-from apps.sales.targets import LINES, copy_preview, line_status, period_bounds, progress, save_cells
+from apps.sales.semantics import ALL_SALES_LINES as LINES
+from apps.sales.targets import copy_preview, line_status, period_bounds, progress, save_cells
 
 
 def _g(jy, jm, jd):

@@ -3,7 +3,7 @@ import { toFaDigits, toEnDigits } from "../../lib/dates";
 import { formatDateTime } from "../../lib/format";
 import { ApiError } from "../../services/api";
 import { homeService } from "../../services/home";
-import { LINES, fa } from "../products/display";
+import { LINES, fa, visibleLines } from "../products/display";
 import type { LineKey } from "../products/types";
 import { money } from "./TargetsSection";
 import type { CopyPreview, TargetGrid } from "./types";
@@ -58,10 +58,10 @@ export function TargetsPanel({ initialYear }: { initialYear: number }) {
     [edits, grid], // eslint-disable-line react-hooks/exhaustive-deps
   );
   const set = (month: number, line: LineKey, raw: string) => setEdits((e) => ({ ...e, [key(month, line)]: raw }));
-  const clearMonth = (month: number) => setEdits((e) => ({ ...e, ...Object.fromEntries(LINES.map((l) => [key(month, l.key), ""])) }));
-  const rowTotal = (month: number) => LINES.reduce((sum, l) => sum + (shown(month, l.key) ?? 0), 0);
+  const clearMonth = (month: number) => setEdits((e) => ({ ...e, ...Object.fromEntries(visibleLines().map((l) => [key(month, l.key), ""])) }));
+  const rowTotal = (month: number) => visibleLines().reduce((sum, l) => sum + (shown(month, l.key) ?? 0), 0);
   const colTotal = (line: LineKey) => Array.from({ length: 12 }, (_, i) => shown(i + 1, line) ?? 0).reduce((a, b) => a + b, 0);
-  const yearTotal = LINES.reduce((sum, l) => sum + colTotal(l.key), 0);
+  const yearTotal = visibleLines().reduce((sum, l) => sum + colTotal(l.key), 0);
 
   const loadPreview = async () => {
     setBusy(true);
@@ -102,7 +102,7 @@ export function TargetsPanel({ initialYear }: { initialYear: number }) {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="m-0 text-[15px] font-semibold text-ink">تارگت‌ها</h2>
-          <p className="m-0 mt-1 text-xs text-faint">مبالغ به میلیون تومان، با همان معیار کارت فروش صفحه خانه. تارگت کل = جمع چهار شعبه.</p>
+          <p className="m-0 mt-1 text-xs text-faint">مبالغ به میلیون تومان، با همان معیار کارت فروش صفحه خانه. تارگت کل = جمع {toFaDigits(visibleLines().length)} شعبه.</p>
         </div>
         <div className="flex items-center gap-1.5">
           <button type="button" aria-label="سال قبل" className={GHOST} disabled={busy} onClick={() => setYear(year - 1)}>›</button>
@@ -124,7 +124,7 @@ export function TargetsPanel({ initialYear }: { initialYear: number }) {
           <thead>
             <tr className="text-muted">
               <th scope="col" className="px-2 py-1.5 text-right font-medium">ماه</th>
-              {LINES.map((l) => <th key={l.key} scope="col" className="px-2 py-1.5 text-right font-medium">{l.label}</th>)}
+              {visibleLines().map((l) => <th key={l.key} scope="col" className="px-2 py-1.5 text-right font-medium">{l.label}</th>)}
               <th scope="col" className="px-2 py-1.5 text-right font-medium">جمع</th>
               <th scope="col" className="px-2 py-1.5"><span className="sr-only">پاک کردن</span></th>
             </tr>
@@ -133,7 +133,7 @@ export function TargetsPanel({ initialYear }: { initialYear: number }) {
             {(grid?.months ?? []).map((row) => (
               <tr key={row.month} className="border-t border-line">
                 <th scope="row" className="whitespace-nowrap px-2 py-1.5 text-right font-medium text-ink">{row.name}</th>
-                {LINES.map((l) => {
+                {visibleLines().map((l) => {
                   const k = key(row.month, l.key);
                   const value = edits[k] ?? (saved(row.month, l.key) != null ? String((saved(row.month, l.key) as number) / MILLION) : "");
                   const cell = preview?.cells.find((c) => c.month === row.month && c.sales_line === l.key);
@@ -160,7 +160,7 @@ export function TargetsPanel({ initialYear }: { initialYear: number }) {
           <tfoot>
             <tr className="border-t-2 border-line font-semibold text-ink">
               <th scope="row" className="px-2 py-2 text-right">جمع سال</th>
-              {LINES.map((l) => <td key={l.key} className="px-2 py-2 tabular-nums">{fa(colTotal(l.key) / MILLION)}</td>)}
+              {visibleLines().map((l) => <td key={l.key} className="px-2 py-2 tabular-nums">{fa(colTotal(l.key) / MILLION)}</td>)}
               <td className="px-2 py-2 tabular-nums">{fa(yearTotal / MILLION)}</td>
               <td />
             </tr>

@@ -4,7 +4,7 @@ import { JalaliRangePopover } from "../components/JalaliDatePicker";
 import { TargetsSection, money } from "../features/home/TargetsSection";
 import type { AttentionItem, HomeCompare, HomeData, HomePeriodKey } from "../features/home/types";
 import { donutStops, rankBranches, sparkBars, toggleLine } from "../features/home/tiles";
-import { LINES, delta, fa, jdate, pct } from "../features/products/display";
+import { LINES, delta, fa, jdate, pct, visibleLines } from "../features/products/display";
 import { formatJalali, jalaliWeekday, toFaDigits } from "../lib/dates";
 import { tehranTodayIso } from "../lib/format";
 import { homeService } from "../services/home";
@@ -13,7 +13,7 @@ const CARD = "rounded-[18px] border border-line bg-surface";
 const PERIODS: [HomePeriodKey, string][] = [["today", "امروز"], ["yesterday", "دیروز"], ["7", "۷ روز اخیر"], ["30", "۳۰ روز اخیر"], ["90", "۹۰ روز اخیر"], ["custom", "بازه دلخواه…"]];
 const COMPARE_TODAY: [HomeCompare, string][] = [["prev", "همان روز هفته قبل"], ["yoy", "همان روز سال قبل"], ["none", "بدون مقایسه"]];
 const COMPARE_RANGE: [HomeCompare, string][] = [["prev", "دوره قبل"], ["yoy", "همین بازه سال قبل"], ["none", "بدون مقایسه"]];
-const BRANCHES: [string, string][] = [["all", "همه شعب"], ...LINES.map((l) => [l.key, l.label] as [string, string])];
+const branches = (): [string, string][] => [["all", "همه شعب"], ...visibleLines().map((l) => [l.key, l.label] as [string, string])];
 const lineOf = (key: string | null) => LINES.find((line) => line.key === key);
 /** «امروز» and «دیروز» are single days compared with the same weekday last week (or the same day last year). */
 const isDay = (period: HomePeriodKey) => period === "today" || period === "yesterday";
@@ -127,7 +127,7 @@ function Filters({ data, params, setParams }: { data: HomeData | null; params: U
         <Picker label="بازه" value={periodValue} options={PERIODS} current={period} onPick={pickPeriod} />
         <Picker label="مقایسه" value={compares.find(([k]) => k === compare)?.[1] ?? ""} options={compares} current={compare}
           onPick={(key) => set({ compare: key === "prev" ? null : key })} />
-        <Picker label="شعبه" value={BRANCHES.find(([k]) => k === line)?.[1] ?? "همه شعب"} options={BRANCHES} current={line}
+        <Picker label="شعبه" value={branches().find(([k]) => k === line)?.[1] ?? "همه شعب"} options={branches()} current={line}
           onPick={(key) => set({ line: key === "all" ? null : key })} />
       </div>
       <span className="text-[12.5px] text-muted">{text ? `${text.current}${text.compare ? `  •  در برابر ${text.compare}` : ""}` : ""}</span>
@@ -263,7 +263,7 @@ function BranchTiles({ data, all, selected, compareText, onPick }: {
   const ok = all.range.comparable && !none;
   const [value, ...unit] = money(total?.sales ?? 0).split(" ");
   const top = ranked[0];
-  const stops = donutStops(LINES.filter((l) => all.branches.some((b) => b.line === l.key))
+  const stops = donutStops(visibleLines().filter((l) => all.branches.some((b) => b.line === l.key))
     .map((l) => ({ color: l.color, value: all.branches.find((b) => b.line === l.key)?.sales ?? 0 })));
   const title = period === "today" ? "امروز تا این لحظه، به تفکیک شعبه" : period === "yesterday" ? "دیروز، به تفکیک شعبه" : "فروش شعب";
   const sub = period === "today"
@@ -419,7 +419,7 @@ function Trend({ data }: { data: HomeData }) {
             <div className="flex justify-between gap-3.5"><span className="text-[12.5px] text-muted">فاکتور / کالا</span><span>{fa(point.invoices)} / {fa(point.items)}</span></div>
             {allBranches && point.lines ? (
               <div className="flex flex-col gap-[3px] border-t border-line pt-1.5">
-                {LINES.filter((l) => point.lines?.[l.key] != null).map((l) => (
+                {visibleLines().filter((l) => point.lines?.[l.key] != null).map((l) => (
                   <div key={l.key} className="flex justify-between gap-3.5 text-xs">
                     <span className="flex items-center gap-1.5"><span className="h-[7px] w-[7px] rounded-full" style={{ background: l.color }} />{l.label}</span>
                     <span>{money(point.lines?.[l.key])}</span>

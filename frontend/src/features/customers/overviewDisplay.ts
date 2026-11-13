@@ -1,4 +1,5 @@
 import { formatNumber } from "../../lib/format";
+import { isVisibleLine } from "../../lib/salesLines";
 import type { CustomerOverviewData, OverviewLens, OverviewMetric } from "../../types";
 
 export const PERIODS = [
@@ -20,6 +21,11 @@ export const LENSES: LensMeta[] = [
   { key: "snappay", name: "اسنپ‌پی", color: "var(--ch-snappay)", group: "pay" },
   { key: "digipay", name: "دیجی‌پی", color: "var(--ch-digipay)", group: "pay" },
 ];
+
+const LENS_LINE: Partial<Record<OverviewLens, string>> = { sari: "SARI", gorgan: "GORGAN", capri: "CAPRI" };
+
+/** LENSES without the lens of a hidden sales line (the backend leaves it out of `lenses` too). */
+export const visibleLenses = (): LensMeta[] => LENSES.filter((lens) => !LENS_LINE[lens.key] || isVisibleLine(LENS_LINE[lens.key]));
 
 export const lensName = (key: OverviewLens) => LENSES.find((lens) => lens.key === key)?.name ?? key;
 

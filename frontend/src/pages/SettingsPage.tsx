@@ -11,6 +11,7 @@ import { ApiError } from "../services/api";
 import { systemService, type PanelAdmin } from "../services/system";
 import type { SystemStatus } from "../types";
 
+// POS sync branches: sync keeps importing every line, hidden ones too (decision 0010), so this list is not filtered.
 const STORE_BRANCHES = [
   { id: "online", label: "اینترنتی" },
   { id: "sari", label: "ساری" },

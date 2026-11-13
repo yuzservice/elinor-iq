@@ -9,9 +9,11 @@ from django.conf import settings
 from django.db import connection
 from django.utils import timezone
 
+from apps.sales.semantics import ALL_SALES_LINES, visible_sales_lines
+
 from .categories import product_ids_in, tree
 
-LINES = ("ONLINE", "SARI", "GORGAN", "CAPRI")
+LINES = ALL_SALES_LINES  # every line; reports use visible_sales_lines() (settings.HIDDEN_SALES_LINES)
 LINE_START = {"ONLINE": date(2022, 1, 12), "SARI": date(2025, 5, 31), "GORGAN": date(2025, 5, 31), "CAPRI": date(2025, 5, 31)}
 PERIOD_DAYS = {"7": 7, "30": 30, "90": 90, "365": 365}
 STATUSES = ("driver", "growth", "normal", "slow", "stale")
@@ -80,7 +82,8 @@ class Scope:
     def __init__(self, params, today=None):
         self.today = today or timezone.localdate()
         self.start, self.end, self.cfrom, self.cto, self.compare = resolve_ranges(params, self.today)
-        self.lines = _csv(params, "lines", LINES) or list(LINES)
+        visible = visible_sales_lines()
+        self.lines = _csv(params, "lines", visible) or list(visible)  # a hidden line in ?lines= is dropped
         self.statuses = _csv(params, "status", STATUSES)
         # Stock filters exist only while stock is enabled; old URLs keep working because the param is then ignored.
         self.stock = _csv(params, "stock", ("charge", "out", "ok")) if stock_enabled() else []
@@ -88,7 +91,7 @@ class Scope:
         self.discount = _csv(params, "discount", ("yes", "no"))
         self.q = str(params.get("q") or "").strip()
         self.category_ids = [int(i) for i in _csv(params, "category_ids") if i.isdigit()]
-        self.filtered = bool(self.q or self.category_ids or self.statuses or self.stock or self.ages or self.discount or len(self.lines) < len(LINES))
+        self.filtered = bool(self.q or self.category_ids or self.statuses or self.stock or self.ages or self.discount or len(self.lines) < len(visible))
 
     def where(self, alias="m"):
         """SQL conditions on product_metrics (alias) and products (p), with params."""
@@ -135,7 +138,7 @@ def _fetch(sql, params):
 
 def _period_cte(scope, lines):
     """CTE `cur` (and `prev` when comparing) aggregated per product over the given lines."""
-    line_units = ", ".join(f"COALESCE(SUM(units) FILTER (WHERE sales_line = '{line}'), 0)::bigint AS u_{line.lower()}" for line in LINES)
+    line_units = ", ".join(f"COALESCE(SUM(units) FILTER (WHERE sales_line = '{line}'), 0)::bigint AS u_{line.lower()}" for line in visible_sales_lines())
     sql = f"""cur AS (
         SELECT product_id, SUM(units)::bigint AS units, SUM(net_units)::bigint AS net_units, SUM(revenue)::bigint AS revenue,
                SUM(discounted_units)::bigint AS discounted, {line_units}
@@ -159,7 +162,7 @@ def _rows_sql(scope):
             m.category_id, m.status, m.stock_flag, m.central_stock, m.first_sale_date, m.last_sale_date, m.category_ratio AS ratio,
             m.units_first14 AS first14, m.full_price_speed, m.weekly_speed AS speed_28, m.trend_pct AS trend,
             COALESCE(c.units, 0) AS units, COALESCE(c.net_units, 0) AS net_units, COALESCE(c.revenue, 0) AS revenue,
-            c.u_online, c.u_sari, c.u_gorgan, c.u_capri,
+            {", ".join(f"c.u_{line.lower()}" for line in visible_sales_lines())},
             (COALESCE(c.net_units, 0) / (GREATEST(LEAST(%s, %s - m.first_sale_date + 1), 7) / 7.0))::float AS speed,
             CASE WHEN c.units > 0 THEN c.discounted::float / c.units END AS discount_share,
             CASE WHEN c.units > 0 THEN (c.units - c.net_units)::float / c.units END AS return_rate,
@@ -183,7 +186,7 @@ def _row(row, labels):
                                       "speed", "first14", "ratio", "change", "trend", "age", "discount_share", "return_rate")} | {
         "title": row["title"].strip(), "category": labels.get(row["category_id"], ""), "first_sale_date": row["first_sale_date"],
         "last_sale_date": row["last_sale_date"],
-        "lines": {line: row[f"u_{line.lower()}"] or 0 for line in LINES},
+        "lines": {line: row[f"u_{line.lower()}"] or 0 for line in visible_sales_lines()},
     }
 
 
@@ -258,13 +261,14 @@ def products_summary(params, today=None):
         f"""SELECT d.sales_line, SUM(d.revenue) FILTER (WHERE d.day BETWEEN %s AND %s)::bigint AS revenue,
                    SUM(d.revenue) FILTER (WHERE d.day BETWEEN %s AND %s)::bigint AS prev
             FROM product_daily_sales d JOIN product_metrics m ON m.product_id = d.product_id JOIN products p ON p.id = d.product_id
-            WHERE d.day BETWEEN LEAST(%s, %s) AND GREATEST(%s, %s) AND {strip_where} GROUP BY d.sales_line""",
+            WHERE d.day BETWEEN LEAST(%s, %s) AND GREATEST(%s, %s) AND d.sales_line = ANY(%s) AND {strip_where}
+            GROUP BY d.sales_line""",
         [scope.start, scope.end, scope.cfrom or scope.start, scope.cto or scope.start, scope.start, scope.cfrom or scope.start,
-         scope.end, scope.cto or scope.end] + strip_where_params,
+         scope.end, scope.cto or scope.end, strip_scope.lines] + strip_where_params,
     )
     by_line = {row["sales_line"]: row for row in strip}
     total_revenue = sum((row["revenue"] or 0) for row in strip) or 0
-    for line in LINES:
+    for line in strip_scope.lines:
         row = by_line.get(line, {})
         revenue = row.get("revenue") or 0
         ok = comparable([line], scope.cfrom)

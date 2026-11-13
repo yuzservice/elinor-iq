@@ -4,7 +4,7 @@ import { JalaliRangePopover } from "../components/JalaliDatePicker";
 import { CategoryTreeSelect } from "../features/categories/CategoryTreeSelect";
 import { useCategoryTree } from "../features/categories/useCategoryTree";
 import { MultiSelect } from "../features/customers/MultiSelect";
-import { COLUMNS, FILTER_LABELS, FILTER_OPTIONS, LINES, STATUS, delta, fa, fa1, jdate, million, pct, sparkPoints } from "../features/products/display";
+import { COLUMNS, FILTER_LABELS, FILTER_OPTIONS, STATUS, delta, fa, fa1, jdate, million, pct, sparkPoints, visibleLines } from "../features/products/display";
 import {
   DEFAULT_STATE, apiParams, clearFilters, isFiltered, parseState, serializeState, toggleList, type Compare, type ListKey, type Period, type ProductsState,
 } from "../features/products/productsUrl";
@@ -261,7 +261,7 @@ function BranchStrip({ summary, state, update }: { summary: ProductsSummary; sta
         <span className="text-[12.5px] text-muted">روی هر شعبه بزنید تا کل صفحه برای همان شعبه فیلتر شود</span>
       </div>
       <div className="grid gap-x-[22px] gap-y-2 [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]">
-        {LINES.map((line) => {
+        {visibleLines().map((line) => {
           const row = summary.branches.find((b) => b.line === line.key);
           const on = state.lines.length === 1 && state.lines[0] === line.key;
           const d = delta(row?.change);
@@ -338,9 +338,9 @@ function Row({ row, showDelta, suffix }: { row: ProductReportRow; showDelta: boo
       <td className="px-2.5 py-[9px] font-semibold" style={{ color: ratioColor }}>{row.ratio == null ? "—" : `${fa1(row.ratio)}×`}</td>
       <td className="px-2.5 py-[9px] text-[12.5px] font-semibold" style={{ color: d.color }}>{showDelta ? d.text : "ــ"}</td>
       <td className="px-2.5 py-[9px] text-muted">{fa(row.age)} روز</td>
-      <td className="px-2.5 py-[9px]" title={LINES.map((line) => `${line.label} ${fa(row.lines[line.key])} عدد`).join("، ")}>
+      <td className="px-2.5 py-[9px]" title={visibleLines().map((line) => `${line.label} ${fa(row.lines[line.key])} عدد`).join("، ")}>
         <span className="flex gap-1">
-          {LINES.map((line) => (
+          {visibleLines().map((line) => (
             <span key={line.key} className="inline-flex min-w-[34px] items-center gap-1 rounded-[7px] bg-elevated px-1.5 py-px text-xs text-ink">
               <span className="h-1.5 w-1.5 rounded-full" style={{ background: line.color }} />
               {fa(row.lines[line.key])}
@@ -370,11 +370,11 @@ function rangeSuffix(state: ProductsState) {
 
 function exportCsv(rows: ProductReportRow[], stockOn: boolean) {
   const head = ["کالا", "کد", "دسته", "تعداد فروش", "مبلغ فروش (تومان)", "فروش خالص هفتگی", "فروش ۱۴ روز اول", "نسبت به دسته", "تغییر ٪", "عمر کالا (روز)",
-    ...LINES.map((line) => `فروش ${line.label}`), "فروش با تخفیف ٪", "مرجوعی ٪", "وضعیت", ...(stockOn ? ["موجودی مرکزی"] : [])];
+    ...visibleLines().map((line) => `فروش ${line.label}`), "فروش با تخفیف ٪", "مرجوعی ٪", "وضعیت", ...(stockOn ? ["موجودی مرکزی"] : [])];
   const cell = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
   const round = (value: number | null) => (value == null ? "" : Math.round(value * 10) / 10);
   const lines = rows.map((r) => [r.title, r.code, r.category, r.units, r.revenue, round(r.speed), r.first14, round(r.ratio), round(r.change), r.age,
-    ...LINES.map((line) => r.lines[line.key]), round(r.discount_share == null ? null : r.discount_share * 100), round(r.return_rate == null ? null : r.return_rate * 100),
+    ...visibleLines().map((line) => r.lines[line.key]), round(r.discount_share == null ? null : r.discount_share * 100), round(r.return_rate == null ? null : r.return_rate * 100),
     STATUS[r.status].label, ...(stockOn ? [r.central_stock ?? ""] : [])].map(cell).join(","));
   const blob = new Blob(["﻿" + [head.map(cell).join(","), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
   const link = document.createElement("a");
@@ -451,7 +451,7 @@ function ProductTable({ table, loading, state, update, stockOn }: {
           ))}
           <div className="col-span-full flex flex-wrap items-center gap-x-3.5 gap-y-1.5 border-t border-line pt-2 text-xs text-muted">
             <span>رنگ شعب:</span>
-            {LINES.map((line) => (
+            {visibleLines().map((line) => (
               <span key={line.key} className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: line.color }} />{line.label}</span>
             ))}
           </div>

@@ -178,6 +178,9 @@ PRODUCTS_EXCLUDE_INTERNAL_SALES = os.environ.get("PRODUCTS_EXCLUDE_INTERNAL_SALE
 PRODUCTS_STOCK_ENABLED = os.environ.get("PRODUCTS_STOCK_ENABLED", "false").lower() in {"1", "true", "yes"}
 PRODUCTS_STOCK_REFRESH_PER_RUN = int(os.environ.get("PRODUCTS_STOCK_REFRESH_PER_RUN", "150"))
 # Home «نیاز به توجه»: tier drops count only from the top N enabled tiers of each channel (owner decision 2026-11-13).
+# Sales lines hidden from every report (comma list of SalesLine codes; empty = show all). Data is never deleted.
+# Only store lines can be hidden; ONLINE and unknown codes are ignored (apps/sales/semantics.py, decision 0010).
+HIDDEN_SALES_LINES = os.environ.get("HIDDEN_SALES_LINES", "CAPRI")
 HOME_TIER_DROP_TOP_N = int(os.environ.get("HOME_TIER_DROP_TOP_N", "3"))
 
 # Elinor Pulse (Instagram). Off by default; architecture: docs/elinor-pulse-architecture.md

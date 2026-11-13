@@ -5,21 +5,20 @@ from datetime import date
 from django.db.models import Count, Max
 from django.utils import timezone
 
-from apps.sales.models import PosSale, SalesLine
-from apps.sales.semantics import SALES_LINE_OVERVIEW_LABELS
+from apps.sales.models import PosSale
+from apps.sales.semantics import SALES_LINE_OVERVIEW_LABELS, visible_pos_lines
 
 PARTIAL_DATA = False
 COVERAGE_MESSAGE = ""
 POS_STALE_DAYS = 1
 HISTORICAL_IMPORT_MAX_DATE = date(2026, 9, 13)
-POS_BRANCH_LINES = (SalesLine.SARI, SalesLine.GORGAN, SalesLine.CAPRI)
 
 
 def pos_sync_status():
     today = timezone.localdate()
     by_line = []
     stale_lines = []
-    for line in POS_BRANCH_LINES:
+    for line in visible_pos_lines():  # a hidden line never raises a stale-data notice
         agg = PosSale.objects.filter(sales_line=line).aggregate(
             max_at=Max("created_at"),
             count=Count("id"),

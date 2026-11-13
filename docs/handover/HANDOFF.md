@@ -153,6 +153,9 @@ Notes for the Product Architect / next task:
 
 ## 9. Log
 
+### 2026-11-14 — Hide Capri (`feature/hide-capri`, from `production` `514e542`)
+- `HIDDEN_SALES_LINES` (default `CAPRI`) removes a store line from every report; data, sync, tiers, `CustomerMetrics` and campaigns unchanged (decision 0010, `docs/business-rules/hidden-sales-lines.md`). Server after merge: `update.sh`, then once `docker compose exec backend python manage.py products_daily`. Not merged; owner reviews locally.
+
 ### 2026-11-14 — Home v3 (`feature/home-v3`, from `production` `514e542`)
 - Reference updated (`home-prototype.html`, sha256 cba2d982…). Backend: `period=yesterday` (whole previous Tehran day, 24 hourly buckets, vs −7 days or the same Jalali day last year); custom ranges of 1–3 days hourly with ISO hour keys and future flags, longer ranges daily; summary cache key carries the Tehran date (`home_cache.summary_key`).
 - Frontend: «دیروز» in «بازه»; multi-day hourly axis (MM/DD at 0, «۱۲» at noon, dashed day separators, 1 px gap over 40 bars); branch table replaced by tiles above the cards (total with share donut; per branch rank, change, sparkline from `trend[].lines`, comparison marker; click toggles «شعبه»; `features/home/tiles.ts`). With a branch selected the tiles read the unfiltered payload of the same range (same endpoint, cached), so the other branches stay visible.
