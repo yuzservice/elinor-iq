@@ -153,6 +153,9 @@ Notes for the Product Architect / next task:
 
 ## 9. Log
 
+### 2026-11-13 — Home v2 and speed pass (`feature/home-v2-performance`, from `production` `766bff9`), checkpoints
+- Step 0: reference v2 saved as `docs/design/home-prototype.html` (sha256 3b124b47…, replaces v1); sample data only. Not merged; owner reviews locally.
+
 ### 2026-11-12 — Home redesign with sales targets (`feature/home-redesign`, from `production` `401c018`), checkpoints
 - Step 0: reference saved as `docs/design/home-prototype.html` (sha256 2bd24581…); sample data only. Not merged; owner reviews locally.
 - Step 1: additive `sales.0006` (`sales_targets`, `sales_target_changes` audit). `apps/sales/targets.py`: Jalali month/season/year bounds (Esfand 29/30), progress (expected = elapsed ÷ total days, pace, forecast, required daily, line status ±3 points), copy-from-last-year preview (last year's target, else sales; in-store months before 1404/03/10 left empty). APIs `GET|PUT /api/sales/targets/`, `GET /api/sales/targets/copy-preview/` (super_admin, admin, manager), `GET /api/home/targets/?scope=` (cached 60 s).
