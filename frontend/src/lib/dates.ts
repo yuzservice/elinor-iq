@@ -98,3 +98,12 @@ export function todayIso(): string {
   const day = String(gregorian.gd).padStart(2, "0");
   return `${gregorian.gy}-${month}-${day}`;
 }
+
+const WEEKDAYS_FA = ["یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه", "شنبه"]; // index = JS getUTCDay()
+const TEHRAN_OFFSET_MS = 3.5 * 3600 * 1000; // Iran has no daylight saving since 2022
+
+/** Persian weekday of a date ("YYYY-MM-DD", taken as that Tehran day) or an instant (its Tehran date). */
+export function jalaliWeekday(value: string): string {
+  const instant = value.length === 10 ? Date.parse(`${value}T12:00:00+03:30`) : Date.parse(value);
+  return WEEKDAYS_FA[new Date(instant + TEHRAN_OFFSET_MS).getUTCDay()];
+}

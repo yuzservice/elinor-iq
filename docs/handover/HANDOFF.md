@@ -153,6 +153,10 @@ Notes for the Product Architect / next task:
 
 ## 9. Log
 
+### 2026-11-13 — Home hover details (`feature/home-hovers`, from `production` `ef47b78`)
+- Reference updated (`home-prototype.html`, sha256 b7275afd…). «روند فروش» bars are buttons (hover, Tab focus, tap) opening a card beside the bar, clamped inside the chart: time («ساعت ۱۴:۰۰ تا ۱۵:۰۰» / weekday + date), sales, named comparison with change (hidden when off or not comparable), invoices / items, per-branch sales for «همه شعب»; Escape and leaving the chart close it. The summary payload carries per-bucket `invoices`, `items`, `lines` and per-row `compare_sales`; no extra request on hover.
+- Native tooltips on card deltas, branch rows, the target «expected by today» marker (now with a 10 px hit area) and each line's target bar. Weekday names come from `jalaliWeekday()` (fixed +03:30 offset; 1405/08/20 = چهارشنبه). Tests: `test_home_summary` 13, `test_home_performance` 7, vitest weekday test. Not merged; owner reviews locally.
+
 ### 2026-11-13 — Home v2 and speed pass (`feature/home-v2-performance`, from `production` `766bff9`), checkpoints
 - Step 0: reference v2 saved as `docs/design/home-prototype.html` (sha256 3b124b47…, replaces v1); sample data only. Not merged; owner reviews locally.
 - Step 1: Home rebuilt to v2: pickers «بازه» (امروز default) / «مقایسه» / «شعبه» in the URL with a range line; four cards → branch table (with «کل الینور») → one «روند فروش» (hourly 0..23 for امروز, future hours faded; dashed comparison markers) → targets (branch-aware) → attention. Fixed: «امروز» compared against the previous 24 h; now the same weekday last week or the same Jalali day last year, up to the same time. Other ranges shift by whole days. `test_home_summary` rewritten (14 with targets file: 20 passed).

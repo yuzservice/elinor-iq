@@ -230,7 +230,7 @@ def summary(params, now=None):
         s, n = _total(cur, "sales", selected), _total(cur, "invoices", selected)
         before = _total(prev, "sales", selected) if prev else 0
         return {"sales": s, "invoices": n, "items": _total(cur, "items", selected), "basket": s / n if n else None,
-                "change": _pct(s, before, ok) if prev else None}
+                "change": _pct(s, before, ok) if prev else None, "compare_sales": before if prev else None}
 
     if bucket == "hour":
         keys = list(range(24))
@@ -243,6 +243,10 @@ def summary(params, now=None):
     for index, key in enumerate(keys):
         point = {"key": key.isoformat() if hasattr(key, "isoformat") else key, "future": key in future,
                  "sales": None if key in future else _total(cur, "sales", keys=[key])}
+        if key not in future:  # hover card: invoices, items and sales per line of this bucket (no extra request)
+            point["invoices"] = _total(cur, "invoices", keys=[key])
+            point["items"] = _total(cur, "items", keys=[key])
+            point["lines"] = {line: _total(cur, "sales", [line], keys=[key]) for line in lines}
         if prev and index < len(ckeys) and key not in future:
             point["compare"] = _total(prev, "sales", keys=[ckeys[index]])
         trend.append(point)
