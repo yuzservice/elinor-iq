@@ -77,3 +77,21 @@ def product_call_list(request, product_id):
     if created is None:
         return Response({"detail": "مشتری مستعدی برای این کالا پیدا نشد."}, status=400)
     return Response(created, status=201)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def product_size_color(request):
+    """«سایز و رنگ پرفروش» for the page's scope (?sc_cat= narrows it to one category)."""
+    from apps.products.report import size_color
+
+    return Response(size_color(request.query_params))
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def product_returns(request):
+    """«مرجوعی و تعویض شعب»: in-store refunds and exchanges for the page's scope."""
+    from apps.products.report import returns_breakdown
+
+    return Response(returns_breakdown(request.query_params))

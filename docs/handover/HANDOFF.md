@@ -3,7 +3,7 @@
 Durable state for the next engineer or AI assistant. Do not rely on chat history; this file plus the repo is the source of truth.
 Update this file at the end of every implementation task (newest entry first in the Log).
 
-## Start here (updated 2026-11-11)
+## Start here (updated 2026-11-14)
 1. Read `AGENTS.md` (rules for every tool), then this file, then `docs/process/context-loading.md` and the
    `docs/modules/MODULE_REGISTRY.md` section for the module at hand. How work is run: `docs/process/ai-workflow.md`.
 2. **Current work: products redesign** (`feature/products-redesign`), all steps 0–9 done:
@@ -11,14 +11,22 @@ Update this file at the end of every implementation task (newest entry first in 
    - Merged on 2026-11-11 into `production` (`44fb072`, then `fa13657`) and `main`.
    - Next: the owner runs `update.sh` on the server, then once `docker compose exec backend python manage.py products_daily`,
      and reviews the pages on real data. Central stock fills through the scheduler.
-3. **Open items:**
+3. **Home v3 and Hide Capri are merged into `production` and `main`** (`74fbbf3`): «دیروز» picker, multi-day hourly
+   custom ranges, branch tiles above the cards, and `HIDDEN_SALES_LINES` (default `CAPRI`) removing a store line from
+   every report. Next: the owner runs `update.sh`, then once `docker compose exec backend python manage.py products_daily`,
+   and reviews on real data.
+4. **Sales merged into home** (`feature/sales-merge`, pushed, not merged; waiting for the owner's «Approved»): «خانه» renamed
+   «فروش», the sales page and its frontend code removed (`/sales` → `/`), «شلوغ‌ترین ساعت‌ها» heatmap on home, and Products
+   «سایز و رنگ پرفروش» + «مرجوعی و تعویض شعب». Backend `/api/sales/{filters,kpis,trend,summary,orders,products}/` are kept
+   but no longer used by the frontend.
+5. **Open items:**
    - Local online item details are incomplete from 2026-09 (the dev Mac cannot reach the Elinor API).
    - `docs/stock-discovery` branch (`docs/SOURCE_STOCK_DISCOVERY.md`) is pushed but not merged.
    - The Graphify graph was built from `3bc0a48` and is stale.
    - The "Last updated" line below predates the Call Center, Pulse and products work; the Log entries are current.
    - `fix/products-no-stock` (from `production`): stock disabled behind `PRODUCTS_STOCK_ENABLED` (default false); card 3 is
      «رو به رشد», Product 360 shows a 14-day forecast, stock params ignored, no stock API calls. Awaiting owner review; not merged.
-4. **Deferred decisions:**
+6. **Deferred decisions:**
    - Home ideas from the owner (not built): a daily summary to the owner's Telegram group (aggregates only; first check that the
      server can reach Telegram, which may be filtered); «امروز در برابر معمول همین ساعت» with an hourly chart; a role-based
      default home (a branch manager sees their own branch); auto-refresh.
@@ -154,12 +162,12 @@ Notes for the Product Architect / next task:
 ## 9. Log
 
 ### 2026-11-14 — Hide Capri (`feature/hide-capri`, from `production` `514e542`)
-- `HIDDEN_SALES_LINES` (default `CAPRI`) removes a store line from every report; data, sync, tiers, `CustomerMetrics` and campaigns unchanged (decision 0010, `docs/business-rules/hidden-sales-lines.md`). Server after merge: `update.sh`, then once `docker compose exec backend python manage.py products_daily`. Not merged; owner reviews locally.
+- `HIDDEN_SALES_LINES` (default `CAPRI`) removes a store line from every report; data, sync, tiers, `CustomerMetrics` and campaigns unchanged (decision 0010, `docs/business-rules/hidden-sales-lines.md`). Merged into `production` and `main` 2026-11-14 (`74fbbf3`). Server: `update.sh`, then once `docker compose exec backend python manage.py products_daily`.
 
 ### 2026-11-14 — Home v3 (`feature/home-v3`, from `production` `514e542`)
 - Reference updated (`home-prototype.html`, sha256 cba2d982…). Backend: `period=yesterday` (whole previous Tehran day, 24 hourly buckets, vs −7 days or the same Jalali day last year); custom ranges of 1–3 days hourly with ISO hour keys and future flags, longer ranges daily; summary cache key carries the Tehran date (`home_cache.summary_key`).
 - Frontend: «دیروز» in «بازه»; multi-day hourly axis (MM/DD at 0, «۱۲» at noon, dashed day separators, 1 px gap over 40 bars); branch table replaced by tiles above the cards (total with share donut; per branch rank, change, sparkline from `trend[].lines`, comparison marker; click toggles «شعبه»; `features/home/tiles.ts`). With a branch selected the tiles read the unfiltered payload of the same range (same endpoint, cached), so the other branches stay visible.
-- Tests: `test_home_summary` 15, `test_home_performance` 7, vitest `tiles.test.ts` 4; tsc clean. Not merged; owner reviews locally. Expect conflicts with `feature/hide-capri` in `home.py` / `HomePage.tsx`.
+- Tests: `test_home_summary` 15, `test_home_performance` 7, vitest `tiles.test.ts` 4; tsc clean. Merged into `production` and `main` 2026-11-14 (`74fbbf3`, after resolving conflicts with `feature/hide-capri` in `home.py` / `HomePage.tsx`).
 
 ### 2026-11-13 — Home hover details (`feature/home-hovers`, from `production` `ef47b78`)
 - Reference updated (`home-prototype.html`, sha256 b7275afd…). «روند فروش» bars are buttons (hover, Tab focus, tap) opening a card beside the bar, clamped inside the chart: time («ساعت ۱۴:۰۰ تا ۱۵:۰۰» / weekday + date), sales, named comparison with change (hidden when off or not comparable), invoices / items, per-branch sales for «همه شعب»; Escape and leaving the chart close it. The summary payload carries per-bucket `invoices`, `items`, `lines` and per-row `compare_sales`; no extra request on hover.
