@@ -1,19 +1,34 @@
-/** Designer autosave: one save in flight at a time, debounced after each change, flushed on page hide or leave.
- * The document is built when the save starts (not when the change happened), so ids returned by the previous save are
- * always included and a new rack is never created twice. A 409 stops autosaving until the page is reloaded. */
+/** Designer and template autosave: one save in flight at a time, debounced after each change, flushed on page hide or
+ * leave. The document is built when the save starts (not when the change happened), so ids returned by the previous save
+ * are always included and nothing is created twice. Several instances share one layout version (`version`) and one queue
+ * (`serial`). A version conflict (409) stops autosaving until reload; a blocked change (409 «blocked») is dropped and
+ * reported through `onBlocked` so the page can put the saved state back. */
 
 export type SaveStatus = "idle" | "dirty" | "saving" | "saved" | "error" | "conflict";
 
-export type SaveResult = { version: number; ids: Record<string, number> };
+export type SaveResult = { version: number };
+export type VersionRef = { current: number | null };
 
-type Options<D> = {
+type Options<D, R extends SaveResult> = {
   build: () => D;
-  save: (doc: D, version: number | null, leaving: boolean) => Promise<SaveResult>;
-  onSaved: (result: SaveResult) => void;
+  save: (doc: D, version: number | null, leaving: boolean) => Promise<R>;
+  onSaved: (result: R) => void;
   onStatus: (status: SaveStatus, message?: string) => void;
-  version: number | null;
+  onBlocked?: (message: string) => void;
+  version: VersionRef;
+  serial?: <T>(task: () => Promise<T>) => Promise<T>;
   delay?: number;
 };
+
+/** A queue that runs saves one after another (shared by every autosave on the page). */
+export function createSerial() {
+  let tail: Promise<unknown> = Promise.resolve();
+  return <T>(task: () => Promise<T>): Promise<T> => {
+    const next = tail.then(task, task);
+    tail = next.catch(() => undefined);
+    return next;
+  };
+}
 
 export const SAVE_TEXT: Record<SaveStatus, string> = {
   idle: "",
@@ -24,15 +39,16 @@ export const SAVE_TEXT: Record<SaveStatus, string> = {
   conflict: "نسخه جدیدتری ذخیره شده است",
 };
 
-export class Autosave<D> {
-  version: number | null;
+export class Autosave<D, R extends SaveResult = SaveResult> {
   status: SaveStatus = "idle";
   private dirty = false;
   private running: Promise<void> | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(private readonly options: Options<D>) {
-    this.version = options.version;
+  constructor(private readonly options: Options<D, R>) {}
+
+  get version() {
+    return this.options.version.current;
   }
 
   /** Something changed: save about a second after the last change. */
@@ -72,16 +88,22 @@ export class Autosave<D> {
   private async run(leaving: boolean) {
     this.dirty = false;
     this.set("saving");
+    const serial = this.options.serial ?? (<T>(task: () => Promise<T>) => task());
     try {
-      const result = await this.options.save(this.options.build(), this.version, leaving);
-      this.version = result.version;
+      const result = await serial(() => this.options.save(this.options.build(), this.options.version.current, leaving));
+      this.options.version.current = result.version;
       this.options.onSaved(result);
       this.set(this.dirty ? "dirty" : "saved");
     } catch (error) {
-      const status = (error as { status?: number }).status;
+      const { status, code, message } = error as { status?: number; code?: string; message: string };
+      if (status === 409 && code === "blocked") {
+        this.set("error", message);
+        this.options.onBlocked?.(message);
+        return;
+      }
       this.dirty = true;
-      if (status === 409) this.set("conflict", (error as Error).message);
-      else this.set("error", (error as Error).message);
+      if (status === 409) this.set("conflict", message);
+      else this.set("error", message);
     }
   }
 
