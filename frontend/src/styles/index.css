@@ -53,6 +53,16 @@ html.dark {
   --s-good: #6ee7b7;
   --s-mid: #f59e0b;
   --s-bad: #f43f5e;
+  /* Store map (docs/design/store-map-prototype.html) */
+  --map-backdrop: #05070b;
+  --map-floor: #0a0e14;
+  --map-wall: #475569;
+  --map-grid: rgba(255, 255, 255, 0.05);
+  --map-spine: #94a3b8;
+  --map-empty: rgba(148, 163, 184, 0.10);
+  --map-empty-line: rgba(148, 163, 184, 0.45);
+  --map-door: #22c55e;
+  --map-chip: rgba(10, 14, 20, 0.88);
 }
 
 html[data-theme="light"],
@@ -102,6 +112,15 @@ html:not(.dark) {
   --s-good: #34d399;
   --s-mid: #d97706;
   --s-bad: #e11d48;
+  --map-backdrop: #e2e8f0;
+  --map-floor: #ffffff;
+  --map-wall: #64748b;
+  --map-grid: rgba(15, 23, 42, 0.06);
+  --map-spine: #64748b;
+  --map-empty: rgba(100, 116, 139, 0.10);
+  --map-empty-line: rgba(100, 116, 139, 0.5);
+  --map-door: #16a34a;
+  --map-chip: rgba(255, 255, 255, 0.92);
 }
 
 html,

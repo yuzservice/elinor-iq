@@ -12,8 +12,9 @@ import {
   IconProducts,
   IconSales,
   IconSettings,
+  IconStore,
 } from "../components/Icons";
-import { CONTENT_ROLE, SALES_AGENT_ROLE, showsSettings, visibleNavItems } from "../lib/nav";
+import { staffRoleLabel, showsSettings, visibleNavItems } from "../lib/nav";
 
 const ICONS = {
   home: IconHome,
@@ -22,6 +23,7 @@ const ICONS = {
   products: IconProducts,
   calls: IconCalls,
   pulse: IconPulse,
+  store: IconStore,
 };
 
 export function Sidebar() {
@@ -250,7 +252,7 @@ export function Sidebar() {
                   <div className="text-xs font-bold text-ink truncate">
                     {user?.username || "admin"}
                   </div>
-                  <div className="text-[10px] text-faint">{user?.role === SALES_AGENT_ROLE ? "کارمند فروش" : user?.role === CONTENT_ROLE ? "تیم محتوا" : "مدیر ارشد فروشگاه"}</div>
+                  <div className="text-[10px] text-faint">{staffRoleLabel(user?.role) ?? "مدیر ارشد فروشگاه"}</div>
                 </div>
               </div>
 
@@ -303,7 +305,7 @@ export function Sidebar() {
             >
               {user?.username?.slice(0, 2).toUpperCase() || "AD"}
               <div className="opacity-0 pointer-events-none group-hover:opacity-100 absolute right-12 z-50 px-2.5 py-1 rounded-lg bg-elevated border border-line text-ink text-xs font-semibold whitespace-nowrap shadow-xl transition-opacity">
-                {user?.username || "admin"} ({user?.role === SALES_AGENT_ROLE ? "کارمند فروش" : user?.role === CONTENT_ROLE ? "تیم محتوا" : "مدیر ارشد"})
+                {user?.username || "admin"} ({staffRoleLabel(user?.role) ?? "مدیر ارشد"})
               </div>
             </div>
 
