@@ -5,7 +5,7 @@ import { setVisibleSalesLines } from "../lib/salesLines";
 import { AppShell } from "../layouts/AppShell";
 import { authService } from "../services/auth";
 import { ThemeProvider } from "../theme/ThemeProvider";
-import { CONTENT_ROLE, SALES_AGENT_ROLE } from "../lib/nav";
+import { CONTENT_ROLE, SALES_AGENT_ROLE, STORE_STAFF_ROLE, showsSettings } from "../lib/nav";
 import type { User } from "../types";
 
 // Every route is its own chunk: the first load fetches only the shell and the page being opened.
@@ -17,17 +17,21 @@ const ProductsPage = lazy(() => import("../pages/ProductsPage").then((module) =>
 const Product360Page = lazy(() => import("../pages/Product360Page").then((module) => ({ default: module.Product360Page })));
 const SettingsPage = lazy(() => import("../pages/SettingsPage").then((module) => ({ default: module.SettingsPage })));
 const CallCenterPage = lazy(() => import("../pages/CallCenterPage").then((module) => ({ default: module.CallCenterPage })));
+const StorePage = lazy(() => import("../pages/StorePage").then((module) => ({ default: module.StorePage })));
 const PulsePage = lazy(() => import("../pages/PulsePage").then((module) => ({ default: module.PulsePage })));
 
 function page(element: JSX.Element) {
   return <Suspense fallback={<div className="p-8 text-sm text-muted">در حال دریافت اطلاعات...</div>}>{element}</Suspense>;
 }
 
-/** Agents only reach /calls and Customer 360, the content team only /pulse; the API enforces the same rules. */
+/** Agents only reach /calls and Customer 360, the content team only /pulse, store staff only /store; roles without
+ * settings never open /settings. The API enforces the same rules. */
 function AgentRedirect({ user }: { user: User }) {
   const { pathname } = useLocation();
   if (user.role === SALES_AGENT_ROLE && !/^\/(calls|customers\/\d+)/.test(pathname)) return <Navigate to="/calls" replace />;
   if (user.role === CONTENT_ROLE && !pathname.startsWith("/pulse")) return <Navigate to="/pulse" replace />;
+  if (user.role === STORE_STAFF_ROLE && !pathname.startsWith("/store")) return <Navigate to="/store" replace />;
+  if (pathname.startsWith("/settings") && !showsSettings(user)) return <Navigate to="/" replace />;
   return <AppShell />;
 }
 
@@ -96,6 +100,7 @@ export function App() {
             <Route path="/products" element={page(<ProductsPage />)} />
             <Route path="/products/:id" element={page(<Product360Page />)} />
             <Route path="/settings" element={page(<SettingsPage />)} />
+            {user?.store_map ? <Route path="/store/*" element={page(<StorePage />)} /> : null}
             <Route
               path="/calls"
               element={

@@ -30,7 +30,11 @@ function accountRoleLabel(role?: string) {
   if (role === "super_admin") return "سوپر ادمین";
   if (role === "admin") return "ادمین";
   if (role === "manager") return "مدیر";
-  if (role === "sales_agent") return "کارمند فروش";
+  if (role === "sales_agent") return "کارشناس تماس";
+  if (role === "sales_staff") return "کارمند فروش";
+  if (role === "store_staff") return "کارمند فروشگاه حضوری";
+  if (role === "analyst") return "تحلیلگر";
+  if (role === "staff") return "کارمند";
   return role || "—";
 }
 
@@ -276,7 +280,9 @@ export function SettingsPage() {
             >
               <option value="admin">ادمین</option>
               <option value="manager">مدیر</option>
-              <option value="sales_agent">کارمند فروش</option>
+              <option value="sales_staff">کارمند فروش</option>
+              <option value="store_staff">کارمند فروشگاه حضوری</option>
+              <option value="sales_agent">کارشناس تماس</option>
             </select>
             <Input
               type="password"

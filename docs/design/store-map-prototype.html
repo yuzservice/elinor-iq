@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>نقشه رگال‌ها</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#06080d}
+button,input{font-family:inherit}
+button:focus-visible,input:focus-visible,[role=button]:focus-visible{outline:2px solid #60a5fa;outline-offset:2px}
+.card{background:#0c1017;border:1px solid rgba(255,255,255,.08);border-radius:18px}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.col{display:flex;flex-direction:column}
+.mut{font-size:12.5px;color:#94a3b8}
+.h{margin:0;font-size:15px;font-weight:600;color:#e2e8f0}
+.ghost{min-height:32px;padding:0 12px;border-radius:10px;background:transparent;border:1px solid rgba(255,255,255,.14);color:#cbd5e1;font-size:12.5px;cursor:pointer}
+.ghost:disabled{opacity:.35;cursor:default}
+.primary{min-height:34px;padding:0 14px;border-radius:10px;background:#3b82f6;border:0;color:#fff;font-size:13px;font-weight:600;cursor:pointer}
+.icon{width:30px;height:30px;padding:0;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,.1);color:#cbd5e1;font-size:14px;cursor:pointer}
+.inp{min-height:36px;padding:0 12px;border-radius:10px;background:#131924;border:1px solid rgba(255,255,255,.12);color:#e2e8f0;font-size:13px;box-sizing:border-box}
+.danger{color:#fb7185 !important;border-color:rgba(251,113,133,.35) !important}
+.dim{position:absolute;padding:1px 7px;border-radius:999px;background:#1d4ed8;color:#fff;font-size:11px;font-weight:600;white-space:nowrap;pointer-events:none}
+.tbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 10px;border-radius:12px;background:#131924}
+.sheet-wrap{position:fixed;inset:0;z-index:50;background:rgba(2,4,8,.72);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:20px}
+.sheet{width:min(860px,100%);max-height:calc(100vh - 40px);overflow:auto;display:flex;flex-direction:column;gap:14px;padding:18px 20px;border-radius:20px;background:#0c1017;border:1px solid rgba(255,255,255,.12);box-shadow:0 30px 80px -20px rgba(0,0,0,.9);box-sizing:border-box}
+.mdraw{position:relative;flex:none;height:260px;border-radius:14px;background:#0a0e14;border:1px solid rgba(255,255,255,.06);overflow:hidden}
+.tlay{display:grid;grid-template-columns:280px minmax(0,1fr);gap:14px;align-items:start}
+.pick{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:12px;border:1px solid transparent;background:#131924;color:#e2e8f0;font:inherit;font-size:12.5px;cursor:pointer;text-align:start}
+@media (max-width:900px){.tlay{grid-template-columns:1fr}}
+@media (max-width:640px){.sheet-wrap{align-items:flex-end;padding:0}.sheet{border-radius:20px 20px 0 0;max-height:88vh;padding:14px 14px 20px}.mdraw{height:250px}}
+</style>
+</helmet>
+<div dir="rtl" style="min-height: 100vh; box-sizing: border-box; background: #06080d; color: #f8fafc; font-family: Vazirmatn, system-ui, sans-serif; padding: 18px 16px 56px;">
+<div style="max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px;">
+
+  <div class="row" style="justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: 14px; background: #0c1017; border: 1px solid rgba(255,255,255,.06);">
+    <nav class="row" aria-label="فروشگاه" style="gap: 4px;">
+      <sc-for list="{{nav}}" as="n" hint-placeholder-count="3"><button type="button" onClick="{{n.pick}}" aria-current="{{n.current}}" style="{{n.style}}">{{n.label}}<span style="{{n.badgeStyle}}">{{n.badge}}</span></button></sc-for>
+    </nav>
+    <div class="row" style="gap: 6px;"><span class="mut" style="font-size: 11.5px;">نمایش نمونه به‌عنوان</span><div class="row" role="group" aria-label="نقش" style="gap: 2px; padding: 3px; border-radius: 10px; background: #131924;"><sc-for list="{{roles}}" as="k" hint-placeholder-count="2"><button type="button" onClick="{{k.pick}}" aria-pressed="{{k.pressed}}" style="{{k.style}}">{{k.label}}</button></sc-for></div></div>
+  </div>
+
+  <div class="row" style="justify-content: space-between; gap: 10px;">
+    <div class="col" style="gap: 4px;"><h1 style="margin: 0; font-size: 24px; font-weight: 800;">{{pageTitle}}</h1><span class="mut">{{pageSub}}</span></div>
+    <span class="mut">{{summary}}</span>
+  </div>
+
+  <sc-if value="{{showBoard}}" hint-placeholder-val="{{ true }}">
+  <section class="card col" aria-label="نقشه کف" style="padding: 14px 16px; gap: 10px;">
+    <div class="tbar">
+      <sc-if value="{{isAdmin}}" hint-placeholder-val="{{ true }}">
+        <span style="position: relative;"><button type="button" class="primary" onClick="{{toggleAdd}}" aria-expanded="{{addOpenA}}" style="min-height: 32px;">+ رگال</button>
+          <sc-if value="{{addOpen}}" hint-placeholder-val="{{ false }}">
+            <div class="col" style="position: absolute; top: calc(100% + 6px); right: 0; z-index: 20; width: 270px; gap: 4px; padding: 8px; border-radius: 14px; background: #0c1017; border: 1px solid rgba(96,165,250,.35); box-shadow: 0 20px 40px -10px rgba(0,0,0,.9);">
+              <span class="mut" style="font-size: 11.5px; padding: 2px 4px;">از کدام قالب؟</span>
+              <sc-for list="{{addList}}" as="t" hint-placeholder-count="4"><button type="button" class="pick" onClick="{{t.pick}}"><span dir="ltr" style="position: relative; flex: none; width: 40px; height: 40px; border-radius: 8px; background: #05070b;"><sc-for list="{{t.mini}}" as="l" hint-placeholder-count="4"><span style="{{l}}"></span></sc-for></span><span class="col" style="gap: 1px;"><b style="font-weight: 600;">{{t.name}}</b><span class="mut" style="font-size: 11px;">{{t.meta}}</span></span></button></sc-for>
+              <button type="button" class="ghost" onClick="{{goTpl}}" style="margin-top: 2px;">قالب تازه بسازید ←</button>
+            </div>
+          </sc-if>
+        </span>
+        <span style="{{saveStyle}}">{{saveText}}</span>
+        <span class="mut" style="font-size: 11.5px;">رگال را بکشید · لبه راست و پایین نقشه اندازه فروشگاه</span>
+      </sc-if>
+      <sc-if value="{{isStaff}}" hint-placeholder-val="{{ false }}">
+        <input class="inp" type="search" value="{{find}}" onChange="{{setFind}}" placeholder="این کالا کجاست؟ نام یا کد، مثلاً ۹۲۰۴" aria-label="پیدا کردن کالا روی نقشه" style="flex: 1 1 220px; max-width: 320px;">
+        <span class="mut" style="font-size: 12px;">{{findNote}}</span>
+      </sc-if>
+      <span style="flex: 1;"></span>
+      <button type="button" class="ghost" onClick="{{toggleCodes}}" aria-pressed="{{codesOn}}" style="{{codesBtn}}">کد کالا روی رگال</button>
+      <span class="mut" style="font-size: 12px;">{{boardSize}}</span>
+      <button type="button" class="icon" onClick="{{zMinus}}" aria-label="کوچک‌نمایی">−</button><button type="button" class="icon" onClick="{{zPlus}}" aria-label="بزرگ‌نمایی">+</button>
+    </div>
+    <div onMouseMove="{{move}}" onMouseUp="{{drop}}" onMouseLeave="{{drop}}" style="overflow: auto; max-height: calc(100vh - 150px); min-height: 480px; border-radius: 12px; background: #05070b; padding: 52px 40px 40px 30px;">
+      <div dir="ltr" data-board="1" style="{{boardStyle}}">
+        <span style="{{door}}" aria-hidden="true"></span>
+        <span style="{{doorLabel}}">ورودی ←</span>
+        <sc-for list="{{boardRacks}}" as="r" hint-placeholder-count="23">
+          <div role="button" tabindex="0" onMouseDown="{{r.grab}}" onClick="{{r.open}}" title="{{r.tip}}" aria-label="{{r.aria}}" aria-pressed="{{r.pressed}}" style="{{r.style}}">
+            <span style="{{r.spine}}"></span>
+            <sc-for list="{{r.parts}}" as="m" hint-placeholder-count="2"><span title="{{m.title}}" style="{{m.style}}"><span style="{{m.lstyle}}">{{m.label}}</span></span></sc-for>
+            <sc-for list="{{r.arms}}" as="a" hint-placeholder-count="4"><span style="{{a.line}}"></span><sc-for list="{{a.dots}}" as="d" hint-placeholder-count="2"><span title="{{d.title}}" style="{{d.style}}"></span></sc-for><span title="{{a.tagTitle}}" style="{{a.tagStyle}}">{{a.tag}}</span></sc-for>
+            <span style="{{r.post}}"></span>
+            <span style="{{r.labelStyle}}">{{r.code}}</span>
+            <span dir="rtl" onMouseDown="{{r.stop}}" style="{{r.tools}}"><button type="button" onClick="{{r.goods}}" style="{{r.toolBtn}}">کالاها</button><button type="button" onClick="{{r.editT}}" title="ویرایش قالب این رگال" style="{{r.toolBtn}}">قالب</button><button type="button" onClick="{{r.copy}}" title="کپی این رگال" style="{{r.toolBtn}}">⧉</button><button type="button" onClick="{{r.rot}}" title="چرخش ۹۰ درجه" style="{{r.toolBtn}}">⟳</button><button type="button" onClick="{{r.del}}" title="حذف رگال" style="{{r.toolDel}}">✕</button></span>
+          </div>
+        </sc-for>
+        <span onMouseDown="{{grabBoardW}}" title="عرض فروشگاه را بکشید" style="{{boardHandleW}}"></span>
+        <span onMouseDown="{{grabBoardH}}" title="طول فروشگاه را بکشید" style="{{boardHandleH}}"></span>
+      </div>
+    </div>
+    <span class="mut" style="font-size: 11.5px;">{{boardHint}}</span>
+  </section>
+  </sc-if>
+
+  <sc-if value="{{showTpl}}" hint-placeholder-val="{{ false }}">
+  <div class="tlay">
+    <section class="card col" aria-label="کتابخانه قالب‌ها" style="padding: 14px; gap: 8px;">
+      <div class="row" style="justify-content: space-between;"><h2 class="h">قالب‌ها</h2><button type="button" class="primary" onClick="{{toggleNew}}" aria-expanded="{{newOpenA}}" style="min-height: 30px; font-size: 12.5px;">+ قالب جدید</button></div>
+      <sc-if value="{{newOpen}}" hint-placeholder-val="{{ false }}">
+        <div class="col" style="gap: 5px; padding: 10px; border-radius: 12px; background: #0a0e14; border: 1px solid rgba(96,165,250,.3);">
+          <span class="mut" style="font-size: 12px;">از کدام شکل شروع کنیم؟</span>
+          <sc-for list="{{starters}}" as="s" hint-placeholder-count="5"><button type="button" class="pick" onClick="{{s.pick}}"><span dir="ltr" style="position: relative; flex: none; width: 40px; height: 40px; border-radius: 8px; background: #05070b;"><sc-for list="{{s.mini}}" as="l" hint-placeholder-count="4"><span style="{{l}}"></span></sc-for></span><span class="col" style="gap: 1px;"><b style="font-weight: 600;">{{s.name}}</b><span class="mut" style="font-size: 11px;">{{s.note}}</span></span></button></sc-for>
+        </div>
+      </sc-if>
+      <sc-for list="{{lib}}" as="t" hint-placeholder-count="5">
+        <button type="button" onClick="{{t.pick}}" aria-pressed="{{t.pressed}}" style="{{t.style}}">
+          <span dir="ltr" style="position: relative; flex: none; width: 56px; height: 56px; border-radius: 10px; background: #05070b;"><sc-for list="{{t.mini}}" as="l" hint-placeholder-count="4"><span style="{{l}}"></span></sc-for></span>
+          <span class="col" style="gap: 2px; min-width: 0; flex: 1;"><b style="font-size: 13px; font-weight: 600; color: #e2e8f0;">{{t.name}}</b><span class="mut" style="font-size: 11.5px;">{{t.meta}}</span></span>
+        </button>
+      </sc-for>
+    </section>
+
+    <section class="card col" aria-label="ویرایش قالب" style="padding: 14px 16px; gap: 10px; min-width: 0;">
+      <div class="row" style="justify-content: space-between; gap: 10px;">
+        <div class="row" style="gap: 8px;"><input class="inp" value="{{tName}}" onChange="{{setName}}" aria-label="نام قالب" style="width: 220px; font-weight: 600;"><span class="mut">{{tInfo}}</span></div>
+        <div class="row" style="gap: 6px;"><button type="button" class="ghost" onClick="{{dupT}}">⧉ کپی قالب</button><button type="button" class="ghost danger" onClick="{{delT}}" disabled="{{tUsed}}" title="{{delTip}}">حذف</button></div>
+      </div>
+
+      <sc-if value="{{isLineT}}" hint-placeholder-val="{{ false }}">
+        <div class="tbar">
+          <span class="mut" style="font-size: 12px;">افزودن:</span>
+          <button type="button" class="ghost" onClick="{{addAF}}">رگال کامل · طرف الف</button><button type="button" class="ghost" onClick="{{addAH}}">نیم‌رگال · طرف الف</button>
+          <button type="button" class="ghost" onClick="{{addBF}}">رگال کامل · طرف ب</button><button type="button" class="ghost" onClick="{{addBH}}">نیم‌رگال · طرف ب</button>
+          <sc-if value="{{hasSel}}" hint-placeholder-val="{{ true }}">
+            <span style="width: 1px; height: 22px; background: rgba(255,255,255,.12); margin: 0 4px;"></span>
+            <div class="row" role="group" aria-label="طرف" style="gap: 2px; padding: 2px; border-radius: 9px; background: #0a0e14;"><sc-for list="{{sideSeg}}" as="k" hint-placeholder-count="2"><button type="button" onClick="{{k.pick}}" aria-pressed="{{k.pressed}}" style="{{k.style}}">{{k.label}}</button></sc-for></div>
+            <div class="row" role="group" aria-label="نوع" style="gap: 2px; padding: 2px; border-radius: 9px; background: #0a0e14;"><sc-for list="{{typeSeg}}" as="k" hint-placeholder-count="2"><button type="button" onClick="{{k.pick}}" aria-pressed="{{k.pressed}}" style="{{k.style}}">{{k.label}}</button></sc-for></div>
+            <button type="button" class="ghost" onClick="{{copyPiece}}" title="کپی تکه">⧉</button>
+            <button type="button" class="ghost danger" onClick="{{delPiece}}" title="حذف تکه">✕</button>
+          </sc-if>
+        </div>
+        <div style="overflow-x: auto;">
+        <div onMouseMove="{{pMove}}" onMouseUp="{{pDrop}}" onMouseLeave="{{pDrop}}" style="{{stageStyle}}">
+          <div data-spine="1" style="{{spineBox}}">
+            <span style="position: absolute; left: 0; right: 0; top: -3px; height: 6px; border-radius: 3px; background: #94a3b8;" aria-hidden="true"></span>
+            <span style="{{depthA}}" aria-hidden="true"></span><span style="{{depthB}}" aria-hidden="true"></span>
+            <span onMouseDown="{{grabArmA}}" title="عمق را بکشید" style="{{armHandleA}}"></span>
+            <span onMouseDown="{{grabArmB}}" title="عمق را بکشید" style="{{armHandleB}}"></span>
+            <sc-for list="{{pieces}}" as="p" hint-placeholder-count="4">
+              <div role="button" tabindex="0" onMouseDown="{{p.grab}}" aria-label="{{p.aria}}" aria-pressed="{{p.pressed}}" style="{{p.box}}">
+                <span style="{{p.shape}}"></span><span style="{{p.cap}}"></span>
+                <span style="{{p.labelStyle}}">{{p.label}}</span>
+                <span onMouseDown="{{p.grabL}}" title="طول را بکشید" style="{{p.edgeL}}"></span>
+                <span onMouseDown="{{p.grabR}}" title="طول را بکشید" style="{{p.edgeR}}"></span>
+                <span class="dim" style="{{p.dimStyle}}">{{p.dim}}</span>
+              </div>
+            </sc-for>
+            <span onMouseDown="{{grabLen}}" title="طول رگال را بکشید" style="{{lenHandle}}"></span>
+            <span class="dim" style="{{lenDimStyle}}">{{lenDim}}</span>
+            <sc-for list="{{ruler}}" as="t" hint-placeholder-count="7"><span style="{{t.style}}">{{t.label}}</span></sc-for>
+          </div>
+          <span class="mut" style="position: absolute; top: 10px; right: 14px; font-size: 11.5px;">طرف الف</span>
+          <span class="mut" style="position: absolute; bottom: 10px; right: 14px; font-size: 11.5px;">طرف ب</span>
+        </div>
+        </div>
+        <span class="mut" style="font-size: 11.5px;">تکه را بکشید تا جابه‌جا شود · لبه رگال کامل طولش را عوض می‌کند · دستگیره سر خط وسط طول رگال و خط‌چین بالا و پایین عمق آن است · برای رگال دیواری فقط یک طرف تکه بگذارید.</span>
+      </sc-if>
+
+      <sc-if value="{{isHubT}}" hint-placeholder-val="{{ true }}">
+        <div class="tbar">
+          <button type="button" class="ghost" onClick="{{addArm}}" disabled="{{armsFull}}">+ بازو</button>
+          <sc-if value="{{hasArm}}" hint-placeholder-val="{{ true }}">
+            <span style="width: 1px; height: 22px; background: rgba(255,255,255,.12); margin: 0 4px;"></span>
+            <b style="font-size: 12.5px; color: #93c5fd;">{{armTitle}}</b>
+            <span class="mut" style="font-size: 12px;">{{armDim}}</span>
+            <span class="row" role="group" aria-label="تعداد پله" style="gap: 2px; padding: 2px; border-radius: 9px; background: #0a0e14;"><button type="button" class="icon" onClick="{{stepMinus}}" aria-label="یک پله کمتر" style="border: 0;">−</button><span style="min-width: 58px; text-align: center; font-size: 12.5px; color: #e2e8f0;">{{stepText}}</span><button type="button" class="icon" onClick="{{stepPlus}}" aria-label="یک پله بیشتر" style="border: 0;">+</button></span>
+            <button type="button" class="ghost" onClick="{{copyArm}}" disabled="{{armsFull}}" title="کپی بازو">⧉</button>
+            <button type="button" class="ghost danger" onClick="{{delArm}}" title="حذف بازو">✕</button>
+          </sc-if>
+        </div>
+        <div class="row" style="gap: 12px; align-items: flex-start;">
+          <div style="overflow-x: auto; max-width: 100%;">
+          <div dir="ltr" onMouseMove="{{sMove}}" onMouseUp="{{sDrop}}" onMouseLeave="{{sDrop}}" style="{{hubStage}}">
+            <sc-for list="{{rings}}" as="g" hint-placeholder-count="3"><span style="{{g.style}}"></span><span style="{{g.lstyle}}">{{g.label}}</span></sc-for>
+            <sc-for list="{{hubArms}}" as="a" hint-placeholder-count="4">
+              <span onMouseDown="{{a.pick}}" style="{{a.line}}"></span>
+              <sc-for list="{{a.dots}}" as="d" hint-placeholder-count="2"><span onMouseDown="{{a.pick}}" style="{{d.style}}">{{d.label}}</span></sc-for>
+              <span onMouseDown="{{a.grab}}" title="سر بازو را بکشید: چرخش و طول" style="{{a.tip}}"></span>
+              <span style="{{a.numStyle}}">{{a.num}}</span>
+            </sc-for>
+            <span style="{{hubPost}}" aria-hidden="true"></span>
+            <span dir="rtl" style="{{dragDim}}">{{dragText}}</span>
+          </div>
+          </div>
+          <div class="col" style="flex: 1 1 260px; gap: 6px; padding: 12px; border-radius: 14px; background: #0a0e14; border: 1px solid rgba(255,255,255,.06);">
+            <span style="font-size: 12.5px; font-weight: 600; color: #cbd5e1;">{{sideTitle}}</span>
+            <div style="{{sideBox}}">
+              <span style="position: absolute; right: 2%; top: 6px; bottom: 6px; width: 8px; border-radius: 3px; background: #64748b;" aria-hidden="true"></span>
+              <sc-for list="{{side}}" as="s" hint-placeholder-count="2"><span style="{{s.bar}}"></span><span style="{{s.drop}}"></span><span style="{{s.hook}}"></span><span style="{{s.lstyle}}">{{s.label}}</span></sc-for>
+            </div>
+            <span class="mut" style="font-size: 11.5px; line-height: 1.8;">پله ۱ نزدیک ستون است. هر پله یک جایگاه کالاست.</span>
+          </div>
+        </div>
+        <span class="mut" style="font-size: 11.5px;">سر آبی هر بازو را بکشید: هر ۴۵ درجه می‌چرخد و طولش عوض می‌شود · روی بازو بزنید تا انتخاب شود.</span>
+      </sc-if>
+      <div class="row" style="{{msgBox}}"><span style="{{msgStyle}}">{{msg}}</span></div>
+    </section>
+  </div>
+  </sc-if>
+</div>
+
+<sc-if value="{{modalOpen}}" hint-placeholder-val="{{ false }}">
+  <div class="sheet-wrap" onClick="{{closeModal}}">
+    <div role="dialog" aria-modal="true" aria-label="{{mTitle}}" onClick="{{stopClick}}" class="sheet">
+      <div class="row" style="justify-content: space-between;">
+        <div class="col" style="gap: 3px;"><h2 style="margin: 0; font-size: 18px; font-weight: 800;">{{mTitle}}</h2><span class="mut">{{mSub}}</span></div>
+        <button type="button" class="icon" onClick="{{closeModal}}" aria-label="بستن" style="width: 34px; height: 34px; font-size: 15px;">✕</button>
+      </div>
+      <div class="mdraw">
+        <sc-if value="{{mIsLine}}" hint-placeholder-val="{{ true }}">
+          <div style="position: absolute; left: 44px; right: 44px; top: 18px; bottom: 18px;">
+            <span style="position: absolute; left: 0; right: 0; top: calc(50% - 2px); height: 4px; border-radius: 2px; background: #94a3b8;" aria-hidden="true"></span>
+            <sc-for list="{{mPieces}}" as="p" hint-placeholder-count="4"><button type="button" onClick="{{p.pick}}" aria-label="{{p.aria}}" aria-pressed="{{p.pressed}}" style="{{p.box}}"><span style="{{p.stem}}"></span><span style="{{p.labelStyle}}">{{p.label}}</span></button></sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{mIsHub}}" hint-placeholder-val="{{ false }}">
+          <div dir="ltr" style="position: absolute; left: 50%; top: 50%; width: 0; height: 0;">
+            <sc-for list="{{mArms}}" as="a" hint-placeholder-count="4"><span style="{{a.line}}"></span><span style="{{a.numStyle}}">{{a.num}}</span><sc-for list="{{a.dots}}" as="d" hint-placeholder-count="2"><button type="button" onClick="{{d.pick}}" aria-label="{{d.aria}}" aria-pressed="{{d.pressed}}" style="{{d.style}}">{{d.label}}</button></sc-for></sc-for>
+            <span style="position: absolute; left: -7px; top: -7px; width: 14px; height: 14px; border-radius: 50%; background: #e2e8f0; border: 3px solid #0a0e14; box-sizing: border-box;" aria-hidden="true"></span>
+          </div>
+        </sc-if>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; align-items: start;">
+        <div class="col" style="gap: 6px;">
+          <span style="font-size: 13px; font-weight: 600; color: #cbd5e1;">جایگاه‌های این رگال</span>
+          <sc-for list="{{mRows}}" as="r" hint-placeholder-count="4">
+            <button type="button" onClick="{{r.pick}}" aria-pressed="{{r.pressed}}" style="{{r.style}}">
+              <span style="{{r.swatch}}"></span>
+              <span class="col" style="gap: 1px; flex: 1; min-width: 0;"><span style="{{r.nameStyle}}">{{r.name}}</span><span class="mut" style="font-size: 11.5px;">{{r.place}}</span></span>
+              <span style="{{r.actionStyle}}">{{r.action}}</span>
+            </button>
+          </sc-for>
+        </div>
+        <div class="col" style="gap: 8px; padding: 12px; border-radius: 14px; background: #0a0e14; border: 1px solid rgba(96,165,250,.25);">
+          <span style="font-size: 13px; font-weight: 600; color: #cbd5e1;">{{mPickTitle}}</span>
+          <sc-if value="{{mHasCur}}" hint-placeholder-val="{{ true }}"><div class="row" style="justify-content: space-between; padding: 8px 10px; border-radius: 10px; background: rgba(59,130,246,.12);"><span class="row" style="gap: 8px;"><span style="{{mCurDot}}"></span><b style="font-size: 13px;">{{mCurName}}</b></span><button type="button" class="ghost" onClick="{{mClear}}" style="min-height: 28px;">برداشتن</button></div></sc-if>
+          <input class="inp" type="search" value="{{q}}" onChange="{{setQ}}" placeholder="جستجوی نام یا کد کالا" aria-label="جستجوی کالا">
+          <div class="col" style="gap: 4px; max-height: 260px; overflow-y: auto;">
+            <sc-for list="{{products}}" as="r" hint-placeholder-count="6">
+              <button type="button" onClick="{{r.pick}}" aria-pressed="{{r.pressed}}" style="{{r.style}}">
+                <span style="{{r.swatch}}"></span>
+                <span class="col" style="gap: 1px; min-width: 0; flex: 1;"><span style="font-size: 13px; color: #e2e8f0;">{{r.name}}</span><span class="mut" style="font-size: 11.5px;">{{r.meta}}</span></span>
+                <span style="{{r.statusStyle}}">{{r.status}}</span>
+              </button>
+            </sc-for>
+            <sc-if value="{{noResult}}" hint-placeholder-val="{{ false }}"><span class="mut" style="padding: 10px 4px;">کالایی پیدا نشد.</span></sc-if>
+          </div>
+        </div>
+      </div>
+      <div class="row" style="justify-content: space-between;"><span class="mut" style="font-size: 11.5px;">تغییرها همان لحظه ذخیره می‌شوند. بعد از انتخاب، جایگاه خالی بعدی انتخاب می‌شود.</span><button type="button" class="primary" onClick="{{closeModal}}">تمام</button></div>
+    </div>
+  </div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    var KEY = 'elinor-store-map-v2';
+    var full = function (s, len) { return { s: s, t: 'full', at: 0, w: len, p: null }; };
+    var R = function (code, x, y, rot, len) { return { code: code, x: x, y: y, rot: rot, len: len, arm: 50, pcs: [full('a', len), full('b', len)] }; };
+    var seedV1 = function () {
+      var u = [R('R-01', 1, 3, 0, 150), R('R-02', 7, 3, 0, 150), R('R-03', 12, 3, 0, 150), R('R-04', 17, 5, 90, 150), R('R-05', 22, 5, 90, 150), R('R-06', 26, 5, 90, 150), R('R-07', 30, 3, 0, 150), R('R-08', 1, 7, 0, 150), R('R-09', 7, 7, 0, 150), R('R-10', 12, 7, 0, 150), R('R-11', 30, 8, 0, 150), R('R-12', 9, 11, 0, 150), R('R-13', 17, 11, 0, 150), R('R-14', 26, 11, 90, 150), R('R-15', 9, 14, 0, 150), R('R-16', 17, 14, 0, 150), R('R-17', 26, 16, 90, 150), R('R-18', 17, 20, 0, 150), R('R-19', 2, 22, 0, 150),
+        { code: 'R-20', x: 8, y: 21, rot: 0, len: 300, arm: 55, pcs: [{ s: 'a', t: 'half', at: 90, w: 0, p: 'BF-3301' }, { s: 'a', t: 'full', at: 135, w: 165, p: 'MN-1071' }, { s: 'b', t: 'full', at: 45, w: 180, p: 'SH-1150' }, { s: 'b', t: 'half', at: 275, w: 0, p: null }] },
+        R('R-21', 17, 24, 0, 150)];
+      u[0].pcs[0].p = 'MN-1088'; u[1].pcs[0].p = 'SH-1162'; u[3].pcs[0].p = 'HD-4410'; u[3].pcs[1].p = 'BF-3318'; u[8].pcs[1].p = 'JN-5120'; u[12].pcs[0].p = 'BL-2204'; u[12].pcs[1].p = 'KT-0912';
+      return u;
+    };
+    // old per-rack format → templates (one per distinct rack shape) + racks that point at them
+    var fromV1 = function (v1) {
+      var tpls = [], units = [], seen = {};
+      v1.forEach(function (o) {
+        var geo = JSON.stringify([o.len, o.arm, o.pcs.map(function (p) { return [p.s, p.t, p.at, p.w]; })]);
+        var t = seen[geo];
+        if (!t) { var n = tpls.length + 1, one = !o.pcs.some(function (p) { return p.s === 'b'; }) || !o.pcs.some(function (p) { return p.s === 'a'; }), mixed = o.pcs.some(function (p) { return p.t === 'half'; });
+          t = { id: 'L' + n, kind: 'line', name: (one ? 'رگال دیواری ' : (mixed ? 'رگال کامل و نیم ' : 'رگال وسط دوطرفه ')) + String(o.len / 100).replace('.', '٫').replace(/[0-9]/g, function (c) { return '۰۱۲۳۴۵۶۷۸۹'[c]; }) + ' متری', len: o.len, arm: o.arm, pcs: o.pcs.map(function (p, i) { return { id: 'L' + n + 'p' + i, s: p.s, t: p.t, at: p.at, w: p.w }; }) };
+          seen[geo] = t; tpls.push(t); }
+        var prod = {}; o.pcs.forEach(function (p, i) { if (p.p) prod[t.pcs[i].id] = p.p; });
+        units.push({ code: o.code, x: o.x, y: o.y, rot: o.rot || 0, tpl: t.id, prod: prod });
+      });
+      return { tpls: tpls, units: units };
+    };
+    var arm = function (id, a, len, steps) { return { id: id, a: a, len: len, steps: steps }; };
+    var hubT = [
+      { id: 'H1', kind: 'hub', name: 'صلیبی پلکانی ۴ بازو', arms: [arm('H1a', 0, 45, 2), arm('H1b', 90, 45, 2), arm('H1c', 180, 45, 2), arm('H1d', 270, 45, 2)] },
+      { id: 'H2', kind: 'hub', name: 'بازوی پلکانی دیواری', arms: [arm('H2a', 270, 60, 4)] }
+    ];
+    var data = null, saved = null;
+    try { saved = JSON.parse(window.localStorage.getItem(KEY) || 'null'); } catch (e) { saved = null; }
+    if (saved && saved.units && saved.tpls) data = saved;
+    else {
+      var old = null; try { old = JSON.parse(window.localStorage.getItem('elinor-racks-sari-v1') || 'null'); } catch (e2) { old = null; }
+      var mine = old && old.units && old.units.length;
+      data = fromV1(mine ? old.units : seedV1()); data.tpls = data.tpls.concat(hubT); data.cols = mine && old.cols ? old.cols : 36; data.rows = mine && old.rows ? old.rows : 28;
+      if (!mine) data.units.push({ code: 'R-22', x: 3, y: 11, rot: 0, tpl: 'H1', prod: { 'H1a:0': 'RS-9120', 'H1a:1': 'CR-9204', 'H1b:0': 'RS-9133', 'H1b:1': 'CR-9217', 'H1c:0': 'RS-9141', 'H1c:1': 'CR-9225', 'H1d:0': 'RS-9150' } },
+        { code: 'R-23', x: 3, y: 17, rot: 0, tpl: 'H1', prod: { 'H1a:0': 'CR-9238' } }, { code: 'R-24', x: 34, y: 14, rot: 180, tpl: 'H2', prod: { 'H2a:0': 'HD-4410', 'H2a:1': 'BF-3318' } });
+    }
+    var mobile = typeof window !== 'undefined' && window.innerWidth < 700;
+    this.state = { role: 'admin', view: 'design', tpls: data.tpls, units: data.units, cols: data.cols || 36, rows: data.rows || 28, cur: 0, tcur: 'H1', sel: 0, asel: 0, q: '', find: '', codes: true, z: mobile ? 32 : 44, drag: null, pdrag: null, hdrag: null, modal: null, msel: null, addOpen: false, newOpen: false, msg: '', bad: false, seq: 100 };
+    this._key = KEY;
+  }
+  renderVals() {
+    var self = this, S = this.state;
+    var snapshot = JSON.stringify({ tpls: S.tpls, units: S.units, cols: S.cols, rows: S.rows });
+    if (snapshot !== this._last) { this._last = snapshot; try { window.localStorage.setItem(this._key, snapshot); this._ok = true; } catch (e) { this._ok = false; } }
+    var P = function (n) { return String(n).replace('.', '٫').replace(/[0-9]/g, function (c) { return '۰۱۲۳۴۵۶۷۸۹'[c]; }); };
+    var seg = function (on) { return 'min-height: 28px; padding: 0 11px; border: 0; border-radius: 8px; font-size: 12.5px; cursor: pointer; ' + (on ? 'background: #3b82f6; color: #fff; font-weight: 600;' : 'background: transparent; color: #94a3b8;'); };
+    var cm = function (n) { return P(n) + ' سانت'; };
+    var snap = function (v, s) { return Math.round(v / s) * s; };
+    var rad = function (a) { return a * Math.PI / 180; };
+    var PRL = [['MN-1071', 'مانتو کتان بلند 7102', 'مانتو', '#c8b28a', 'پیشران فروش'], ['SH-1150', 'شلوار جین راسته 6815', 'شلوار', '#1e3a8a', 'رو به رشد'], ['BL-2204', 'شومیز حریر 5530', 'شومیز', '#e2e8f0', 'عادی'], ['KT-0912', 'کت تک پاییزه 4471', 'کت', '#7c4a2d', 'کند'], ['BF-3301', 'بافت یقه‌گرد 8023', 'بافت', '#7f1d1d', 'پیشران فروش'], ['HD-4410', 'هودی دورس 3390', 'هودی', '#334155', 'رو به رشد'], ['SH-1162', 'شلوار پارچه‌ای گشاد 6902', 'شلوار', '#9ca3af', 'عادی'], ['MN-1088', 'مانتو جلوباز نخی 7188', 'مانتو', '#e7d8b8', 'راکد'], ['BF-3318', 'بافت راه‌راه 8091', 'بافت', '#475569', 'رو به رشد'], ['JN-5120', 'وست جین زنانه 7556', 'وست', '#3b5b8a', 'عادی'],
+      ['RS-9120', 'ست راحتی نخی 9120', 'راحتی', '#a78bfa', 'پیشران فروش'], ['CR-9204', 'کراپ تاپ کبریتی 9204', 'کراپ', '#f472b6', 'رو به رشد'], ['RS-9133', 'شلوار راحتی پنبه 9133', 'راحتی', '#38bdf8', 'عادی'], ['CR-9217', 'کراپ بافت 9217', 'کراپ', '#ca8a04', 'رو به رشد'], ['RS-9141', 'ست راحتی چهارخانه 9141', 'راحتی', '#059669', 'عادی'], ['CR-9225', 'کراپ هودی 9225', 'کراپ', '#e11d48', 'کند'], ['RS-9150', 'تی‌شرت راحتی 9150', 'راحتی', '#64748b', 'عادی'], ['CR-9238', 'کراپ رکابی 9238', 'کراپ', '#9333ea', 'رو به رشد']];
+    var byCode = {}; PRL.forEach(function (p) { byCode[p[0]] = p; });
+    // short code = number at the end of the product title (e.g. «وست جین زنانه 7556» → ۷۵۵۶); full title on hover/tap
+    var num = function (pid) { var m = byCode[pid] && byCode[pid][1].match(/(\d+)\s*$/); return m ? m[1] : pid; };
+    var shortC = function (pid) { return P(num(pid)); };
+    var fullT = function (pid) { return byCode[pid] ? P(byCode[pid][1]) : ''; };
+    var ST = { 'پیشران فروش': '#34d399', 'رو به رشد': '#60a5fa', 'عادی': '#94a3b8', 'کند': '#fbbf24', 'راکد': '#fb7185' };
+    var TL = { full: 'رگال کامل', half: 'نیم‌رگال' }, SL = { a: 'طرف الف', b: 'طرف ب' };
+    var DIR = { 0: 'راست', 45: 'راست‌بالا', 90: 'بالا', 135: 'چپ‌بالا', 180: 'چپ', 225: 'چپ‌پایین', 270: 'پایین', 315: 'راست‌پایین' };
+    var R0 = 6;
+    var stepR = function (a, j) { return R0 + (a.len - R0) * (j + 0.5) / a.steps; };
+
+    var TP = {}; S.tpls.forEach(function (t) { TP[t.id] = t; });
+    var tOf = function (u) { return TP[u.tpl] || S.tpls[0]; };
+    var usedBy = function (tid) { return S.units.filter(function (u) { return u.tpl === tid; }); };
+    var isAdminRole = S.role === 'admin';
+    var view = isAdminRole ? S.view : 'map';
+    var isAdmin = view === 'design', isStaff = view === 'map';
+    var cur = Math.min(S.cur, S.units.length - 1);
+    var cloneU = function () { return JSON.parse(JSON.stringify(S.units)); };
+    var cloneT = function () { return JSON.parse(JSON.stringify(S.tpls)); };
+    var Z = S.z, COLS = S.cols, ROWS = S.rows;
+
+    // ---- geometry ----
+    var sidesT = function (t) { return ((t.pcs.some(function (x) { return x.s === 'a'; }) ? 1 : 0) + (t.pcs.some(function (x) { return x.s === 'b'; }) ? 1 : 0)) || 2; };
+    var ext = function (t, rot) { var bx = [-R0, R0], by = [-R0, R0];
+      t.arms.forEach(function (a) { var g = rad(a.a + rot); bx.push(Math.cos(g) * a.len); by.push(Math.sin(g) * a.len); });
+      return { minx: Math.min.apply(null, bx), maxx: Math.max.apply(null, bx), miny: Math.min.apply(null, by), maxy: Math.max.apply(null, by) }; };
+    var fp = function (u) { var t = tOf(u);
+      if (t.kind === 'hub') { var e = ext(t, u.rot || 0); return [Math.max(1, Math.ceil((e.maxx - e.minx - 0.01) / 50)), Math.max(1, Math.ceil((e.maxy - e.miny - 0.01) / 50))]; }
+      var L = Math.max(2, Math.ceil(t.len / 50)), D = Math.max(1, Math.ceil(t.arm * sidesT(t) / 50)); return (u.rot || 0) % 180 ? [D, L] : [L, D]; };
+    var lineOrder = function (t) { return t.pcs.map(function (x, i) { return i; }).sort(function (a, b) { var A = t.pcs[a], B = t.pcs[b]; return A.s === B.s ? A.at - B.at : (A.s === 'a' ? -1 : 1); }); };
+    var slotsOf = function (t) { var out = [];
+      if (t.kind === 'hub') t.arms.forEach(function (a, i) { for (var j = 0; j < a.steps; j++) out.push({ key: a.id + ':' + j, place: 'بازوی ' + P(i + 1) + ' (' + DIR[a.a] + ') · پله ' + P(j + 1), short: 'بازوی ' + P(i + 1) + '، پله ' + P(j + 1) }); });
+      else lineOrder(t).forEach(function (i) { var x = t.pcs[i]; out.push({ key: x.id, place: SL[x.s] + ' · ' + TL[x.t], short: SL[x.s] + '، ' + TL[x.t], i: i }); });
+      return out; };
+    var placed = function (u) { var s = slotsOf(tOf(u)); return [s.length, s.filter(function (x) { return u.prod[x.key]; }).length]; };
+    var rects = S.units.map(function (u) { var f = fp(u); return [u.x, u.y, f[0], f[1]]; });
+    var hit = function (a, b) { return a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3]; };
+    var over = rects.map(function (r, k) { return rects.some(function (q, j) { return j !== k && hit(r, q); }); });
+    var freeSpot = function (u) { var f = fp(u); for (var y = 1; y <= ROWS - f[1]; y++) for (var x = 1; x <= COLS - f[0]; x++) { var r = [x, y, f[0], f[1]]; if (!rects.some(function (q) { return hit(r, q); })) return [x, y]; } return [0, 0]; };
+    var minCols = Math.max.apply(null, rects.map(function (r) { return r[0] + r[2]; }).concat([16])), minRows = Math.max.apply(null, rects.map(function (r) { return r[1] + r[3]; }).concat([12]));
+    var nextCode = function (u) { var used = u.map(function (x) { return x.code; }), k = 1; while (used.indexOf('R-' + String(k).padStart(2, '0')) >= 0) k++; return 'R-' + String(k).padStart(2, '0'); };
+
+    // ---- mini drawings ----
+    var mini = function (t, box) {
+      var c = box / 2, out = [];
+      if (t.kind === 'hub') {
+        var mx = Math.max.apply(null, t.arms.map(function (a) { return a.len; }).concat([30])), k = (box / 2 - 5) / mx;
+        t.arms.forEach(function (a) { out.push('position: absolute; left: ' + c + 'px; top: ' + (c - 1.5) + 'px; width: ' + Math.round(a.len * k) + 'px; height: 3px; border-radius: 2px; background: #cbd5e1; transform-origin: 0 50%; transform: rotate(' + (-a.a) + 'deg);');
+          for (var j = 0; j < a.steps; j++) { var r = stepR(a, j) * k; out.push('position: absolute; left: ' + (c + Math.cos(rad(a.a)) * r - 2.5) + 'px; top: ' + (c - Math.sin(rad(a.a)) * r - 2.5) + 'px; width: 5px; height: 5px; border-radius: 50%; background: #60a5fa;'); } });
+        out.push('position: absolute; left: ' + (c - 3) + 'px; top: ' + (c - 3) + 'px; width: 6px; height: 6px; border-radius: 50%; background: #e2e8f0;');
+      } else {
+        var kk = (box - 10) / t.len, two = sidesT(t) === 2;
+        out.push('position: absolute; left: 5px; right: 5px; top: ' + (two ? c - 1 : box - 12) + 'px; height: 2px; background: #94a3b8;');
+        t.pcs.forEach(function (p) { var y = p.s === 'a' ? (two ? c - 12 : box - 23) : (two ? c + 3 : box - 23);
+          out.push(p.t === 'full' ? 'position: absolute; right: ' + (5 + p.at * kk) + 'px; width: ' + Math.max(3, p.w * kk) + 'px; top: ' + y + 'px; height: 9px; border: 1px solid #cbd5e1; border-radius: 2px; box-sizing: border-box;' : 'position: absolute; right: ' + (5 + p.at * kk - 1) + 'px; width: 2px; top: ' + y + 'px; height: 9px; background: #60a5fa;'); });
+      }
+      return out; };
+    var tMeta = function (t) { var n = usedBy(t.id).length; return (t.kind === 'hub' ? P(t.arms.length) + ' بازو · ' : 'خطی · ') + P(slotsOf(t).length) + ' جایگاه · ' + (n ? P(n) + ' رگال روی نقشه' : 'هنوز روی نقشه نیست'); };
+
+    // ---- board ----
+    var bdrag = function (mode, k) { return function (e) { if (e.stopPropagation) e.stopPropagation(); if (e.preventDefault) e.preventDefault(); self.setState({ drag: { mode: mode, k: k } }); }; };
+    var copyUnit = function (k) { var u = cloneU(), src = S.units[k], n = { code: nextCode(u), x: 0, y: 0, rot: src.rot, tpl: src.tpl, prod: {} }, f = fp(n);
+      var cand = [[src.x + f[0] + 1, src.y], [src.x, src.y + f[1] + 1], [src.x - f[0] - 1, src.y], [src.x, src.y - f[1] - 1]], spot = null;
+      cand.forEach(function (c2) { if (spot) return; var r0 = [c2[0], c2[1], f[0], f[1]]; if (c2[0] >= 0 && c2[1] >= 0 && c2[0] + f[0] <= COLS && c2[1] + f[1] <= ROWS && !rects.some(function (q) { return hit(r0, q); })) spot = c2; });
+      if (!spot) spot = freeSpot(n); n.x = spot[0]; n.y = spot[1]; u.push(n); self.setState({ units: u, cur: u.length - 1 }); };
+    var delUnit = function (k) { if (S.units.length < 2) return; var u = cloneU(); u.splice(k, 1); self.setState({ units: u, cur: Math.max(0, k - 1), modal: null }); };
+    var openModal = function (k) { var s = slotsOf(tOf(S.units[k])), first = s.filter(function (x) { return !S.units[k].prod[x.key]; })[0] || s[0]; self.setState({ cur: k, modal: { k: k }, msel: first ? first.key : null, q: '' }); };
+    var fq = (S.find || '').trim(), fqn = fq.replace(/[۰-۹]/g, function (d) { return '۰۱۲۳۴۵۶۷۸۹'.indexOf(d); });
+    var findHits = fq ? S.units.map(function (u) { return Object.keys(u.prod).some(function (k) { var p = u.prod[k]; return p && byCode[p] && (fullT(p).indexOf(fq) >= 0 || byCode[p][1].indexOf(fq) >= 0 || num(p).indexOf(fqn) >= 0); }); }) : null;
+    var codeFs = function (px) { return Math.max(9, Math.min(14, Math.round(px))); };
+    var boardRacks = S.units.map(function (u, k) {
+      var t = tOf(u), f = fp(u), on = isAdmin && k === cur, hitF = findHits && findHits[k], dimF = findHits && !hitF, rot = u.rot || 0;
+      var parts = [], arms = [], post = 'display: none;', spine = 'display: none;';
+      if (t.kind === 'line') {
+        var one = sidesT(t) === 1, vertical = rot % 180 !== 0, Lpx = (vertical ? f[1] : f[0]) * Z, Dpx = (vertical ? f[0] : f[1]) * Z;
+        spine = vertical ? 'position: absolute; top: 0; bottom: 0; width: 2px; background: #94a3b8; ' + (one ? 'right: 0;' : 'left: calc(50% - 1px);') : 'position: absolute; left: 0; right: 0; height: 2px; background: #94a3b8; ' + (one ? 'bottom: 0;' : 'top: calc(50% - 1px);');
+        parts = t.pcs.map(function (x) {
+          var pid = u.prod[x.id], pr = pid ? byCode[pid] : null, a0 = x.at / t.len * 100, w = x.t === 'full' ? x.w / t.len * 100 : 0, fill = pr ? pr[3] + 'cc' : 'rgba(148,163,184,.10)', line = pr ? 'rgba(248,250,252,.55)' : 'rgba(148,163,184,.45)';
+          var lenPx = x.t === 'full' ? x.w / t.len * Lpx : 0, thick = Dpx * (one ? 0.84 : 0.42), half = x.t === 'half';
+          var showL = S.codes && pr && (half || (lenPx >= 24 && thick >= 10));
+          var hl = half ? (vertical ? 'position: absolute; top: 50%; ' + (x.s === 'a' || one ? 'right: -3px;' : 'left: -3px;') + ' transform: translateY(-50%);' : 'position: absolute; left: 50%; ' + (x.s === 'a' || one ? 'top: -3px;' : 'bottom: -3px;') + ' transform: translateX(-50%);') + ' padding: 1px 4px; border-radius: 5px; background: rgba(10,14,20,.92); border: 1px solid ' + (pr ? pr[3] : '#475569') + '; line-height: 14px;' : '';
+          var lstyle = !showL ? 'display: none;' : half ? hl + ' white-space: nowrap; font-size: ' + codeFs(Z * 0.27) + 'px; font-weight: 700; color: #fff; pointer-events: none;'
+            : 'position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; white-space: nowrap; font-size: ' + codeFs(Math.min(thick * 0.55, lenPx / 4.4)) + 'px; font-weight: 800; letter-spacing: -.2px; color: #fff; text-shadow: 0 0 3px #000, 0 1px 2px #000; pointer-events: none;' + (vertical ? ' writing-mode: vertical-rl;' : '');
+          var st;
+          if (!vertical) { var vert = one ? 'top: 8%; bottom: 8%;' : (x.s === 'a' ? 'top: 6%; bottom: calc(50% + 1px);' : 'top: calc(50% + 1px); bottom: 6%;');
+            st = x.t === 'full' ? 'position: absolute; right: ' + a0 + '%; width: ' + w + '%; ' + vert + ' box-sizing: border-box; border: 1px solid ' + line + '; border-radius: 3px; background: ' + fill + ';' : 'position: absolute; right: calc(' + a0 + '% - 2px); width: 4px; ' + vert + ' border-radius: 2px; background: ' + (pr ? pr[3] : 'rgba(148,163,184,.6)') + ';'; }
+          else { var hor = one ? 'left: 8%; right: 8%;' : (x.s === 'a' ? 'right: 6%; left: calc(50% + 1px);' : 'left: 6%; right: calc(50% + 1px);');
+            st = x.t === 'full' ? 'position: absolute; top: ' + a0 + '%; height: ' + w + '%; ' + hor + ' box-sizing: border-box; border: 1px solid ' + line + '; border-radius: 3px; background: ' + fill + ';' : 'position: absolute; top: calc(' + a0 + '% - 2px); height: 4px; ' + hor + ' border-radius: 2px; background: ' + (pr ? pr[3] : 'rgba(148,163,184,.6)') + ';'; }
+          return { style: st + (half ? ' z-index: 2;' : ''), label: showL ? shortC(pid) : '', lstyle: lstyle, title: pr ? fullT(pid) : TL[x.t] + '، خالی' };
+        });
+      } else {
+        var e = ext(t, rot), kk = Z / 50, ox = ((f[0] * 50 - (e.maxx - e.minx)) / 2 - e.minx) * kk, oy = ((f[1] * 50 - (e.maxy - e.miny)) / 2 + e.maxy) * kk;
+        var dsz = Math.max(7, Math.round(Z * 0.24));
+        arms = t.arms.map(function (a) { var g = rad(a.a + rot), c = Math.cos(g), s = Math.sin(g);
+          var codes = Array.apply(null, Array(a.steps)).map(function (_, j) { var pid = u.prod[a.id + ':' + j]; return pid && byCode[pid] ? shortC(pid) : '—'; }), anyP = codes.some(function (x) { return x !== '—'; });
+          var tx = ox + c * (a.len * kk + 5), ty = oy - s * (a.len * kk + 5), tr = c > 0.3 ? 'translate(0, -50%)' : (c < -0.3 ? 'translate(-100%, -50%)' : (s > 0 ? 'translate(-50%, -100%)' : 'translate(-50%, 0)'));
+          var tagOn = S.codes && anyP;
+          return { tag: tagOn ? codes.join('\n') : '', tagTitle: Array.apply(null, Array(a.steps)).map(function (_, j) { var pid = u.prod[a.id + ':' + j]; return 'پله ' + P(j + 1) + ': ' + (pid ? fullT(pid) : 'خالی'); }).join('\n'),
+            tagStyle: tagOn ? 'position: absolute; left: ' + tx + 'px; top: ' + ty + 'px; transform: ' + tr + '; padding: 2px 5px; border-radius: 6px; background: rgba(10,14,20,.94); border: 1px solid #475569; white-space: pre; text-align: center; font-size: ' + codeFs(Z * 0.3) + 'px; font-weight: 700; line-height: 1.25; color: #fff; z-index: 4;' : 'display: none;',
+            line: 'position: absolute; left: ' + ox + 'px; top: ' + (oy - 1) + 'px; width: ' + a.len * kk + 'px; height: 3px; border-radius: 2px; background: #94a3b8; transform-origin: 0 50%; transform: rotate(' + (-(a.a + rot)) + 'deg);',
+            dots: Array.apply(null, Array(a.steps)).map(function (_, j) { var r = stepR(a, j) * kk, x = ox + c * r, y = oy - s * r, pid = u.prod[a.id + ':' + j], pr = pid ? byCode[pid] : null, o2 = 0, show = false;
+              return { title: 'پله ' + P(j + 1) + (pr ? ': ' + fullT(pid) : '، خالی'), code: show ? shortC(pid) : '',
+                style: 'position: absolute; left: ' + (x - dsz / 2) + 'px; top: ' + (y - dsz / 2) + 'px; width: ' + dsz + 'px; height: ' + dsz + 'px; border-radius: 50%; box-sizing: border-box; background: ' + (pr ? pr[3] : '#0a0e14') + '; border: 1px solid ' + (pr ? 'rgba(255,255,255,.6)' : '#64748b') + '; z-index: 2;',
+                cstyle: show ? 'position: absolute; left: ' + (x + s * o2) + 'px; top: ' + (y + c * o2) + 'px; transform: translate(-50%, -50%); padding: 1px 4px; border-radius: 5px; background: rgba(10,14,20,.92); border: 1px solid ' + pr[3] + '; font-size: ' + codeFs(Z * 0.25) + 'px; font-weight: 700; line-height: 13px; color: #fff; white-space: nowrap; z-index: 3; pointer-events: none;' : 'display: none;' }; }) }; });
+        post = 'position: absolute; left: ' + (ox - 4) + 'px; top: ' + (oy - 4) + 'px; width: 8px; height: 8px; border-radius: 50%; background: #e2e8f0; z-index: 3;';
+      }
+      var outline = over[k] && isAdmin ? ' outline: 2px solid #fb7185; outline-offset: 2px;' : (on ? ' outline: 2px dashed #60a5fa; outline-offset: 3px;' : (hitF ? ' outline: 3px solid #fbbf24; outline-offset: 3px;' : ''));
+      var pl = placed(u);
+      return { code: u.code, pressed: on ? 'true' : 'false', parts: parts, arms: arms, post: post, spine: spine,
+        aria: u.code + '، ' + P(pl[1]) + ' از ' + P(pl[0]) + ' جایگاه کالا دارد',
+        tip: u.code + ' · ' + t.name + '\n' + slotsOf(t).map(function (s) { return s.short + ': ' + (u.prod[s.key] ? fullT(u.prod[s.key]) : '—'); }).join('\n'),
+        style: 'position: absolute; left: ' + u.x * Z + 'px; top: ' + u.y * Z + 'px; width: ' + f[0] * Z + 'px; height: ' + f[1] * Z + 'px; box-sizing: border-box; border-radius: 4px; cursor: ' + (isAdmin ? (S.drag && S.drag.k === k && S.drag.mode === 'move' ? 'grabbing' : 'grab') : 'pointer') + '; color: #f8fafc; z-index: ' + (on ? 3 : 1) + '; opacity: ' + (dimF ? 0.3 : 1) + ';' + outline,
+        labelStyle: 'position: absolute; ' + (t.kind === 'hub' ? 'right: -34px; top: -20px;' : 'right: -2px; top: -17px;') + ' padding: 0 5px; border-radius: 4px; background: #0a0e14; font-size: 11px; font-weight: 700; line-height: 15px; color: ' + (on ? '#93c5fd' : '#94a3b8') + '; pointer-events: none; white-space: nowrap;',
+        stop: function (e) { if (e.stopPropagation) e.stopPropagation(); },
+        tools: on && !S.drag ? 'position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(100% + 20px); display: flex; gap: 2px; padding: 3px; border-radius: 10px; background: #131924; border: 1px solid rgba(255,255,255,.16); box-shadow: 0 8px 20px -6px rgba(0,0,0,.8); z-index: 6; white-space: nowrap;' : 'display: none;',
+        toolBtn: 'min-height: 26px; padding: 0 9px; border: 0; border-radius: 7px; background: transparent; color: #e2e8f0; font: inherit; font-size: 12px; cursor: pointer;',
+        toolDel: 'min-height: 26px; padding: 0 9px; border: 0; border-radius: 7px; background: transparent; color: #fb7185; font: inherit; font-size: 12px; cursor: pointer;' + (S.units.length < 2 ? ' opacity: .35;' : ''),
+        goods: function () { openModal(k); }, copy: function () { copyUnit(k); }, del: function () { delUnit(k); },
+        editT: function () { self.setState({ view: 'tpl', tcur: u.tpl, sel: 0, asel: 0, msg: '', bad: false }); },
+        rot: function () { var uu = cloneU(), x = uu[k]; x.rot = tOf(x).kind === 'hub' ? ((x.rot || 0) + 90) % 360 : ((x.rot || 0) ? 0 : 90); var f2 = fp(x); x.x = Math.max(0, Math.min(COLS - f2[0], x.x)); x.y = Math.max(0, Math.min(ROWS - f2[1], x.y)); self.setState({ units: uu }); },
+        open: function () { if (isStaff) openModal(k); },
+        grab: function (e) { if (!isAdmin) return; if (e.preventDefault) e.preventDefault(); var r = e.currentTarget.getBoundingClientRect(); self.setState({ cur: k, addOpen: false, drag: { k: k, mode: 'move', dx: Math.floor((e.clientX - r.left) / Z), dy: Math.floor((e.clientY - r.top) / Z) } }); } };
+    });
+    var nOver = over.filter(Boolean).length, doorY = Math.round(ROWS / 2) - 1;
+    var all = S.units.reduce(function (acc, u) { var c2 = placed(u); return [acc[0] + c2[0], acc[1] + c2[1]]; }, [0, 0]);
+
+    // ---- template editor ----
+    var T = TP[S.tcur] || S.tpls[0], usedT = usedBy(T.id), nUsed = usedT.length;
+    var updT = function (fn, extra) { var t = cloneT(); fn(t.filter(function (x) { return x.id === T.id; })[0]); self.setState(Object.assign({ tpls: t, msg: '', bad: false }, extra || {})); };
+    var block = function (m) { self.setState({ msg: m, bad: true }); };
+    var hasProd = function (key) { return usedT.some(function (u) { return u.prod[key]; }); };
+    var lib = S.tpls.map(function (t) { var on = t.id === T.id;
+      return { name: t.name, mini: mini(t, 56), pressed: on ? 'true' : 'false', meta: tMeta(t),
+        style: 'display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 14px; cursor: pointer; text-align: start; color: inherit; font: inherit; background: ' + (on ? 'rgba(59,130,246,.12)' : '#131924') + '; border: 1px solid ' + (on ? 'rgba(96,165,250,.55)' : 'transparent') + ';',
+        pick: function () { self.setState({ tcur: t.id, sel: 0, asel: 0, msg: '', bad: false }); } }; });
+    var A_ = function (a, len, n) { return { a: a, len: len, steps: n }; };
+    var starterDefs = [
+      [{ name: 'صلیبی ۴ بازو', kind: 'hub', arms: [A_(0, 45, 2), A_(90, 45, 2), A_(180, 45, 2), A_(270, 45, 2)] }, 'هر بازو پلکانی، چهار طرف'],
+      [{ name: 'سه بازو', kind: 'hub', arms: [A_(90, 45, 2), A_(225, 45, 2), A_(315, 45, 2)] }, 'برای گوشه‌ها و وسط سالن'],
+      [{ name: 'دو بازو روبه‌رو', kind: 'hub', arms: [A_(0, 50, 3), A_(180, 50, 3)] }, 'پلکانی دوطرفه'],
+      [{ name: 'بازوی دیواری', kind: 'hub', arms: [A_(270, 60, 4)] }, 'یک بازوی پلکانی روی دیوار'],
+      [{ name: 'رگال خطی', kind: 'line', len: 150, arm: 50, pcs: [{ s: 'a', t: 'full', at: 0, w: 150 }, { s: 'b', t: 'full', at: 0, w: 150 }] }, 'رگال کامل و نیم‌رگال در دو طرف']
+    ];
+    var newT = function (base, name) { var t = cloneT(), n = JSON.parse(JSON.stringify(base)), sq = S.seq + 1; n.id = 'T' + sq; n.name = name;
+      if (n.arms) n.arms.forEach(function (a, i) { a.id = n.id + 'a' + i; }); if (n.pcs) n.pcs.forEach(function (p, i) { p.id = n.id + 'p' + i; });
+      t.push(n); return { tpls: t, tcur: n.id, sel: 0, asel: 0, seq: sq, newOpen: false }; };
+    var starters = starterDefs.map(function (d) { return { name: d[0].name, note: d[1], mini: mini(d[0], 40), pick: function () { self.setState(Object.assign(newT(d[0], d[0].name + ' ' + P(S.seq - 99)), { msg: 'قالب ساخته شد. شکلش را با کشیدن تنظیم کنید؛ بعد در «طراحی نقشه» از «+ رگال» آن را روی نقشه بگذارید.', bad: false })); } }; });
+
+    // line template stage
+    var isLineT = T.kind === 'line', PCS = isLineT ? T.pcs : [], pd = S.pdrag;
+    var sel = isLineT && PCS[S.sel] ? S.sel : null, sp = sel !== null ? PCS[sel] : null;
+    var K = isLineT ? Math.min(2.2, 900 / Math.max(T.len, 300)) : 1, armPx = isLineT ? T.arm * K : 0;
+    var px = function (c) { return Math.round(c * K) + 'px'; };
+    var edge = function (side) { return 'position: absolute; top: 0; bottom: 0; ' + side + ': -5px; width: 10px; cursor: ew-resize; z-index: 2;'; };
+    var startDrag = function (mode, i, e, extra) { if (e.stopPropagation) e.stopPropagation(); if (e.preventDefault) e.preventDefault(); self.setState(Object.assign({ pdrag: { mode: mode, i: i } }, extra || {})); };
+    var fitPcs = function (t) { t.pcs.forEach(function (p) { if (p.t === 'full') p.w = Math.max(30, Math.min(p.w, t.len)); p.at = Math.max(0, Math.min(p.at, t.len - (p.t === 'full' ? p.w : 0))); }); };
+    var filledCount = function (key) { return usedT.filter(function (u) { return u.prod[key]; }).length; };
+    var pieces = PCS.map(function (x, i) {
+      var on = i === sel, n = filledCount(x.id), col = on ? '#60a5fa' : (n ? '#cbd5e1' : '#64748b'), top = x.s === 'a', showDim = on || (pd && pd.i === i);
+      var o = { pressed: on ? 'true' : 'false', label: TL[x.t] + (n ? ' · کالا در ' + P(n) + ' رگال' : ''), aria: SL[x.s] + '، ' + TL[x.t] + '، ' + cm(x.at) + ' از سر راست',
+        grab: function (e) { if (e.preventDefault) e.preventDefault(); var r = e.currentTarget.parentNode.getBoundingClientRect(); self.setState({ sel: i, pdrag: { mode: 'move', i: i, off: (r.right - e.clientX) / K - x.at } }); } };
+      if (x.t === 'full') {
+        o.box = 'position: absolute; right: ' + px(x.at) + '; width: ' + px(x.w) + '; height: ' + Math.round(armPx) + 'px; ' + (top ? 'bottom: 3px;' : 'top: 3px;') + ' cursor: grab; z-index: ' + (on ? 3 : 1) + ';';
+        o.shape = 'position: absolute; inset: 0; border-radius: 6px; box-sizing: border-box; border: 2px solid ' + col + '; background: rgba(255,255,255,.03);' + (on ? ' box-shadow: 0 0 0 4px rgba(96,165,250,.22);' : '');
+        o.cap = 'display: none;';
+        o.labelStyle = 'position: absolute; left: 8px; right: 8px; top: calc(50% - 9px); text-align: center; font-size: 12px; font-weight: 600; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;';
+        o.edgeL = edge('left') + (on ? ' border-left: 3px solid #60a5fa; border-radius: 3px;' : ''); o.edgeR = edge('right') + (on ? ' border-right: 3px solid #60a5fa; border-radius: 3px;' : '');
+        o.grabL = function (e) { startDrag('pl', i, e, { sel: i }); }; o.grabR = function (e) { startDrag('pr', i, e, { sel: i }); };
+        o.dim = cm(x.w) + ' · از ' + P(x.at); o.dimStyle = showDim ? 'left: 50%; transform: translateX(-50%); ' + (top ? 'top: -22px;' : 'bottom: -22px;') : 'display: none;';
+      } else {
+        o.box = 'position: absolute; right: calc(' + px(x.at) + ' - 20px); width: 40px; height: ' + Math.round(armPx + 6) + 'px; ' + (top ? 'bottom: 3px;' : 'top: 3px;') + ' cursor: grab; z-index: ' + (on ? 3 : 1) + ';';
+        o.shape = 'position: absolute; left: calc(50% - 2px); width: 4px; ' + (top ? 'bottom: 0;' : 'top: 0;') + ' height: ' + Math.round(armPx) + 'px; border-radius: 2px; background: ' + col + ';';
+        o.cap = 'position: absolute; left: 0; right: 0; ' + (top ? 'top: 4px;' : 'bottom: 4px;') + ' height: 4px; border-radius: 2px; background: ' + col + ';' + (on ? ' box-shadow: 0 0 0 4px rgba(96,165,250,.22);' : '');
+        o.labelStyle = 'position: absolute; left: -50px; right: -50px; ' + (top ? 'top: -20px;' : 'bottom: -20px;') + ' text-align: center; font-size: 11.5px; font-weight: 600; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;';
+        o.edgeL = 'display: none;'; o.edgeR = 'display: none;'; o.grabL = function () {}; o.grabR = function () {};
+        o.dim = 'از ' + P(x.at); o.dimStyle = showDim ? 'left: 50%; transform: translateX(-50%); ' + (top ? 'top: -42px;' : 'bottom: -42px;') : 'display: none;';
+      }
+      return o;
+    });
+    var ruler = []; if (isLineT) for (var c = 0; c <= T.len; c += 50) ruler.push({ label: P(c), style: 'position: absolute; right: ' + px(c) + '; top: ' + Math.round(armPx + 14) + 'px; transform: translateX(50%); font-size: 10px; color: #475569;' });
+    var addPiece = function (s, t) { return function () { var sq = S.seq + 1; updT(function (tt) { var w = t === 'full' ? Math.min(100, tt.len) : 0; tt.pcs.push({ id: tt.id + 'p' + sq, s: s, t: t, at: Math.max(0, tt.len - w - (t === 'half' ? 10 : 0)), w: w }); }, { sel: PCS.length, seq: sq }); }; };
+    var setSel = function (fn) { return function () { updT(function (t) { fn(t.pcs[sel], t); fitPcs(t); }); }; };
+    var armHandle = function (top) { return 'position: absolute; left: calc(50% - 22px); width: 44px; height: 10px; ' + (top ? 'top: ' : 'bottom: ') + '-' + Math.round(armPx + 9) + 'px; border-radius: 5px; background: #3b82f6; border: 2px solid #0a0e14; cursor: ns-resize; z-index: 4;'; };
+    var depthLine = function (top) { return 'position: absolute; left: 0; right: 0; ' + (top ? 'top: ' : 'bottom: ') + '-' + Math.round(armPx + 4) + 'px; border-top: 1px dashed rgba(96,165,250,.45);'; };
+
+    // hub template stage
+    var isHubT = T.kind === 'hub', ARMS = isHubT ? T.arms : [];
+    var asel = isHubT && ARMS[S.asel] ? S.asel : null, A = asel !== null ? ARMS[asel] : null;
+    var HW = 560, HH = 440, CX = HW / 2, CY = HH / 2, HK = 2.3;
+    var hp = function (a, r) { return [CX + Math.cos(rad(a)) * r * HK, CY - Math.sin(rad(a)) * r * HK]; };
+    var freeAngle = function (from) { var used = ARMS.map(function (a) { return a.a; }); for (var k2 = 1; k2 <= 4; k2++) { var c2 = (from + k2 * 90) % 360; if (used.indexOf(c2) < 0) return c2; } for (var k3 = 1; k3 <= 8; k3++) { var c3 = (from + k3 * 45) % 360; if (used.indexOf(c3) < 0) return c3; } return null; };
+    var rings = isHubT ? [30, 60, 90].map(function (r) { return { label: cm(r), style: 'position: absolute; left: ' + (CX - r * HK) + 'px; top: ' + (CY - r * HK) + 'px; width: ' + 2 * r * HK + 'px; height: ' + 2 * r * HK + 'px; border-radius: 50%; border: 1px dashed rgba(255,255,255,.07); box-sizing: border-box; pointer-events: none;', lstyle: 'position: absolute; left: ' + (CX + 4) + 'px; top: ' + (CY - r * HK - 14) + 'px; font-size: 10px; color: #475569; pointer-events: none;' }; }) : [];
+    var hubArms = ARMS.map(function (a, i) {
+      var on = i === asel, tip = hp(a.a, a.len), col = on ? '#60a5fa' : '#cbd5e1', nl = hp(a.a, a.len + 14);
+      return { num: P(i + 1), pick: function (e) { if (e.stopPropagation) e.stopPropagation(); self.setState({ asel: i }); },
+        grab: function (e) { if (e.stopPropagation) e.stopPropagation(); if (e.preventDefault) e.preventDefault(); self.setState({ asel: i, hdrag: { i: i } }); },
+        line: 'position: absolute; left: ' + CX + 'px; top: ' + (CY - 3) + 'px; width: ' + Math.round(a.len * HK) + 'px; height: 6px; border-radius: 3px; background: ' + col + '; transform-origin: 0 50%; transform: rotate(' + (-a.a) + 'deg); cursor: pointer;' + (on ? ' box-shadow: 0 0 0 4px rgba(96,165,250,.2);' : ''),
+        tip: 'position: absolute; left: ' + (tip[0] - 9) + 'px; top: ' + (tip[1] - 9) + 'px; width: 18px; height: 18px; border-radius: 50%; background: #3b82f6; border: 3px solid #0a0e14; box-sizing: border-box; cursor: grab; z-index: 4;',
+        numStyle: 'position: absolute; left: ' + (nl[0] - 10) + 'px; top: ' + (nl[1] - 10) + 'px; width: 20px; height: 20px; border-radius: 50%; font-size: 11px; font-weight: 700; line-height: 20px; text-align: center; color: ' + (on ? '#0a0e14' : '#94a3b8') + '; background: ' + (on ? '#93c5fd' : '#131924') + '; pointer-events: none;',
+        dots: Array.apply(null, Array(a.steps)).map(function (_, j) { var p = hp(a.a, stepR(a, j)), n = filledCount(a.id + ':' + j);
+          return { label: P(j + 1), style: 'position: absolute; left: ' + (p[0] - 13) + 'px; top: ' + (p[1] - 11) + 'px; width: 26px; height: 22px; border-radius: 11px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #e2e8f0; cursor: pointer; z-index: 3; background: ' + (n ? '#1e3a8a' : '#131924') + '; border: 2px solid ' + (on ? '#60a5fa' : '#475569') + ';' }; }) };
+    });
+    var dg = S.hdrag && ARMS[S.hdrag.i] ? ARMS[S.hdrag.i] : null, dgTip = dg ? hp(dg.a, dg.len) : null;
+    var side = [];
+    if (A) { var sw = 90 / A.steps;
+      for (var j = 0; j < A.steps; j++) { var n2 = filledCount(A.id + ':' + j), topY = 18 + j * 24;
+        side.push({ label: 'پله ' + P(j + 1) + (n2 ? ' · ' + P(n2) + ' کالا' : ''),
+          bar: 'position: absolute; right: ' + (4 + j * sw) + '%; width: ' + sw + '%; top: ' + topY + 'px; height: 4px; border-radius: 2px; background: #cbd5e1;',
+          drop: j < A.steps - 1 ? 'position: absolute; right: calc(' + (4 + (j + 1) * sw) + '% - 2px); width: 4px; top: ' + topY + 'px; height: 28px; border-radius: 2px; background: #cbd5e1;' : 'display: none;',
+          hook: 'position: absolute; right: calc(' + (4 + (j + 0.5) * sw) + '% - 1px); top: ' + (topY + 4) + 'px; width: 2px; height: 12px; background: #64748b;',
+          lstyle: 'position: absolute; right: ' + (4 + (j + 0.5) * sw) + '%; transform: translateX(50%); top: ' + (topY + 16) + 'px; padding: 2px 8px; border-radius: 7px; font-size: 11px; font-weight: 600; white-space: nowrap; color: ' + (n2 ? '#e2e8f0' : '#64748b') + '; background: ' + (n2 ? '#1e3a8a' : 'transparent') + '; border: 1px ' + (n2 ? 'solid rgba(96,165,250,.4)' : 'dashed #475569') + ';' }); } }
+    var setSteps = function (d) { if (!A) return; var n = A.steps + d; if (n < 1 || n > 5) return;
+      if (d < 0 && hasProd(A.id + ':' + n)) { block('پله ' + P(A.steps) + ' این بازو روی رگال‌های نقشه کالا دارد. اول کالا را از آن پله بردارید.'); return; }
+      updT(function (t) { t.arms[asel].steps = n; }); };
+
+    // ---- goods modal ----
+    var MU = S.modal ? S.units[S.modal.k] : null, MT = MU ? tOf(MU) : null, MS = MT ? slotsOf(MT) : [];
+    var ms = MS.some(function (s) { return s.key === S.msel; }) ? S.msel : (MS[0] ? MS[0].key : null), mslot = MS.filter(function (s) { return s.key === ms; })[0], mp = MU && ms ? MU.prod[ms] : null;
+    var setProd = function (key, pid, extra) { var u = cloneU(); if (pid) u[S.modal.k].prod[key] = pid; else delete u[S.modal.k].prod[key]; self.setState(Object.assign({ units: u }, extra || {})); };
+    var nextEmpty = function (key, pid) { var i0 = MS.map(function (s) { return s.key; }).indexOf(key); for (var j2 = 1; j2 <= MS.length; j2++) { var s = MS[(i0 + j2) % MS.length]; if (s.key !== key && !MU.prod[s.key]) return s.key; } return key; };
+    var q = (S.q || '').trim(), qn = q.replace(/[۰-۹]/g, function (d) { return '۰۱۲۳۴۵۶۷۸۹'.indexOf(d); }), list = PRL.filter(function (p) { return !q || p[1].indexOf(q) >= 0 || P(p[1]).indexOf(q) >= 0 || p[1].indexOf(qn) >= 0; });
+    var mPieces = MT && MT.kind === 'line' ? MT.pcs.map(function (x) {
+      var pid = MU.prod[x.id], pr = pid ? byCode[pid] : null, on = x.id === ms, top = x.s === 'a', a0 = x.at / MT.len * 100, w = x.t === 'full' ? x.w / MT.len * 100 : 0;
+      var vert = top ? 'top: 0; bottom: calc(50% + 4px);' : 'top: calc(50% + 4px); bottom: 0;';
+      return { pressed: on ? 'true' : 'false', aria: SL[x.s] + '، ' + TL[x.t] + '، ' + (pr ? pr[1] : 'خالی'), label: pr ? shortC(pid) : '+ کالا', pick: function () { self.setState({ msel: x.id }); },
+        box: x.t === 'full' ? 'position: absolute; right: ' + a0 + '%; width: ' + w + '%; ' + vert + ' padding: 0; border-radius: 8px; cursor: pointer; font: inherit; color: inherit; box-sizing: border-box; border: 2px ' + (pr ? 'solid' : 'dashed') + ' ' + (on ? '#60a5fa' : (pr ? 'rgba(248,250,252,.5)' : '#475569')) + '; background: ' + (pr ? pr[3] + '55' : 'rgba(255,255,255,.02)') + ';' + (on ? ' box-shadow: 0 0 0 4px rgba(96,165,250,.25);' : '')
+          : 'position: absolute; right: calc(' + a0 + '% - 34px); width: 68px; ' + vert + ' padding: 0; border: 0; border-radius: 8px; cursor: pointer; font: inherit; color: inherit; background: ' + (on ? 'rgba(96,165,250,.15)' : 'transparent') + ';',
+        stem: x.t === 'full' ? 'display: none;' : 'position: absolute; left: calc(50% - 2px); width: 4px; top: 0; bottom: 0; border-radius: 2px; background: ' + (on ? '#60a5fa' : (pr ? pr[3] : '#64748b')) + ';',
+        labelStyle: 'position: relative; display: block; padding: 0 6px; font-size: 12px; font-weight: 600; color: ' + (pr ? '#f8fafc' : '#94a3b8') + '; text-shadow: 0 1px 3px rgba(0,0,0,.8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;' + (x.t === 'half' ? ' background: rgba(10,14,20,.8); border-radius: 6px;' : '') };
+    }) : [];
+    var mArms = MT && MT.kind === 'hub' ? (function () { var mx = Math.max.apply(null, MT.arms.map(function (a) { return a.len; }).concat([30])), mk = 100 / mx, rot = MU.rot || 0;
+      return MT.arms.map(function (a, i) { var g = rad(a.a + rot), c = Math.cos(g), s = Math.sin(g);
+        return { num: P(i + 1), numStyle: 'position: absolute; left: ' + (c * (a.len * mk + 16)) + 'px; top: ' + (-s * (a.len * mk + 16)) + 'px; transform: translate(-50%, -50%); width: 20px; height: 20px; border-radius: 50%; background: #131924; color: #94a3b8; font-size: 11px; font-weight: 700; line-height: 20px; text-align: center;', line: 'position: absolute; left: 0; top: -2px; width: ' + a.len * mk + 'px; height: 4px; border-radius: 2px; background: #94a3b8; transform-origin: 0 50%; transform: rotate(' + (-(a.a + rot)) + 'deg);',
+          dots: Array.apply(null, Array(a.steps)).map(function (_, j) { var key = a.id + ':' + j, pid = MU.prod[key], pr = pid ? byCode[pid] : null, on = key === ms, gap2 = (a.len * mk - 14) / a.steps, r = 14 + gap2 * (j + 0.5), o2 = gap2 < 32 ? (j % 2 ? 1 : -1) * 26 : 0;
+            return { label: pr ? shortC(pid) : '+', pressed: on ? 'true' : 'false', aria: 'بازوی ' + P(i + 1) + '، پله ' + P(j + 1) + '، ' + (pr ? pr[1] : 'خالی'), pick: function () { self.setState({ msel: key }); },
+              style: 'position: absolute; left: ' + (c * r + s * o2) + 'px; top: ' + (-s * r + c * o2) + 'px; transform: translate(-50%, -50%); min-width: 40px; height: 26px; padding: 0 7px; border-radius: 8px; cursor: pointer; font: inherit; font-size: 11.5px; font-weight: 700; color: #fff; z-index: 2; box-sizing: border-box; background: ' + (pr ? pr[3] : '#131924') + '; border: 2px ' + (pr ? 'solid' : 'dashed') + ' ' + (on ? '#60a5fa' : (pr ? 'rgba(255,255,255,.4)' : '#475569')) + ';' + (on ? ' box-shadow: 0 0 0 4px rgba(96,165,250,.3);' : '') + ' text-shadow: 0 1px 2px rgba(0,0,0,.7);' }; }) }; }); })() : [];
+    var mRows = MS.map(function (s) { var pid = MU.prod[s.key], pr = pid ? byCode[pid] : null, on = s.key === ms;
+      return { name: pr ? fullT(pid) : 'خالی', place: (pr ? 'کد ' + shortC(pid) + ' · ' : '') + s.place, action: pr ? 'تغییر' : '+ افزودن', pressed: on ? 'true' : 'false', pick: function () { self.setState({ msel: s.key }); },
+        nameStyle: 'font-size: 13px; font-weight: 600; color: ' + (pr ? '#e2e8f0' : '#64748b') + ';',
+        swatch: 'flex: none; width: 26px; height: 26px; border-radius: 7px; ' + (pr ? 'background: ' + pr[3] + '; border: 1px solid rgba(255,255,255,.2);' : 'border: 1px dashed #475569;'),
+        actionStyle: 'flex: none; font-size: 12px; font-weight: 600; color: ' + (pr ? '#94a3b8' : '#60a5fa') + ';',
+        style: 'display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; cursor: pointer; text-align: start; color: inherit; font: inherit; background: ' + (on ? 'rgba(59,130,246,.14)' : '#131924') + '; border: 1px solid ' + (on ? 'rgba(96,165,250,.55)' : 'transparent') + ';' }; });
+
+    var navDefs = [['map', 'نقشه فروشگاه', ''], ['design', 'طراحی نقشه', 'فقط مدیر'], ['tpl', 'قالب رگال‌ها', 'فقط مدیر']].filter(function (n) { return n[0] === 'map' || isAdminRole; });
+    var titles = { map: ['نقشه فروشگاه ساری', 'روی هر رگال بزنید تا کالاهایش را ببینید یا کالا اضافه کنید. داده‌ها نمونه است.'], design: ['طراحی نقشه فروشگاه ساری', 'رگال‌ها را از قالب‌ها روی نقشه بچینید. شکل هر رگال در «قالب رگال‌ها» ساخته می‌شود. داده‌ها نمونه است.'], tpl: ['قالب رگال‌ها', 'هر قالب یک بار ساخته می‌شود و هر چند بار روی نقشه می‌نشیند؛ تغییر قالب روی همه‌ی رگال‌های آن اعمال می‌شود.'] };
+    var storeOk = this._ok !== false;
+
+    return {
+      nav: navDefs.map(function (n) { var on = view === n[0]; return { label: n[1], badge: n[2], current: on ? 'page' : 'false', badgeStyle: n[2] ? 'margin-inline-start: 6px; padding: 1px 7px; border-radius: 999px; font-size: 10.5px; background: rgba(251,191,36,.16); color: #fbbf24;' : 'display: none;',
+        style: 'min-height: 34px; padding: 0 14px; border: 0; border-radius: 10px; font-size: 13px; cursor: pointer; ' + (on ? 'background: rgba(59,130,246,.16); color: #f8fafc; font-weight: 600;' : 'background: transparent; color: #94a3b8;'), pick: function () { self.setState({ view: n[0], modal: null, addOpen: false, msg: '', bad: false }); } }; }),
+      roles: [['admin', 'مدیر'], ['staff', 'کارمند']].map(function (r) { var on = S.role === r[0]; return { label: r[1], pressed: on ? 'true' : 'false', style: seg(on), pick: function () { self.setState({ role: r[0], view: r[0] === 'admin' ? S.view : 'map', modal: null }); } }; }),
+      isAdmin: isAdmin, isStaff: isStaff, showBoard: view !== 'tpl', showTpl: view === 'tpl',
+      pageTitle: titles[view][0], pageSub: titles[view][1],
+      summary: view === 'tpl' ? P(S.tpls.length) + ' قالب' : P(S.units.length) + ' رگال · ' + P(all[1]) + ' از ' + P(all[0]) + ' جایگاه کالا دارد' + (isAdmin && nOver ? ' · ' + P(nOver) + ' رگال روی هم' : ''),
+      find: S.find, setFind: function (e) { self.setState({ find: e.target.value }); },
+      findNote: fq ? (findHits.filter(Boolean).length ? P(findHits.filter(Boolean).length) + ' رگال پیدا شد' : 'روی هیچ رگالی نیست') : '',
+      codesOn: S.codes ? 'true' : 'false', toggleCodes: function () { self.setState({ codes: !S.codes }); },
+      codesBtn: 'min-height: 30px; ' + (S.codes ? 'background: rgba(59,130,246,.16); border-color: rgba(96,165,250,.5); color: #e2e8f0;' : ''),
+      boardSize: P(COLS / 2) + ' × ' + P(ROWS / 2) + ' متر',
+      zPlus: function () { self.setState({ z: Math.min(64, Z + 6) }); }, zMinus: function () { self.setState({ z: Math.max(14, Z - 6) }); },
+      boardHint: isStaff ? 'کد هر کالا روی جایگاهش نوشته شده؛ روی رگال بزنید تا نام کامل کالاها را ببینید یا کالا اضافه کنید.' : 'روی رگال بزنید تا ابزارهایش بیاید: کالاها، قالب، کپی، چرخش، حذف.',
+      toggleAdd: function () { self.setState({ addOpen: !S.addOpen }); }, addOpen: S.addOpen, addOpenA: S.addOpen ? 'true' : 'false',
+      addList: S.tpls.map(function (t) { return { name: t.name, meta: tMeta(t), mini: mini(t, 40), pick: function () { var u = cloneU(), n = { code: nextCode(u), x: 0, y: 0, rot: 0, tpl: t.id, prod: {} }, sp2 = freeSpot(n); n.x = sp2[0]; n.y = sp2[1]; u.push(n); self.setState({ units: u, cur: u.length - 1, addOpen: false }); } }; }),
+      goTpl: function () { self.setState({ view: 'tpl', addOpen: false, newOpen: true }); },
+      saveText: storeOk ? 'ذخیره شد ✓' : 'ذخیره نشد', saveStyle: 'font-size: 11.5px; color: ' + (storeOk ? '#34d399' : '#fbbf24') + ';',
+      boardStyle: 'position: relative; width: ' + COLS * Z + 'px; height: ' + ROWS * Z + 'px; border: 6px solid #475569; border-radius: 4px; background-color: #0a0e14; background-image: linear-gradient(rgba(255,255,255,' + (isAdmin ? '.07' : '.035') + ') 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,' + (isAdmin ? '.07' : '.035') + ') 1px, transparent 1px); background-size: ' + 2 * Z + 'px ' + 2 * Z + 'px; user-select: none; font-family: Vazirmatn, system-ui, sans-serif;',
+      door: 'position: absolute; left: -6px; top: ' + doorY * Z + 'px; width: 6px; height: ' + 3 * Z + 'px; background: #22c55e;',
+      doorLabel: 'position: absolute; left: -24px; top: ' + (doorY * Z - 18) + 'px; font-size: 11px; color: #4ade80; white-space: nowrap; direction: rtl;',
+      boardRacks: boardRacks,
+      boardHandleW: isAdmin ? 'position: absolute; right: -14px; top: calc(50% - 26px); width: 10px; height: 52px; border-radius: 5px; background: #475569; cursor: ew-resize;' : 'display: none;',
+      boardHandleH: isAdmin ? 'position: absolute; bottom: -14px; left: calc(50% - 26px); width: 52px; height: 10px; border-radius: 5px; background: #475569; cursor: ns-resize;' : 'display: none;',
+      grabBoardW: bdrag('bw', null), grabBoardH: bdrag('bh', null),
+      move: function (e) { var d = S.drag; if (!d || !isAdmin) return; var el = e.currentTarget.querySelector('[data-board]'); if (!el) return; var r = el.getBoundingClientRect();
+        if (d.mode === 'bw' || d.mode === 'bh') {
+          var nc = d.mode === 'bw' ? Math.max(minCols, Math.min(90, Math.round((e.clientX - r.left - 6) / Z / 2) * 2)) : COLS, nr = d.mode === 'bh' ? Math.max(minRows, Math.min(70, Math.round((e.clientY - r.top - 6) / Z / 2) * 2)) : ROWS;
+          if (nc !== COLS || nr !== ROWS) self.setState({ cols: nc, rows: nr }); return; }
+        var cx = Math.floor((e.clientX - r.left - 6) / Z), cy = Math.floor((e.clientY - r.top - 6) / Z), u = cloneU(), t = u[d.k], f = fp(t);
+        var nx = Math.max(0, Math.min(COLS - f[0], cx - d.dx)), ny = Math.max(0, Math.min(ROWS - f[1], cy - d.dy));
+        if (nx === t.x && ny === t.y) return; t.x = nx; t.y = ny; self.setState({ units: u }); },
+      drop: function () { if (S.drag) self.setState({ drag: null }); },
+
+      lib: lib, starters: starters, newOpen: S.newOpen, newOpenA: S.newOpen ? 'true' : 'false', toggleNew: function () { self.setState({ newOpen: !S.newOpen }); },
+      tName: T.name, setName: function (e) { var v = e.target.value; updT(function (t) { t.name = v; }); },
+      tInfo: isHubT ? (function () { var e = ext(T, 0); return P(ARMS.length) + ' بازو · ' + P(slotsOf(T).length) + ' جایگاه · جای روی کف ' + P(Math.max(1, Math.ceil((e.maxx - e.minx - 0.01) / 50)) * 50) + '×' + P(Math.max(1, Math.ceil((e.maxy - e.miny - 0.01) / 50)) * 50) + ' سانت'; })() : P(PCS.length) + ' جایگاه · طول ' + cm(T.len) + ' · عمق ' + cm(T.arm * sidesT(T)),
+      tUsed: nUsed > 0, delTip: nUsed ? 'این قالب در ' + P(nUsed) + ' رگال استفاده شده؛ اول آن رگال‌ها را حذف کنید' : 'حذف قالب',
+      dupT: function () { self.setState(Object.assign(newT(T, T.name + ' (کپی)'), { msg: '', bad: false })); },
+      delT: function () { if (nUsed || S.tpls.length < 2) return; var t = S.tpls.filter(function (x) { return x.id !== T.id; }); self.setState({ tpls: t, tcur: t[0].id, sel: 0, asel: 0 }); },
+      isLineT: isLineT, isHubT: isHubT,
+      stageStyle: 'position: relative; min-width: ' + (Math.round(T.len * K) + 140) + 'px; height: ' + Math.round(armPx * 2 + 120) + 'px; border-radius: 14px; border: 1px solid rgba(255,255,255,.08); background-color: #0a0e14; background-image: linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px); background-size: ' + Math.round(10 * K) + 'px ' + Math.round(10 * K) + 'px; overflow: hidden; user-select: none; cursor: ' + (pd ? (pd.mode === 'arm' ? 'ns-resize' : (pd.mode === 'move' ? 'grabbing' : 'ew-resize')) : 'default') + ';',
+      spineBox: 'position: absolute; right: 60px; top: 50%; width: ' + px(T.len || 0) + '; height: 0;',
+      depthA: depthLine(true), depthB: depthLine(false), armHandleA: armHandle(true), armHandleB: armHandle(false),
+      grabArmA: function (e) { startDrag('arm', null, e); }, grabArmB: function (e) { startDrag('arm', null, e); },
+      lenHandle: 'position: absolute; left: -7px; top: -16px; width: 10px; height: 32px; border-radius: 5px; background: #3b82f6; border: 2px solid #0a0e14; cursor: ew-resize; z-index: 4;',
+      grabLen: function (e) { startDrag('len', null, e); },
+      lenDim: cm(T.len || 0), lenDimStyle: 'left: -12px; top: 22px; transform: translateX(-100%);' + (pd && pd.mode === 'len' ? '' : ' background: #1e293b; color: #94a3b8;'),
+      pieces: pieces, ruler: ruler,
+      pMove: function (e) { var d = S.pdrag; if (!d || !isLineT) return; var el = e.currentTarget.querySelector('[data-spine]'); if (!el) return; var r = el.getBoundingClientRect();
+        var xcm = (r.right - e.clientX) / K, ycm = Math.abs(e.clientY - r.top) / K, tt = cloneT(), t = tt.filter(function (x) { return x.id === T.id; })[0], x = d.i !== null ? t.pcs[d.i] : null, before = JSON.stringify(t);
+        if (d.mode === 'move') { x.at = Math.max(0, Math.min(t.len - (x.t === 'full' ? x.w : 0), snap(xcm - (d.off || 0), 5))); }
+        else if (d.mode === 'pl') { x.w = Math.max(30, Math.min(t.len - x.at, snap(xcm - x.at, 5))); }
+        else if (d.mode === 'pr') { var end = x.at + x.w; x.at = Math.max(0, Math.min(end - 30, snap(xcm, 5))); x.w = end - x.at; }
+        else if (d.mode === 'len') { var need = Math.max.apply(null, t.pcs.map(function (p) { return p.at + (p.t === 'full' ? p.w : 0); }).concat([100])); t.len = Math.max(need, Math.min(1200, snap(xcm, 10))); }
+        else if (d.mode === 'arm') { t.arm = Math.max(25, Math.min(150, snap(ycm, 5))); }
+        if (JSON.stringify(t) === before) return; self.setState({ tpls: tt }); },
+      pDrop: function () { if (S.pdrag) self.setState({ pdrag: null }); },
+      addAF: addPiece('a', 'full'), addAH: addPiece('a', 'half'), addBF: addPiece('b', 'full'), addBH: addPiece('b', 'half'),
+      hasSel: !!sp,
+      sideSeg: sp ? [['a', 'الف'], ['b', 'ب']].map(function (k) { var on = sp.s === k[0]; return { label: k[1], pressed: on ? 'true' : 'false', style: seg(on), pick: setSel(function (p) { p.s = k[0]; }) }; }) : [],
+      typeSeg: sp ? [['full', 'کامل'], ['half', 'نیم']].map(function (k) { var on = sp.t === k[0]; return { label: k[1], pressed: on ? 'true' : 'false', style: seg(on), pick: setSel(function (p, t) { p.t = k[0]; p.w = k[0] === 'full' ? Math.min(100, t.len) : 0; }) }; }) : [],
+      copyPiece: function () { if (!sp) return; var sq = S.seq + 1; updT(function (t) { var c2 = JSON.parse(JSON.stringify(sp)); c2.id = t.id + 'p' + sq; c2.at = Math.max(0, Math.min(t.len - (c2.t === 'full' ? c2.w : 0), c2.at + (c2.t === 'full' ? c2.w + 5 : 20))); t.pcs.push(c2); }, { sel: PCS.length, seq: sq }); },
+      delPiece: function () { if (!sp) return; if (hasProd(sp.id)) { block('این تکه روی ' + P(filledCount(sp.id)) + ' رگال کالا دارد. اول کالا را بردارید.'); return; } if (PCS.length < 2) { block('قالب دست‌کم یک تکه لازم دارد.'); return; } updT(function (t) { t.pcs.splice(sel, 1); }, { sel: null }); },
+
+      addArm: function () { var a = freeAngle(A ? A.a : 0); if (a === null) return; var sq = S.seq + 1; updT(function (t) { t.arms.push({ id: t.id + 'a' + sq, a: a, len: 45, steps: 2 }); }, { asel: ARMS.length, seq: sq }); },
+      armsFull: ARMS.length >= 8,
+      hasArm: !!A, armTitle: A ? 'بازوی ' + P(asel + 1) : '', armDim: A ? 'طول ' + cm(A.len) + ' · رو به ' + DIR[A.a] : '',
+      stepText: A ? P(A.steps) + ' پله' : '', stepMinus: function () { setSteps(-1); }, stepPlus: function () { setSteps(1); },
+      copyArm: function () { if (!A) return; var a = freeAngle(A.a); if (a === null) return; var sq = S.seq + 1; updT(function (t) { t.arms.push({ id: t.id + 'a' + sq, a: a, len: A.len, steps: A.steps }); }, { asel: ARMS.length, seq: sq }); },
+      delArm: function () { if (!A) return; for (var j3 = 0; j3 < A.steps; j3++) if (hasProd(A.id + ':' + j3)) { block('این بازو روی رگال‌های نقشه کالا دارد. اول کالاهایش را بردارید.'); return; } if (ARMS.length < 2) { block('قالب دست‌کم یک بازو لازم دارد.'); return; } updT(function (t) { t.arms.splice(asel, 1); }, { asel: 0 }); },
+      hubStage: 'position: relative; width: ' + HW + 'px; height: ' + HH + 'px; border-radius: 14px; border: 1px solid rgba(255,255,255,.08); background-color: #0a0e14; background-image: linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px); background-size: ' + 10 * HK + 'px ' + 10 * HK + 'px; background-position: ' + CX + 'px ' + CY + 'px; overflow: hidden; user-select: none; cursor: ' + (S.hdrag ? 'grabbing' : 'default') + ';',
+      rings: rings, hubArms: hubArms,
+      hubPost: 'position: absolute; left: ' + (CX - R0 * HK) + 'px; top: ' + (CY - R0 * HK) + 'px; width: ' + 2 * R0 * HK + 'px; height: ' + 2 * R0 * HK + 'px; border-radius: 50%; background: #e2e8f0; border: 3px solid #0a0e14; box-sizing: border-box; z-index: 5; pointer-events: none;',
+      dragText: dg ? cm(dg.len) + ' · رو به ' + DIR[dg.a] : '', dragDim: dg ? 'position: absolute; left: ' + (dgTip[0] + 14) + 'px; top: ' + (dgTip[1] - 30) + 'px; padding: 1px 8px; border-radius: 999px; background: #1d4ed8; color: #fff; font-size: 11px; font-weight: 600; white-space: nowrap; z-index: 6; pointer-events: none;' : 'display: none;',
+      sMove: function (e) { var d = S.hdrag; if (!d) return; var r = e.currentTarget.getBoundingClientRect(), dx = e.clientX - r.left - CX, dy = CY - (e.clientY - r.top);
+        var ang = ((Math.round(Math.atan2(dy, dx) * 180 / Math.PI / 45) * 45) % 360 + 360) % 360, len = Math.max(20, Math.min(90, Math.round(Math.hypot(dx, dy) / HK / 5) * 5));
+        var tt = cloneT(), t = tt.filter(function (x) { return x.id === T.id; })[0], a = t.arms[d.i];
+        if (t.arms.some(function (o, i) { return i !== d.i && o.a === ang; })) ang = a.a;
+        if (a.a === ang && a.len === len) return; a.a = ang; a.len = len; self.setState({ tpls: tt }); },
+      sDrop: function () { if (S.hdrag) self.setState({ hdrag: null }); },
+      sideTitle: A ? 'نمای کنار بازوی ' + P(asel + 1) + ' · پلکانی، ' + P(A.steps) + ' جایگاه' : 'یک بازو را انتخاب کنید',
+      sideBox: 'position: relative; height: ' + (A ? 50 + A.steps * 24 : 40) + 'px;', side: side,
+      msg: S.msg || (nUsed ? 'تغییر این قالب روی همه‌ی ' + P(nUsed) + ' رگال ساخته‌شده از آن اعمال و خودکار ذخیره می‌شود.' : 'این قالب هنوز روی نقشه نیست. در «طراحی نقشه» از «+ رگال» آن را بگذارید.'),
+      msgBox: 'gap: 8px; padding: 8px 12px; border-radius: 10px; background: ' + (S.bad ? 'rgba(251,113,133,.1)' : 'rgba(52,211,153,.08)') + ';', msgStyle: 'font-size: 12px; color: ' + (S.bad ? '#fb7185' : '#34d399') + ';',
+
+      modalOpen: !!MU, closeModal: function () { self.setState({ modal: null, q: '' }); }, stopClick: function (e) { if (e.stopPropagation) e.stopPropagation(); },
+      mIsLine: !!(MT && MT.kind === 'line'), mIsHub: !!(MT && MT.kind === 'hub'),
+      mTitle: MU ? 'کالاهای رگال ' + MU.code : '', mSub: MU ? MT.name + ' · ' + P(placed(MU)[1]) + ' از ' + P(placed(MU)[0]) + ' جایگاه کالا دارد' : '',
+      mPieces: mPieces, mArms: mArms, mRows: mRows,
+      mPickTitle: mslot ? (mp ? 'تغییر کالای ' : 'افزودن کالا به ') + mslot.short : '',
+      mHasCur: !!mp, mCurName: mp ? fullT(mp) : '', mCurDot: mp ? 'width: 16px; height: 16px; border-radius: 5px; background: ' + byCode[mp][3] + ';' : '',
+      mClear: function () { if (ms) setProd(ms, null); },
+      q: S.q, setQ: function (e) { self.setState({ q: e.target.value }); }, noResult: list.length === 0,
+      products: list.map(function (p) { var on = mp === p[0];
+        return { name: P(p[1]), meta: 'کد ' + shortC(p[0]) + ' · ' + p[2], status: p[4], pressed: on ? 'true' : 'false',
+          statusStyle: 'flex: none; font-size: 11px; padding: 2px 8px; border-radius: 999px; color: ' + ST[p[4]] + '; background: ' + ST[p[4]] + '1f;',
+          swatch: 'flex: none; width: 30px; height: 30px; border-radius: 8px; border: 1px solid rgba(255,255,255,.15); background: ' + p[3] + ';',
+          style: 'display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; cursor: pointer; text-align: start; color: inherit; font: inherit; background: ' + (on ? 'rgba(59,130,246,.14)' : 'transparent') + '; border: 1px solid ' + (on ? 'rgba(96,165,250,.5)' : 'transparent') + ';',
+          pick: function () { if (!ms) return; setProd(ms, p[0], { msel: nextEmpty(ms), q: '' }); } }; })
+    };
+  }
+}
+</script>
+</body>
+</html>

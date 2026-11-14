@@ -52,7 +52,7 @@ def _user_payload(user):
     from apps.pulse.permissions import has_pulse_access
     from apps.sales.semantics import visible_sales_lines
 
-    from .permissions import is_super_admin
+    from .permissions import is_super_admin, store_map_access
 
     return {
         "id": user.id,
@@ -61,6 +61,8 @@ def _user_payload(user):
         "can_manage_platform": is_super_admin(user),
         "can_manage_calls": is_call_manager(user),
         "features": {"pulse": has_pulse_access(user)},
+        # Store map: "design" (super admin), "edit" (products on racks), "view" (read-only) or null (no menu).
+        "store_map": store_map_access(user),
         # Sales lines shown in every report (settings.HIDDEN_SALES_LINES); the frontend builds branch lists from it.
         "visible_sales_lines": list(visible_sales_lines()),
     }

@@ -5,6 +5,8 @@ export type User = {
   can_manage_platform?: boolean;
   can_manage_calls?: boolean;
   features?: { pulse?: boolean };
+  /** Store map access: "design" (super admin), "edit" (products on racks), "view" (read-only), null (no menu). */
+  store_map?: "design" | "edit" | "view" | null;
   /** Sales lines shown in reports (settings.HIDDEN_SALES_LINES); see lib/salesLines.ts. */
   visible_sales_lines?: string[];
 };

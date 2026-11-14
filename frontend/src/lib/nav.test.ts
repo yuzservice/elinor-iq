@@ -43,4 +43,14 @@ describe("nav visibility", () => {
     expect(showsSettings({ role: "sales_agent" })).toBe(false);
     expect(showsSettings({ role: "admin" })).toBe(true);
   });
+
+  it("gives store staff only the store map and sales staff every report menu without settings", () => {
+    expect(keys({ role: "store_staff", store_map: "view", features: { pulse: true } })).toEqual(["store"]);
+    expect(keys({ role: "sales_staff", store_map: "edit" })).toEqual(["home", "customers", "products", "store"]);
+    expect(showsSettings({ role: "store_staff" })).toBe(false);
+    expect(showsSettings({ role: "sales_staff" })).toBe(false);
+    expect(keys({ role: "sales_agent", store_map: null })).not.toContain("store");
+    expect(keys({ role: "analyst", store_map: "view" })).toContain("store");
+    expect(keys({ role: "admin", store_map: null })).not.toContain("store");
+  });
 });

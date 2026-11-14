@@ -10,9 +10,12 @@ async function getCsrfToken(): Promise<string> {
 
 export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  /** The response's `code` field when it has one (e.g. "version_conflict", "blocked"). */
+  code?: string;
+  constructor(message: string, status: number, code?: string) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -34,7 +37,8 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const detail = data && typeof data === "object" && "detail" in data ? String(data.detail) : "";
-    throw new ApiError(detail || "دریافت اطلاعات با خطا مواجه شد.", response.status);
+    const code = data && typeof data === "object" && "code" in data ? String(data.code) : undefined;
+    throw new ApiError(detail || "دریافت اطلاعات با خطا مواجه شد.", response.status, code);
   }
   return data as T;
 }

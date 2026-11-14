@@ -31,6 +31,13 @@ cd /opt/elinor-iq && mkdir -p backups
 docker compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > backups/elinor_iq-$(date +%F).dump
 ls -lh backups/elinor_iq-$(date +%F).dump
 ```
+The dump is the whole database, with no table list, so every app's tables are in it, including the store map
+(`store_layouts`, `store_racks`, `store_rack_slots`, `store_slot_products`, `store_slot_product_history`, 2026-11-14).
+A new app needs no change here. To check a dump holds them:
+```bash
+docker compose exec -T postgres pg_restore -l < backups/elinor_iq-$(date +%F).dump | grep -c "TABLE DATA public store_"
+```
+(expected: 5).
 Pulse covers (only when Pulse is on):
 ```bash
 docker compose exec -T pulse-scheduler python manage.py pulse_export_covers /tmp/pulse-covers.tar.gz

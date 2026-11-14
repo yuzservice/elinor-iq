@@ -12,4 +12,5 @@ urlpatterns = [
     path("api/system/", include("apps.system.urls")),
     path("api/calls/", include("apps.calls.urls")),
     path("api/pulse/", include("apps.pulse.urls")),
+    path("api/store-map/", include("apps.store_map.urls")),
 ]
