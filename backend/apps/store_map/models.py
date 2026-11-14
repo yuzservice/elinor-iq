@@ -1,6 +1,7 @@
-"""Store floor map («فروشگاه»): one layout per branch, racks with full/half pieces (slots), one product per slot.
+"""Store floor map («فروشگاه»): one layout per branch; every rack is an instance of a rack template (line: a spine with
+full/half pieces; hub: a post with stepped arms); each template element gives the rack one slot; one product per slot.
 
-Racks and slots are soft-deleted (`deleted_at`) so their history rows always keep their target; nothing cascades into
+Templates, their elements, racks and slots are soft-deleted (`deleted_at`) so their history rows always keep their target; nothing cascades into
 `store_slot_product_history`. Products are referenced without a DB constraint so catalog sync never trips over the map.
 """
 
@@ -28,14 +29,63 @@ class StoreLayout(models.Model):
         db_table = "store_layouts"
 
 
+class RackTemplate(models.Model):
+    KINDS = [("line", "line"), ("hub", "hub")]
+
+    layout = models.ForeignKey(StoreLayout, on_delete=models.PROTECT, related_name="templates")
+    name = models.CharField(max_length=64)
+    kind = models.CharField(max_length=4, choices=KINDS)
+    length_cm = models.PositiveIntegerField(null=True, blank=True)  # line only
+    arm_cm = models.PositiveIntegerField(null=True, blank=True)  # line only: depth of one side
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "store_rack_templates"
+
+
+class TemplatePiece(models.Model):
+    """Line template element: a full piece (with a length) or a half piece (a point) on side a or b."""
+
+    template = models.ForeignKey(RackTemplate, on_delete=models.PROTECT, related_name="pieces")
+    side = models.CharField(max_length=1, choices=[("a", "a"), ("b", "b")])
+    kind = models.CharField(max_length=4, choices=[("full", "full"), ("half", "half")])
+    offset_cm = models.PositiveIntegerField()  # from the rack's right end
+    length_cm = models.PositiveIntegerField(null=True, blank=True)  # full only
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "store_template_pieces"
+
+
+class TemplateArm(models.Model):
+    """Hub template element: an arm from the post at `angle_deg` (0 = right, counter-clockwise), stepped; one slot per step."""
+
+    template = models.ForeignKey(RackTemplate, on_delete=models.PROTECT, related_name="arms")
+    angle_deg = models.PositiveSmallIntegerField()  # 0–315, multiples of 45
+    length_cm = models.PositiveSmallIntegerField()  # 20–90
+    steps = models.PositiveSmallIntegerField()  # 1–5
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "store_template_arms"
+        constraints = [
+            models.UniqueConstraint(fields=["template", "angle_deg"], condition=models.Q(deleted_at__isnull=True), name="store_arm_angle_unique_live"),
+        ]
+
+
 class Rack(models.Model):
+    ROTATIONS = [(0, "0"), (90, "90"), (180, "180"), (270, "270")]  # 180/270: hub templates only
+
     layout = models.ForeignKey(StoreLayout, on_delete=models.PROTECT, related_name="racks")
+    template = models.ForeignKey(RackTemplate, null=True, blank=True, on_delete=models.PROTECT, related_name="racks")
     code = models.CharField(max_length=32)
     x_cm = models.IntegerField()
     y_cm = models.IntegerField()
-    rotation = models.PositiveSmallIntegerField(choices=[(0, "0"), (90, "90")], default=0)
-    length_cm = models.PositiveIntegerField()
-    arm_cm = models.PositiveIntegerField()  # depth of one side
+    rotation = models.PositiveSmallIntegerField(choices=ROTATIONS, default=0)
+    length_cm = models.PositiveIntegerField(null=True, blank=True)  # before templates (0002); no longer read
+    arm_cm = models.PositiveIntegerField(null=True, blank=True)  # before templates (0002); no longer read
     deleted_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -52,10 +102,15 @@ class RackSlot(models.Model):
     KINDS = [("full", "full"), ("half", "half")]
 
     rack = models.ForeignKey(Rack, on_delete=models.PROTECT, related_name="slots")
-    side = models.CharField(max_length=1, choices=SIDES)
-    kind = models.CharField(max_length=4, choices=KINDS)
-    offset_cm = models.PositiveIntegerField()  # from the rack's right end
-    length_cm = models.PositiveIntegerField(null=True, blank=True)  # full pieces only
+    # The template element this slot comes from: a line piece, or a hub arm step (0 = next to the post).
+    template_piece = models.ForeignKey(TemplatePiece, null=True, blank=True, on_delete=models.PROTECT, related_name="slots")
+    template_arm = models.ForeignKey(TemplateArm, null=True, blank=True, on_delete=models.PROTECT, related_name="slots")
+    step_index = models.PositiveSmallIntegerField(null=True, blank=True)
+    # Geometry before templates (0002); kept for history, no longer read.
+    side = models.CharField(max_length=1, choices=SIDES, blank=True, null=True)
+    kind = models.CharField(max_length=4, choices=KINDS, blank=True, null=True)
+    offset_cm = models.PositiveIntegerField(null=True, blank=True)
+    length_cm = models.PositiveIntegerField(null=True, blank=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
