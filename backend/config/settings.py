@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "apps.system.apps.SystemConfig",
     "apps.calls.apps.CallsConfig",
     "apps.pulse.apps.PulseConfig",
+    "apps.store_map.apps.StoreMapConfig",
 ]
 
 MIDDLEWARE = [
