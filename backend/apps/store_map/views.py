@@ -11,8 +11,10 @@ from apps.sales.models import SalesLine
 from apps.sales.semantics import visible_sales_lines
 
 from .codes import HIDDEN_STATUSES, search_filter
-from .layout import Conflict, Invalid, layout_payload, product_cards, save_layout, set_slot_product
-from .models import StoreLayout
+from .errors import Blocked, Conflict, Invalid
+from .layout import layout_payload, product_cards, rack_slots, save_layout, set_slot_product
+from .models import Rack, StoreLayout
+from .templates import delete_template, live_parts, save_template, template_payload
 
 DENIED = Response({"detail": "به این بخش دسترسی ندارید."}, status=status.HTTP_403_FORBIDDEN)
 CONFLICT = "نقشه در این فاصله در جای دیگری ذخیره شده است. صفحه را دوباره بارگیری کنید تا آخرین نسخه را ببینید؛ تغییرهای ذخیره‌نشده شما اعمال نمی‌شود."
@@ -25,7 +27,7 @@ def _allowed(request, level):
 
 def _branch(request):
     """Store branches only (never ONLINE or a hidden line); SARI by default."""
-    branch = request.query_params.get("branch") or (request.data.get("branch") if request.method == "PUT" else None) or SalesLine.SARI
+    branch = request.query_params.get("branch") or (request.data.get("branch") if request.method in ("PUT", "POST") else None) or SalesLine.SARI
     stores = [line for line in visible_sales_lines() if line != SalesLine.ONLINE]
     return branch if branch in stores else None
 
@@ -41,13 +43,66 @@ def layout(request):
         found = StoreLayout.objects.select_related("updated_by").filter(branch=branch).first()
         return Response({"branch": branch, "access": store_map_access(request.user), "layout": layout_payload(found)})
     try:
-        saved, ids = save_layout(branch, request.data, request.user)
-    except Conflict:
+        saved, created = save_layout(branch, request.data, request.user)
+    except (Conflict, Blocked, Invalid) as error:
+        return _error(branch, error)
+    return Response({"version": saved.version, "updated_at": saved.updated_at, "created": created})
+
+
+def _error(branch, error):
+    if isinstance(error, Conflict):
         current = StoreLayout.objects.filter(branch=branch).values_list("version", flat=True).first()
         return Response({"detail": CONFLICT, "code": "version_conflict", "version": current}, status=status.HTTP_409_CONFLICT)
-    except Invalid as error:
-        return Response({"detail": str(error)}, status=status.HTTP_400_BAD_REQUEST)
-    return Response({"version": saved.version, "updated_at": saved.updated_at, "ids": ids})
+    if isinstance(error, Blocked):
+        return Response({"detail": str(error), "code": "blocked"}, status=status.HTTP_409_CONFLICT)
+    return Response({"detail": str(error)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+def _template_result(layout, template, ids):
+    """The saved template, the new layout version, and the slots of every rack built from it (they may have changed)."""
+    pieces, arms = live_parts([template])
+    racks = list(Rack.objects.filter(template=template, deleted_at__isnull=True).order_by("id"))
+    slots = rack_slots(racks)
+    return {
+        "version": layout.version,
+        "ids": ids,
+        "template": template_payload(template, pieces.get(template.id, []), arms.get(template.id, []), len(racks)),
+        "racks": [{"id": r.id, "slots": slots.get(r.id, [])} for r in racks],
+    }
+
+
+@api_view(["POST"])
+def templates(request):
+    """Create a rack template (super admin); body: version, kind (line/hub), name and its pieces or arms."""
+    if not _allowed(request, "design"):
+        return DENIED
+    branch = _branch(request)
+    if branch is None:
+        return Response({"detail": "شعبه نامعتبر است."}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        layout, template, ids = save_template(branch, None, request.data, request.user)
+    except (Conflict, Blocked, Invalid) as error:
+        return _error(branch, error)
+    return Response(_template_result(layout, template, ids), status=status.HTTP_201_CREATED)
+
+
+@api_view(["PUT", "DELETE"])
+def template(request, template_id):
+    """Save (PUT, syncs every rack of the template) or delete (DELETE ?version=, refused while racks use it)."""
+    if not _allowed(request, "design"):
+        return DENIED
+    branch = _branch(request)
+    if branch is None:
+        return Response({"detail": "شعبه نامعتبر است."}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        if request.method == "DELETE":
+            raw = request.query_params.get("version")
+            layout = delete_template(branch, template_id, int(raw) if raw and raw.isdigit() else None, request.user)
+            return Response({"version": layout.version})
+        layout, saved, ids = save_template(branch, template_id, request.data, request.user)
+    except (Conflict, Blocked, Invalid) as error:
+        return _error(branch, error)
+    return Response(_template_result(layout, saved, ids))
 
 
 @api_view(["PATCH"])
