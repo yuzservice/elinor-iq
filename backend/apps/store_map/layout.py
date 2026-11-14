@@ -1,4 +1,5 @@
-"""Read and save a store layout. A designer save replaces the whole layout in one transaction, guarded by `version`."""
+"""Read and save a store layout. A designer save replaces the store, door and racks (position, rotation, template) in one
+transaction, guarded by `version`; slots follow the rack's template (`templates.py`)."""
 
 from django.db import transaction
 from django.utils import timezone
@@ -6,19 +7,11 @@ from django.utils import timezone
 from apps.products.models import Color, Product, ProductMetrics, Variant
 
 from .codes import display_title, short_code
-from .models import Rack, RackSlot, SlotProduct, SlotProductHistory, StoreLayout
+from .errors import Blocked, Conflict, Invalid  # noqa: F401 (re-exported for the views)
+from .models import Rack, RackSlot, RackTemplate, SlotProduct, SlotProductHistory, StoreLayout
+from .templates import ROTATIONS, create_slots, live_parts, remove_slots, template_footprint, template_payload
 
 STORE_LIMITS = {"width_cm": (400, 6000), "height_cm": (400, 6000)}
-RACK_LIMITS = {"length_cm": (50, 1200), "arm_cm": (20, 150)}
-MIN_FULL_CM = 30
-
-
-class Conflict(Exception):
-    """The layout changed since the client read it."""
-
-
-class Invalid(Exception):
-    pass
 
 
 # ---------------------------------------------------------------- read
@@ -64,26 +57,44 @@ def product_cards(product_ids):
 
 
 def slot_payload(slot, card):
-    return {
-        "id": slot.id,
-        "side": slot.side,
-        "kind": slot.kind,
-        "offset_cm": slot.offset_cm,
-        "length_cm": slot.length_cm,
-        "product": card,
-    }
+    return {"id": slot.id, "piece_id": slot.template_piece_id, "arm_id": slot.template_arm_id, "step": slot.step_index, "product": card}
 
 
-def layout_payload(layout):
-    if layout is None:
-        return None
-    racks = list(Rack.objects.filter(layout=layout, deleted_at__isnull=True).order_by("id"))
+def rack_slots(racks):
+    """{rack id: [slot payloads]} for live slots, products included."""
     slots = list(RackSlot.objects.filter(rack__in=racks, deleted_at__isnull=True).order_by("rack_id", "id"))
     assigned = dict(SlotProduct.objects.filter(slot__in=slots).values_list("slot_id", "product_id"))
     cards = product_cards(assigned.values())
     by_rack = {}
     for slot in slots:
         by_rack.setdefault(slot.rack_id, []).append(slot_payload(slot, cards.get(assigned.get(slot.id))))
+    return by_rack
+
+
+def rack_payload(rack, slots, template, pieces, arms):
+    return {
+        "id": rack.id,
+        "code": rack.code,
+        "x_cm": rack.x_cm,
+        "y_cm": rack.y_cm,
+        "rotation": rack.rotation,
+        "template_id": rack.template_id,
+        "footprint_cm": template_footprint(template, pieces, arms, rack.rotation) if template else None,
+        "slots": slots,
+    }
+
+
+def layout_payload(layout):
+    if layout is None:
+        return None
+    templates = list(RackTemplate.objects.filter(layout=layout, deleted_at__isnull=True).order_by("id"))
+    pieces, arms = live_parts(templates)
+    racks = list(Rack.objects.filter(layout=layout, deleted_at__isnull=True).order_by("id"))
+    by_rack = rack_slots(racks)
+    by_template = {t.id: t for t in templates}
+    uses = {}
+    for rack in racks:
+        uses[rack.template_id] = uses.get(rack.template_id, 0) + 1
     return {
         "id": layout.id,
         "branch": layout.branch,
@@ -95,17 +106,10 @@ def layout_payload(layout):
         "version": layout.version,
         "updated_at": layout.updated_at,
         "updated_by": layout.updated_by.username if layout.updated_by else None,
+        "templates": [template_payload(t, pieces.get(t.id, []), arms.get(t.id, []), uses.get(t.id, 0)) for t in templates],
         "racks": [
-            {
-                "id": rack.id,
-                "code": rack.code,
-                "x_cm": rack.x_cm,
-                "y_cm": rack.y_cm,
-                "rotation": rack.rotation,
-                "length_cm": rack.length_cm,
-                "arm_cm": rack.arm_cm,
-                "slots": by_rack.get(rack.id, []),
-            }
+            rack_payload(rack, by_rack.get(rack.id, []), by_template.get(rack.template_id),
+                         pieces.get(rack.template_id, []), arms.get(rack.template_id, []))
             for rack in racks
         ],
     }
@@ -125,7 +129,7 @@ def _int(data, key, low, high, default=None):
 
 
 def _clean(data):
-    """Validate the whole document before touching the database."""
+    """Validate the whole document before touching the database (templates are checked against the layout later)."""
     store = {key: _int(data, key, *limits) for key, limits in STORE_LIMITS.items()}
     store["door_side"] = data.get("door_side", "left")
     if store["door_side"] not in dict(StoreLayout.DOOR_SIDES):
@@ -143,44 +147,23 @@ def _clean(data):
         if code in codes:
             raise Invalid(f"کد رگال «{code}» تکراری است.")
         codes.add(code)
-        rack = {
+        template_id = raw.get("template_id")
+        if isinstance(template_id, bool) or not isinstance(template_id, int):
+            raise Invalid(f"رگال «{code}» قالب ندارد.")
+        racks.append({
             "id": raw.get("id"),
             "key": str(raw.get("key") or ""),
             "code": code,
             "x_cm": _int(raw, "x_cm", 0, store["width_cm"]),
             "y_cm": _int(raw, "y_cm", 0, store["height_cm"]),
             "rotation": raw.get("rotation", 0),
-            "length_cm": _int(raw, "length_cm", *RACK_LIMITS["length_cm"]),
-            "arm_cm": _int(raw, "arm_cm", *RACK_LIMITS["arm_cm"]),
-            "slots": [],
-        }
-        if rack["rotation"] not in (0, 90):
-            raise Invalid("چرخش رگال فقط ۰ یا ۹۰ درجه است.")
-        for slot_raw in raw.get("slots") or []:
-            if not isinstance(slot_raw, dict) or slot_raw.get("side") not in ("a", "b") or slot_raw.get("kind") not in ("full", "half"):
-                raise Invalid(f"جایگاه رگال «{code}» نامعتبر است.")
-            full = slot_raw["kind"] == "full"
-            length = _int(slot_raw, "length_cm", MIN_FULL_CM, rack["length_cm"]) if full else None
-            offset = _int(slot_raw, "offset_cm", 0, rack["length_cm"] - (length or 0))
-            rack["slots"].append({"id": slot_raw.get("id"), "key": str(slot_raw.get("key") or ""), "side": slot_raw["side"],
-                                  "kind": slot_raw["kind"], "offset_cm": offset, "length_cm": length})
-        racks.append(rack)
+            "template_id": template_id,
+        })
     return store, racks
 
 
-def _remove_slots(slots, user):
-    """Soft-delete slots; a product on a removed slot is cleared with a history row."""
-    if not slots:
-        return
-    now = timezone.now()
-    for assignment in SlotProduct.objects.filter(slot__in=slots):
-        SlotProductHistory.objects.create(slot_id=assignment.slot_id, old_product_id=assignment.product_id, reason="slot_removed", user=user)
-        assignment.delete()
-    RackSlot.objects.filter(id__in=[s.id for s in slots]).update(deleted_at=now)
-
-
 def save_layout(branch, data, user):
-    """Replace the branch layout with `data` atomically; returns (layout, {client key: new id})."""
+    """Replace the branch layout with `data` atomically; returns (layout, {client key: rack payload} for new racks)."""
     store, racks = _clean(data)
     with transaction.atomic():
         layout = StoreLayout.objects.select_for_update().filter(branch=branch).first()
@@ -197,48 +180,44 @@ def save_layout(branch, data, user):
         layout.updated_by = user
         layout.save()
 
+        templates = {t.id: t for t in RackTemplate.objects.filter(layout=layout, deleted_at__isnull=True)} if layout.pk else {}
+        pieces, arms = live_parts(templates.values())
         live = {r.id: r for r in Rack.objects.filter(layout=layout, deleted_at__isnull=True)}
-        live_slots = {}
-        for slot in RackSlot.objects.filter(rack__in=live.values(), deleted_at__isnull=True):
-            live_slots[slot.id] = slot
         for rack in racks:
-            if rack["id"] is not None and rack["id"] not in live:
-                raise Invalid("یکی از رگال‌ها دیگر وجود ندارد؛ صفحه را دوباره بارگیری کنید.")
+            template = templates.get(rack["template_id"])
+            if template is None:
+                raise Invalid(f"قالب رگال «{rack['code']}» دیگر وجود ندارد؛ صفحه را دوباره بارگیری کنید.")
+            if rack["rotation"] not in ROTATIONS[template.kind]:
+                raise Invalid(f"چرخش رگال «{rack['code']}» برای این قالب مجاز نیست.")
+            if rack["id"] is not None:
+                if rack["id"] not in live:
+                    raise Invalid("یکی از رگال‌ها دیگر وجود ندارد؛ صفحه را دوباره بارگیری کنید.")
+                if live[rack["id"]].template_id != template.id:
+                    raise Invalid(f"قالب رگال «{rack['code']}» عوض نمی‌شود؛ رگال تازه بگذارید.")
         kept = {r["id"] for r in racks if r["id"] is not None}
         gone = [rack for rid, rack in live.items() if rid not in kept]
-        _remove_slots([s for s in live_slots.values() if s.rack_id in {r.id for r in gone}], user)
+        remove_slots(list(RackSlot.objects.filter(rack__in=gone, deleted_at__isnull=True)), user)
         Rack.objects.filter(id__in=[r.id for r in gone]).update(deleted_at=timezone.now())
         # Codes may swap between racks: park the kept ones on unique temporary codes first (partial unique index).
         for rid in kept:
             Rack.objects.filter(id=rid).update(code=f"~{rid}")
 
-        ids = {}
+        created = {}
         for rack in racks:
-            fields = {k: rack[k] for k in ("code", "x_cm", "y_cm", "rotation", "length_cm", "arm_cm")}
+            fields = {k: rack[k] for k in ("code", "x_cm", "y_cm", "rotation", "template_id")}
             if rack["id"] is None:
                 obj = Rack.objects.create(layout=layout, **fields)
-                if rack["key"]:
-                    ids[rack["key"]] = obj.id
+                template = templates[rack["template_id"]]
+                create_slots(obj, template, pieces.get(template.id, []), arms.get(template.id, []))
+                created[rack["key"] or str(obj.id)] = obj
             else:
-                obj = live[rack["id"]]
-                for key, value in fields.items():
-                    setattr(obj, key, value)
-                obj.save()
-            mine = {sid: s for sid, s in live_slots.items() if s.rack_id == obj.id}
-            for slot in rack["slots"]:
-                if slot["id"] is not None and slot["id"] not in mine:
-                    raise Invalid("یکی از جایگاه‌ها دیگر وجود ندارد؛ صفحه را دوباره بارگیری کنید.")
-            keep_slots = {s["id"] for s in rack["slots"] if s["id"] is not None}
-            _remove_slots([s for sid, s in mine.items() if sid not in keep_slots], user)
-            for slot in rack["slots"]:
-                fields = {k: slot[k] for k in ("side", "kind", "offset_cm", "length_cm")}
-                if slot["id"] is None:
-                    new = RackSlot.objects.create(rack=obj, **fields)
-                    if slot["key"]:
-                        ids[slot["key"]] = new.id
-                else:
-                    RackSlot.objects.filter(id=slot["id"]).update(**fields, updated_at=timezone.now())
-    return layout, ids
+                Rack.objects.filter(id=rack["id"]).update(**fields, updated_at=timezone.now())
+        slots = rack_slots(created.values())
+        payload = {
+            key: rack_payload(obj, slots.get(obj.id, []), templates[obj.template_id], pieces.get(obj.template_id, []), arms.get(obj.template_id, []))
+            for key, obj in created.items()
+        }
+    return layout, payload
 
 
 def set_slot_product(slot_id, product_id, user):
