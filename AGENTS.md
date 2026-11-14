@@ -28,6 +28,7 @@ Read-only ingestion from the Elinor API and historical MariaDB dumps into Postgr
 | Products & Merchandising | `apps/products` | `pages/ProductsPage.tsx`, `Product360Page.tsx` |
 | Call Center | `apps/calls` | `pages/CallCenterPage.tsx` |
 | Elinor Pulse (Instagram, behind `PULSE_ENABLED`) | `apps/pulse` | `pages/PulsePage.tsx` |
+| Store map («فروشگاه») | `apps/store_map` | `pages/StorePage.tsx` |
 | System & Operations | `apps/system` | `pages/SettingsPage.tsx` |
 | Data Sync / Integrations | `apps/integrations/elinor` | Settings sync panel |
 

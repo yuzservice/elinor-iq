@@ -296,6 +296,17 @@ This registry catalogs the core architectural modules of ELINOR IQ V2. Each entr
 
 ---
 
+## 12. Store map (`apps.store_map`), «فروشگاه»
+
+- **Status:** branch `feature/store-map`, not merged. Rules: `docs/business-rules/store-map.md`; decision 0011.
+- **Models:** `StoreLayout` (`store_layouts`, one per branch, `version` lock), `Rack` (`store_racks`, soft delete, code unique among live racks), `RackSlot` (`store_rack_slots`, side a/b, full/half, soft delete), `SlotProduct` (`store_slot_products`, one product per slot, no DB constraint to `products`), `SlotProductHistory` (`store_slot_product_history`, PROTECT, never cascaded). Migration `store_map.0001`; roles `sales_staff`, `store_staff` in `accounts.0005`.
+- **Backend:** `layout.py` (payload, `save_layout` atomic + version, `set_slot_product` + history, `product_cards`), `codes.py` (short code, digit-agnostic search), `views.py`; access `accounts/permissions.py` `store_map_access` (design/edit/view), scope in `accounts/middleware.py`.
+- **APIs (`/api/store-map/`):** `layout/` GET (view+) / PUT (super admin, 409 on stale version), `slots/<id>/` PATCH (edit+), `products/` GET (edit+, `q`, `page`). `me.store_map` in `/api/auth/me/`.
+- **Frontend:** lazy route `/store/*` (`pages/StorePage.tsx`: «نقشه فروشگاه», «طراحی نقشه»), `features/store/` (`Board`, `RackDialog`, `RackEditor`, `geometry.ts`, `autosave.ts`, `types.ts`), `services/storeMap.ts`; tokens `--map-*` in `styles/index.css`; nav item «فروشگاه» via `lib/nav.ts` (`store_map`).
+- **Tests:** `tests/test_store_map.py`, `tests/test_store_map_codes.py`; frontend `features/store/geometry.test.ts`, `autosave.test.ts`, `lib/nav.test.ts`.
+
+---
+
 ## 9. Frontend Web Application (`frontend/src`)
 
 - **Responsibility:** Responsive, right-to-left (RTL) Persian single-page application delivering executive dashboards, operational reports, interactive filters, and data visualizations.

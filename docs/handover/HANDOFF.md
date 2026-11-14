@@ -15,18 +15,23 @@ Update this file at the end of every implementation task (newest entry first in 
    custom ranges, branch tiles above the cards, and `HIDDEN_SALES_LINES` (default `CAPRI`) removing a store line from
    every report. Next: the owner runs `update.sh`, then once `docker compose exec backend python manage.py products_daily`,
    and reviews on real data.
-4. **Sales merged into home** (`feature/sales-merge`, pushed, not merged; waiting for the owner's «Approved»): «خانه» renamed
+4. **Sales merged into home** (`feature/sales-merge`, merged 2026-11-14: `production` `479e5ba`, `main` `0b80627`): «خانه» renamed
    «فروش», the sales page and its frontend code removed (`/sales` → `/`), «شلوغ‌ترین ساعت‌ها» heatmap on home, and Products
    «سایز و رنگ پرفروش» + «مرجوعی و تعویض شعب». Backend `/api/sales/{filters,kpis,trend,summary,orders,products}/` are kept
    but no longer used by the frontend.
-5. **Open items:**
+5. **Store map «فروشگاه»** (`feature/store-map`, pushed, not merged; waiting for the owner's «Approved»): new app
+   `apps/store_map` (layout, racks, pieces, products on slots with history), roles `sales_staff` «کارمند فروش» and
+   `store_staff` «کارمند فروشگاه حضوری» (`sales_agent` relabelled «کارشناس تماس»), map + designer (super admin, autosave with
+   version lock). Rules `docs/business-rules/store-map.md`, decision 0011. Server after merge: `update.sh` (migrations
+   `accounts.0005`, `store_map.0001`); the owner then draws the Sari layout in «طراحی نقشه».
+6. **Open items:**
    - Local online item details are incomplete from 2026-09 (the dev Mac cannot reach the Elinor API).
    - `docs/stock-discovery` branch (`docs/SOURCE_STOCK_DISCOVERY.md`) is pushed but not merged.
    - The Graphify graph was built from `3bc0a48` and is stale.
    - The "Last updated" line below predates the Call Center, Pulse and products work; the Log entries are current.
    - `fix/products-no-stock` (from `production`): stock disabled behind `PRODUCTS_STOCK_ENABLED` (default false); card 3 is
      «رو به رشد», Product 360 shows a 14-day forecast, stock params ignored, no stock API calls. Awaiting owner review; not merged.
-6. **Deferred decisions:**
+7. **Deferred decisions:**
    - Home ideas from the owner (not built): a daily summary to the owner's Telegram group (aggregates only; first check that the
      server can reach Telegram, which may be filtered); «امروز در برابر معمول همین ساعت» with an hourly chart; a role-based
      default home (a branch manager sees their own branch); auto-refresh.
