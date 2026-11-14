@@ -9,6 +9,7 @@ import {
   IconSettings,
   IconCalls,
   IconPulse,
+  IconStore,
 } from "../components/Icons";
 import { CoverageNotice } from "../components/ui";
 import { showsSettings, visibleNavItems } from "../lib/nav";
@@ -21,6 +22,7 @@ const ICONS = {
   products: IconProducts,
   calls: IconCalls,
   pulse: IconPulse,
+  store: IconStore,
 };
 
 function MobileThemeToggle() {
@@ -49,7 +51,7 @@ export function AppShell() {
   const location = useLocation();
   const showCoverageNotice =
     location.pathname !== "/" && !location.pathname.startsWith("/calls") && !location.pathname.startsWith("/pulse") &&
-    !location.pathname.startsWith("/products");
+    !location.pathname.startsWith("/products") && !location.pathname.startsWith("/store");
 
   return (
     <div className="flex min-h-screen bg-canvas text-ink transition-colors">

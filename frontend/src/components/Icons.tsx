@@ -80,3 +80,12 @@ export function IconCollapse() {
     </svg>
   );
 }
+
+export function IconStore() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <rect x="3.5" y="4" width="17" height="16" rx="1.5" />
+      <path d="M7 9h10M7 15h10M12 9v6" />
+    </svg>
+  );
+}
