@@ -22,8 +22,10 @@ Update this file at the end of every implementation task (newest entry first in 
 5. **Store map «فروشگاه»** (`feature/store-map`, pushed, not merged; waiting for the owner's «Approved»): new app
    `apps/store_map` (layout, racks, pieces, products on slots with history), roles `sales_staff` «کارمند فروش» and
    `store_staff` «کارمند فروشگاه حضوری» (`sales_agent` relabelled «کارشناس تماس»), map + designer (super admin, autosave with
-   version lock). Rules `docs/business-rules/store-map.md`, decision 0011. Server after merge: `update.sh` (migrations
-   `accounts.0005`, `store_map.0001`); the owner then draws the Sari layout in «طراحی نقشه».
+   version lock). Rack templates (2026-11-14): every rack is a line or hub (stepped arms) template instance; «قالب رگال‌ها»
+   page; template changes sync all racks, removals with products blocked (409); map codes readable at 44/32 px.
+   Rules `docs/business-rules/store-map.md`, decision 0011. Server after merge: `update.sh` (migrations `accounts.0005`,
+   `store_map.0001`, `store_map.0002` with its data migration); the owner then draws the Sari layout in «طراحی نقشه».
 6. **Open items:**
    - Local online item details are incomplete from 2026-09 (the dev Mac cannot reach the Elinor API).
    - `docs/stock-discovery` branch (`docs/SOURCE_STOCK_DISCOVERY.md`) is pushed but not merged.
