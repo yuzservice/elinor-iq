@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>نقشه رگال‌ها</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#06080d}
+button,input{font-family:inherit}
+button:focus-visible,input:focus-visible,[role=button]:focus-visible{outline:2px solid #60a5fa;outline-offset:2px}
+.card{background:#0c1017;border:1px solid rgba(255,255,255,.08);border-radius:18px}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.col{display:flex;flex-direction:column}
+.mut{font-size:12.5px;color:#94a3b8}
+.h{margin:0;font-size:15px;font-weight:600;color:#e2e8f0}
+.ghost{min-height:32px;padding:0 12px;border-radius:10px;background:transparent;border:1px solid rgba(255,255,255,.14);color:#cbd5e1;font-size:12.5px;cursor:pointer}
+.ghost:disabled{opacity:.35;cursor:default}
+.primary{min-height:34px;padding:0 14px;border-radius:10px;background:#3b82f6;border:0;color:#fff;font-size:13px;font-weight:600;cursor:pointer}
+.icon{width:30px;height:30px;padding:0;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,.1);color:#cbd5e1;font-size:13px;cursor:pointer}
+.inp{min-height:36px;padding:0 12px;border-radius:10px;background:#131924;border:1px solid rgba(255,255,255,.12);color:#e2e8f0;font-size:13px;box-sizing:border-box}
+.danger{color:#fb7185 !important;border-color:rgba(251,113,133,.35) !important}
+.dim{position:absolute;padding:1px 7px;border-radius:999px;background:#1d4ed8;color:#fff;font-size:11px;font-weight:600;white-space:nowrap;pointer-events:none}
+.sheet-wrap{position:fixed;inset:0;z-index:50;background:rgba(2,4,8,.72);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:20px}
+.sheet{width:min(860px,100%);max-height:calc(100vh - 40px);overflow:auto;display:flex;flex-direction:column;gap:14px;padding:18px 20px;border-radius:20px;background:#0c1017;border:1px solid rgba(255,255,255,.12);box-shadow:0 30px 80px -20px rgba(0,0,0,.9);box-sizing:border-box}
+.mdraw{position:relative;height:190px;border-radius:14px;background:#0a0e14;border:1px solid rgba(255,255,255,.06)}
+@media (max-width:640px){.sheet-wrap{align-items:flex-end;padding:0}.sheet{border-radius:20px 20px 0 0;max-height:88vh;padding:14px 14px 20px}.mdraw{height:150px}}
+.tbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 10px;border-radius:12px;background:#131924}
+</style>
+</helmet>
+<div dir="rtl" style="min-height: 100vh; box-sizing: border-box; background: #06080d; color: #f8fafc; font-family: Vazirmatn, system-ui, sans-serif; padding: 18px 16px 56px;">
+<div style="max-width: 1360px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px;">
+
+  <div class="row" style="justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: 14px; background: #0c1017; border: 1px solid rgba(255,255,255,.06);">
+    <nav class="row" aria-label="منو" style="gap: 4px;">
+      <sc-for list="{{nav}}" as="n" hint-placeholder-count="2"><button type="button" onClick="{{n.pick}}" aria-current="{{n.current}}" style="{{n.style}}">{{n.label}}<span style="{{n.badgeStyle}}">{{n.badge}}</span></button></sc-for>
+    </nav>
+    <div class="row" style="gap: 6px;"><span class="mut" style="font-size: 11.5px;">نمایش نمونه به‌عنوان</span><div class="row" role="group" aria-label="نقش" style="gap: 2px; padding: 3px; border-radius: 10px; background: #131924;"><sc-for list="{{roles}}" as="k" hint-placeholder-count="2"><button type="button" onClick="{{k.pick}}" aria-pressed="{{k.pressed}}" style="{{k.style}}">{{k.label}}</button></sc-for></div></div>
+  </div>
+
+  <div class="row" style="justify-content: space-between; gap: 10px;">
+    <div class="col" style="gap: 4px;"><h1 style="margin: 0; font-size: 24px; font-weight: 800;">{{pageTitle}}</h1><span class="mut">{{pageSub}}</span></div>
+    <span class="mut">{{summary}}</span>
+  </div>
+
+  <section class="card col" aria-label="نقشه کف" style="padding: 14px 16px; gap: 10px;">
+    <div class="tbar">
+      <sc-if value="{{isAdmin}}" hint-placeholder-val="{{ true }}">
+        <button type="button" class="ghost" onClick="{{addUnit}}">+ رگال جدید</button>
+        <button type="button" class="ghost" onClick="{{openIO}}">پشتیبان طرح</button>
+        <span style="{{saveStyle}}">{{saveText}}</span>
+        <span class="mut" style="margin-inline-start: 6px; font-size: 11.5px;">رگال را بکشید · لبه‌ها و گوشه آبی اندازه · لبه راست و پایین نقشه اندازه فروشگاه</span>
+      </sc-if>
+      <sc-if value="{{isStaff}}" hint-placeholder-val="{{ false }}">
+        <input class="inp" type="search" value="{{find}}" onChange="{{setFind}}" placeholder="این کالا کجاست؟ نام یا کد، مثلاً ۷۵۵۶" aria-label="پیدا کردن کالا روی نقشه" style="flex: 1 1 220px; max-width: 320px;" />
+        <span class="mut" style="font-size: 12px;">{{findNote}}</span>
+      </sc-if>
+      <span style="flex: 1;"></span>
+      <button type="button" class="ghost" onClick="{{toggleCodes}}" aria-pressed="{{codesOn}}" style="{{codesBtn}}">کد کالا روی رگال</button>
+      <span class="mut" style="font-size: 12px;">{{boardSize}}</span>
+      <button type="button" class="icon" onClick="{{zMinus}}" aria-label="کوچک‌نمایی">−</button><button type="button" class="icon" onClick="{{zPlus}}" aria-label="بزرگ‌نمایی">+</button>
+    </div>
+    <div onMouseMove="{{move}}" onMouseUp="{{drop}}" onMouseLeave="{{drop}}" style="overflow: auto; max-height: 720px; border-radius: 12px; background: #05070b; padding: 44px 40px 40px 30px;">
+      <div dir="ltr" data-board="1" style="{{boardStyle}}">
+        <span style="{{door}}" aria-hidden="true"></span>
+        <span style="{{doorLabel}}">ورودی ←</span>
+        <sc-for list="{{boardRacks}}" as="r" hint-placeholder-count="21">
+          <div role="button" tabindex="0" onMouseDown="{{r.grab}}" onClick="{{r.open}}" title="{{r.tip}}" aria-label="{{r.aria}}" aria-pressed="{{r.pressed}}" style="{{r.style}}">
+            <span style="{{r.spine}}"></span>
+            <sc-for list="{{r.parts}}" as="m" hint-placeholder-count="2"><span title="{{m.title}}" style="{{m.style}}"><span style="{{m.lstyle}}">{{m.label}}</span></span></sc-for>
+            <span style="{{r.labelStyle}}">{{r.code}}</span>
+            <span onMouseDown="{{r.grabW}}" style="{{r.handleW}}" aria-hidden="true"></span>
+            <span onMouseDown="{{r.grabH}}" style="{{r.handleH}}" aria-hidden="true"></span>
+            <span onMouseDown="{{r.grabWH}}" style="{{r.handleWH}}" aria-hidden="true"></span>
+            <span dir="rtl" onMouseDown="{{r.stop}}" style="{{r.tools}}"><button type="button" onClick="{{r.goods}}" style="{{r.toolBtn}}">کالاها</button><button type="button" onClick="{{r.copy}}" title="کپی این رگال" style="{{r.toolBtn}}">⧉ کپی</button><button type="button" onClick="{{r.rot}}" title="چرخش ۹۰ درجه" style="{{r.toolBtn}}">⟳</button><button type="button" onClick="{{r.del}}" title="حذف رگال" style="{{r.toolDel}}">✕</button></span>
+          </div>
+        </sc-for>
+        <span onMouseDown="{{grabBoardW}}" title="عرض فروشگاه را بکشید" style="{{boardHandleW}}"></span>
+        <span onMouseDown="{{grabBoardH}}" title="طول فروشگاه را بکشید" style="{{boardHandleH}}"></span>
+      </div>
+    </div>
+    <sc-if value="{{isStaff}}" hint-placeholder-val="{{ false }}"><span class="mut" style="font-size: 11.5px;">روی هر رگال بزنید تا کالاهایش را ببینید یا کالا اضافه کنید.</span></sc-if>
+  </section>
+
+  <sc-if value="{{isAdmin}}" hint-placeholder-val="{{ true }}">
+    <section class="card col" aria-label="طراحی رگال" style="padding: 14px 16px; gap: 10px;">
+      <div class="row" style="justify-content: space-between; gap: 10px;">
+        <div class="row" style="gap: 10px;"><h2 class="h">طراحی رگال</h2><input class="inp" value="{{code}}" onChange="{{setCode}}" aria-label="کد رگال" style="width: 84px; min-height: 32px;" /><span class="mut">{{dimText}}</span></div>
+        <div class="row" style="gap: 6px;"><button type="button" class="primary" onClick="{{openGoods}}">کالاهای این رگال</button><button type="button" class="ghost" onClick="{{copyUnit}}">⧉ کپی رگال</button><button type="button" class="ghost danger" onClick="{{delUnit}}" disabled="{{oneUnit}}">حذف رگال</button></div>
+      </div>
+      <div class="tbar">
+        <span class="mut" style="font-size: 12px;">افزودن:</span>
+        <button type="button" class="ghost" onClick="{{addAF}}">رگال کامل · طرف الف</button><button type="button" class="ghost" onClick="{{addAH}}">نیم‌رگال · طرف الف</button>
+        <button type="button" class="ghost" onClick="{{addBF}}">رگال کامل · طرف ب</button><button type="button" class="ghost" onClick="{{addBH}}">نیم‌رگال · طرف ب</button>
+        <sc-if value="{{hasSel}}" hint-placeholder-val="{{ true }}">
+          <span style="width: 1px; height: 22px; background: rgba(255,255,255,.12); margin: 0 4px;"></span>
+          <span class="mut" style="font-size: 12px;">{{selTitle}}</span>
+          <div class="row" role="group" aria-label="طرف" style="gap: 2px; padding: 2px; border-radius: 9px; background: #0a0e14;"><sc-for list="{{sideSeg}}" as="k" hint-placeholder-count="2"><button type="button" onClick="{{k.pick}}" aria-pressed="{{k.pressed}}" style="{{k.style}}">{{k.label}}</button></sc-for></div>
+          <div class="row" role="group" aria-label="نوع" style="gap: 2px; padding: 2px; border-radius: 9px; background: #0a0e14;"><sc-for list="{{typeSeg}}" as="k" hint-placeholder-count="2"><button type="button" onClick="{{k.pick}}" aria-pressed="{{k.pressed}}" style="{{k.style}}">{{k.label}}</button></sc-for></div>
+          <button type="button" class="ghost" onClick="{{copyPiece}}" title="کپی تکه">⧉</button>
+          <button type="button" class="ghost danger" onClick="{{delPiece}}" title="حذف تکه">✕</button>
+        </sc-if>
+      </div>
+      <div onMouseMove="{{pMove}}" onMouseUp="{{pDrop}}" onMouseLeave="{{pDrop}}" style="{{stageStyle}}">
+        <div data-spine="1" style="{{spineBox}}">
+          <span style="position: absolute; left: 0; right: 0; top: -3px; height: 6px; border-radius: 3px; background: #94a3b8;" aria-hidden="true"></span>
+          <span style="{{depthA}}" aria-hidden="true"></span><span style="{{depthB}}" aria-hidden="true"></span>
+          <span onMouseDown="{{grabArmA}}" title="عمق را بکشید" style="{{armHandleA}}"></span>
+          <span onMouseDown="{{grabArmB}}" title="عمق را بکشید" style="{{armHandleB}}"></span>
+          <sc-for list="{{pieces}}" as="p" hint-placeholder-count="4">
+            <div role="button" tabindex="0" onMouseDown="{{p.grab}}" aria-label="{{p.aria}}" aria-pressed="{{p.pressed}}" style="{{p.box}}">
+              <span style="{{p.shape}}"></span><span style="{{p.cap}}"></span>
+              <span style="{{p.labelStyle}}">{{p.label}}</span>
+              <span onMouseDown="{{p.grabL}}" title="طول را بکشید" style="{{p.edgeL}}"></span>
+              <span onMouseDown="{{p.grabR}}" title="طول را بکشید" style="{{p.edgeR}}"></span>
+              <span class="dim" style="{{p.dimStyle}}">{{p.dim}}</span>
+            </div>
+          </sc-for>
+          <span onMouseDown="{{grabLen}}" title="طول رگال را بکشید" style="{{lenHandle}}"></span>
+          <span class="dim" style="{{lenDimStyle}}">{{lenDim}}</span>
+          <sc-for list="{{ruler}}" as="t" hint-placeholder-count="7"><span style="{{t.style}}">{{t.label}}</span></sc-for>
+        </div>
+        <span class="mut" style="position: absolute; top: 10px; right: 14px; font-size: 11.5px;">طرف الف</span>
+        <span class="mut" style="position: absolute; bottom: 10px; right: 14px; font-size: 11.5px;">طرف ب</span>
+      </div>
+      <span class="mut" style="font-size: 11.5px;">تکه را بکشید تا جابه‌جا شود · لبه رگال کامل طولش را عوض می‌کند · دستگیره سر خط وسط طول رگال و خط‌چین بالا و پایین عمق آن است · برای رگال دیواری فقط یک طرف تکه بگذارید.</span>
+    </section>
+  </sc-if>
+</div>
+
+<sc-if value="{{modalOpen}}" hint-placeholder-val="{{ false }}">
+  <div class="sheet-wrap" onClick="{{closeModal}}">
+    <div role="dialog" aria-modal="true" aria-label="{{mTitle}}" onClick="{{stopClick}}" class="sheet">
+      <div class="row" style="justify-content: space-between;">
+        <div class="col" style="gap: 3px;"><h2 style="margin: 0; font-size: 18px; font-weight: 800;">{{mTitle}}</h2><span class="mut">{{mSub}}</span></div>
+        <button type="button" class="icon" onClick="{{closeModal}}" aria-label="بستن" style="width: 34px; height: 34px; font-size: 15px;">✕</button>
+      </div>
+      <div class="mdraw">
+        <div style="position: absolute; left: 44px; right: 44px; top: 18px; bottom: 18px;">
+          <span style="position: absolute; left: 0; right: 0; top: calc(50% - 2px); height: 4px; border-radius: 2px; background: #94a3b8;" aria-hidden="true"></span>
+          <sc-for list="{{mPieces}}" as="p" hint-placeholder-count="4"><button type="button" onClick="{{p.pick}}" aria-label="{{p.aria}}" aria-pressed="{{p.pressed}}" style="{{p.box}}"><span style="{{p.stem}}"></span><span style="{{p.labelStyle}}">{{p.label}}</span></button></sc-for>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; align-items: start;">
+        <div class="col" style="gap: 6px;">
+          <span style="font-size: 13px; font-weight: 600; color: #cbd5e1;">جایگاه‌های این رگال</span>
+          <sc-for list="{{mRows}}" as="r" hint-placeholder-count="4">
+            <button type="button" onClick="{{r.pick}}" aria-pressed="{{r.pressed}}" style="{{r.style}}">
+              <span style="{{r.swatch}}"></span>
+              <span class="col" style="gap: 1px; flex: 1; min-width: 0;"><span style="{{r.nameStyle}}">{{r.name}}</span><span class="mut" style="font-size: 11.5px;">{{r.place}}</span></span>
+              <span style="{{r.actionStyle}}">{{r.action}}</span>
+            </button>
+          </sc-for>
+        </div>
+        <div class="col" style="gap: 8px; padding: 12px; border-radius: 14px; background: #0a0e14; border: 1px solid rgba(96,165,250,.25);">
+          <span style="font-size: 13px; font-weight: 600; color: #cbd5e1;">{{mPickTitle}}</span>
+          <sc-if value="{{mHasCur}}" hint-placeholder-val="{{ true }}"><div class="row" style="justify-content: space-between; padding: 8px 10px; border-radius: 10px; background: rgba(59,130,246,.12);"><span class="row" style="gap: 8px;"><span style="{{mCurDot}}"></span><b style="font-size: 13px;">{{mCurName}}</b></span><button type="button" class="ghost" onClick="{{mClear}}" style="min-height: 28px;">برداشتن</button></div></sc-if>
+          <input class="inp" type="search" value="{{q}}" onChange="{{setQ}}" placeholder="جستجوی نام یا کد کالا" aria-label="جستجوی کالا" />
+          <div class="col" style="gap: 4px; max-height: 260px; overflow-y: auto;">
+            <sc-for list="{{products}}" as="r" hint-placeholder-count="6">
+              <button type="button" onClick="{{r.pick}}" aria-pressed="{{r.pressed}}" style="{{r.style}}">
+                <span style="{{r.swatch}}"></span>
+                <span class="col" style="gap: 1px; min-width: 0; flex: 1;"><span style="font-size: 13px; color: #e2e8f0;">{{r.name}}</span><span class="mut" style="font-size: 11.5px;">{{r.meta}}</span></span>
+                <span style="{{r.statusStyle}}">{{r.status}}</span>
+              </button>
+            </sc-for>
+            <sc-if value="{{noResult}}" hint-placeholder-val="{{ false }}"><span class="mut" style="padding: 10px 4px;">کالایی پیدا نشد.</span></sc-if>
+          </div>
+        </div>
+      </div>
+      <div class="row" style="justify-content: space-between;"><span class="mut" style="font-size: 11.5px;">تغییرها همان لحظه ذخیره می‌شوند. بعد از انتخاب، جایگاه خالی بعدی انتخاب می‌شود.</span><button type="button" class="primary" onClick="{{closeModal}}">تمام</button></div>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ioOpen}}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{closeIO}}" style="position: fixed; inset: 0; z-index: 60; background: rgba(2,4,8,.72); display: flex; align-items: center; justify-content: center; padding: 20px;">
+    <div role="dialog" aria-modal="true" aria-label="پشتیبان طرح" onClick="{{stopClick}}" style="width: min(640px, 100%); display: flex; flex-direction: column; gap: 10px; padding: 18px 20px; border-radius: 20px; background: #0c1017; border: 1px solid rgba(255,255,255,.12);">
+      <div class="row" style="justify-content: space-between;"><h2 style="margin: 0; font-size: 17px; font-weight: 800;">پشتیبان طرح</h2><button type="button" class="icon" onClick="{{closeIO}}" aria-label="بستن">✕</button></div>
+      <span class="mut" style="line-height: 1.8;">این متن کل طرح فعلی است. آن را کپی و جایی نگه دارید. برای برگرداندن، متن ذخیره‌شده را اینجا بچسبانید و «بارگذاری» را بزنید.</span>
+      <textarea class="inp" value="{{ioText}}" onChange="{{setIO}}" aria-label="متن طرح" style="min-height: 200px; padding: 10px; font-family: ui-monospace, monospace; font-size: 11.5px; direction: ltr; resize: vertical;"></textarea>
+      <div class="row" style="justify-content: space-between;"><span style="{{ioMsgStyle}}">{{ioMsg}}</span><span class="row" style="gap: 6px;"><button type="button" class="ghost" onClick="{{copyIO}}">کپی متن</button><button type="button" class="primary" onClick="{{loadIO}}">بارگذاری</button></span></div>
+    </div>
+  </div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1700}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    var full = function (s, len) { return { s: s, t: 'full', at: 0, w: len, p: null }; };
+    var R = function (code, x, y, rot, len) { return { code: code, x: x, y: y, rot: rot, len: len, arm: 50, pcs: [full('a', len), full('b', len)] }; };
+    var units = [R('R-01', 1, 3, 0, 150), R('R-02', 7, 3, 0, 150), R('R-03', 12, 3, 0, 150), R('R-04', 17, 5, 90, 150), R('R-05', 22, 5, 90, 150), R('R-06', 26, 5, 90, 150), R('R-07', 30, 3, 0, 150), R('R-08', 1, 7, 0, 150), R('R-09', 7, 7, 0, 150), R('R-10', 12, 7, 0, 150), R('R-11', 30, 8, 0, 150), R('R-12', 9, 11, 0, 150), R('R-13', 17, 11, 0, 150), R('R-14', 26, 11, 90, 150), R('R-15', 9, 14, 0, 150), R('R-16', 17, 14, 0, 150), R('R-17', 26, 16, 90, 150), R('R-18', 17, 20, 0, 150), R('R-19', 2, 22, 0, 150),
+      { code: 'R-20', x: 8, y: 21, rot: 0, len: 300, arm: 55, pcs: [
+        { s: 'a', t: 'half', at: 90, w: 0, p: 'BF-3301' }, { s: 'a', t: 'full', at: 135, w: 165, p: 'MN-1071' },
+        { s: 'b', t: 'full', at: 45, w: 180, p: 'SH-1150' }, { s: 'b', t: 'half', at: 275, w: 0, p: null }] },
+      R('R-21', 17, 24, 0, 150)];
+    units[0].pcs[0].p = 'MN-1088'; units[1].pcs[0].p = 'SH-1162'; units[3].pcs[0].p = 'HD-4410'; units[3].pcs[1].p = 'BF-3318';
+    var saved = null; try { saved = JSON.parse(window.localStorage.getItem('elinor-racks-sari-v1') || 'null'); } catch (e) { saved = null; }
+    if (saved && saved.units && saved.units.length) { units = saved.units; }
+    this.state = { role: 'admin', view: 'design', units: units, io: false, ioText: '', ioMsg: '', savedAt: saved && saved.at ? saved.at : null, cur: 19, sel: 1, q: '', find: '', codes: true, mobile: (typeof window !== 'undefined' && window.innerWidth < 700), z0: 0, cols: saved && saved.cols ? saved.cols : 36, rows: saved && saved.rows ? saved.rows : 28, z: (typeof window !== 'undefined' && window.innerWidth < 700) ? 14 : 20, drag: null, pdrag: null, modal: null, msel: 0 };
+  }
+  renderVals() {
+    var self = this, S = this.state;
+    var snapshot = JSON.stringify({ units: S.units, cols: S.cols, rows: S.rows });
+    if (snapshot !== this._last) { this._last = snapshot; try { window.localStorage.setItem('elinor-racks-sari-v1', JSON.stringify({ units: S.units, cols: S.cols, rows: S.rows, at: Date.now() })); this._ok = true; } catch (e) { this._ok = false; } }
+    var storeOk = this._ok !== false;
+    var P = function (n) { return String(n).replace('.', '٫').replace(/[0-9]/g, function (c) { return '۰۱۲۳۴۵۶۷۸۹'[c]; }); };
+    var seg = function (on) { return 'min-height: 28px; padding: 0 11px; border: 0; border-radius: 8px; font-size: 12.5px; cursor: pointer; ' + (on ? 'background: #3b82f6; color: #fff; font-weight: 600;' : 'background: transparent; color: #94a3b8;'); };
+    var cm = function (n) { return P(n) + ' سانت'; };
+    var snap = function (v, s) { return Math.round(v / s) * s; };
+    var PR = [['MN-1071', 'مانتو کتان بلند 7102', 'مانتو', '#c8b28a', 'پیشران فروش'], ['SH-1150', 'شلوار جین راسته 6815', 'شلوار', '#1e3a8a', 'رو به رشد'], ['BL-2204', 'شومیز حریر 5530', 'شومیز', '#f1f5f9', 'عادی'], ['KT-0912', 'کت تک پاییزه 4471', 'کت', '#7c4a2d', 'کند'], ['BF-3301', 'بافت یقه‌گرد 8023', 'بافت', '#7f1d1d', 'پیشران فروش'], ['HD-4410', 'هودی دورس 3390', 'هودی', '#334155', 'رو به رشد'], ['SH-1162', 'شلوار پارچه‌ای گشاد 6902', 'شلوار', '#9ca3af', 'عادی'], ['MN-1088', 'مانتو جلوباز نخی 7188', 'مانتو', '#e7d8b8', 'راکد'], ['BF-3318', 'بافت راه‌راه 8091', 'بافت', '#475569', 'رو به رشد'], ['JN-5120', 'وست جین زنانه 7556', 'وست', '#3b5b8a', 'عادی']];
+    // short code = the number at the end of the product title (e.g. «وست جین زنانه 7556» → ۷۵۵۶); full title on hover/tap
+    var num = function (pid) { var m = byCode[pid] && byCode[pid][1].match(/(\d+)\s*$/); return m ? m[1] : pid; };
+    var shortC = function (pid) { return P(num(pid)); };
+    var fullT = function (pid) { return byCode[pid] ? P(byCode[pid][1]) : ''; };
+    var byCode = {}; PR.forEach(function (p) { byCode[p[0]] = p; });
+    var ST = { 'پیشران فروش': '#34d399', 'رو به رشد': '#60a5fa', 'عادی': '#94a3b8', 'کند': '#fbbf24', 'راکد': '#fb7185' };
+    var TL = { full: 'رگال کامل', half: 'نیم‌رگال' }, SL = { a: 'طرف الف', b: 'طرف ب' };
+    var isAdmin = S.role === 'admin' && S.view === 'design', isStaff = !isAdmin;
+    var cur = Math.min(S.cur, S.units.length - 1), U = S.units[cur], PCS = U.pcs;
+    var clone = function () { return JSON.parse(JSON.stringify(S.units)); };
+    var Z = S.z, COLS = S.cols, ROWS = S.rows, pd = S.pdrag;
+    var sides = function (u) { return ((u.pcs.some(function (x) { return x.s === 'a'; }) ? 1 : 0) + (u.pcs.some(function (x) { return x.s === 'b'; }) ? 1 : 0)) || 2; };
+    var fp = function (u) { var L = Math.max(2, Math.ceil(u.len / 50)), D = Math.max(1, Math.ceil(u.arm * sides(u) / 50)); return u.rot ? [D, L] : [L, D]; };
+    var clampU = function (u) { var f = fp(u); u.x = Math.max(0, Math.min(COLS - f[0], u.x)); u.y = Math.max(0, Math.min(ROWS - f[1], u.y)); };
+    var fitPcs = function (u) { u.pcs.forEach(function (p) { if (p.t === 'full') p.w = Math.max(30, Math.min(p.w, u.len)); p.at = Math.max(0, Math.min(p.at, u.len - (p.t === 'full' ? p.w : 0))); }); };
+    var updK = function (k, fn, extra) { var u = clone(); fn(u[k], u); fitPcs(u[k]); clampU(u[k]); self.setState(Object.assign({ units: u }, extra || {})); };
+    var upd = function (fn, extra) { updK(cur, fn, extra); };
+    var sel = S.sel !== null && PCS[S.sel] ? S.sel : null, sp = sel !== null ? PCS[sel] : null;
+    var placed = function (u) { return [u.pcs.length, u.pcs.filter(function (p) { return p.p; }).length]; };
+    var order = function (u) { return u.pcs.map(function (x, i) { return i; }).sort(function (a, b) { var A = u.pcs[a], B = u.pcs[b]; return A.s === B.s ? A.at - B.at : (A.s === 'a' ? -1 : 1); }); };
+
+    var K = Math.min(2.2, 980 / Math.max(U.len, 300)), armPx = U.arm * K;
+    var px = function (c) { return Math.round(c * K) + 'px'; };
+    var edge = function (side) { return 'position: absolute; top: 0; bottom: 0; ' + side + ': -5px; width: 10px; cursor: ew-resize; z-index: 2;'; };
+    var startDrag = function (mode, i, e, extra) { if (e.stopPropagation) e.stopPropagation(); if (e.preventDefault) e.preventDefault(); self.setState(Object.assign({ pdrag: { mode: mode, i: i } }, extra || {})); };
+    var pieces = PCS.map(function (x, i) {
+      var on = i === sel, pr = x.p ? byCode[x.p] : null, col = on ? '#60a5fa' : (pr ? '#cbd5e1' : '#64748b'), top = x.s === 'a', showDim = on || (pd && pd.i === i);
+      var o = { pressed: on ? 'true' : 'false', label: pr ? fullT(x.p) : TL[x.t], aria: SL[x.s] + '، ' + TL[x.t] + '، ' + cm(x.at) + ' از سر راست',
+        grab: function (e) { if (e.preventDefault) e.preventDefault(); var r = e.currentTarget.parentNode.getBoundingClientRect(); self.setState({ sel: i, pdrag: { mode: 'move', i: i, off: (r.right - e.clientX) / K - x.at } }); } };
+      if (x.t === 'full') {
+        o.box = 'position: absolute; right: ' + px(x.at) + '; width: ' + px(x.w) + '; height: ' + Math.round(armPx) + 'px; ' + (top ? 'bottom: 3px;' : 'top: 3px;') + ' cursor: grab; z-index: ' + (on ? 3 : 1) + ';';
+        o.shape = 'position: absolute; inset: 0; border-radius: 6px; box-sizing: border-box; border: 2px solid ' + col + '; background: ' + (pr ? pr[3] + '33' : 'rgba(255,255,255,.02)') + ';' + (on ? ' box-shadow: 0 0 0 4px rgba(96,165,250,.22);' : '');
+        o.cap = 'display: none;';
+        o.labelStyle = 'position: absolute; left: 8px; right: 8px; top: calc(50% - 9px); text-align: center; font-size: 12px; font-weight: 600; color: ' + (pr ? '#f8fafc' : '#64748b') + '; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;';
+        o.edgeL = edge('left') + (on ? ' border-left: 3px solid #60a5fa; border-radius: 3px;' : ''); o.edgeR = edge('right') + (on ? ' border-right: 3px solid #60a5fa; border-radius: 3px;' : '');
+        o.grabL = function (e) { startDrag('pl', i, e, { sel: i }); }; o.grabR = function (e) { startDrag('pr', i, e, { sel: i }); };
+        o.dim = cm(x.w) + ' · از ' + P(x.at); o.dimStyle = showDim ? 'left: 50%; transform: translateX(-50%); ' + (top ? 'top: -22px;' : 'bottom: -22px;') : 'display: none;';
+      } else {
+        o.box = 'position: absolute; right: calc(' + px(x.at) + ' - 20px); width: 40px; height: ' + Math.round(armPx + 6) + 'px; ' + (top ? 'bottom: 3px;' : 'top: 3px;') + ' cursor: grab; z-index: ' + (on ? 3 : 1) + ';';
+        o.shape = 'position: absolute; left: calc(50% - 2px); width: 4px; ' + (top ? 'bottom: 0;' : 'top: 0;') + ' height: ' + Math.round(armPx) + 'px; border-radius: 2px; background: ' + col + ';';
+        o.cap = 'position: absolute; left: 0; right: 0; ' + (top ? 'top: 4px;' : 'bottom: 4px;') + ' height: 4px; border-radius: 2px; background: ' + col + ';' + (on ? ' box-shadow: 0 0 0 4px rgba(96,165,250,.22);' : '');
+        o.labelStyle = 'position: absolute; left: -50px; right: -50px; ' + (top ? 'top: -20px;' : 'bottom: -20px;') + ' text-align: center; font-size: 11.5px; font-weight: 600; color: ' + (pr ? '#f8fafc' : '#64748b') + '; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;';
+        o.edgeL = 'display: none;'; o.edgeR = 'display: none;'; o.grabL = function () {}; o.grabR = function () {};
+        o.dim = 'از ' + P(x.at); o.dimStyle = showDim ? 'left: 50%; transform: translateX(-50%); ' + (top ? 'top: -42px;' : 'bottom: -42px;') : 'display: none;';
+      }
+      return o;
+    });
+    var ruler = []; for (var c = 0; c <= U.len; c += 50) ruler.push({ label: P(c), style: 'position: absolute; right: ' + px(c) + '; top: ' + Math.round(armPx + 14) + 'px; transform: translateX(50%); font-size: 10px; color: #475569;' });
+    var addPiece = function (s, t) { return function () { upd(function (u) { var w = t === 'full' ? Math.min(100, u.len) : 0; u.pcs.push({ s: s, t: t, at: Math.max(0, u.len - w - (t === 'half' ? 10 : 0)), w: w, p: null }); }, { sel: PCS.length }); }; };
+    var setSel = function (fn) { return function () { upd(function (u) { fn(u.pcs[sel], u); }); }; };
+    var armHandle = function (top) { return 'position: absolute; left: calc(50% - 22px); width: 44px; height: 10px; ' + (top ? 'top: ' : 'bottom: ') + '-' + Math.round(armPx + 9) + 'px; border-radius: 5px; background: #3b82f6; border: 2px solid #0a0e14; cursor: ns-resize; z-index: 4;'; };
+    var depthLine = function (top) { return 'position: absolute; left: 0; right: 0; ' + (top ? 'top: ' : 'bottom: ') + '-' + Math.round(armPx + 4) + 'px; border-top: 1px dashed rgba(96,165,250,.45);'; };
+
+    var rects = S.units.map(function (u) { var f = fp(u); return [u.x, u.y, f[0], f[1]]; });
+    var hit = function (a, b) { return a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3]; };
+    var over = rects.map(function (r, k) { return rects.some(function (q, j) { return j !== k && hit(r, q); }); });
+    var freeSpot = function (u) { var f = fp(u); for (var y = 1; y <= ROWS - f[1]; y++) for (var x = 1; x <= COLS - f[0]; x++) { var r = [x, y, f[0], f[1]]; if (!rects.some(function (q) { return hit(r, q); })) return [x, y]; } return [0, 0]; };
+    var minCols = Math.max.apply(null, rects.map(function (r) { return r[0] + r[2]; }).concat([16])), minRows = Math.max.apply(null, rects.map(function (r) { return r[1] + r[3]; }).concat([12]));
+    var bdrag = function (mode, k) { return function (e) { if (e.stopPropagation) e.stopPropagation(); if (e.preventDefault) e.preventDefault(); self.setState({ drag: { mode: mode, k: k } }); }; };
+    var copyUnit = function () { var u = clone(), n = JSON.parse(JSON.stringify(U)), used = u.map(function (x) { return x.code; }), k = 1;
+      while (used.indexOf('R-' + String(k).padStart(2, '0')) >= 0) k++; n.code = 'R-' + String(k).padStart(2, '0');
+      var f = fp(n), cand = [[U.x + f[0] + 1, U.y], [U.x, U.y + f[1] + 1], [U.x - f[0] - 1, U.y], [U.x, U.y - f[1] - 1]], spot = null;
+      cand.forEach(function (c2) { if (spot) return; var r0 = [c2[0], c2[1], f[0], f[1]]; if (c2[0] >= 0 && c2[1] >= 0 && c2[0] + f[0] <= COLS && c2[1] + f[1] <= ROWS && !rects.some(function (q) { return hit(r0, q); })) spot = c2; });
+      if (!spot) spot = freeSpot(n); n.x = spot[0]; n.y = spot[1]; u.push(n); self.setState({ units: u, cur: u.length - 1 }); };
+    var delUnit = function () { if (S.units.length < 2) return; var u = clone(); u.splice(cur, 1); self.setState({ units: u, cur: Math.max(0, cur - 1), sel: 0, modal: null }); };
+    var openModal = function (k) { var u = S.units[k], o = order(u), first = o.filter(function (i) { return !u.pcs[i].p; })[0]; self.setState({ cur: k, modal: { k: k }, msel: first !== undefined ? first : o[0], q: '' }); };
+    var fq = (S.find || '').trim(), findHits = fq ? S.units.map(function (u) { return u.pcs.some(function (x) { return x.p && (fullT(x.p).indexOf(fq) >= 0 || byCode[x.p][1].indexOf(fq) >= 0 || num(x.p).indexOf(fq.replace(/[۰-۹]/g, function (d) { return '۰۱۲۳۴۵۶۷۸۹'.indexOf(d); })) >= 0); }); }) : null;
+    var boardRacks = S.units.map(function (u, k) {
+      var f = fp(u), on = isAdmin && k === cur, hitF = findHits && findHits[k], dimF = findHits && !hitF, one = sides(u) === 1;
+      var Lpx = (u.rot ? f[1] : f[0]) * Z, Dpx = (u.rot ? f[0] : f[1]) * Z;
+      var parts = u.pcs.map(function (x) {
+        var a0 = x.at / u.len * 100, w = x.t === 'full' ? x.w / u.len * 100 : 0, pr = x.p ? byCode[x.p] : null, fill = pr ? pr[3] + 'cc' : 'rgba(148,163,184,.10)', line = pr ? 'rgba(248,250,252,.55)' : 'rgba(148,163,184,.45)';
+        var lenPx = x.t === 'full' ? x.w / u.len * Lpx : 0, thick = Dpx * (one ? 0.84 : 0.42), showL = S.codes && pr && (x.t === 'half' || (lenPx >= 26 && thick >= 9)) && Z >= 12;
+        var half = x.t === 'half', hl = half ? (u.rot ? 'position: absolute; top: 50%; ' + (x.s === 'a' || one ? 'right: -2px;' : 'left: -2px;') + ' transform: translateY(-50%);' : 'position: absolute; left: 50%; ' + (x.s === 'a' || one ? 'top: -2px;' : 'bottom: -2px;') + ' transform: translateX(-50%);') + ' padding: 0 3px; border-radius: 4px; background: rgba(10,14,20,.88); border: 1px solid ' + (pr ? pr[3] : '#475569') + '; line-height: 13px;' : '';
+        var lab = { label: showL ? shortC(x.p) : '', lstyle: showL && half ? hl + ' white-space: nowrap; font-size: ' + Math.max(8, Math.min(10, Math.round(Z * 0.45))) + 'px; font-weight: 700; color: #fff; pointer-events: none;' : showL ? 'position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; white-space: nowrap; font-size: ' + Math.max(8, Math.min(11, Math.round(Math.min(thick * 0.62, lenPx / 6.2)))) + 'px; font-weight: 700; letter-spacing: -.2px; color: #fff; text-shadow: 0 0 3px #000, 0 1px 2px #000; pointer-events: none;' + (u.rot ? ' writing-mode: vertical-rl;' : '') : 'display: none;' };
+        var st = (function () {
+        if (!u.rot) {
+          var vert = one ? 'top: 8%; bottom: 8%;' : (x.s === 'a' ? 'top: 8%; bottom: calc(50% + 1px);' : 'top: calc(50% + 1px); bottom: 8%;');
+          return x.t === 'full' ? 'position: absolute; right: ' + a0 + '%; width: ' + w + '%; ' + vert + ' box-sizing: border-box; border: 1px solid ' + line + '; border-radius: 3px; background: ' + fill + ';'
+            : 'position: absolute; right: calc(' + a0 + '% - 2px); width: 4px; ' + vert + ' border-radius: 2px; background: ' + (pr ? pr[3] : 'rgba(148,163,184,.6)') + ';';
+        }
+        var hor = one ? 'left: 8%; right: 8%;' : (x.s === 'a' ? 'right: 8%; left: calc(50% + 1px);' : 'left: 8%; right: calc(50% + 1px);');
+        return x.t === 'full' ? 'position: absolute; top: ' + a0 + '%; height: ' + w + '%; ' + hor + ' box-sizing: border-box; border: 1px solid ' + line + '; border-radius: 3px; background: ' + fill + ';'
+          : 'position: absolute; top: calc(' + a0 + '% - 2px); height: 4px; ' + hor + ' border-radius: 2px; background: ' + (pr ? pr[3] : 'rgba(148,163,184,.6)') + ';';
+        })();
+        return { style: st + (half ? ' z-index: 2;' : ''), label: lab.label, lstyle: lab.lstyle, title: pr ? fullT(x.p) : TL[x.t] + '، خالی' };
+      });
+      var hs = 'position: absolute; background: #60a5fa; border: 2px solid #0a0e14; border-radius: 4px; z-index: 4;';
+      var outline = over[k] && isAdmin ? ' outline: 2px solid #fb7185; outline-offset: 2px;' : (on ? ' outline: 2px dashed #60a5fa; outline-offset: 3px;' : (hitF ? ' outline: 3px solid #fbbf24; outline-offset: 3px;' : ''));
+      return { code: u.code, pressed: on ? 'true' : 'false', parts: parts,
+        aria: u.code + '، ' + P(placed(u)[1]) + ' از ' + P(placed(u)[0]) + ' جایگاه کالا دارد',
+        tip: u.code + '\n' + order(u).map(function (i) { var x = u.pcs[i]; return SL[x.s] + '، ' + TL[x.t] + ': ' + (x.p ? fullT(x.p) : '—'); }).join('\n'),
+        style: 'position: absolute; left: ' + u.x * Z + 'px; top: ' + u.y * Z + 'px; width: ' + f[0] * Z + 'px; height: ' + f[1] * Z + 'px; box-sizing: border-box; border-radius: 4px; cursor: ' + (isAdmin ? (S.drag && S.drag.k === k && S.drag.mode === 'move' ? 'grabbing' : 'grab') : 'pointer') + '; color: #f8fafc; z-index: ' + (on ? 3 : 1) + '; opacity: ' + (dimF ? 0.3 : 1) + ';' + outline,
+        spine: u.rot ? 'position: absolute; top: 0; bottom: 0; width: 2px; background: #94a3b8; ' + (one ? 'right: 0;' : 'left: calc(50% - 1px);') : 'position: absolute; left: 0; right: 0; height: 2px; background: #94a3b8; ' + (one ? 'bottom: 0;' : 'top: calc(50% - 1px);'),
+        labelStyle: S.codes ? 'position: absolute; right: -2px; top: -15px; padding: 0 5px; border-radius: 4px; background: #0a0e14; font-size: 10px; font-weight: 700; line-height: 14px; color: ' + (on ? '#93c5fd' : '#94a3b8') + '; pointer-events: none; white-space: nowrap;' : 'position: absolute; left: 0; right: 0; top: calc(50% - ' + Math.round(Z * 0.3) + 'px); text-align: center; font-size: ' + Math.max(9, Math.round(Z * 0.48)) + 'px; font-weight: 800; line-height: 1; text-shadow: 0 1px 3px #000, 0 0 3px #000; pointer-events: none;',
+        handleW: on ? hs + ' right: -9px; top: calc(50% - 9px); width: 10px; height: 18px; cursor: ew-resize;' : 'display: none;',
+        handleH: on ? hs + ' bottom: -9px; left: calc(50% - 9px); width: 18px; height: 10px; cursor: ns-resize;' : 'display: none;',
+        handleWH: on ? hs + ' right: -9px; bottom: -9px; width: 12px; height: 12px; cursor: nwse-resize;' : 'display: none;',
+        grabW: bdrag('w', k), grabH: bdrag('h', k), grabWH: bdrag('wh', k),
+        stop: function (e) { if (e.stopPropagation) e.stopPropagation(); },
+        tools: on && !S.drag ? 'position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(100% + 10px); display: flex; gap: 2px; padding: 3px; border-radius: 10px; background: #131924; border: 1px solid rgba(255,255,255,.16); box-shadow: 0 8px 20px -6px rgba(0,0,0,.8); z-index: 6; white-space: nowrap;' : 'display: none;',
+        toolBtn: 'min-height: 26px; padding: 0 9px; border: 0; border-radius: 7px; background: transparent; color: #e2e8f0; font: inherit; font-size: 12px; cursor: pointer;',
+        toolDel: 'min-height: 26px; padding: 0 9px; border: 0; border-radius: 7px; background: transparent; color: #fb7185; font: inherit; font-size: 12px; cursor: pointer;' + (S.units.length < 2 ? ' opacity: .35;' : ''),
+        goods: function () { openModal(k); }, copy: function () { copyUnit(); }, rot: function () { upd(function (x) { x.rot = x.rot ? 0 : 90; }); }, del: function () { delUnit(); },
+        open: function () { if (isStaff) openModal(k); },
+        grab: function (e) { if (!isAdmin) return; if (e.preventDefault) e.preventDefault(); var r = e.currentTarget.getBoundingClientRect(); self.setState({ cur: k, sel: k === cur ? S.sel : 0, drag: { k: k, mode: 'move', dx: Math.floor((e.clientX - r.left) / Z), dy: Math.floor((e.clientY - r.top) / Z) } }); } };
+    });
+    var nOver = over.filter(Boolean).length, doorY = Math.round(ROWS / 2) - 1;
+    var all = S.units.reduce(function (acc, u) { var c2 = placed(u); return [acc[0] + c2[0], acc[1] + c2[1]]; }, [0, 0]);
+
+    var MU = S.modal ? S.units[S.modal.k] : null, ms = MU && MU.pcs[S.msel] ? S.msel : null, mp = ms !== null ? MU.pcs[ms] : null;
+    var q = (S.q || '').trim(), qn = q.replace(/[۰-۹]/g, function (d) { return '۰۱۲۳۴۵۶۷۸۹'.indexOf(d); }), list = PR.filter(function (p) { return !q || p[1].indexOf(q) >= 0 || P(p[1]).indexOf(q) >= 0 || p[1].indexOf(qn) >= 0; });
+    var mPieces = MU ? MU.pcs.map(function (x, i) {
+      var pr = x.p ? byCode[x.p] : null, on = i === ms, top = x.s === 'a', a0 = x.at / MU.len * 100, w = x.t === 'full' ? x.w / MU.len * 100 : 0;
+      var vert = top ? 'top: 0; bottom: calc(50% + 4px);' : 'top: calc(50% + 4px); bottom: 0;';
+      return { pressed: on ? 'true' : 'false', aria: SL[x.s] + '، ' + TL[x.t] + '، ' + (pr ? pr[1] : 'خالی'), label: pr ? shortC(x.p) : '+ کالا',
+        pick: function () { self.setState({ msel: i }); },
+        box: x.t === 'full' ? 'position: absolute; right: ' + a0 + '%; width: ' + w + '%; ' + vert + ' padding: 0; border-radius: 8px; cursor: pointer; font: inherit; color: inherit; box-sizing: border-box; border: 2px ' + (pr ? 'solid' : 'dashed') + ' ' + (on ? '#60a5fa' : (pr ? 'rgba(248,250,252,.5)' : '#475569')) + '; background: ' + (pr ? pr[3] + '55' : 'rgba(255,255,255,.02)') + ';' + (on ? ' box-shadow: 0 0 0 4px rgba(96,165,250,.25);' : '')
+          : 'position: absolute; right: calc(' + a0 + '% - 34px); width: 68px; ' + vert + ' padding: 0; border: 0; border-radius: 8px; cursor: pointer; font: inherit; color: inherit; background: ' + (on ? 'rgba(96,165,250,.15)' : 'transparent') + ';',
+        stem: x.t === 'full' ? 'display: none;' : 'position: absolute; left: calc(50% - 2px); width: 4px; top: 0; bottom: 0; border-radius: 2px; background: ' + (on ? '#60a5fa' : (pr ? pr[3] : '#64748b')) + ';',
+        labelStyle: 'position: relative; display: block; padding: 0 6px; font-size: 12px; font-weight: 600; color: ' + (pr ? '#f8fafc' : '#94a3b8') + '; text-shadow: 0 1px 3px rgba(0,0,0,.8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;' + (x.t === 'half' ? ' background: rgba(10,14,20,.8); border-radius: 6px;' : '') };
+    }) : [];
+    var mRows = MU ? order(MU).map(function (i) { var x = MU.pcs[i], pr = x.p ? byCode[x.p] : null, on = i === ms;
+      return { name: pr ? fullT(x.p) : 'خالی', place: (pr ? 'کد ' + shortC(x.p) + ' · ' : '') + SL[x.s] + ' · ' + TL[x.t], action: pr ? 'تغییر' : '+ افزودن', pressed: on ? 'true' : 'false', pick: function () { self.setState({ msel: i }); },
+        nameStyle: 'font-size: 13px; font-weight: 600; color: ' + (pr ? '#e2e8f0' : '#64748b') + ';',
+        swatch: 'flex: none; width: 26px; height: 26px; border-radius: 7px; ' + (pr ? 'background: ' + pr[3] + '; border: 1px solid rgba(255,255,255,.2);' : 'border: 1px dashed #475569;'),
+        actionStyle: 'flex: none; font-size: 12px; font-weight: 600; color: ' + (pr ? '#94a3b8' : '#60a5fa') + ';',
+        style: 'display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; cursor: pointer; text-align: start; color: inherit; font: inherit; background: ' + (on ? 'rgba(59,130,246,.14)' : '#131924') + '; border: 1px solid ' + (on ? 'rgba(96,165,250,.55)' : 'transparent') + ';' }; }) : [];
+    var nextEmptyM = function (u, from) { var o = order(u), k0 = o.indexOf(from); for (var j = 1; j <= o.length; j++) { var i = o[(k0 + j) % o.length]; if (!u.pcs[i].p) return i; } return from; };
+    var nav = [['map', 'نقشه فروشگاه', ''], ['design', 'طراحی نقشه', 'فقط مدیر']].filter(function (n) { return n[0] === 'map' || S.role === 'admin'; });
+
+    return {
+      nav: nav.map(function (n) { var on = S.view === n[0]; return { label: n[1], badge: n[2], current: on ? 'page' : 'false', badgeStyle: n[2] ? 'margin-inline-start: 6px; padding: 1px 7px; border-radius: 999px; font-size: 10.5px; background: rgba(251,191,36,.16); color: #fbbf24;' : 'display: none;',
+        style: 'min-height: 34px; padding: 0 14px; border: 0; border-radius: 10px; font-size: 13px; cursor: pointer; ' + (on ? 'background: rgba(59,130,246,.16); color: #f8fafc; font-weight: 600;' : 'background: transparent; color: #94a3b8;'), pick: function () { self.setState({ view: n[0], modal: null }); } }; }),
+      roles: [['admin', 'مدیر'], ['staff', 'کارمند']].map(function (r) { var on = S.role === r[0]; return { label: r[1], pressed: on ? 'true' : 'false', style: seg(on), pick: function () { self.setState({ role: r[0], view: r[0] === 'admin' ? S.view : 'map', modal: null }); } }; }),
+      isAdmin: isAdmin, isStaff: isStaff,
+      pageTitle: isAdmin ? 'طراحی نقشه فروشگاه ساری' : 'نقشه فروشگاه ساری',
+      pageSub: isAdmin ? 'ساخت و چیدمان رگال‌ها با دو المان ثابت: رگال کامل و نیم‌رگال. داده‌ها نمونه است.' : 'روی هر رگال بزنید تا کالاهایش را ببینید یا کالا اضافه کنید. داده‌ها نمونه است.',
+      summary: P(S.units.length) + ' رگال · ' + P(all[1]) + ' از ' + P(all[0]) + ' جایگاه کالا دارد' + (isAdmin && nOver ? ' · ' + P(nOver) + ' رگال روی هم' : ''),
+      find: S.find, setFind: function (e) { self.setState({ find: e.target.value }); },
+      findNote: fq ? (findHits.filter(Boolean).length ? P(findHits.filter(Boolean).length) + ' رگال پیدا شد' : 'روی هیچ رگالی نیست') : '',
+      codesOn: S.codes ? 'true' : 'false', toggleCodes: function () { self.setState({ codes: !S.codes }); },
+      codesBtn: 'min-height: 30px; ' + (S.codes ? 'background: rgba(59,130,246,.16); border-color: rgba(96,165,250,.5); color: #e2e8f0;' : ''),
+      boardSize: P(COLS / 2) + ' × ' + P(ROWS / 2) + ' متر',
+      zPlus: function () { self.setState({ z: Math.min(36, Z + 4) }); }, zMinus: function () { self.setState({ z: Math.max(10, Z - 4) }); },
+      addUnit: function () { var u = clone(), n = { code: 'R-' + String(u.length + 1).padStart(2, '0'), x: 0, y: 0, rot: 0, len: 150, arm: 50, pcs: [{ s: 'a', t: 'full', at: 0, w: 150, p: null }, { s: 'b', t: 'full', at: 0, w: 150, p: null }] }; var spot = freeSpot(n); n.x = spot[0]; n.y = spot[1]; u.push(n); self.setState({ units: u, cur: u.length - 1, sel: 0 }); },
+      boardStyle: 'position: relative; width: ' + COLS * Z + 'px; height: ' + ROWS * Z + 'px; border: 6px solid #475569; border-radius: 4px; background-color: #0a0e14; background-image: linear-gradient(rgba(255,255,255,' + (isAdmin ? '.07' : '.03') + ') 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,' + (isAdmin ? '.07' : '.03') + ') 1px, transparent 1px); background-size: ' + 2 * Z + 'px ' + 2 * Z + 'px; user-select: none; font-family: Vazirmatn, system-ui, sans-serif;',
+      door: 'position: absolute; left: -6px; top: ' + doorY * Z + 'px; width: 6px; height: ' + 3 * Z + 'px; background: #22c55e;',
+      doorLabel: 'position: absolute; left: -24px; top: ' + (doorY * Z - 18) + 'px; font-size: 11px; color: #4ade80; white-space: nowrap; direction: rtl;',
+      boardRacks: boardRacks,
+      boardHandleW: isAdmin ? 'position: absolute; right: -14px; top: calc(50% - 26px); width: 10px; height: 52px; border-radius: 5px; background: #475569; cursor: ew-resize;' : 'display: none;',
+      boardHandleH: isAdmin ? 'position: absolute; bottom: -14px; left: calc(50% - 26px); width: 52px; height: 10px; border-radius: 5px; background: #475569; cursor: ns-resize;' : 'display: none;',
+      grabBoardW: bdrag('bw', null), grabBoardH: bdrag('bh', null),
+      move: function (e) { var d = S.drag; if (!d || !isAdmin) return; var el = e.currentTarget.querySelector('[data-board]'); if (!el) return; var r = el.getBoundingClientRect();
+        var cx = Math.floor((e.clientX - r.left - 6) / Z), cy = Math.floor((e.clientY - r.top - 6) / Z);
+        if (d.mode === 'bw' || d.mode === 'bh') {
+          var nc = d.mode === 'bw' ? Math.max(minCols, Math.min(90, Math.round((e.clientX - r.left - 6) / Z / 2) * 2)) : COLS, nr = d.mode === 'bh' ? Math.max(minRows, Math.min(70, Math.round((e.clientY - r.top - 6) / Z / 2) * 2)) : ROWS;
+          if (nc !== COLS || nr !== ROWS) self.setState({ cols: nc, rows: nr }); return; }
+        var u = clone(), t = u[d.k], f = fp(t), before = JSON.stringify(t);
+        if (d.mode === 'move') { t.x = Math.max(0, Math.min(COLS - f[0], cx - d.dx)); t.y = Math.max(0, Math.min(ROWS - f[1], cy - d.dy)); }
+        else { var wC = d.mode === 'h' ? f[0] : Math.max(1, Math.min(COLS - t.x, cx - t.x + 1)), hC = d.mode === 'w' ? f[1] : Math.max(1, Math.min(ROWS - t.y, cy - t.y + 1));
+          var L = t.rot ? hC : wC, D = t.rot ? wC : hC; t.len = Math.max(100, L * 50); t.arm = Math.max(25, Math.round(D * 50 / sides(t) / 5) * 5); fitPcs(t); }
+        if (JSON.stringify(t) === before) return; self.setState({ units: u }); },
+      drop: function () { if (S.drag) self.setState({ drag: null }); },
+
+      code: U.code, setCode: function (e) { var v = e.target.value; upd(function (u) { u.code = v; }); },
+      dimText: 'طول ' + cm(U.len) + ' · عمق ' + cm(U.arm * sides(U)) + (sides(U) === 1 ? ' · یک‌طرفه (دیواری)' : ''),
+      oneUnit: S.units.length < 2, delUnit: delUnit, copyUnit: copyUnit, openGoods: function () { openModal(cur); },
+      stageStyle: 'position: relative; height: ' + Math.round(armPx * 2 + 120) + 'px; border-radius: 14px; border: 1px solid rgba(255,255,255,.08); background-color: #0a0e14; background-image: linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px); background-size: ' + Math.round(10 * K) + 'px ' + Math.round(10 * K) + 'px; overflow: hidden; user-select: none; cursor: ' + (pd ? (pd.mode === 'arm' ? 'ns-resize' : (pd.mode === 'move' ? 'grabbing' : 'ew-resize')) : 'default') + ';',
+      spineBox: 'position: absolute; right: 60px; top: 50%; width: ' + px(U.len) + '; height: 0;',
+      depthA: depthLine(true), depthB: depthLine(false), armHandleA: armHandle(true), armHandleB: armHandle(false),
+      grabArmA: function (e) { startDrag('arm', null, e); }, grabArmB: function (e) { startDrag('arm', null, e); },
+      lenHandle: 'position: absolute; left: -7px; top: -16px; width: 10px; height: 32px; border-radius: 5px; background: #3b82f6; border: 2px solid #0a0e14; cursor: ew-resize; z-index: 4;',
+      grabLen: function (e) { startDrag('len', null, e); },
+      lenDim: cm(U.len), lenDimStyle: 'left: -12px; top: 22px; transform: translateX(-100%);' + (pd && pd.mode === 'len' ? '' : ' background: #1e293b; color: #94a3b8;'),
+      pieces: pieces, ruler: ruler,
+      pMove: function (e) { var d = S.pdrag; if (!d) return; var el = e.currentTarget.querySelector('[data-spine]'); if (!el) return; var r = el.getBoundingClientRect();
+        var xcm = (r.right - e.clientX) / K, ycm = Math.abs(e.clientY - r.top) / K, u = clone(), t = u[cur], x = d.i !== null ? t.pcs[d.i] : null, before = JSON.stringify(t);
+        if (d.mode === 'move') { x.at = Math.max(0, Math.min(t.len - (x.t === 'full' ? x.w : 0), snap(xcm - (d.off || 0), 5))); }
+        else if (d.mode === 'pl') { x.w = Math.max(30, Math.min(t.len - x.at, snap(xcm - x.at, 5))); }
+        else if (d.mode === 'pr') { var end = x.at + x.w; x.at = Math.max(0, Math.min(end - 30, snap(xcm, 5))); x.w = end - x.at; }
+        else if (d.mode === 'len') { var need = Math.max.apply(null, t.pcs.map(function (p) { return p.at + (p.t === 'full' ? p.w : 0); }).concat([100])); t.len = Math.max(need, Math.min(1200, snap(xcm, 10))); }
+        else if (d.mode === 'arm') { t.arm = Math.max(25, Math.min(150, snap(ycm, 5))); }
+        clampU(t); if (JSON.stringify(t) === before) return; self.setState({ units: u }); },
+      pDrop: function () { if (S.pdrag) self.setState({ pdrag: null }); },
+      addAF: addPiece('a', 'full'), addAH: addPiece('a', 'half'), addBF: addPiece('b', 'full'), addBH: addPiece('b', 'half'),
+      hasSel: !!sp, selTitle: sp ? 'تکه انتخاب‌شده:' : '',
+      sideSeg: sp ? [['a', 'الف'], ['b', 'ب']].map(function (k) { var on = sp.s === k[0]; return { label: k[1], pressed: on ? 'true' : 'false', style: seg(on), pick: setSel(function (p) { p.s = k[0]; }) }; }) : [],
+      typeSeg: sp ? [['full', 'کامل'], ['half', 'نیم']].map(function (k) { var on = sp.t === k[0]; return { label: k[1], pressed: on ? 'true' : 'false', style: seg(on), pick: setSel(function (p, u) { p.t = k[0]; p.w = k[0] === 'full' ? Math.min(100, u.len) : 0; }) }; }) : [],
+      copyPiece: function () { if (!sp) return; upd(function (u) { var c2 = JSON.parse(JSON.stringify(sp)); c2.at = Math.max(0, Math.min(u.len - (c2.t === 'full' ? c2.w : 0), c2.at + (c2.t === 'full' ? c2.w + 5 : 20))); u.pcs.push(c2); }, { sel: PCS.length }); },
+      delPiece: function () { upd(function (u) { u.pcs.splice(sel, 1); }, { sel: null }); },
+
+      saveText: storeOk ? 'خودکار در این مرورگر ذخیره می‌شود ✓' : 'ذخیره خودکار در این مرورگر ممکن نیست؛ از «پشتیبان طرح» استفاده کنید',
+      saveStyle: 'font-size: 11.5px; color: ' + (storeOk ? '#34d399' : '#fbbf24') + ';',
+      ioOpen: !!S.io, openIO: function () { self.setState({ io: true, ioText: JSON.stringify({ units: S.units, cols: COLS, rows: ROWS }), ioMsg: '' }); },
+      closeIO: function () { self.setState({ io: false }); }, setIO: function (e) { self.setState({ ioText: e.target.value, ioMsg: '' }); },
+      copyIO: function () { try { navigator.clipboard.writeText(S.ioText); self.setState({ ioMsg: 'کپی شد.' }); } catch (e) { self.setState({ ioMsg: 'متن را انتخاب و دستی کپی کنید.' }); } },
+      loadIO: function () { try { var d = JSON.parse(S.ioText); if (!d.units || !d.units.length || !d.units[0].pcs) throw new Error('bad'); self.setState({ units: d.units, cols: d.cols || COLS, rows: d.rows || ROWS, cur: 0, sel: 0, io: false }); } catch (e) { self.setState({ ioMsg: 'این متن طرح معتبر نیست.' }); } },
+      ioMsg: S.ioMsg, ioMsgStyle: 'font-size: 12px; color: ' + (/معتبر|دستی/.test(S.ioMsg || '') ? '#fb7185' : '#34d399') + ';',
+      modalOpen: !!MU, closeModal: function () { self.setState({ modal: null, q: '' }); }, stopClick: function (e) { if (e.stopPropagation) e.stopPropagation(); },
+      mTitle: MU ? 'کالاهای رگال ' + MU.code : '', mSub: MU ? P(placed(MU)[1]) + ' از ' + P(placed(MU)[0]) + ' جایگاه کالا دارد · طول ' + cm(MU.len) : '',
+      mPieces: mPieces, mRows: mRows,
+      mPickTitle: mp ? (mp.p ? 'تغییر کالای ' : 'افزودن کالا به ') + SL[mp.s] + '، ' + TL[mp.t] : '',
+      mHasCur: !!(mp && mp.p), mCurName: mp && mp.p ? fullT(mp.p) : '', mCurDot: mp && mp.p ? 'width: 16px; height: 16px; border-radius: 5px; background: ' + byCode[mp.p][3] + ';' : '',
+      mClear: function () { updK(S.modal.k, function (u) { u.pcs[ms].p = null; }); },
+      q: S.q, setQ: function (e) { self.setState({ q: e.target.value }); }, noResult: list.length === 0,
+      products: list.map(function (p) { var on = mp && mp.p === p[0];
+        return { name: P(p[1]), meta: 'کد ' + shortC(p[0]) + ' · ' + p[2], status: p[4], pressed: on ? 'true' : 'false',
+          statusStyle: 'flex: none; font-size: 11px; padding: 2px 8px; border-radius: 999px; color: ' + ST[p[4]] + '; background: ' + ST[p[4]] + '1f;',
+          swatch: 'flex: none; width: 30px; height: 30px; border-radius: 8px; border: 1px solid rgba(255,255,255,.15); background: ' + p[3] + ';',
+          style: 'display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; cursor: pointer; text-align: start; color: inherit; font: inherit; background: ' + (on ? 'rgba(59,130,246,.14)' : 'transparent') + '; border: 1px solid ' + (on ? 'rgba(96,165,250,.5)' : 'transparent') + ';',
+          pick: function () { if (ms === null) return; var u2 = JSON.parse(JSON.stringify(MU)); u2.pcs[ms].p = p[0]; updK(S.modal.k, function (u) { u.pcs[ms].p = p[0]; }, { msel: nextEmptyM(u2, ms), q: '' }); } }; })
+    };
+  }
+}
+</script>
+</body>
+</html>

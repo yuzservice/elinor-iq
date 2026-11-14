@@ -3,7 +3,7 @@
 from django.db import transaction
 from django.utils import timezone
 
-from apps.products.models import Product, ProductMetrics, Variant
+from apps.products.models import Color, Product, ProductMetrics, Variant
 
 from .codes import display_title, short_code
 from .models import Rack, RackSlot, SlotProduct, SlotProductHistory, StoreLayout
@@ -39,7 +39,18 @@ def product_cards(product_ids):
         .values_list("product_id", "color__code")
     )
     for pid, code in variants:
-        colors.setdefault(pid, code if code.startswith("#") else f"#{code}")
+        colors.setdefault(pid, code)
+    # Many variants carry only a colour name: match it to the colour table by name.
+    named = {}
+    for pid, name in (
+        Variant.objects.filter(product_id__in=ids - colors.keys(), deleted_at__isnull=True).exclude(color_name="")
+        .order_by("product_id", "id").values_list("product_id", "color_name")
+    ):
+        named.setdefault(pid, name.strip())
+    if named:
+        hexes = dict(Color.objects.filter(name__in=set(named.values())).exclude(code="").values_list("name", "code"))
+        colors.update({pid: hexes[name] for pid, name in named.items() if name in hexes})
+    colors = {pid: code if code.startswith("#") else f"#{code}" for pid, code in colors.items()}
     return {
         p.id: {
             "id": p.id,

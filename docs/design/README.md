@@ -12,3 +12,4 @@ prototype here as its first step and adds a row.
 | `products-prototype.html` | Products page | Implemented | `feature/products-redesign`, merged `44fb072` |
 | `product-360-prototype.html` | Product 360 | Implemented | `feature/products-redesign`, merged `44fb072` |
 | `home-prototype.html` | Home v3: «دیروز», hourly custom ranges (1–3 days), branch tiles with donut and sparklines above the KPI cards | In progress | `feature/home-v3` (v2 `ef47b78`, hovers `514e542`) |
+| `store-map-prototype.html` | «فروشگاه»: store map (mobile-first) and designer (desktop). Its «پشتیبان طرح» and localStorage parts are not built: the server is the store | In progress | `feature/store-map` |
