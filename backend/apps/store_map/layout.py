@@ -79,7 +79,7 @@ def rack_payload(rack, slots, template, pieces, arms):
         "y_cm": rack.y_cm,
         "rotation": rack.rotation,
         "template_id": rack.template_id,
-        "footprint_cm": template_footprint(template, pieces, arms, rack.rotation) if template else None,
+        "footprint_cm": list(template_footprint(template, pieces, arms, rack.rotation)) if template else None,
         "slots": slots,
     }
 

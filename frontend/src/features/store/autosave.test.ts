@@ -1,21 +1,25 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Autosave, type SaveResult, type SaveStatus } from "./autosave";
+import { Autosave, createSerial, type SaveStatus, type VersionRef } from "./autosave";
 
-function setup(save: (doc: number, version: number | null) => Promise<SaveResult>) {
+type Result = { version: number; ids?: Record<string, number> };
+
+function setup(save: (doc: number, version: number | null) => Promise<Result>, version: VersionRef = { current: 1 }, onBlocked?: (m: string) => void) {
   let doc = 0;
   const statuses: SaveStatus[] = [];
-  const saved: SaveResult[] = [];
-  const autosave = new Autosave<number>({
+  const saved: Result[] = [];
+  const autosave = new Autosave<number, Result>({
     build: () => doc,
     save: (d, v) => save(d, v),
     onSaved: (r) => saved.push(r),
     onStatus: (s) => statuses.push(s),
-    version: 1,
+    onBlocked,
+    version,
   });
-  return { autosave, statuses, saved, edit: (next: number) => ((doc = next), autosave.change()) };
+  return { autosave, statuses, saved, version, edit: (next: number) => ((doc = next), autosave.change()) };
 }
 
 const ok = (version: number, ids: Record<string, number> = {}) => Promise.resolve({ version, ids });
+type SaveResult = Result;
 
 describe("designer autosave", () => {
   beforeEach(() => vi.useFakeTimers());
@@ -68,7 +72,7 @@ describe("designer autosave", () => {
   });
 
   it("stops on a version conflict and never overwrites", async () => {
-    const save = vi.fn().mockRejectedValue(Object.assign(new Error("conflict"), { status: 409 }));
+    const save = vi.fn().mockRejectedValue(Object.assign(new Error("conflict"), { status: 409, code: "version_conflict" }));
     const { autosave, edit } = setup(save);
     edit(1);
     await autosave.flush();
@@ -87,5 +91,42 @@ describe("designer autosave", () => {
     await autosave.flush(true);
     expect(save).toHaveBeenCalledWith(5, 1);
     expect(autosave.unsaved).toBe(false);
+  });
+
+  it("drops a blocked change, reports it, and keeps autosaving", async () => {
+    const blocked: string[] = [];
+    const save = vi.fn().mockRejectedValueOnce(Object.assign(new Error("پله ۲ این بازو …"), { status: 409, code: "blocked" })).mockImplementation(() => ok(2));
+    const { autosave, edit } = setup(save, { current: 1 }, (m) => blocked.push(m));
+    edit(1);
+    await autosave.flush();
+    expect(blocked).toEqual(["پله ۲ این بازو …"]);
+    expect(autosave.status).toBe("error");
+    expect(autosave.unsaved).toBe(false);
+    edit(2);
+    await autosave.flush();
+    expect(autosave.status).toBe("saved");
+  });
+
+  it("shares one version between autosaves and runs their saves one at a time", async () => {
+    const version: VersionRef = { current: 5 };
+    const serial = createSerial();
+    const order: string[] = [];
+    const make = (name: string) => new Autosave<number, Result>({
+      build: () => 0,
+      save: async (_d, v) => {
+        order.push(`${name}@${v}`);
+        await Promise.resolve();
+        return { version: (v ?? 0) + 1 };
+      },
+      onSaved: () => undefined,
+      onStatus: () => undefined,
+      version, serial,
+    });
+    const layout = make("layout"), templates = make("templates");
+    layout.change();
+    templates.change();
+    await Promise.all([layout.flush(), templates.flush()]);
+    expect(order).toEqual(["layout@5", "templates@6"]);
+    expect(version.current).toBe(7);
   });
 });
