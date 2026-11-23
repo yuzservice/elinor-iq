@@ -164,7 +164,8 @@ def _row(table, fields):
     if table == "cities":
         return [n(fields[0]), n(fields[1]), g(fields[2]), as_bool_int(fields[3])]
     if table == "levels":
-        return [n(fields[0]), g(fields[1]), as_bool_int(fields[2]), n(fields[3]) or 0]
+        sort_order = n(fields[4]) if len(fields) > 4 else n(fields[3])
+        return [n(fields[0]), g(fields[1]), as_bool_int(fields[2]), sort_order or 0]
     if table == "customer_roles":
         return [n(fields[0]), g(fields[1])]
     if table == "customers":

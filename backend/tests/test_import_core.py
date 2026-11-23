@@ -4,7 +4,8 @@ import pytest
 from django.db import connection
 from django.db.utils import IntegrityError
 
-from apps.customers.models import Customer, CustomerAddress
+from apps.customers.models import Customer, CustomerAddress, CustomerLevel
+from apps.integrations.elinor.dump_import.extract import _row
 from apps.integrations.elinor.dump_import.mapping import sales_line_for_store
 from apps.integrations.elinor.dump_import.runner import run_core_import
 from apps.products.models import Product, Variant
@@ -40,7 +41,7 @@ def write_sample_dump(path):
     statements = [
         "INSERT INTO `provinces` VALUES " + _tuple(5, {0: 1, 1: "مازندران", 2: 1}) + ";",
         "INSERT INTO `cities` VALUES " + _tuple(7, {0: 10, 1: 1, 2: "ساری", 3: 1}) + ";",
-        "INSERT INTO `levels` VALUES " + _tuple(6, {0: 2, 1: "طلایی", 2: 1, 3: 2}) + ";",
+        "INSERT INTO `levels` VALUES " + _tuple(7, {0: 2, 1: "طلایی", 2: 1, 3: 500000, 4: 2}) + ";",
         "INSERT INTO `customer_roles` VALUES " + _tuple(5, {0: 2, 1: "VIP", 2: 1}) + ";",
         "INSERT INTO `customers` VALUES "
         + ",".join(
@@ -299,6 +300,10 @@ def test_core_historical_import_idempotent_and_relationships(tmp_path):
     assert shared.club_level == "طلایی"
     assert shared.role_name == "VIP"
 
+    gold_level = CustomerLevel.objects.get(source_id=2)
+    assert gold_level.title == "طلایی"
+    assert gold_level.sort_order == 2
+
     online = Order.objects.get(source_id=8002)
     assert online.status == "canceled"
     assert online.sales_line == SalesLine.ONLINE
@@ -335,3 +340,19 @@ def test_core_historical_import_idempotent_and_relationships(tmp_path):
             [list(INVENTORY_TABLES)],
         )
         assert cursor.fetchall() == []
+
+
+def test_levels_extraction_sort_order():
+    # 7-field tuple matching real MariaDB dump schema:
+    # id, title, status, min_order_amount_for_free_shipping, order, created_at, updated_at
+    row_7 = _row("levels", ["2", "طلایی", "1", "500000", "3", "2024-01-01", "2024-01-01"])
+    assert row_7 == [2, "طلایی", 1, 3]
+
+    # Legacy 4-field fallback:
+    row_4 = _row("levels", ["3", "نقره‌ای", "1", "4"])
+    assert row_4 == [3, "نقره‌ای", 1, 4]
+
+    # Null order:
+    row_null = _row("levels", ["4", "برنزی", "1", "500000", "NULL", "2024-01-01", "2024-01-01"])
+    assert row_null == [4, "برنزی", 1, 0]
+
